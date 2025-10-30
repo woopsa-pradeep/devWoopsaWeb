@@ -1,0 +1,373 @@
+// src/pages/Dashboard.tsx
+import React, { useEffect, useState } from "react";
+import { Grid, Box, Typography, useTheme } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import ProductList from "../../../component/atoms/dashboard/ProductList";
+import Carousel3 from "../../../component/atoms/Carousel3";
+// import image1 from "../../../assets/product1.png";
+// import image2 from "../../../assets/product2.png";
+// import image3 from "../../../assets/product3.png";
+// import image4 from "../../../assets/product4.png";
+import { getBannerListRetailer } from "../../../redux/apis/retailer/dashboardApis";
+import { useAppDispatch } from "../../../redux/store";
+import { fetchNewItems, fetchDiscountedItems, fetchPopularItems } from "../../../redux/slices/dashboardSlice";
+import { fetchCartItems } from "../../../redux/slices/cartSlice";
+import { fetchNotifications } from "../../../redux/slices/notificationSlice";
+import { initializeFCMAndSendToken, isFCMSupported } from "../../../utils/fcmUtils";
+import { useSelector } from "react-redux";
+import { RootState } from "../../../redux/store";
+import { addToCart } from "../../../redux/apis/retailer/orderApis";
+
+// Simple toast function for now
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  console.log(`${type.toUpperCase()}: ${message}`);
+};
+
+import QuantityDiscountModal from "../../../component/molecules/QuantityDiscountModal";
+
+// Sample data for the carousel
+// const specialItems = [
+//     {
+//         image: image1,
+//         alt: "Special Item 1",
+//     },
+//     {
+//         image: image2,
+//         alt: "Special Item 2",
+//     },
+//     {
+//         image: image3,
+//         alt: "Special Item 3",
+//     },
+// ];
+
+const Dashboard = () => {
+  const theme = useTheme();
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [promotedItems, setPromotedItems] = useState<any>([]);
+  const auth = useSelector((state: RootState) => state.auth);
+  const [loading, setLoading] = useState(false);
+  
+  // Quantity discount modal state
+  const [discountModalOpen, setDiscountModalOpen] = useState(false);
+  const [selectedDiscountProduct, setSelectedDiscountProduct] = useState<any>(null);
+  const [selectedDiscountData, setSelectedDiscountData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchBannerList = async () => {
+      setLoading(true);
+        const data: any = await getBannerListRetailer();
+      // Transform banner data to match CarouselItem interface
+      const transformedBanners = (data?.data?.bannerList || []).map((banner: any) => ({
+        image: banner.image_url,
+        alt: banner.bannerTitle || 'Banner',
+        id: banner.id,
+        inventors: banner.inventors,
+        inventoryItems: banner.inventoryItems
+      }));
+      
+      setPromotedItems(transformedBanners);
+      setLoading(false);  
+    };
+    fetchBannerList();
+  }, []);
+
+  // Separate useEffect for dashboard data to prevent double calls
+  useEffect(() => {
+    // Only fetch dashboard data if auth is properly loaded
+    if (auth?.role && auth?.storeDetail?.C_Number) {
+      console.log('Retailer Dashboard: Fetching data with params:', {
+        role: auth.role,
+        c_number: auth.storeDetail.C_Number.toString()
+      });
+      
+      dispatch(fetchNewItems({ role: auth.role, c_number: auth.storeDetail.C_Number.toString() }));
+      dispatch(fetchDiscountedItems({ role: auth.role, c_number: auth.storeDetail.C_Number.toString() }));
+      dispatch(fetchPopularItems({ role: auth.role, c_number: auth.storeDetail.C_Number.toString() }));
+    } else {
+      console.log('Retailer Dashboard: Skipping API calls - auth not ready:', {
+        role: auth?.role,
+        c_number: auth?.storeDetail?.C_Number
+      });
+    }
+  }, [dispatch, auth?.role, auth?.storeDetail?.C_Number]);
+  useEffect(() => {
+    const initFCM = async () => {
+      try {
+        // Check if FCM is supported
+        if (!isFCMSupported()) {
+          console.warn('FCM is not supported in this browser');
+          return;
+        }
+
+        // Register service worker first
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          console.log('SW registered: ', registration);
+          
+          // Wait a bit for service worker to be ready
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Initialize FCM and send token to backend (only for retailer users)
+          if (auth?.role === 'retailer') {
+            const token = await initializeFCMAndSendToken();
+            if (token) {
+              console.log('FCM Token obtained and sent to backend:', token);
+            } else {
+              console.warn('Failed to get FCM token');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing FCM:', error);
+      }
+    };
+
+    // Only initialize FCM if user is authenticated
+    if (auth?.isAuthenticated) {
+      initFCM();
+      
+      // Fetch initial notifications for retailer users
+      if (auth?.role === 'retailer') {
+        dispatch(fetchNotifications());
+      }
+    }
+  }, [auth?.isAuthenticated, auth?.role, dispatch]);
+  
+  // Handle banner click - navigate to order page with search parameters
+  const handleBannerClick = (banner: any) => {
+    if (banner.inventors && banner.inventors.length > 0) {
+      // Create search query with inventor item numbers
+      const searchQuery = banner.inventors.join(', ');
+      navigate(`/retailer/order?masterSearch=${encodeURIComponent(searchQuery)}`);
+    } else {
+      // If no inventors, just navigate to order page
+      navigate('/retailer/order');
+    }
+  };
+
+  // Handle quantity discount modal open
+  const handleDiscountModalOpen = (product: any, discountData: any, _quantity: number = 1) => {
+    setSelectedDiscountProduct(product);
+    setSelectedDiscountData(discountData);
+    setDiscountModalOpen(true);
+  };
+
+  // Handle discount confirmation
+  const handleDiscountConfirm = async (discountInfo: any) => {
+    if (selectedDiscountProduct && discountInfo) {
+      try {
+        const product = selectedDiscountProduct;
+        const quantity = discountInfo.quantity || discountInfo.minQty || 1;
+        
+        // Calculate discounted price
+        let discountedPrice = product.priceWithTax;
+        if (discountInfo.type === 'case') {
+          const discountAmount = (product.priceWithTax * discountInfo.discountPercentage) / 100;
+          discountedPrice = product.priceWithTax - discountAmount;
+        } else if (discountInfo.type === 'quantity') {
+          if (discountInfo.discount.hasPercentageDiscount) {
+            const discountAmount = (product.priceWithTax * discountInfo.discount.perDiscount) / 100;
+            discountedPrice = product.priceWithTax - discountAmount;
+          } else {
+            discountedPrice = product.priceWithTax - discountInfo.discount.amountDiscount;
+          }
+        }
+        
+        discountedPrice = Math.max(0, discountedPrice);
+        
+        // Add to cart with discounted price
+        await addToCart({
+          Item_Number: parseInt(product.id),
+          Price: product.price - (product.priceWithTax - discountedPrice),
+          Price_With_Tax: discountedPrice,
+          Qty: quantity,
+          Tax_Rate: product.Tax_Rate,
+          TotalPrice: product.price * quantity,
+          TotalPriceWithTax: discountedPrice * quantity,
+          originalPrice: product.price
+        });
+        
+        showToast(`Discount applied! Added ${quantity} ${product.name} to cart with discounted price.`, 'success');
+        
+        // Close modal
+        setDiscountModalOpen(false);
+        setSelectedDiscountProduct(null);
+        setSelectedDiscountData(null);
+        
+        // Refresh cart items
+        dispatch(fetchCartItems());
+      } catch (error) {
+        console.error('Error applying discount:', error);
+        showToast('Failed to apply discount. Please try again.', 'error');
+      }
+    }
+  };
+
+  // Handle no discount selection
+  const handleNoDiscount = async () => {
+    if (selectedDiscountProduct) {
+      try {
+        const product = selectedDiscountProduct;
+        const quantity = 1; // Default quantity when no discount is selected
+        
+        await addToCart({
+          Item_Number: parseInt(product.id),
+          Price: product.price,
+          Price_With_Tax: product.priceWithTax,
+          Qty: quantity,
+          Tax_Rate: product.Tax_Rate,
+          TotalPrice: product.price * quantity,
+          TotalPriceWithTax: product.priceWithTax * quantity,
+          originalPrice: product.price
+        });
+        
+        showToast(`Added ${quantity} ${product.name} to cart without discount.`, 'success');
+        
+        // Close modal
+        setDiscountModalOpen(false);
+        setSelectedDiscountProduct(null);
+        setSelectedDiscountData(null);
+        
+        // Refresh cart items
+        dispatch(fetchCartItems());
+      } catch (error) {
+        console.error('Error adding item without discount:', error);
+        showToast('Failed to add item to cart. Please try again.', 'error');
+      }
+    }
+  };
+
+  return (
+    <Box p={{ sm: "0px", md: "5px 15px" }}>
+      <Box
+        display={"flex"}
+        justifyContent={"space-between"}
+        alignItems={"center"}
+      >
+        <Box sx={{
+          display: "flex",
+          flexDirection: "column",
+        }}>
+          <Typography fontSize={"20px"} fontWeight={500}>
+            Welcome CDT Wholesalers
+          </Typography>
+              <Typography fontSize={"13px"} fontWeight={400} mb={2} color={theme.palette.text.secondary}>
+                Supplying Trust. Delivering Value.
+              </Typography>
+        </Box>
+        {/* <Box
+          sx={{
+            bgcolor: theme.palette.background.paper,
+            borderRadius: "6px",
+            border: `1px solid ${theme.palette.divider}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "6px",
+          }}
+        >
+          <Box
+            component="img"
+            src={filter}
+            alt="filter"
+            sx={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+            }}
+          />
+        </Box> */}
+      </Box>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Carousel3 
+            title="Special Items" 
+            items={promotedItems}
+            autoSwipe={true}
+            swipeInterval={3000}
+            pauseOnHover={true}
+            onItemClick={handleBannerClick}
+            loading={loading}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Carousel3
+            title="Promoted Items"
+            items={promotedItems}
+            autoSwipe={true}
+            swipeInterval={3000}
+            pauseOnHover={true}
+            onItemClick={handleBannerClick}
+            loading={loading}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+          <ProductList 
+            title="New Items" 
+            type="new" 
+            onDiscountModalOpen={handleDiscountModalOpen}
+          />
+          {/* <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+            <CustomButton
+              size="small"
+              onClick={() => navigate('/retailer/order?viewAll=new')}
+              sx={{ fontSize: '12px', py: 0.5 }}
+            >
+              View All New Items
+            </CustomButton>
+          </Box> */}
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+          <ProductList 
+            title="Discounted Items" 
+            type="discounted" 
+            onDiscountModalOpen={handleDiscountModalOpen}
+          />
+          {/* <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+            <CustomButton
+              size="small"
+              onClick={() => navigate('/retailer/order?viewAll=discounted')}
+              sx={{ fontSize: '12px', py: 0.5 }}
+            >
+              View All Discounted Items
+            </CustomButton>
+          </Box> */}
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+          <ProductList 
+            title="Popular Items" 
+            type="popular" 
+            onDiscountModalOpen={handleDiscountModalOpen}
+          />
+          {/* <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+            <CustomButton
+              size="small"
+              onClick={() => navigate('/retailer/order?viewAll=popular')}
+              sx={{ fontSize: '12px', py: 0.5 }}
+            >
+              View All Popular Items
+            </CustomButton>
+          </Box> */}
+        </Grid>
+      </Grid>
+
+      {/* Quantity Discount Modal */}
+      <QuantityDiscountModal
+        open={discountModalOpen}
+        onClose={() => {
+          setDiscountModalOpen(false);
+          setSelectedDiscountProduct(null);
+          setSelectedDiscountData(null);
+        }}
+        onConfirm={handleDiscountConfirm}
+        onNoDiscount={handleNoDiscount}
+        product={selectedDiscountProduct}
+        qtyDiscountData={selectedDiscountData}
+      />
+    </Box>
+  );
+};
+
+export default Dashboard;

@@ -1,0 +1,35 @@
+{
+  "short_name": "Woopsa",
+  "name": "Woopsa - Wholesale Marketplace",
+  "icons": [
+    {
+      "src": "rabbit-favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "rabbit-favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "rabbit-favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "rabbit-favicon.svg",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "rabbit-favicon.svg",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#3C7795",
+  "background_color": "#ffffff"
+}
