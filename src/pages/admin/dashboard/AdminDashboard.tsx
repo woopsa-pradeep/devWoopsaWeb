@@ -85,7 +85,10 @@ const AdminDashboard = () => {
   const [highDemandViewMode, setHighDemandViewMode] = useState<"table" | "graph">("table");
 
   useEffect(() => {
-    fetchDashboardData();
+    // Only fetch if both dates are selected or if neither date is selected (initial load)
+    if ((startDate && endDate) || (!startDate && !endDate)) {
+      fetchDashboardData();
+    }
   }, [startDate, endDate]);
 
   const fetchDashboardData = async () => {

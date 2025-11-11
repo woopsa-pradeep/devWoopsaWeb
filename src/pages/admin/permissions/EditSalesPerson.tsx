@@ -16,6 +16,43 @@ const EditSalesPerson = () => {
   // Get user data from location state
   const userData = location.state?.userData;
 
+  // Helper function to parse salesRepNumber string to array
+  const parseSalesRepNumber = (salesRepNumber: string | string[] | undefined, salesRep?: any[]): string[] => {
+    // If it's already an array, return it
+    if (Array.isArray(salesRepNumber)) {
+      return salesRepNumber.map(num => String(num));
+    }
+    
+    // If salesRep array is available, use it to extract S_Number values
+    if (salesRep && Array.isArray(salesRep) && salesRep.length > 0) {
+      return salesRep.map(rep => String(rep.S_Number));
+    }
+    
+    // If it's a string, try to parse it
+    if (typeof salesRepNumber === 'string' && salesRepNumber) {
+      try {
+        // Try to parse as JSON array like ["5","2"]
+        const parsed = JSON.parse(salesRepNumber);
+        if (Array.isArray(parsed)) {
+          return parsed.map(num => String(num));
+        }
+      } catch {
+        // If JSON parsing fails, try to extract from PostgreSQL array format {"5","2"}
+        // Remove curly braces and quotes, then split by comma
+        const cleaned = salesRepNumber.replace(/[{}"]/g, '');
+        if (cleaned.includes(',')) {
+          return cleaned.split(',').map(item => item.trim()).filter(Boolean);
+        }
+        // If it's a single value string, return as array
+        if (cleaned) {
+          return [cleaned];
+        }
+      }
+    }
+    
+    return [];
+  };
+
   useEffect(() => {
     if (userData) {
       // Transform userData to match SalesPersonFormData format
@@ -25,7 +62,7 @@ const EditSalesPerson = () => {
         lastName: userData.lastName || '',
         role: userData.role || '',
         userNumber: userData.userNumber || '',
-        salesRepNumber: userData.salesRepNumber || '',
+        salesRepNumber: parseSalesRepNumber(userData.salesRepNumber, userData.salesRep),
         status: userData.status || true,
       };
       setInitialData(formData);

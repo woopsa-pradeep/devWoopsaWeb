@@ -46,7 +46,7 @@ const AdminOrderDetail = () => {
     const fetchOrderHistory = async () => {
       setLoading(true);
       try {
-        const response: any = await getOrderHistoryByOrderNumber(orderId);
+        const response: any = await getOrderHistoryByOrderNumber(orderId, currentPage, pageSize);
         setOrderHistory(response?.data?.data || []);
         setOrderHeader(response?.data?.orderHeader || {});
         setTotalPages(response?.data?.totalPages || 1);
@@ -95,12 +95,12 @@ const AdminOrderDetail = () => {
             onError={(e) => {
               e.currentTarget.src = image;
             }}
-            alt={row.ItemDescription}
+            alt={row.ItemDescription || row.inventory?.Description}
             style={{ width: 40, height: 40, objectFit: "contain" }}
           />
           <Box>
             <Typography fontSize={14} fontWeight={500}>
-              {row.ItemDescription}
+              {row.ItemDescription || row.inventory?.Description}
             </Typography>
             <Typography fontSize={12} color="text.secondary">
               Pack: {row.Pack} Case: {row.CaseCount} Size: {row.inventory?.UOM}

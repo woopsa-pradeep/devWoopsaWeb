@@ -270,6 +270,16 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['sales'],
     redirectPath: '/sales/dashboard'
   },
+
+  '/sales/return-order': {
+    path: '/sales/return-order',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+
+
+
+
   '/sales/order/history': {
     path: '/sales/order/history',
     allowedRoles: ['sales'],
@@ -292,6 +302,12 @@ export const routeConfig: { [key: string]: RouteConfig } = {
   },
   '/sales/cart': {
     path: '/sales/cart',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+
+  '/sales/return-cart': {
+    path: '/sales/return-cart',
     allowedRoles: ['sales'],
     redirectPath: '/sales/dashboard'
   },

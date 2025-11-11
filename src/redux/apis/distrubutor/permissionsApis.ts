@@ -29,3 +29,7 @@ export const setUserLimits = async (params: any) => {
     return axiosInstance.put(`/distrubutor/setUserLimits/${params.id}`, params);
 };
 
+export const updateAllowDiscount = async (id: any, params: any) => {
+    return axiosInstance.put(`/distrubutor/updateUserAllowDiscount/${id}`, params);
+};
+

@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import TextInput from '../../../component/atoms/TextInput';
 // import SelectInput from '../../../component/atoms/SelectInput';
-import SearchableDropdown from '../../../component/atoms/SearchableDropdown';
+import SearchableDropdown, { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
 import SwitchInput from '../../../component/atoms/SwitchInput';
 import CustomButton from '../../../component/atoms/CustomButton';
 import toast from 'react-hot-toast';
@@ -49,14 +49,21 @@ const SalesPersonForm: React.FC<SalesPersonFormProps> = ({
       lastName: '',
       role: '',
       userNumber: '',
-      salesRepNumber: '',
+      salesRepNumber: [],
       status: true,
     },
   });
 
   useEffect(() => {
     if (initialData) {
-      reset(initialData);
+      // Ensure salesRepNumber is an array when resetting
+      const dataToReset = {
+        ...initialData,
+        salesRepNumber: Array.isArray(initialData.salesRepNumber) 
+          ? initialData.salesRepNumber 
+          : []
+      };
+      reset(dataToReset);
     }
   }, [initialData, reset]);
 
@@ -72,9 +79,43 @@ const SalesPersonForm: React.FC<SalesPersonFormProps> = ({
 
   useEffect(() => {
     if (initialData && salesRepNumberOptions.length > 0) {
-      const salesRepOption = salesRepNumberOptions.find(opt => opt.value === initialData.salesRepNumber);
-      if (salesRepOption) {
-        setValue('salesRepNumber', salesRepOption.value);
+      // Ensure salesRepNumber is an array
+      let salesRepArray: string[] = [];
+      
+      const salesRepValue = (initialData as any).salesRepNumber;
+      
+      if (Array.isArray(salesRepValue)) {
+        salesRepArray = salesRepValue.map((num: any) => String(num));
+      } else if (typeof salesRepValue === 'string' && salesRepValue) {
+        // Parse string format like {"5","2"} or "5"
+        const salesRepStr: string = salesRepValue;
+        try {
+          const parsed = JSON.parse(salesRepStr);
+          if (Array.isArray(parsed)) {
+            salesRepArray = parsed.map((num: any) => String(num));
+          } else {
+            salesRepArray = [String(parsed)];
+          }
+        } catch {
+          // If JSON parsing fails, try PostgreSQL array format
+          const cleaned = salesRepStr.replace(/[{}"]/g, '');
+          if (cleaned.includes(',')) {
+            salesRepArray = cleaned.split(',').map((item: string) => item.trim()).filter(Boolean) as string[];
+          } else if (cleaned) {
+            salesRepArray = [cleaned];
+          }
+        }
+      }
+      
+      // Filter options and set values
+      if (salesRepArray.length > 0) {
+        const salesRepOptions = salesRepNumberOptions.filter(opt => 
+          salesRepArray.includes(opt.value)
+        );
+        if (salesRepOptions.length > 0) {
+          const values = salesRepOptions.map(opt => opt.value);
+          setValue('salesRepNumber', values);
+        }
       }
     }
   }, [initialData, salesRepNumberOptions, setValue]);
@@ -90,9 +131,11 @@ const SalesPersonForm: React.FC<SalesPersonFormProps> = ({
 
   // Clear salesRepNumber when role changes to 'epick'
   const handleRoleChange = (selectedOption: any) => {
-    setValue('role', selectedOption?.value || '');
-    if (selectedOption?.value === 'epick') {
-      setValue('salesRepNumber', '');
+    if (selectedOption) {
+      setValue('role', selectedOption.value || '');
+      if (selectedOption.value === 'epick') {
+        setValue('salesRepNumber', []);
+      }
     }
   };
 
@@ -119,6 +162,9 @@ const SalesPersonForm: React.FC<SalesPersonFormProps> = ({
       const payload = { ...data };
       if (data.role === 'epick') {
         delete payload.salesRepNumber;
+      } else if (data.salesRepNumber && Array.isArray(data.salesRepNumber)) {
+        // Ensure salesRepNumber is an array of strings
+        payload.salesRepNumber = data.salesRepNumber.map(num => String(num));
       }
       await onSubmit(payload);
     } catch (error: any) {
@@ -237,12 +283,16 @@ const SalesPersonForm: React.FC<SalesPersonFormProps> = ({
             {/* Sales Rep Number - Only show when role is not 'epick' */}
             {watch('role') !== 'epick' && (
               <Grid size={{ xs: 12, sm: 6 }}>
-                <SearchableDropdown
+                <MultiSearchableDropdown
                   label="Sales Rep Number"
                   options={salesRepNumberOptions}
-                  value={salesRepNumberOptions.find(opt => opt.value === watch('salesRepNumber')) || null}
-                  onChange={(selectedOption) => {
-                    setValue('salesRepNumber', selectedOption?.value || '');
+                  value={salesRepNumberOptions.filter(opt => {
+                    const salesRepNum = watch('salesRepNumber');
+                    return salesRepNum && Array.isArray(salesRepNum) && salesRepNum.includes(opt.value);
+                  })}
+                  onChange={(selectedOptions) => {
+                    const values = selectedOptions.map(opt => opt.value);
+                    setValue('salesRepNumber', values);
                   }}
                   error={!!errors.salesRepNumber}
                   helperText={errors.salesRepNumber?.message}

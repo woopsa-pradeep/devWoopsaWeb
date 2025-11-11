@@ -320,14 +320,30 @@ const Product = () => {
             style={{ width: 40, height: 40, objectFit: 'contain' }} 
           />
           <Box>
-            <Typography fontSize={14} fontWeight={400} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" maxWidth="150px">{row.Description}</Typography>
+          <Typography
+                  fontSize={"13px"}
+                  fontWeight={400}
+                  sx={{
+                    maxWidth: '90%',
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    whiteSpace: 'normal', // Allow multiline
+                    wordBreak: 'break-word', // Allow breaks anywhere if needed
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {row.Description}
+                </Typography>
+            {/* <Typography fontSize={14} fontWeight={400} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" maxWidth="150px">{row.Description}</Typography> */}
             <Box>
               <Typography fontSize={12} color="text.secondary">
-                  {row.Pack && `Pack: ${row.Pack}`}{" "} {row.CaseCount && `Case: ${row.CaseCount}`}
+                {row.UOM && `Size: ${row.UOM}`} {" "} {row.UnitOunces && `Unit: ${row.UnitOunces}`} {" "}
+                {row.Pack && `Pack: ${row.Pack}`}{" "} {row.CaseCount && `Case: ${row.CaseCount}`}
               </Typography>
-              <Typography fontSize={12} color="text.secondary">
-                {row.UOM && `Size: ${row.UOM}`}{" "} { `Unit: ${row.UnitOunces}`}
-              </Typography>
+                {/* <Typography fontSize={12} color="text.secondary">
+                </Typography> */}
             </Box>
           </Box>
         </Box>

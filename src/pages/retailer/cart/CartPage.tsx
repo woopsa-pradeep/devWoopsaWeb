@@ -646,7 +646,7 @@ const CartPage: React.FC = () => {
   const columns: TableColumn<CartItem>[] = [
     {
       id: "itemNumber",
-      label: "Item Number",
+      label: "Item #",
       render: (row) => (
         <Typography fontSize={"14px"} color="textSecondary">
           {row.Item_Number}
@@ -668,9 +668,25 @@ const CartPage: React.FC = () => {
             }}
           />
           <Box>
-            <Typography fontSize={13} fontWeight={500} noWrap sx={{ maxWidth: '150px' }}>
-              {row.Description}
-            </Typography>
+          <Typography
+                  fontSize={"13px"}
+                  fontWeight={400}
+                  sx={{
+                    maxWidth: '90%',
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    whiteSpace: 'normal', // Allow multiline
+                    wordBreak: 'break-word', // Allow breaks anywhere if needed
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {row.Description}
+                </Typography>
+                {/* <Typography fontSize={13} fontWeight={500} noWrap sx={{ maxWidth: '150px' }}>
+                  {row.Description}
+                </Typography> */}
             <Typography fontSize={11} color="text.secondary">
               Pack: {row.CaseCount || "-"} | Case: {row.CaseCount || "-"} | Size: {row.UOM || "-"} | Unit: {row.UnitOunces || "-"}
             </Typography>

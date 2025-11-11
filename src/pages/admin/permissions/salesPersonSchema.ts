@@ -27,7 +27,7 @@ export const salesPersonSchema = z.object({
     .min(1, "User number is required"),
   
   salesRepNumber: z
-    .string()
+    .array(z.string())
     .optional(),
   
   status: z.boolean(),

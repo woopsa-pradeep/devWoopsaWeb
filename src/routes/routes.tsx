@@ -4,7 +4,7 @@ import ErrorBoundaryWrapper from "../pages/error/ErrorBoundaryWrapper";
 import PrivateRoute from "../components/PrivateRoute";
 import RoleBasedRoute from "../components/RoleBasedRoute";
 
-import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AdminPromo, AccountReceivable, Vendors, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting  } from "./lazyComponents";
+import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AdminPromo, AccountReceivable, Vendors, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, SalesReturnOrder, SalesReturnCartPage  } from "./lazyComponents";
 import { Navigate } from "react-router-dom";
 
 // Check if user is logged in
@@ -590,6 +590,14 @@ export const salesRoutes = [
             ),
           },
           {
+            path: "return-order",
+            element: (
+              <RoleBasedRoute path="/sales/return-order">
+                <SalesReturnOrder />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "ordered-items",
             element: (
               <RoleBasedRoute path="/sales/ordered-items">
@@ -626,6 +634,14 @@ export const salesRoutes = [
             element: (
               <RoleBasedRoute path="/sales/cart">
                 <SalesCartPage />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "return-cart",
+            element: (
+              <RoleBasedRoute path="/sales/return-cart">
+                <SalesReturnCartPage />
               </RoleBasedRoute>
             ),
           },

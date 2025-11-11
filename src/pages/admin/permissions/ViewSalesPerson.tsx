@@ -24,6 +24,8 @@ const ViewSalesPerson = () => {
   // Get user data from location state
   const userData = location.state?.userData;
 
+  console.log(userData,'the loaction data');
+
   useEffect(() => {
     const fetchSalesPerson = async () => {
       if (!id) return;
@@ -60,6 +62,38 @@ const ViewSalesPerson = () => {
         userData: salesPerson
       }
     });
+  };
+
+  // Helper function to format salesRepNumber
+  const formatSalesRepNumber = (salesRepNumber: string | undefined): string => {
+    if (!salesRepNumber) return 'N/A';
+    
+    try {
+      // Handle PostgreSQL array format like {"5","2"} or JSON array like ["5","2"]
+      // First, try to parse as JSON
+      const parsed = JSON.parse(salesRepNumber);
+      if (Array.isArray(parsed)) {
+        return parsed.join(', ');
+      }
+    } catch {
+      // If JSON parsing fails, try to extract from PostgreSQL array format {"5","2"}
+      // Remove curly braces and quotes, then split by comma
+      const cleaned = salesRepNumber.replace(/[{}"]/g, '');
+      if (cleaned.includes(',')) {
+        return cleaned.split(',').map(item => item.trim()).join(', ');
+      }
+    }
+    
+    // If it's already a simple string, return as is
+    return salesRepNumber;
+  };
+
+  // Helper function to get all Sales Rep Names
+  const getSalesRepNames = (): string => {
+    if (!salesPerson?.salesRep || !Array.isArray(salesPerson.salesRep) || salesPerson.salesRep.length === 0) {
+      return 'N/A';
+    }
+    return salesPerson.salesRep.map(rep => rep.S_Desc).join(', ');
   };
 
   if (loading) {
@@ -193,20 +227,18 @@ const ViewSalesPerson = () => {
               Sales Rep Number
             </Typography>
             <Typography fontSize={14} color="text.primary">
-              {salesPerson.salesRepNumber}
+              {formatSalesRepNumber(salesPerson.salesRepNumber)}
             </Typography>
           </Grid>
 
-          {salesPerson.salesRep && (
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Typography fontSize={14} fontWeight={600} color="text.secondary" mb={1}>
-                Sales Rep Description
-              </Typography>
-              <Typography fontSize={14} color="text.primary">
-                {salesPerson.salesRep.S_Desc}
-              </Typography>
-            </Grid>
-          )}
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography fontSize={14} fontWeight={600} color="text.secondary" mb={1}>
+              Sales Rep Name
+            </Typography>
+            <Typography fontSize={14} color="text.primary">
+              {getSalesRepNames()}
+            </Typography>
+          </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
             <Typography fontSize={14} fontWeight={600} color="text.secondary" mb={1}>

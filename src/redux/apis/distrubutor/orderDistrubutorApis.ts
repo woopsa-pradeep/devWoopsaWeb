@@ -15,8 +15,8 @@ export const getOrderHistory = async (page: number = 1, limit: number = 10, cust
     return response.data;
 }
 
-export const getOrderHistoryByOrderNumber = async (id: any) => {
-    const response = await axiosInstance.get(`/distrubutor/orderHistoryByOrderNumber/${id}`);
+export const getOrderHistoryByOrderNumber = async (id: any, page: number = 1, limit: number = 10) => {
+    const response = await axiosInstance.get(`/distrubutor/orderHistoryByOrderNumber/${id}?page=${page}&limit=${limit}`);
     return response.data;
 }   
 

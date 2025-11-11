@@ -11,7 +11,7 @@ import { TableColumn } from "../../../component/atoms/Table/CommonTable";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
 import deleteIcon from "../../../assets/icons/delete.svg";
-import { updateCartItem, removeFromCart, placeOrder, getSalesWarehouseProfile, getDeliveryCharge, addToCart, clearCart as clearCartApi } from '../../../redux/apis/sales/salesOrderApis';
+import { updateCartItem, removeFromCart, getSalesWarehouseProfile, getDeliveryCharge, addToCart, clearCart as clearCartApi } from '../../../redux/apis/sales/salesOrderApis';
 import DeleteConfirmationModal from '../../../component/atoms/DeleteConfirmationModal';
 import PriceChangeModal from '../../../component/molecules/PriceChangeModal';
 import InactiveItemsModal from '../../../component/molecules/InactiveItemsModal';
@@ -20,9 +20,10 @@ import QuantityDiscountModal from '../../../component/molecules/QuantityDiscount
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../../../redux/store';
-import { fetchSalesCartItems, clearSalesCart } from '../../../redux/slices/salesCartSlice';
+import {  clearSalesCart, fetchSalesReturnCartItems } from '../../../redux/slices/salesCartSlice';
 import toast from 'react-hot-toast';
 import { validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
+import { returnPlaceOrder } from "../../../redux/apis/sales/salesReturnOrderApis";
 
 // Interface for cart item from API
 interface CartItem {
@@ -86,7 +87,7 @@ interface WarehouseProfile {
   allowShipping: boolean;
 }
 
-const CartPage: React.FC = () => {
+const ReturnOrderCartPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [shippingMethod, setShippingMethod] = useState<"delivery" | "pickup">("delivery");
@@ -124,6 +125,8 @@ const CartPage: React.FC = () => {
   const shippingAddress = `${selectedCustomer?.C_Name || 'Customer'}`;
   const warehouseAddress = `Warehouse Address`;
 
+
+  console.log(cartItems,'cartItems---------->');
   const loadWarehouseProfile = async () => {
     setWarehouseProfileLoading(true);
     try {
@@ -150,11 +153,14 @@ const CartPage: React.FC = () => {
   // Load cart items
   const loadCartItems = useCallback(async () => {
     try {
-      const result = await dispatch(fetchSalesCartItems());
-      if (fetchSalesCartItems.fulfilled.match(result)) {
+      const result = await dispatch(fetchSalesReturnCartItems());
+      console.log(result,'result');
+      if (fetchSalesReturnCartItems.fulfilled.match(result)) {
         const response = result.payload;
+        console.log(response,'response');
         if (response) {
           // Check for price changes
+
           const itemsWithPriceChanges = response?.finalCartItems?.filter((item: any) => item.isPriceChanged);
           
           if (itemsWithPriceChanges && itemsWithPriceChanges.length > 0) {
@@ -549,17 +555,21 @@ const CartPage: React.FC = () => {
     setPlaceOrderLoading(true);
     try {
       // Prepare order payload
-      const orderPayload = cartItems.map((item: any) => ({
-        Customer_Number: item.Product.Customer_Number,
-        Item_Number: item.Item_Number,
-        Price: Number(item.Product.Price).toFixed(2),  
-        Price_With_Tax: Number(item.Product.Price_With_Tax).toFixed(2), // Use Price as Price_With_Tax since it's already the main price
-        Qty: item.Product.Qty,
-        Tax_Rate: Number(item.Product.Tax_Rate).toFixed(2), // Default tax rate
-        TotalPrice: Number(item.Product.TotalPrice).toFixed(2),
-        TotalPriceWithTax: Number(item.Product.TotalPriceWithTax).toFixed(2), // Use TotalPrice as TotalPriceWithTax
-        id: item.Product.id
-      }));
+      const orderPayload = cartItems.map((item: any) => {
+        // For return orders, Qty should always be negative
+        const qty = Math.abs(item.Product.Qty) * -1;
+        return {
+          Customer_Number: item.Product.Customer_Number,
+          Item_Number: item.Item_Number,
+          Price: Number(item.Product.Price).toFixed(2),  
+          Price_With_Tax: Number(item.Product.Price_With_Tax).toFixed(2), // Use Price as Price_With_Tax since it's already the main price
+          Qty: qty,
+          Tax_Rate: Number(item.Product.Tax_Rate).toFixed(2), // Default tax rate
+          TotalPrice: (Number(item.Product.Price) * qty).toFixed(2),
+          TotalPriceWithTax: (Number(item.Product.Price_With_Tax) * qty).toFixed(2), // Use negative quantity for totals
+          id: item.Product.id
+        };
+      });
 
       const payload = {
         Delivery_Charge: Number(deliveryCharge).toFixed(2),  
@@ -580,7 +590,7 @@ const CartPage: React.FC = () => {
       };
 
       // Call place order API
-      const response: any = await placeOrder(selectedCustomer?.C_Number?.toString() || '', payload);
+      const response: any = await returnPlaceOrder(selectedCustomer?.C_Number?.toString() || '', payload);
       if(response?.success){
         setOrderNumber(response?.data?.orderHeader?.Order_Number);
         setShowCelebration(true);
@@ -1170,4 +1180,4 @@ const CartPage: React.FC = () => {
   );
 };
 
-export default CartPage;
+export default ReturnOrderCartPage;

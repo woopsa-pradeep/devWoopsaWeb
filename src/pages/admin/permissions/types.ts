@@ -13,8 +13,9 @@ export interface SalesPerson {
   updatedAt: string;
   setUserDiscountLimit?: number;
   userLimit?: number; // User discount limit
+  allowDiscount?: boolean;
   salesRep?: {
     S_Number: number;
     S_Desc: string;
-  };
+  }[];
 } 

@@ -9,7 +9,7 @@ import CommonModal from '../../../component/atoms/CommonModal';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { SalesPerson } from './types';
 import SwitchInput from '../../../component/atoms/SwitchInput';
-import { getUserList, updateUser, setUserLimits } from '../../../redux/apis/distrubutor/permissionsApis';
+import { getUserList, updateUser, setUserLimits, updateAllowDiscount } from '../../../redux/apis/distrubutor/permissionsApis';
 import toast from 'react-hot-toast';
 
 const Permissions = () => {
@@ -39,6 +39,7 @@ const Permissions = () => {
     lastName: row.lastName,
     email: row.email,
     role: row.role,
+    salesRep: row.salesRep || [],
     userNumber: row.userNumber,
     salesRepNumber: row.salesRepNumber,
     status: row.status,
@@ -99,6 +100,23 @@ const Permissions = () => {
     }
   };
 
+  const handleAllowDiscountChange = async (row: SalesPerson) => {
+    try {
+      const newAllowDiscountValue = !row.allowDiscount;
+      const response: any = await updateAllowDiscount(row.id, { 
+        allowDiscount: newAllowDiscountValue 
+      });
+      if (response.status === 200) {
+        toast.success(response?.data?.message || 'Allow discount updated successfully');
+        fetchUserList();
+      } else {
+        toast.error(response?.data?.message || 'Failed to update allow discount');
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to update allow discount');
+    }
+  };
+
   // Handle edit user limit
   const handleEditLimit = (user: SalesPerson) => {
     setSelectedUser(user);
@@ -141,7 +159,9 @@ const Permissions = () => {
       item.email?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       item.role?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       item.userNumber?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      item.salesRepNumber?.toLowerCase().includes(debouncedSearch.toLowerCase())
+      (Array.isArray(item.salesRep) 
+        ? item.salesRep.some(rep => rep.S_Desc?.toLowerCase().includes(debouncedSearch.toLowerCase()))
+        : false)
     );
     
     setData(filteredData);
@@ -188,10 +208,34 @@ const Permissions = () => {
     // },
     {
       id: 'salesRepNumber',
-      label: 'Sales Rep Number',
+      label: 'Sales Rep Name',
       render: (row) => (
-        <Typography color="text.secondary" fontSize={14}>{row.salesRep?.S_Desc}</Typography>
+        <Typography color="text.secondary" fontSize={14}>
+          {row.salesRep && Array.isArray(row.salesRep) && row.salesRep.length > 0
+            ? row.salesRep.map(rep => rep.S_Desc).join(', ')
+            : 'N/A'}
+        </Typography>
       ),
+    },
+    {
+      id: 'allowDiscount',
+      label: 'Allow Discount',
+      render: (row) => {
+        // Only show this column when role is 'sales'
+        if (row.role !== 'sales') {
+          return null;
+        }
+        return (
+          <SwitchInput
+            checked={row.allowDiscount || false}
+            onChange={() => {
+              handleAllowDiscountChange(row);
+            }}
+            sx={{ mb: 0 }}
+            isShowLabel={false}
+          />
+        );
+      },
     },
     {
       id: 'setUserDiscountLimit',

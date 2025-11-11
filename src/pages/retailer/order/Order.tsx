@@ -2089,8 +2089,8 @@ const Order = () => {
   const columns: TableColumn<any>[] = [
     {
       id: 'itemNumber',
-      label: 'Item Number',
-      minWidth: 120,
+      label: 'Item #',
+      minWidth: 60,
       render: (row) => (
         <Typography fontSize={"14px"} color="textSecondary">
           {row.itemNumber}
@@ -2175,8 +2175,23 @@ const Order = () => {
           </Box>
           <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>  
-            <Typography fontSize={"13px"} fontWeight={400} noWrap sx={{ maxWidth: '150px' }}>{row.name}</Typography>   
-            {row.isNewItem && (
+          <Typography
+                  fontSize={"13px"}
+                  fontWeight={400}
+                  sx={{
+                    maxWidth: '90%',
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    whiteSpace: 'normal', // Allow multiline
+                    wordBreak: 'break-word', // Allow breaks anywhere if needed
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {row.name}
+                </Typography>
+                {row.isNewItem && (
               <Box
                 sx={{
                   display: 'flex',

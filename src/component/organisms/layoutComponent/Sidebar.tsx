@@ -95,7 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Get role-based navigation config
   const salesNavigationConfig = getNavigationConfig(role).filter((item) => item.check === "sales");
   const filterByRoleModule = salesNavigationConfig.filter((item) => 
-    ["Dashboard", "Orders", "Ordered Items", "Order History", "Retailers", "Policies", "Calender"].includes(item.name) || 
+    ["Dashboard", "Orders", "Ordered Items", "Return Orders", "Order History", "Retailers", "Policies", "Calender"].includes(item.name) || 
     module?.some((moduleItem: any) => moduleItem.module === item.name && moduleItem?.view === true)
   );
   const navigationConfig = role === "sales" ? filterByRoleModule : getNavigationConfig(role);

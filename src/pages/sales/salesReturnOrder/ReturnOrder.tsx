@@ -5,7 +5,7 @@ import CustomButton from '../../../component/atoms/CustomButton';
 import { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import TextInput from '../../../component/atoms/TextInput';
 // import SelectInput from '../../../component/atoms/SelectInput';
-import {  VisibilityOutlined, Clear, Pause } from '@mui/icons-material';
+import {  VisibilityOutlined, Clear, Pause, Check } from '@mui/icons-material';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import OrderDetails from '../../../component/molecules/OrderDetails';
@@ -14,20 +14,21 @@ import img1 from '../../../assets/Default-Product-Image.jpg';
 import ProductHistoryModal from '../../../component/molecules/ProductHistoryModal';
 import PriceChangeModal from '../../../component/molecules/PriceChangeModal';
 import InactiveItemsModal from '../../../component/molecules/InactiveItemsModal';
-import cart from '../../../assets/icons/cart.svg';
+// import cart from '../../../assets/icons/cart.svg';
 import GridCardSales from '../../../component/atoms/GridCardSales';
-import { getInventoryItems, getInventoryItemsBySalesRep, addToCart, updateCartItem, removeFromCart, clearCart } from '../../../redux/apis/sales/salesOrderApis';
+import { getInventoryItems, updateCartItem, removeFromCart, clearCart, getInventoryItemsBySalesRep } from '../../../redux/apis/sales/salesOrderApis';
 import { useEffect, useCallback } from 'react';
 import DeleteConfirmationModal from '../../../component/atoms/DeleteConfirmationModal';
 import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
 import { getSalesCategoryList, getPriceClassList } from '../../../redux/apis/distrubutor/listApis';
 import { useAppDispatch,RootState } from '../../../redux/store';
 import { useSelector } from 'react-redux';
-import { fetchSalesCartItems } from '../../../redux/slices/salesCartSlice';
+import { fetchSalesReturnCartItems } from '../../../redux/slices/salesCartSlice';
 import { validateAddToCart, validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
 import scanIcon from '../../../assets/elements.svg';
 import ViewModeToggleSales from '../../../component/atoms/ViewModeToggleSales';
 import QuantityDiscountModal from '../../../component/molecules/QuantityDiscountModal';
+import { addToReturnCart } from '../../../redux/apis/sales/salesReturnOrderApis';
 
 
 // API Response Interface
@@ -319,7 +320,9 @@ const Order = () => {
   // Add loading state for individual products
   const [productLoadingStates, setProductLoadingStates] = useState<{ [key: string]: boolean }>({});
   // Toast notification state
-  const [toastMessage, setToastMessage] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);  
+  const [toastMessage, setToastMessage] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  // State to track input values for products not yet in cart
+  const [quantityInputs, setQuantityInputs] = useState<{ [key: string]: string }>({});  
   
   // Helper function to set loading state for a specific product
   const setProductLoading = (productId: string, isLoading: boolean) => {
@@ -398,7 +401,7 @@ const Order = () => {
       
       // Use different API based on view mode
       if (viewMode === 'keyboard') {
-        // Use getInventoryItemsBySalesRep for keyboard view with specific params
+        // Use BySalesRep for keyboard view with specific params
         const params = {
           page: currentPage,  
           limit: pageSize,
@@ -444,8 +447,8 @@ const Order = () => {
   // Load cart items on component mount
   const loadCartItems = useCallback(async () => {
     try {
-      const result = await dispatch(fetchSalesCartItems());
-      if (fetchSalesCartItems.fulfilled.match(result)) {
+      const result = await dispatch(fetchSalesReturnCartItems());
+      if (fetchSalesReturnCartItems.fulfilled.match(result)) {
         const response = result.payload;
         if (response) {
           const cartItems: { [key: string]: { quantity: number; price: number; Description: string; productId: number; placedBySalesPerson: boolean  } } = {};
@@ -820,6 +823,13 @@ const Order = () => {
           return rest;
         });
         
+        // Clear quantity input for this item
+        setQuantityInputs(prev => {
+          const {...rest} = prev;
+          delete rest[id];
+          return rest;
+        });
+        
         // Clear any pending debounce for this item
         if (quantityDebounceRef.current[id]) {
           clearTimeout(quantityDebounceRef.current[id]);
@@ -917,7 +927,7 @@ const Order = () => {
           }, selectedCustomer?.C_Number?.toString() || '');
         } else {
           // Add new item
-          await addToCart(selectedCustomer?.C_Number?.toString() || '', {
+          await addToReturnCart(selectedCustomer?.C_Number?.toString() || '', {
             Item_Number: parseInt(id),
             Price: Number(item.price) - (Number(item.priceWithTax) - finalPrice), // Ensure price is a number
             Price_With_Tax: finalPrice, // Use discounted price if applicable
@@ -1012,6 +1022,86 @@ const Order = () => {
         input.select();
       }
     }, 100);
+  };
+
+  // Handler for adding to cart with specific quantity from input
+  const handleAddToCartWithQuantity = async (id: string) => {
+    const item:any = data.find((item:any) => item.id === id) || cartItemsData[id];
+    if (!item) return;
+
+    // Check if item is allowed to be ordered
+    if (!item.allowToOrder) {
+      return;
+    }
+
+    // Check if product is already loading
+    if (isProductLoading(id)) {
+      return;
+    }
+
+    // Reset QR scanning when cart is manually modified
+    resetQrScanning();
+
+    // Get quantity from input
+    const inputQuantity = parseInt(quantityInputs[id] || '0') || 0;
+    
+    if (inputQuantity <= 0) {
+      showToast('Please enter a valid quantity', 'error');
+      return;
+    }
+
+    const currentQuantity = orderItems[id]?.quantity || 0;
+    const newQuantity = currentQuantity + inputQuantity;
+    console.log(newQuantity, "newQuantity");
+    // Validate adding to cart
+    const productLimitData = {
+      hasProductLimit: item.hasProductLimit,
+      productLimit: item.productLimit
+    };
+    if (!validateAddToCart(currentQuantity, inputQuantity, productLimitData, item.name)) {
+      return;
+    }
+
+    // Check if this is the first time adding this product and if it has quantity discount
+    const isFirstTimeAdding = currentQuantity === 0;
+    if (isFirstTimeAdding && item.hasQtyDiscount && item.qtyDiscount) {
+      // Open discount modal automatically for first-time additions
+      setSelectedDiscountProduct(item);
+      setSelectedDiscountData(item.qtyDiscount);
+      setDiscountModalOpen(true);
+      
+      // Store the quantity in local state for when modal confirms
+      setOrderItems(prev => ({
+        ...prev,
+        [id]: {
+          quantity: inputQuantity,
+          Description: item.name,
+          price: item.priceWithTax,
+          productId: prev[id]?.productId || 0,
+          placedBySalesPerson: item?.Product?.placedBySalesPerson || false
+        }
+      }));
+      
+      // Show toast message about discount modal
+      showToast(`Quantity discount available for ${item.name}! Please review discount options.`, 'info');
+      // Clear input
+      setQuantityInputs(prev => {
+        const {...rest} = prev;
+        delete rest[id];
+        return rest;
+      });
+      return; // Don't add to cart yet, wait for modal confirmation
+    }
+
+    // Add the quantity to cart
+    handleQuantityChange(id, inputQuantity);
+    
+    // Clear input after adding
+    setQuantityInputs(prev => {
+      const {...rest} = prev;
+      delete rest[id];
+      return rest;
+    });
   };
 
   // Optimized quantity input blur handler with debouncing
@@ -1163,7 +1253,7 @@ const Order = () => {
               originalPrice: Number(item.price)
             }, selectedCustomer?.C_Number?.toString() || '');
           } else {
-            await addToCart(selectedCustomer?.C_Number?.toString() || '', {
+            await addToReturnCart(selectedCustomer?.C_Number?.toString() || '', {
               Item_Number: parseInt(id),
               Price: Number(item.price) - (Number(item.priceWithTax) - finalPrice), // Ensure price is a number
               Price_With_Tax: finalPrice, // Use discounted price if applicable
@@ -1234,6 +1324,13 @@ const Order = () => {
         return rest;
       });
       
+      // Clear quantity input for this item
+      setQuantityInputs(prev => {
+        const {...rest} = prev;
+        delete rest[id];
+        return rest;
+      });
+      
       // Clear any pending debounce for this item
       if (quantityDebounceRef.current[id]) {
         clearTimeout(quantityDebounceRef.current[id]);
@@ -1261,6 +1358,7 @@ const Order = () => {
       await clearCart(selectedCustomer?.C_Number?.toString() || '');
       setOrderItems({});
       setCartItemsData({});
+      setQuantityInputs({}); // Clear all quantity inputs
       setClearModalOpen(false);
       
       // Clear all pending debounce timers
@@ -1402,7 +1500,7 @@ const Order = () => {
     }
 
     // Redirect to cart page
-    navigate('/sales/cart');
+    navigate('/sales/return-cart');
   };
 
   // Barcode scanning functions
@@ -1687,7 +1785,7 @@ const Order = () => {
             originalPrice: Number(matchingProduct.price)
           };
           // console.log('Add params:', addParams); // Debug log
-          await addToCart(customerId.toString(), addParams);
+          await addToReturnCart(customerId.toString(), addParams);
         }
         
         // Update local state with discounted price if discount was applied
@@ -2105,25 +2203,73 @@ const Order = () => {
               alignItems: "center",
               justifyContent: "flex-end",
               width: "100%",
-              padding: "5px"
+              padding: "5px",
+              gap: 1
             }}
           >
-            <Box 
-              component="img" 
-              src={cart} 
-              onClick={() => !isProductLoading(row.id) && handleAddToCart(row.id)}
-              sx={{ 
-                cursor: isProductLoading(row.id) ? "not-allowed" : "pointer", 
-                backgroundColor: isProductLoading(row.id) ? "grey.400" : "primary.main", 
-                borderRadius: "50%",
-                transition: "transform 0.2s ease-in-out",
-                opacity: isProductLoading(row.id) ? 0.6 : 1,
-                "&:hover": {
-                  transform: isProductLoading(row.id) ? "none" : "scale(1.1)"
-                }
-              }} 
-            />
-
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                backgroundColor: (theme) => theme.palette.background.paper,
+                borderRadius: 1.5,
+                border: (theme) => `1px solid ${theme.palette.divider}`,
+                padding: "2px 4px",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                '&:hover': {
+                  borderColor: (theme) => theme.palette.primary.main,
+                },
+              }}
+            >
+              <input
+                type="text"
+                value={quantityInputs[row.id] || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Only allow numbers
+                  if (value === '' || /^\d+$/.test(value)) {
+                    setQuantityInputs(prev => ({
+                      ...prev,
+                      [row.id]: value
+                    }));
+                  }
+                }}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAddToCartWithQuantity(row.id);
+                  }
+                }}
+                placeholder="0"
+                disabled={isProductLoading(row.id)}
+                style={{
+                  width: '50px',
+                  textAlign: 'center',
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '14px',
+                  backgroundColor: 'transparent',
+                  color: isProductLoading(row.id) ? theme.palette.grey[400] : theme.palette.text.primary,
+                  cursor: isProductLoading(row.id) ? 'not-allowed' : 'text'
+                }}
+              />
+              <IconButton
+                size="small"
+                onClick={() => !isProductLoading(row.id) && handleAddToCartWithQuantity(row.id)}
+                disabled={isProductLoading(row.id)}
+                sx={{
+                  padding: '4px',
+                  color: isProductLoading(row.id) ? 'grey.400' : 'primary.main',
+                  cursor: isProductLoading(row.id) ? 'not-allowed' : 'pointer',
+                  '&:hover': {
+                    backgroundColor: isProductLoading(row.id) ? 'transparent' : 'primary.light',
+                    opacity: 0.8
+                  }
+                }}
+              >
+                <Check sx={{ fontSize: "18px" }} />
+              </IconButton>
+            </Box>
           </Box>
         ) : (
           <Box display="flex"
@@ -2301,7 +2447,7 @@ const Order = () => {
                             originalPrice: Number(row.price)
                           }, selectedCustomer?.C_Number?.toString() || '');
                         } else {
-                          await addToCart(selectedCustomer?.C_Number?.toString() || '', {
+                          await addToReturnCart(selectedCustomer?.C_Number?.toString() || '', {
                             Item_Number: parseInt(row.id),
                             Price: Number(row.price) - (Number(row.priceWithTax) - finalPrice), // Ensure price is a number
                             Price_With_Tax: finalPrice, // Use discounted price if applicable
@@ -2440,7 +2586,7 @@ const Order = () => {
         // Add to cart via API with discounted price
         setTimeout(async () => {
           try {
-            await addToCart(selectedCustomer?.C_Number?.toString() || '', {
+            await addToReturnCart(selectedCustomer?.C_Number?.toString() || '', {
               Item_Number: parseInt(product.id),
               Price: Number(product.price) - (Number(product.priceWithTax) - discountedPrice), // Ensure price is a number
               Price_With_Tax: discountedPrice, // Use discounted price
@@ -2504,7 +2650,7 @@ const Order = () => {
         // Add to cart via API with original price
         setTimeout(async () => {
           try {
-            await addToCart(selectedCustomer?.C_Number?.toString() || '', {
+            await addToReturnCart(selectedCustomer?.C_Number?.toString() || '', {
               Item_Number: parseInt(product.id),
               Price: Number(product.price), // Use original price since no discount
               Price_With_Tax: Number(product.priceWithTax), // Use original price

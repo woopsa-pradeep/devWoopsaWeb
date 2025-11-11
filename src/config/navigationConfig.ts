@@ -252,6 +252,12 @@ export const salesNavigationConfig: NavigationItem[] = [
     check: "sales",
   },
   {
+    name: "Return Orders",
+    path: "/sales/return-order",
+    icon: "order",
+    check: "sales",
+  },
+  {
     name: "Ordered Items",
     path: "/sales/ordered-items", 
     icon: "ordered-items",

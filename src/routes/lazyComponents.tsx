@@ -197,6 +197,23 @@ export const SalesOrderDetailsPage = lazyLoad(
   () => import("../pages/sales/salesOrder/OrderDetailsPage"),
   "Loading Sales Order Details Page..."
 );
+export const SalesReturnOrder = lazyLoad(
+  () => import("../pages/sales/salesReturnOrder/ReturnOrder"),
+  "Loading Sales Return Order..."
+);
+export const SalesReturnOrderTablePage = lazyLoad(
+  () => import("../pages/sales/salesReturnOrder/ReturnOrderTablePage"),
+  "Loading Sales Return Order Table Page..."
+);
+export const SalesReturnOrderDetailsPage = lazyLoad(
+  () => import("../pages/sales/salesReturnOrder/ReturnOrderDetailsPage"),
+  "Loading Sales Return Order Details Page..."
+);
+
+export const SalesReturnCartPage = lazyLoad(
+  () => import("../pages/sales/salesCart/ReturnOrderCartPage"),
+  "Loading Sales Return Cart..."
+);
 export const SalesCartPage = lazyLoad(
   () => import("../pages/sales/salesCart/CartPage"),
   "Loading Sales Cart..."

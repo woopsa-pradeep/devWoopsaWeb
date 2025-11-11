@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getCartItem, updateCartItem, removeFromCart, clearCart, addToCart } from '../apis/sales/salesOrderApis';
 import { RootState } from '../store';
+import { getReturnCartItem } from '../apis/sales/salesReturnOrderApis';
 
 // Interface for cart item from API
 interface CartItem {
@@ -90,6 +91,26 @@ export const fetchSalesCartItems = createAsyncThunk(
   }
 );
 
+
+
+export const fetchSalesReturnCartItems = createAsyncThunk(
+  'salesCart/fetchSalesReturnCartItems',
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as RootState;
+      const customerId = state.auth.selectedCustomer?.C_Number;
+      
+      if (!customerId) {
+        throw new Error('Customer ID not found');
+      }
+      
+      const response: any = await getReturnCartItem(customerId.toString());
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch cart items');
+    }
+  }
+);
 // Async thunk to add item to cart
 export const addItemToSalesCart = createAsyncThunk(
   'salesCart/addItemToSalesCart',
@@ -222,6 +243,28 @@ const salesCartSlice = createSlice({
         state.totalAmount = action.payload?.totalAmount || 0;
       })
       .addCase(fetchSalesCartItems.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch cart items';
+      })
+
+      .addCase(fetchSalesReturnCartItems.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchSalesReturnCartItems.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload?.finalCartItems) {
+          state.items = action.payload.finalCartItems;
+          state.count = action.payload.finalCartItems.length;
+        }
+        // Store validation data
+        state.totalItems = action.payload?.totalItems || 0;
+        state.totalAmountWithTax = action.payload?.totalAmountWithTax || 0;
+        state.userItemLimitQty = action.payload?.userItemLimitQty || null;
+        state.userLimitMinOrderAmount = action.payload?.userLimitMinOrderAmount || null;
+        state.totalAmount = action.payload?.totalAmount || 0;
+      })
+      .addCase(fetchSalesReturnCartItems.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch cart items';
       })
