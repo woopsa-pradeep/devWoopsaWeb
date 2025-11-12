@@ -466,12 +466,32 @@ const PromoTabs = () => {
 
 
     const handleRecipientsChange = (selectedOptions: EmailOption[]) => {
-        setSelectedRecipients(selectedOptions);
-        const emails = selectedOptions.map(option => option.value);
-        setEmailFormData(prev => ({
-            ...prev,
-            to: emails
-        }));
+        // Check if "select all" option is selected
+        const hasSelectAll = selectedOptions.some(option => option.value === 'select-all');
+        
+        if (hasSelectAll) {
+            // If "Select All" is selected, select all available email options
+            // Use current emailOptions (which may be filtered based on routes/days)
+            const allEmailOptions = emailOptions.map(option => ({
+                label: option.label,
+                value: option.value
+            }));
+            setSelectedRecipients(allEmailOptions);
+            const emails = allEmailOptions.map(option => option.value);
+            setEmailFormData(prev => ({
+                ...prev,
+                to: emails
+            }));
+        } else {
+            // Filter out "select all" option and set regular selection
+            const filteredOptions = selectedOptions.filter(option => option.value !== 'select-all');
+            setSelectedRecipients(filteredOptions);
+            const emails = filteredOptions.map(option => option.value);
+            setEmailFormData(prev => ({
+                ...prev,
+                to: emails
+            }));
+        }
     };
 
     const handleRoutesChange = async (selectedOptions: RouteOption[]) => {
@@ -1277,7 +1297,15 @@ const PromoTabs = () => {
                         </Typography>
                         <MultiSearchableDropdown
                             label=""
-                            options={emailOptions}
+                            options={[
+                                {
+                                    label: selectedRoutes.length > 0 || selectedDays.length > 0
+                                        ? `Select All Filtered Recipients (${emailOptions.length})`
+                                        : `Select All Recipients (${emailOptions.length})`,
+                                    value: "select-all",
+                                },
+                                ...emailOptions
+                            ]}
                             value={selectedRecipients}
                             onChange={handleRecipientsChange}
                             placeholder="Select recipients..."

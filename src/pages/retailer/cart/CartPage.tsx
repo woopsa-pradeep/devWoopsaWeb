@@ -687,9 +687,9 @@ const CartPage: React.FC = () => {
                 {/* <Typography fontSize={13} fontWeight={500} noWrap sx={{ maxWidth: '150px' }}>
                   {row.Description}
                 </Typography> */}
-            <Typography fontSize={11} color="text.secondary">
+            {/* <Typography fontSize={11} color="text.secondary">
               Pack: {row.CaseCount || "-"} | Case: {row.CaseCount || "-"} | Size: {row.UOM || "-"} | Unit: {row.UnitOunces || "-"}
-            </Typography>
+            </Typography> */}
           </Box>
         </Box>
         </Tooltip>

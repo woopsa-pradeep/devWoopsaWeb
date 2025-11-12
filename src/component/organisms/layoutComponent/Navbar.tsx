@@ -25,7 +25,7 @@ import { BalanceIcon, CartIcon } from "../../icons/CustomIcons";
 import AvatarMenu from "./AvatarMenu";
 import NotificationDrawer from "../../molecules/NotificationDrawer";
 import CustomSearchDropdown from "../../atoms/CustomSearchDropdown";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { useAppDispatch } from "../../../redux/store";
 import { fetchCartItems } from "../../../redux/slices/cartSlice";
@@ -58,6 +58,7 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
   const cart = useSelector((state: RootState) => auth?.role === "retailer" ? state.cart : state.salesCart);
   const notification = useSelector((state: RootState) => state.notification);
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useAppDispatch();
   const currentCustomerId = useSelector((state: RootState) => state.auth.isSessionActive?.currentCustomerId);
   // State for customer list and loading
@@ -803,31 +804,56 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
         
 
           {/* Cart Icon */}
-          {auth?.role !== "distributor" && <IconButton color="primary" onClick={() => {
-            // Transform cart items to match the validation function interface
-            const cartItemsForValidation = cart.items.map(item => ({
-              id: item.Description,
-              quantity: item.Product.Qty,
-              price: item.price,
-              priceWithTax: item.priceWithTax || item.price,
-              hasProductLimit: item.hasProductLimit || false,
-              productLimit: item.productLimit || null
-            }));
+          {auth?.role !== "distributor" && (() => {
+            // Check if user is already on a cart page
+            const isOnCartPage = auth?.role === "retailer" 
+              ? location.pathname.includes('/retailer/cart')
+              : location.pathname.includes('/sales/cart') || location.pathname.includes('/sales/return-cart');
+            
+            return (
+              <IconButton 
+                color="primary" 
+                onClick={() => {
+                  // Transform cart items to match the validation function interface
+                  const cartItemsForValidation = cart.items.map(item => ({
+                    id: item.Description,
+                    quantity: item.Product.Qty,
+                    price: item.price,
+                    priceWithTax: item.priceWithTax || item.price,
+                    hasProductLimit: item.hasProductLimit || false,
+                    productLimit: item.productLimit || null
+                  }));
 
-            // Prepare validation data
-            const validationData = {
-              userLimitMinOrderAmount: cart.userLimitMinOrderAmount,
-              totalAmountWithTax: cart.totalAmountWithTax,
-              totalAmount: cart.totalAmount
-            };
+                  // Prepare validation data
+                  const validationData = {
+                    userLimitMinOrderAmount: cart.userLimitMinOrderAmount,
+                    totalAmountWithTax: cart.totalAmountWithTax,
+                    totalAmount: cart.totalAmount
+                  };
 
-            // Validate cart before navigating
-            if (validateCartForCheckout(cartItemsForValidation, validationData)) {
-              navigate(auth?.role === "retailer" ? '/retailer/cart' : '/sales/cart');
-            }
-          }}>
-            <CartIcon count={cart.count} />
-          </IconButton>}
+                  // Validate cart before navigating
+                  if (validateCartForCheckout(cartItemsForValidation, validationData)) {
+                    if (auth?.role === "retailer") {
+                      navigate('/retailer/cart');
+                    } else if (auth?.role === "sales") {
+                      // Check if user is on return order page, redirect to return cart
+                      const isOnReturnOrderPage = location.pathname.includes('/sales/return-order');
+                      navigate(isOnReturnOrderPage ? '/sales/return-cart' : '/sales/cart');
+                    } else {
+                      navigate('/sales/cart');
+                    }
+                  }
+                }}
+                disabled={isOnCartPage}
+                sx={{
+                  opacity: isOnCartPage ? 0.5 : 1,
+                  cursor: isOnCartPage ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <CartIcon count={cart.count} />
+              </IconButton>
+            );
+          })()}
 
           <AvatarMenu />
         </Box>

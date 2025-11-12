@@ -120,9 +120,12 @@ const CartPage: React.FC = () => {
 
   // Get cart state from Redux
   const { items: cartItems, userLimitMinOrderAmount, totalAmountWithTax, totalAmount } = useSelector((state: RootState) => state.salesCart) as any;
-  const { selectedCustomer } = useSelector((state: RootState) => state.auth);
+  const { selectedCustomer, allowDiscount, discountLimit } = useSelector((state: RootState) => state.auth);
   const shippingAddress = `${selectedCustomer?.C_Name || 'Customer'}`;
   const warehouseAddress = `Warehouse Address`;
+
+  // State for discount amounts per item
+  const [itemDiscounts, setItemDiscounts] = useState<{ [key: number]: number }>({});
 
   const loadWarehouseProfile = async () => {
     setWarehouseProfileLoading(true);
@@ -192,6 +195,21 @@ const CartPage: React.FC = () => {
       });
     };
   }, []);
+
+  // Reset discounts when cart items change
+  useEffect(() => {
+    // Remove discounts for items that are no longer in cart
+    const currentItemIds = new Set(cartItems.map((item: CartItem) => item.Product.id));
+    setItemDiscounts(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(key => {
+        if (!currentItemIds.has(Number(key))) {
+          delete updated[Number(key)];
+        }
+      });
+      return updated;
+    });
+  }, [cartItems]);
   
 
   // Handle quantity change
@@ -549,20 +567,36 @@ const CartPage: React.FC = () => {
     setPlaceOrderLoading(true);
     try {
       // Prepare order payload
-      const orderPayload = cartItems.map((item: any) => ({
-        Customer_Number: item.Product.Customer_Number,
-        Item_Number: item.Item_Number,
-        Price: Number(item.Product.Price).toFixed(2),  
-        Price_With_Tax: Number(item.Product.Price_With_Tax).toFixed(2), // Use Price as Price_With_Tax since it's already the main price
-        Qty: item.Product.Qty,
-        Tax_Rate: Number(item.Product.Tax_Rate).toFixed(2), // Default tax rate
-        TotalPrice: Number(item.Product.TotalPrice).toFixed(2),
-        TotalPriceWithTax: Number(item.Product.TotalPriceWithTax).toFixed(2), // Use TotalPrice as TotalPriceWithTax
-        id: item.Product.id
-      }));
+      const orderPayload = cartItems.map((item: any) => {
+        const discountPerUnit = itemDiscounts[item.Product.id] || 0;
+        const totalPrice = Number(item.Product.TotalPrice) || 0;
+        const qty = item.Product.Qty || 1;
+        const totalDiscount = discountPerUnit * qty;
+        const discountPrice = qty > 0 ? (totalPrice - totalDiscount) / qty : 0;
+        
+        return {
+          Customer_Number: item.Product.Customer_Number,
+          Item_Number: item.Item_Number,
+          Price: Number(item.Product.Price).toFixed(2),  
+          Price_With_Tax: Number(item.Product.Price_With_Tax).toFixed(2), // Use Price as Price_With_Tax since it's already the main price
+          Qty: item.Product.Qty,
+          Tax_Rate: Number(item.Product.Tax_Rate).toFixed(2), // Default tax rate
+          TotalPrice: Number(item.Product.TotalPrice).toFixed(2),
+          TotalPriceWithTax: Number(item.Product.TotalPriceWithTax).toFixed(2), // Use TotalPrice as TotalPriceWithTax
+          discountPrice: Number(Math.max(0, discountPrice).toFixed(2)),
+          id: item.Product.id
+        };
+      });
+
+      const totalDiscount = calculateTotalDiscount();
+      const hasDiscount = totalDiscount > 0;
 
       const payload = {
-        Delivery_Charge: Number(deliveryCharge).toFixed(2),  
+        Delivery_Charge: Number(deliveryCharge).toFixed(2),
+        ...(hasDiscount && {
+          discountAmount: Number(totalDiscount).toFixed(2),
+          hasDiscount: true
+        }),
         orderPlayload: orderPayload,
         shippingMethod: shippingMethod,
         pickupTime: shippingMethod === 'pickup' ? selectedTimeSlot : null,
@@ -610,17 +644,68 @@ const CartPage: React.FC = () => {
     fetchDeliveryCharge();
   }, []);
 
+  // Calculate total discount amount (discount per unit * quantity for each item)
+  const calculateTotalDiscount = () => {
+    return cartItems.reduce((sum: number, item: CartItem) => {
+      const discountPerUnit = itemDiscounts[item.Product.id] || 0;
+      const qty = item.Product.Qty || 1;
+      return sum + (discountPerUnit * qty);
+    }, 0);
+  };
+
+  // Handle discount input change
+  const handleDiscountChange = (itemId: number, discountValue: string, maxDiscount: number) => {
+    const discountPerUnit = parseFloat(discountValue) || 0;
+    const currentTotalDiscount = calculateTotalDiscount();
+    const currentItemDiscountPerUnit = itemDiscounts[itemId] || 0;
+    const item = cartItems.find((item: CartItem) => item.Product.id === itemId);
+    const qty = item?.Product?.Qty || 1;
+    const currentItemTotalDiscount = currentItemDiscountPerUnit * qty;
+    const newItemTotalDiscount = discountPerUnit * qty;
+    const newTotalDiscount = currentTotalDiscount - currentItemTotalDiscount + newItemTotalDiscount;
+
+    // Validate discount is not negative
+    if (discountPerUnit < 0) {
+      toast.error('Discount cannot be negative');
+      return;
+    }
+
+    // Validate discount per unit doesn't exceed product's price per unit (without tax)
+    if (discountPerUnit > maxDiscount) {
+      toast.error(`Discount cannot exceed product's price of $${maxDiscount.toFixed(2)} per unit`);
+      return;
+    }
+
+    // Validate discount limit
+    if (discountLimit !== null && newTotalDiscount > discountLimit) {
+      toast.error(`Total discount cannot exceed $${discountLimit}. Current total: $${currentTotalDiscount.toFixed(2)}`);
+      return;
+    }
+
+    setItemDiscounts(prev => ({
+      ...prev,
+      [itemId]: discountPerUnit
+    }));
+  };
+
   // Calculate price details
   const calculatePriceDetails = () => {
-    const subtotal = Number(cartItems.reduce((sum: any, item: any) => sum + (item.Product.Price_With_Tax * item.Product.Qty), 0).toFixed(2));
-    //  const discount = 0; // No discount for now
+    // Calculate subtotal with discounts applied per item
+    const subtotal = Number(cartItems.reduce((sum: any, item: any) => {
+      const discountPerUnit = itemDiscounts[item.Product.id] || 0;
+      const qty = item.Product.Qty || 1;
+      const totalDiscount = discountPerUnit * qty;
+      const itemTotal = item.showWithOutPrice ? 0 : (Number(item.Product.TotalPriceWithTax) - totalDiscount);
+      return sum + itemTotal;
+    }, 0).toFixed(2));
+    const discount = calculateTotalDiscount();
     const crv = Number(0).toFixed(2); // No CRV for now
     const deliveryCharges = Number(deliveryCharge).toFixed(2); // No delivery charges for now
     const estimatedTotal = Number((subtotal + Number(crv) + Number(deliveryCharges)).toFixed(2));
 
     return {
       subtotal,
-      // discount,
+      discount,
       crv,
       deliveryCharges,
       estimatedTotal,
@@ -710,9 +795,9 @@ const CartPage: React.FC = () => {
                 >
                   {row.Description}
                 </Typography>
-            <Typography fontSize={12} color="text.secondary">
+            {/* <Typography fontSize={12} color="text.secondary">
               Pack: {row.CaseCount} Case: {row.CaseCount} Size: {row.UOM} Unit: {row.UOM}
-            </Typography>
+            </Typography> */}
           </Box>
         </Box>
         </Tooltip>
@@ -751,28 +836,107 @@ const CartPage: React.FC = () => {
         </Box>
       ),
     },
+    ...(allowDiscount ? [{
+      id: "discount",
+      label: "Discount",
+      render: (row: CartItem) => {
+        const currentDiscountPerUnit = itemDiscounts[row.Product.id] || 0;
+        const currentTotalDiscount = calculateTotalDiscount();
+        const qty = row.Product.Qty || 1;
+        // Product's price per unit without tax (max discount per unit)
+        const productPricePerUnit = row.showWithOutPrice ? 0 : Number(row.Product.TotalPrice) / qty || 0;
+        // Remaining discount for the entire order
+        const remainingDiscountForOrder = discountLimit !== null ? Math.max(0, discountLimit - currentTotalDiscount) : null;
+        // Max discount per unit this item can have: min of (product price per unit, (current discount * qty + remaining) / qty)
+        const currentItemTotalDiscount = currentDiscountPerUnit * qty;
+        const maxDiscountFromOrderLimit = remainingDiscountForOrder !== null 
+          ? (currentItemTotalDiscount + remainingDiscountForOrder) / qty 
+          : productPricePerUnit;
+        const maxDiscountForThisItem = Math.min(productPricePerUnit, maxDiscountFromOrderLimit);
+        
+        return (
+          <Box display="flex" flexDirection="column" gap={0.5}>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              max={maxDiscountForThisItem}
+              value={itemDiscounts[row.Product.id] || ''}
+              onChange={(e) => handleDiscountChange(row.Product.id, e.target.value, maxDiscountForThisItem)}
+              placeholder="0.00"
+              style={{
+                width: '90px',
+                padding: '6px 8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '12px',
+                textAlign: 'center',
+              }}
+              disabled={row.showWithOutPrice}
+            />
+            {discountLimit !== null && remainingDiscountForOrder !== null && (
+              <Typography fontSize={9} color="text.secondary" sx={{ lineHeight: 1 }}>
+                Remaining: ${remainingDiscountForOrder.toFixed(2)}
+              </Typography>
+            )}
+          </Box>
+        );
+      },
+    }] : []),
+    ...(allowDiscount ? [{
+      id: "discountPrice",
+      label: "Discount Price",
+      render: (row: CartItem) => {
+        const discountPerUnit = itemDiscounts[row.Product.id] || 0;
+        const totalPrice = row.showWithOutPrice ? 0 : Number(row.Product.TotalPrice) || 0;
+        const totalPriceWithTax = row.showWithOutPrice ? 0 : Number(row.Product.TotalPriceWithTax) || 0;
+        const qty = row.Product.Qty || 1;
+        // Total discount = discount per unit * quantity
+        const totalDiscount = discountPerUnit * qty;
+        // Discount price per unit (without tax)
+        const discountPrice = qty > 0 ? (totalPrice - totalDiscount) / qty : 0;
+        // Discount price per unit (with tax)
+        const discountPriceWithTax = qty > 0 ? (totalPriceWithTax - totalDiscount) / qty : 0;
+        // Calculate tax amount per unit: (TotalPriceWithTax - TotalPrice) / qty
+        const totalTax = totalPriceWithTax - totalPrice;
+        const taxAmountPerUnit = qty > 0 ? totalTax / qty : 0;
+        
+        return (
+          <Box display="flex" flexDirection="column" gap={0.5}>
+            <Typography fontSize={12} fontWeight={400} color="text.secondary">
+              {row.showWithOutPrice ? '-' : `$${Math.max(0, discountPrice).toFixed(2)}`}
+            </Typography>
+            {taxAmountPerUnit > 0 && !row.showWithOutPrice && (
+              <>
+                <Typography fontSize={11} color="text.secondary" sx={{ opacity: 0.7 }}>
+                  Tax: ${taxAmountPerUnit.toFixed(2)}
+                </Typography>
+                <Typography fontSize={11} color="text.secondary" sx={{ opacity: 0.7 }}>
+                  w/tax: ${Math.max(0, discountPriceWithTax).toFixed(2)}
+                </Typography>
+              </>
+            )}
+          </Box>
+        );
+      },
+    }] : []),
     {
       id: "totalPrice",
       label: "Total Price",
-      render: (row) => (
-        <Box display="flex" alignItems="center" gap={1}>
-          <Typography fontSize={12} fontWeight={400} color="text.secondary">
-            {row.showWithOutPrice ? '-' : `$${row.Product.TotalPriceWithTax}`}
-          </Typography>
-        </Box>
-      ),
+      render: (row) => {
+        const discountPerUnit = itemDiscounts[row.Product.id] || 0;
+        const qty = row.Product.Qty || 1;
+        const totalDiscount = discountPerUnit * qty;
+        const discountedTotal = row.showWithOutPrice ? 0 : Math.max(0, Number(row.Product.TotalPriceWithTax) - totalDiscount);
+        return (
+          <Box display="flex" alignItems="center" gap={1}>
+            <Typography fontSize={12} fontWeight={400} color="text.secondary">
+              {row.showWithOutPrice ? '-' : `$${discountedTotal.toFixed(2)}`}
+            </Typography>
+          </Box>
+        );
+      },
     },
-    // {
-    //   id: "discount",
-    //   label: "Discount",
-    //   render: (row) => (
-    //     <Box display="flex" alignItems="center" gap={1}>
-    //       <Typography fontSize={12} fontWeight={400} color="text.secondary">
-    //         {row.showWithOutPrice ? '-' : (row.isPriceChanged ? `$${(row.oldPrice - row.newPrice).toFixed(2)}` : "$0.00")}
-    //       </Typography>
-    //     </Box>
-    //   ),
-    // },
     {
       id: "action",
       label: "",

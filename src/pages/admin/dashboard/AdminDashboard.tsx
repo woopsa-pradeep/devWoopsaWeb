@@ -77,8 +77,8 @@ const AdminDashboard = () => {
     null
   );
   const [loading, setLoading] = useState(true);
-  const [startDate, setStartDate] = useState<dayjs.Dayjs | null>(null);
-  const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(null);
+  const [startDate, setStartDate] = useState<dayjs.Dayjs | null>(dayjs().subtract(7, 'day'));
+  const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(dayjs());
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(
     new Set(["Mobile", "Web", "ERP"])
   );

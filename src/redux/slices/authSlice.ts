@@ -56,6 +56,8 @@ interface AuthState {
   selectedCustomer: Customer | null;
   isSessionActive: any;
   logo: string | null;
+  allowDiscount: boolean | null;
+  discountLimit: number | null;
 }
 
 const initialState: AuthState = {
@@ -73,6 +75,8 @@ const initialState: AuthState = {
   selectedCustomer: null,
   isSessionActive: null,
   logo: null,
+  allowDiscount: null,
+  discountLimit: null,
 };
 
 const authSlice = createSlice({
@@ -92,6 +96,8 @@ const authSlice = createSlice({
       state.module = null;
       state.selectedCustomer = null;
       state.isSessionActive = null;
+      state.allowDiscount = null;
+      state.discountLimit = null;
       localStorage.removeItem('token');
       localStorage.removeItem('role');
       localStorage.removeItem('pushNotificationDeviceId');
@@ -199,6 +205,8 @@ const authSlice = createSlice({
         state.module = data.rolesPermission;
         state.isSessionActive = data?.profile?.isSessionActive;
         state.storeDetail = data?.storeDetail;
+        state.allowDiscount = data?.profile?.allowDiscount ?? null;
+        state.discountLimit = data?.profile?.discountLimit ?? null;
         // Convert wholesaledetail object to array
         state.wareHouseDetail = data?.wholeStoreDetail ? [data.wholeStoreDetail] : null;
         localStorage.setItem('token', data.token);

@@ -1,10 +1,10 @@
 import React from 'react';
 import { Box, Typography, Paper, Divider } from '@mui/material';
-// import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 interface PriceDetailsProps {
   subtotal: any;
-  // discount: number;
+  discount?: number;
   crv: any;
   deliveryCharges: any;
   estimatedTotal: any;
@@ -12,7 +12,7 @@ interface PriceDetailsProps {
 
 const PriceDetails: React.FC<PriceDetailsProps> = ({
   subtotal,
-  // discount,
+  discount = 0,
   crv,
   deliveryCharges,
   estimatedTotal,
@@ -47,7 +47,7 @@ const PriceDetails: React.FC<PriceDetailsProps> = ({
   );
 
   // Calculate savings as the discount value
-  // const savings = discount;
+  const savings = discount;
 
   return (
     <Paper sx={{ borderRadius: 3, height: '100%', boxShadow: 'none', overflow: 'hidden', bgcolor: 'background.paper' }}>
@@ -56,7 +56,7 @@ const PriceDetails: React.FC<PriceDetailsProps> = ({
       </Typography>
       <Box>
         <PriceRow label="Subtotal" value={subtotal} />
-        {/* <PriceRow label="Discount" value={discount} /> */}
+        {discount > 0 && <PriceRow label="Discount" value={discount} />}
         {/* <PriceRow label="Deposit" value={crv} /> */}
         <PriceRow label="Delivery Charges" value={deliveryCharges} />
       </Box>
@@ -64,15 +64,15 @@ const PriceDetails: React.FC<PriceDetailsProps> = ({
       <Box mb={1}>
         <PriceRow label="Grand Total" value={estimatedTotal} isTotal />
       </Box>
-      {/* {savings > 0 && (
+      {savings > 0 && (
         <Box display="flex" alignItems="center" bgcolor="#d1fae5" px={2} py={1.5} mt={0} >
           <CheckCircleIcon sx={{ color: '#10b981', mr: 1 }} />
           <Typography fontSize={15} color="#047857" fontWeight={500}
             sx={{ wordBreak: 'break-word' }}>
-            You will save ${savings.toLocaleString()} on this order!
+            You will save ${savings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} on this order!
           </Typography>
         </Box>
-      )} */}
+      )}
     </Paper>
   );
 };

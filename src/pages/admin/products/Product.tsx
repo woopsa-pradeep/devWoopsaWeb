@@ -57,6 +57,7 @@ interface Product {
   PriceClass: string;
   SalesCategory: string;
   QtyLimit?: { id: string; QtyLimit: number };
+  UPCList?: Array<{ UPC_Number: string }>;
 }
 
 interface FilterOption {
@@ -550,6 +551,10 @@ const Product = () => {
                     <Grid size={{ xs: 12, sm: 6, lg:4 }}>
                       <Typography fontSize={12} fontWeight={400} color="text.secondary">Item Number</Typography>
                       <Typography fontSize={13} fontWeight={400} color="text.primary">{selectedProduct.Item_Number}</Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, lg:4 }}>
+                      <Typography fontSize={12} fontWeight={400} color="text.secondary">UPC Number</Typography>
+                      <Typography fontSize={13} fontWeight={400} color="text.primary">{selectedProduct.UPCList?.[0]?.UPC_Number || 'N/A'}</Typography>
                     </Grid>
                     {/* <Grid size={{ xs: 12, sm: 6, lg:4 }}>
                       <Typography fontSize={14} fontWeight={400} color="text.secondary">Pack Size</Typography>

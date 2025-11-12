@@ -128,11 +128,12 @@ const OrderDetailsPage = () => {
     },
   ];
 
-  const subtotal = Number(orderHeader?.Total_Price) || 0;
+  const originalSubtotal = Number(orderHeader?.Total_Price) || 0;
   const discount = Number(orderHeader?.Total_Discount) || 0;
   const crv = Number(orderHeader?.Total_Deposit) || 0;
   const deliveryCharges = Number(orderHeader?.Delivery_Charge) || 0;
-  const estimatedTotal = subtotal - discount + deliveryCharges;    
+  const subtotal = originalSubtotal + discount; // Subtotal = original + discount
+  const estimatedTotal = subtotal - discount + deliveryCharges; // Grand total = subtotal - discount + delivery charge    
 
   // Separate handlers for each button to manage their own loading state
   const handlePrintOrderWithPrice = async () => {
@@ -251,7 +252,7 @@ const OrderDetailsPage = () => {
           {/* Price Details */}
           <PriceDetails
             subtotal={subtotal}
-            // discount={discount}
+            discount={discount}
             crv={crv}
             deliveryCharges={deliveryCharges}
             estimatedTotal={estimatedTotal}

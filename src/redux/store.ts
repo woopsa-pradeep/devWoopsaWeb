@@ -24,7 +24,7 @@ const formPersistConfig = {
 const authPersistConfig = {
   key: 'auth',
   storage,
-  whitelist: ['token', 'isAuthenticated', 'role', 'wareHouseDetail', 'storeDetail', 'signUpData', 'module', 'selectedCustomer', 'isSessionActive','logo'] // only persist these fields
+  whitelist: ['token', 'isAuthenticated', 'role', 'wareHouseDetail', 'storeDetail', 'signUpData', 'module', 'selectedCustomer', 'isSessionActive','logo', 'allowDiscount', 'discountLimit'] // only persist these fields
 };
 
 const salesDashboardPersistConfig = {
