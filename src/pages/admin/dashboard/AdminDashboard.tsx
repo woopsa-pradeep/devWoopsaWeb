@@ -44,7 +44,12 @@ interface DashboardData {
     totalCustomer: number;
     totalInactiveCustomer: number;
     totalOrder: number;
+     
   };
+   orderByUser: {
+      sales: number;
+      retailer: number;
+    };
   orderPlatform: {
     Mobile: number;
     Web: number;
@@ -833,6 +838,68 @@ const AdminDashboard = () => {
                     </Box>
                   );
                 })}
+              </Stack>
+              <Stack direction="row" spacing={1} mt={0.5}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    background: theme.palette.mode === "dark" ? "#232b39" : "#eef1f5",
+                    borderRadius: "8px",
+                    px: 1.5,
+                    py: 0.3,
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} sx={{ mr: 1 }}>
+                    Sales
+                  </Typography>
+                  <Box
+                    sx={{
+                      // background: theme.palette.success.main,
+                      color: theme.palette.success.main,
+                      borderRadius: "5px",
+                      px: 1,
+                      // py: 0.4,
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Typography fontWeight={700} fontSize={13}>
+                      {dashboardData?.orderByUser?.sales ?? 0}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    background: theme.palette.mode === "dark" ? "#232b39" : "#eef1f5",
+                    borderRadius: "8px",
+                    px: 1.5,
+                    py: 0.3,
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500}>
+                    Retailer
+                  </Typography>
+                  <Box
+                    sx={{
+                      // background: theme.palette.info.main,
+                      color: theme.palette.info.main,
+                      borderRadius: "5px",
+                      px: 1,
+                      // py: 0.4,
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Typography fontWeight={700} fontSize={13}>
+                      {dashboardData?.orderByUser?.retailer ?? 0}
+                    </Typography>
+                  </Box>
+                </Box>
               </Stack>
             </Box>
           </Paper>

@@ -37,3 +37,14 @@ export const getCustomerById = async (customerId: any) => {
     const response = await axiosInstance.get(`/distrubutor/customerByIdInfoInCalender/${customerId}`);
     return response.data;
 }
+
+export const getCustomerTotalOrderByCustomer = async (params: any) => {
+    const queryParams = new URLSearchParams();
+    
+    // Add required parameters
+    queryParams.append('orderDate', params.orderDate);
+    queryParams.append('orderDay', params.orderDay);
+    
+    const response = await axiosInstance.get(`/distrubutor/getCustomerTotalOrderByCustomer?${queryParams.toString()}`);
+    return response.data;
+}

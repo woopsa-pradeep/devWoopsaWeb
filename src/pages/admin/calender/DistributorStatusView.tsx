@@ -15,7 +15,7 @@ import moment from 'moment';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import CustomButton from '../../../component/atoms/CustomButton';
 import CommonModal from '../../../component/atoms/CommonModal';
-import { getCustomerOrderList, getCustomerById, getCustomerOrderDetailInCalender } from '../../../redux/apis/distrubutor/calenderApis';
+import { getCustomerOrderList, getCustomerById, getCustomerOrderDetailInCalender, getCustomerTotalOrderByCustomer } from '../../../redux/apis/distrubutor/calenderApis';
 
 interface CustomerData {
   C_Number: number;
@@ -86,8 +86,6 @@ const DistributorStatusView: React.FC = () => {
   const [customerOrderData, setCustomerOrderData] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
-  const [completedOrdersCount, setCompletedOrdersCount] = useState(0);
 
   // Customer details modal state
   const [openDetailsModal, setOpenDetailsModal] = useState(false);
@@ -98,6 +96,7 @@ const DistributorStatusView: React.FC = () => {
   const [orderDetails, setOrderDetails] = useState<any[]>([]);
   const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
   const [selectedCustomerForOrder, setSelectedCustomerForOrder] = useState<any>(null);
+  const [customerTotalOrder, setCustomerTotalOrder] = useState<any>(null);
 
   // Fetch customer order data
   const fetchCustomerOrderData = async (page: number = currentPage, limit: number = pageSize) => {
@@ -120,23 +119,11 @@ const DistributorStatusView: React.FC = () => {
           setCustomerOrderData(response.data.data);
           setTotalItems(response.data.total || 0);
           setTotalPages(response.data.totalPages || 0);
-          
-          // Calculate order status counts
-          const pendingCount = response.data.data.filter((order: any) => order.status === 'pending').length;
-          const completedCount = response.data.data.filter((order: any) => order.status !== 'pending').length;
-          setPendingOrdersCount(pendingCount);
-          setCompletedOrdersCount(completedCount);
         } else if (Array.isArray(response.data)) {
           // Fallback for non-paginated response
           setCustomerOrderData(response.data);
           setTotalItems(response.data.length);
           setTotalPages(1);
-          
-          // Calculate order status counts
-          const pendingCount = response.data.filter((order: any) => order.status === 'pending').length;
-          const completedCount = response.data.filter((order: any) => order.status != 'pending').length;
-          setPendingOrdersCount(pendingCount);
-          setCompletedOrdersCount(completedCount);
         }
       }
     } catch (error) {
@@ -181,10 +168,26 @@ const DistributorStatusView: React.FC = () => {
       setOrderDetailsLoading(false);
     }
   };
-
+  const getCustomerTotalOrderByCustomerApi = async () => {
+    const params: any = {
+      orderDate: selectedDate,
+      orderDay: customerDay,
+    };
+    try {
+      const response: any = await getCustomerTotalOrderByCustomer(params);
+      if (response.success && response.data) {
+        setCustomerTotalOrder(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching customer total order by customer:', error);
+    }
+  };
   useEffect(() => {
     fetchCustomerOrderData();
+    getCustomerTotalOrderByCustomerApi();
   }, [selectedDate, customerDay]);
+
+  console.log('customerTotalOrder', customerTotalOrder);
 
   // Handle page change
   const handlePageChange = (newPage: number) => {
@@ -344,19 +347,19 @@ const DistributorStatusView: React.FC = () => {
           <Grid size={{ xs: 12, md: 6 }}>
             <Box display="flex" gap={1} flexWrap="wrap" justifyContent="flex-end">
               <Chip 
-                label={`${customers.length} Customers`} 
+                label={`${customerTotalOrder?.total} Customers`} 
                 color="primary" 
                 variant="outlined"
                 size="small"
               />
               <Chip 
-                label={`${pendingOrdersCount} Pending`} 
+                label={`${customerTotalOrder?.pendingCount} Pending`} 
                 color="warning" 
                 variant="outlined"
                 size="small"
               />
               <Chip 
-                label={`${completedOrdersCount} Completed`} 
+                label={`${customerTotalOrder?.doneCount} Completed`} 
                 color="success" 
                 variant="outlined"
                 size="small"

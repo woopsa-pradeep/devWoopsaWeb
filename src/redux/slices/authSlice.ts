@@ -41,6 +41,11 @@ interface Customer {
   C_Name: string;
 }
 
+interface Store {
+  C_Number: number;
+  C_CoName: string;
+}
+
 interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
@@ -58,6 +63,9 @@ interface AuthState {
   logo: string | null;
   allowDiscount: boolean | null;
   discountLimit: number | null;
+  hasMultipleStore: boolean | null;
+  stores: Store[] | null;
+  selectedStore: Store | null;
 }
 
 const initialState: AuthState = {
@@ -77,6 +85,9 @@ const initialState: AuthState = {
   logo: null,
   allowDiscount: null,
   discountLimit: null,
+  hasMultipleStore: null,
+  stores: null,
+  selectedStore: null,
 };
 
 const authSlice = createSlice({
@@ -98,8 +109,12 @@ const authSlice = createSlice({
       state.isSessionActive = null;
       state.allowDiscount = null;
       state.discountLimit = null;
+      state.hasMultipleStore = null;
+      state.stores = null;
+      state.selectedStore = null;
       localStorage.removeItem('token');
       localStorage.removeItem('role');
+      localStorage.removeItem('emailPhone');
       localStorage.removeItem('pushNotificationDeviceId');
     },
     clearError: (state) => {
@@ -118,6 +133,42 @@ const authSlice = createSlice({
     },
     setLogo: (state, action) => {
       state.logo = action.payload;
+    },
+    setMultipleStores: (state, action) => {
+      state.hasMultipleStore = action.payload.hasMultipleStore;
+      state.stores = action.payload.stores;
+      if (action.payload.stores && action.payload.stores.length > 0) {
+        // Always update selectedStore based on current storeDetail
+        const currentStoreNumber = state.storeDetail?.C_Number;
+        const currentStore = action.payload.stores.find((store: Store) => 
+          store.C_Number.toString() === currentStoreNumber?.toString()
+        );
+        // Set selectedStore to current store if found, otherwise keep existing or set first
+        state.selectedStore = currentStore || state.selectedStore || action.payload.stores[0];
+      } else {
+        // If no stores, clear selectedStore
+        state.selectedStore = null;
+      }
+    },
+    setSelectedStore: (state, action) => {
+      state.selectedStore = action.payload;
+    },
+    setAuthFromSwitchStore: (state, action) => {
+      // Handle switchStore response like verifyOtp response
+      const authData = action.payload.authData;
+      const emailPhone = action.payload.emailPhone;
+      state.isAuthenticated = true;
+      state.token = authData.token;
+      state.role = authData.role;
+      state.wareHouseDetail = authData.wareHouseDetail;
+      state.storeDetail = authData.storeDetail;
+      state.logo = authData.logo;
+      if (emailPhone) {
+        state.emailPhone = emailPhone;
+        localStorage.setItem('emailPhone', emailPhone);
+      }
+      localStorage.setItem('token', authData.token);
+      localStorage.setItem('role', authData.role);
     }
   },
   extraReducers: (builder) => {
@@ -132,6 +183,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.otpSent = true;
         state.emailPhone = action.meta.arg.email_phone;
+        localStorage.setItem('emailPhone', action.meta.arg.email_phone);
       })
       .addCase(loginWithOtpThunk.rejected, (state, action) => {
         state.loading = false;
@@ -220,6 +272,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, setSelectedCustomer, updateSessionCustomer, updateStoreDetails ,setLogo} = authSlice.actions;
+export const { logout, clearError, setSelectedCustomer, updateSessionCustomer, updateStoreDetails, setLogo, setMultipleStores, setSelectedStore, setAuthFromSwitchStore } = authSlice.actions;
 export const selectAuth = (state: RootState) => state.auth;
 export default authSlice.reducer;

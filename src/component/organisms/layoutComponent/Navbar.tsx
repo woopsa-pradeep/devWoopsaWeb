@@ -31,8 +31,14 @@ import { useAppDispatch } from "../../../redux/store";
 import { fetchCartItems } from "../../../redux/slices/cartSlice";
 import { fetchSalesCartItems } from "../../../redux/slices/salesCartSlice";
 import { getCustomerList, setSalesSession } from "../../../redux/apis/sales/profileApis";
-import { setSelectedCustomer, updateSessionCustomer } from "../../../redux/slices/authSlice";
+import { setSelectedCustomer, updateSessionCustomer, setMultipleStores, logout, setAuthFromSwitchStore } from "../../../redux/slices/authSlice";
 import { fetchNotificationCount } from "../../../redux/slices/notificationSlice";
+import { hasMultipleStore, switchStore } from "../../../redux/apis/retailer/dashboardApis";
+import { authLogout } from "../../../redux/apis/authAPIs";
+import { clearCart } from "../../../redux/slices/cartSlice";
+import { clearSalesCart } from "../../../redux/slices/salesCartSlice";
+import { clearDashboardData } from "../../../redux/slices/dashboardSlice";
+import { clearSalesDashboardData } from "../../../redux/slices/salesDashboardSlice";
 import { validateCartForCheckout } from "../../../utils/cartValidationUtils";
 import Story from "../../../pages/admin/story/Story";
 import Stories from "../../../pages/retailer/stories/Stories";
@@ -90,6 +96,37 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
       dispatch(fetchCartItems());
       // Fetch stories count
       fetchStoriesCount();
+      
+      // Check for multiple stores after login or after store switch
+      // Get emailPhone from auth state or localStorage (for after page reload)
+      const emailPhone = auth?.emailPhone || localStorage.getItem('emailPhone');
+      if (auth?.isAuthenticated && emailPhone) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const isEmail = emailRegex.test(emailPhone);
+        if (isEmail) {
+          // Always call hasMultipleStore to refresh the store list
+          // This ensures dropdown is visible after store switch
+          hasMultipleStore(emailPhone).then((response: any) => {
+            if (response?.success && response?.data) {
+              const hasMultiple = response.data.hasMultipleStore;
+              const stores = response.data.stores || [];
+              dispatch(setMultipleStores({
+                hasMultipleStore: hasMultiple,
+                stores: stores
+              }));
+            } else {
+              // If response is not successful, clear the stores
+              dispatch(setMultipleStores({
+                hasMultipleStore: false,
+                stores: []
+              }));
+            }
+          }).catch((error) => {
+            console.error('Error fetching multiple stores:', error);
+            // On error, don't clear stores - keep existing state
+          });
+        }
+      }
     } else if (auth?.role === "sales") {
       dispatch(fetchSalesCartItems());
     }
@@ -98,7 +135,7 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
     if (auth?.role === "retailer") {
       dispatch(fetchNotificationCount());
     }
-  }, [dispatch, auth?.role]);
+  }, [dispatch, auth?.role, auth?.isAuthenticated, auth?.emailPhone]);
 
   // Fetch customer list for sales users
   useEffect(() => {
@@ -198,6 +235,112 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
       setHasUserManuallySelected(false);
     }
   }, [currentCustomerId]);
+
+  // Handle store selection for retailer
+  const handleStoreSelect = async (selectedOption: any) => {
+    if (selectedOption && auth?.role === "retailer") {
+      try {
+        const selectedStore = auth.stores?.find(store => store.C_Number.toString() === selectedOption.value);
+        if (!selectedStore) {
+          console.error('Selected store not found in stores list');
+          return;
+        }
+        
+        // Check if user is trying to switch to the same store
+        const currentStoreNumber = auth.storeDetail?.C_Number;
+        const selectedStoreNumber = selectedStore.C_Number;
+        
+        console.log('Store switch attempt:', {
+          currentStoreNumber,
+          selectedStoreNumber,
+          currentStoreString: currentStoreNumber?.toString(),
+          selectedStoreString: selectedStoreNumber.toString()
+        });
+        
+        // Compare as numbers or strings to handle type mismatches
+        if (currentStoreNumber && (
+          currentStoreNumber.toString() === selectedStoreNumber.toString() ||
+          Number(currentStoreNumber) === Number(selectedStoreNumber)
+        )) {
+          // Already on this store, no need to switch
+          console.log('Already on selected store, skipping switch');
+          return;
+        }
+        
+        // Save emailPhone before logout (it will be cleared)
+        const savedEmailPhone = auth.emailPhone || localStorage.getItem('emailPhone');
+        
+        if (!savedEmailPhone) {
+          console.error('EmailPhone not found, cannot switch store');
+          return;
+        }
+        
+        console.log('Calling switchStore API with retailerId:', selectedStore.C_Number.toString());
+        
+        // Call switchStore API
+        const switchResponse: any = await switchStore(selectedStore.C_Number.toString());
+        
+        console.log('SwitchStore API response:', switchResponse);
+        
+        // Check if switch was successful
+        if (!switchResponse?.success) {
+          console.error('Switch store API failed - success is false:', switchResponse);
+          return;
+        }
+        
+        if (!switchResponse?.data) {
+          console.error('Switch store API failed - no data in response:', switchResponse);
+          return;
+        }
+        
+        // Call logout function
+        try {
+          await authLogout();
+        } catch (error) {
+          console.log('Logout error (non-critical):', error);
+        }
+        
+        // Clear Redux state
+        dispatch(logout());
+        dispatch(clearCart());
+        dispatch(clearSalesCart());
+        dispatch(clearDashboardData());
+        dispatch(clearSalesDashboardData());
+        
+        // Handle switchStore response like verifyOtp (only for retailer)
+        // The response structure should be: { success: true, data: { token, role, wareHouseDetail, storeDetail, logo } }
+        const authData = switchResponse.data;
+        console.log('Setting auth from switchStore response:', { 
+          hasToken: !!authData.token, 
+          hasStoreDetail: !!authData.storeDetail,
+          storeDetailCNumber: authData.storeDetail?.C_Number,
+          authDataKeys: Object.keys(authData || {})
+        });
+        
+        // Validate required fields
+        if (!authData.token) {
+          console.error('SwitchStore response missing token');
+          return;
+        }
+        
+        if (!authData.storeDetail) {
+          console.error('SwitchStore response missing storeDetail');
+          return;
+        }
+        
+        // Set auth state from switchStore response (same as verifyOtp) - sets token and auth data once
+        dispatch(setAuthFromSwitchStore({ authData, emailPhone: savedEmailPhone }));
+        
+        // Small delay to ensure localStorage and Redux state are updated before reload
+        setTimeout(() => {
+          console.log('Reloading page after store switch...');
+          window.location.reload();
+        }, 100);
+      } catch (error) {
+        console.error('Error switching store:', error);
+      }
+    }
+  };
 
   // Handle customer selection
   const handleCustomerSelect = async (selectedOption: any) => {
@@ -317,6 +460,27 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
     label: customer.C_Name,
     value: customer.C_Number.toString()
   }));
+
+  // Convert store list to dropdown options
+  const storeOptions = auth.stores?.map(store => ({
+    label: store.C_CoName,
+    value: store.C_Number.toString()
+  })) || [];
+
+  // Get selected store option
+  // Use selectedStore if available, otherwise find current store from storeDetail
+  const selectedStoreOption = auth.selectedStore ? {
+    label: auth.selectedStore.C_CoName,
+    value: auth.selectedStore.C_Number.toString()
+  } : (auth.storeDetail?.C_Number && auth.stores && auth.stores.length > 0) ? (() => {
+    const currentStore = auth.stores.find(store => 
+      store.C_Number.toString() === auth.storeDetail?.C_Number?.toString()
+    );
+    return currentStore ? {
+      label: currentStore.C_CoName,
+      value: currentStore.C_Number.toString()
+    } : undefined;
+  })() : undefined;
 
   // // Custom filter function for Autocomplete to search from any position
   // const filterOptions = (options: any[], { inputValue }: { inputValue: string }) => {
@@ -735,6 +899,18 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                   }}
                 />
               )}
+            </Box>
+          )}
+          {/* Store Dropdown for Retailer with Multiple Stores */}
+          {auth?.role === "retailer" && auth?.hasMultipleStore && storeOptions.length > 0 && (
+            <Box sx={{ minWidth: { xs: 150, md: 200 } }}>
+              <CustomSearchDropdown
+                options={storeOptions}
+                value={selectedStoreOption || null}
+                onChange={handleStoreSelect}
+                placeholder="Select Store"
+                loading={false}
+              />
             </Box>
           )}
           {/* Notification Icon */}
