@@ -65,9 +65,15 @@ const ViewSalesPerson = () => {
   };
 
   // Helper function to format salesRepNumber
-  const formatSalesRepNumber = (salesRepNumber: string | undefined): string => {
+  const formatSalesRepNumber = (salesRepNumber: string | string[] | undefined): string => {
     if (!salesRepNumber) return 'N/A';
     
+    // If it's already an array, join it
+    if (Array.isArray(salesRepNumber)) {
+      return salesRepNumber.join(', ');
+    }
+    
+    // If it's a string, try to parse it
     try {
       // Handle PostgreSQL array format like {"5","2"} or JSON array like ["5","2"]
       // First, try to parse as JSON

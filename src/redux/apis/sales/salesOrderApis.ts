@@ -8,11 +8,11 @@ export const getOrderHistoryByOrderNumber = async (orderNumber: string, page: nu
     });
     return response.data;
 }
-export const getOrderHistory = async (customerId: string, page?: number, pageSize?: number, startDate?: string, endDate?: string, search?: string) => {
+export const getOrderHistory = async (customerId: string, page?: number, limit?: number, startDate?: string, endDate?: string, search?: string) => {
     const queryParams = new URLSearchParams();
     
     if (page !== undefined) queryParams.append('page', page.toString());
-    if (pageSize !== undefined) queryParams.append('pageSize', pageSize.toString());
+    if (limit !== undefined) queryParams.append('limit', limit.toString());
     if (startDate) queryParams.append('startDate', startDate);
     if (endDate) queryParams.append('endDate', endDate);
     if (search) queryParams.append('search', search);
