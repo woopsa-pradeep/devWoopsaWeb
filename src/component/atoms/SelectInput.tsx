@@ -23,13 +23,104 @@ type Props = SelectProps & {
   marginBottom?: string;
 };
 
-const SelectInput = React.forwardRef<HTMLSelectElement, Props>(
+const SelectInput = React.forwardRef<HTMLInputElement, Props>(
   ({ label, options, error, helperText, value = "", marginBottom = "2", ...rest }, ref) => {
     const theme = useTheme();
-    // const isPlaceholder = value === "";
+    const selectRef = React.useRef<HTMLDivElement>(null);
+    const selectComponentRef = React.useRef<any>(null);
+    const inputElementRef = React.useRef<HTMLInputElement | null>(null);
+
+    // Create a ref object that always has a focus method
+    React.useImperativeHandle(ref, () => {
+      return {
+        focus: () => {
+          // Try multiple strategies to focus, but never throw an error
+          // Strategy 1: Try the stored input element ref first (most reliable)
+          try {
+            const currentInput = inputElementRef.current;
+            if (currentInput != null && currentInput !== undefined) {
+              const focusMethod = currentInput.focus;
+              if (focusMethod != null && typeof focusMethod === 'function') {
+                focusMethod.call(currentInput);
+                return;
+              }
+            }
+          } catch {
+            // Continue to next strategy
+          }
+          
+          // Strategy 2: Try to find and focus on the select combobox element
+          try {
+            const selectContainer = selectRef.current;
+            if (selectContainer != null) {
+              const selectElement = selectContainer.querySelector?.('[role="combobox"]') as HTMLElement;
+              if (selectElement != null && selectElement !== undefined) {
+                const focusMethod = selectElement.focus;
+                if (focusMethod != null && typeof focusMethod === 'function') {
+                  focusMethod.call(selectElement);
+                  return;
+                }
+              }
+            }
+          } catch {
+            // Continue to next strategy
+          }
+          
+          // Strategy 3: Try to focus on the Select component's input element
+          try {
+            const selectComponent = selectComponentRef.current;
+            if (selectComponent != null) {
+              // MUI Select ref might be the component instance or DOM node
+              const selectNode = (selectComponent as any)?.querySelector 
+                ? selectComponent 
+                : (selectComponent as any)?.inputRef?.current;
+              
+              if (selectNode != null) {
+                const selectInput = selectNode.querySelector?.('input') || selectNode;
+                if (selectInput != null && selectInput !== undefined) {
+                  const focusMethod = selectInput.focus;
+                  if (focusMethod != null && typeof focusMethod === 'function') {
+                    focusMethod.call(selectInput);
+                    return;
+                  }
+                }
+              }
+            }
+          } catch {
+            // Silently fail - no focusable element available
+          }
+          
+          // If all strategies fail, do nothing (don't throw)
+        },
+        blur: () => {
+          const currentInput = inputElementRef.current;
+          if (currentInput) {
+            try {
+              currentInput.blur();
+            } catch {
+              // Ignore blur errors
+            }
+          }
+        },
+        // Provide basic input properties for compatibility
+        value: value || '',
+        name: inputElementRef.current?.name || '',
+        type: inputElementRef.current?.type || 'text',
+      } as HTMLInputElement;
+    }, [value]);
+
+    // Handle ref forwarding to the actual input element
+    // MUI Select's inputRef callback receives the input element, which we forward to react-hook-form
+    const handleInputRef = React.useCallback(
+      (instance: HTMLInputElement | null) => {
+        // Store the input element ref
+        inputElementRef.current = instance;
+      },
+      []
+    );
 
     return (
-      <Box mb={marginBottom}>
+      <Box mb={marginBottom} ref={selectRef}>
         {/* Static Label */}
      {label &&       <Typography
             fontSize={14}
@@ -42,11 +133,12 @@ const SelectInput = React.forwardRef<HTMLSelectElement, Props>(
 
         {/* Select Field */}
         <Select
+          ref={selectComponentRef}
           fullWidth
           size="small"
           displayEmpty
           error={error}
-          inputRef={ref}
+          inputRef={handleInputRef}
           value={value}
           defaultValue={options.length > 0 ? options[0].value : ""}
           IconComponent={PrimaryArrowIcon} // ✅ Set custom icon
@@ -119,5 +211,7 @@ const SelectInput = React.forwardRef<HTMLSelectElement, Props>(
     );
   }
 );
+
+SelectInput.displayName = 'SelectInput';
 
 export default SelectInput;

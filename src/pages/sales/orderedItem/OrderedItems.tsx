@@ -71,7 +71,7 @@ const OrderedItems = () => {
   const [pageSize, setPageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('1week');
   
   // Cart state
   const [cartItemsData, setCartItemsData] = useState<{ [key: string]: any }>({});

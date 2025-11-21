@@ -52,8 +52,8 @@ const AdvertisementBanner: React.FC<AdvertisementBannerProps> = ({
         height: height,
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: 2,
-        border: '1px solid #e0e0e0',
+        // borderRadius: 2,
+        // border: '1px solid #e0e0e0',
         my: my,
         '& img': {
           width: '100%',
@@ -89,7 +89,7 @@ const AdvertisementBanner: React.FC<AdvertisementBannerProps> = ({
               color: '#ffffff',
               backgroundColor: 'rgba(0, 0, 0, 0.5)',
               backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              // border: '1px solid rgba(255, 255, 255, 0.2)',
               '&:hover': {
                 backgroundColor: 'rgba(0, 0, 0, 0.7)',
                 transform: 'translateY(-50%) scale(1.1)'

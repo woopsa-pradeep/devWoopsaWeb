@@ -5,6 +5,7 @@ import {
   Paper,
   Grid,
   } from '@mui/material';
+// import { useNavigate } from 'react-router-dom';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { createProductLimit, productList, updateProductImageByImageId, updateProductLimit, uploadProductImage} from '../../../redux/apis/distrubutor/productApis';
@@ -25,6 +26,7 @@ import SwitchInput from '../../../component/atoms/SwitchInput';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import DistrubutorProductDetailModal from '../../../component/molecules/DistrubutorProductDetailModal';
 import SettingsIcon from '@mui/icons-material/Settings';
+// import AddIcon from '@mui/icons-material/Add';
 
 interface Product {
   id: string;
@@ -73,6 +75,7 @@ interface LimitModalData {
 }
 
 const Product = () => {
+  // const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 500);
   const [data, setData] = useState<Product[]>([]);
@@ -478,6 +481,15 @@ const Product = () => {
     <Box sx={{ p: { xs: 0, md: 3 }, pt: { xs: 0, md: 0 } }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Typography fontSize={18} fontWeight={400} color="text.primary">Products Management</Typography>
+          {/* <CustomButton 
+            fullWidth={false}
+            onClick={() => navigate('/admin/product/add')}
+            icon={<AddIcon sx={{ fontSize: 20 }} />}
+            iconPosition="left"
+            sx={{ mt: 0 }} 
+          >
+            Add Product
+          </CustomButton>   */}
       </Box>
       <Paper sx={{ boxShadow: 'none', borderRadius: '0px' }}>
       <Box px={2} pt={2}>

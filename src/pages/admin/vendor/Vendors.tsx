@@ -3,6 +3,9 @@ import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonT
 import { getVendorList } from '../../../redux/apis/distrubutor/VendorsApis';
 import { CircularProgress, Box, Typography, Paper, Grid } from '@mui/material';
 import TextInput from '../../../component/atoms/TextInput';
+// import { useNavigate } from 'react-router-dom';
+// import CustomButton from '../../../component/atoms/CustomButton';
+// import AddIcon from '@mui/icons-material/Add';
 
 interface VendorItem {
   Primary_Vendor: number;
@@ -33,6 +36,7 @@ const columns: TableColumn<VendorItem>[] = [
 ];
 
 const Vendors = () => {
+  // const navigate = useNavigate();
   const [data, setData] = useState<VendorItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -83,6 +87,15 @@ const Vendors = () => {
         <Typography fontSize={18} fontWeight={400} color="text.primary">
           Vendors
         </Typography>
+        {/* <CustomButton 
+          fullWidth={false}
+          onClick={() => navigate('/admin/vendor/add')}
+          icon={<AddIcon sx={{ fontSize: 20 }} />}
+          iconPosition="left"
+          sx={{ mt: 0 }} 
+        >
+          Add Vendor
+        </CustomButton> */}
       </Box>
       <Paper sx={{ boxShadow: "none", borderRadius: "0px" }}>
         <Box px={2} pt={2}>

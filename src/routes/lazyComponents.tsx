@@ -117,6 +117,10 @@ export const AdminProfile = lazyLoad(
 export const AdminRetailer = lazyLoad(
   () => import("../pages/admin/retailer/Retailer"),
   "Loading Admin Retailer..."
+);
+export const AddRetailer = lazyLoad(
+  () => import("../pages/admin/retailer/AddRetailer"),
+  "Loading Add Retailer..."
 );    
 export const AdminPromo = lazyLoad(
   () => import("../pages/admin/promo/Promo"),
@@ -133,6 +137,10 @@ export const AccountReceivable = lazyLoad(
 export const Vendors = lazyLoad(
   () => import("../pages/admin/vendor/Vendors"),
   "Loading Vendors..."
+);
+export const AddVendor = lazyLoad(
+  () => import("../pages/admin/vendor/AddVendor"),
+  "Loading Add Vendor..."
 );
 export const Permissions = lazyLoad(
   () => import("../pages/admin/permissions/Permissions"),
@@ -174,6 +182,10 @@ export const DistributorStatusView = lazyLoad(
 export const EpickSetting = lazyLoad(
   () => import("../pages/admin/epickSetting/EpickSetting"),
   "Loading Epick Setting..."
+);
+export const Inventory = lazyLoad(
+  () => import("../pages/admin/inventory/Inventory"),
+  "Loading Inventory..."
 );
 
 // sales

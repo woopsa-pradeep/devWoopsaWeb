@@ -32,6 +32,7 @@ import CustomButton from '../component/atoms/CustomButton';
 import CommonModal from '../component/atoms/CommonModal';
 import CategoryIcon from '../component/atoms/CategoryIcon';
 import Footer from '../component/atoms/Footer';
+import StickySocialMedia from '../component/atoms/StickySocialMedia';
 import distributorLogo from '../assets/Woopsa White.svg';
 import '../pages/LandingPage.css';
 
@@ -128,7 +129,7 @@ const Products: React.FC = () => {
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
   const [selectedSubcategories, setSelectedSubcategories] = useState<number[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
-  const [subcategorySearchTerm, setSubcategorySearchTerm] = useState<string>('');
+  const [subcategorySearchTerm, setSubcategorySearchTerm] = useState<{ [key: number]: string }>({});
   const [subcategoryDisplayCounts, setSubcategoryDisplayCounts] = useState<{ [key: number]: number }>({});
   const [filtersApplied, setFiltersApplied] = useState<boolean>(false);
   const [crossButtonClicked, setCrossButtonClicked] = useState<boolean>(false); // Track if cross button was clicked
@@ -471,11 +472,15 @@ const Products: React.FC = () => {
   // Clear master search
   const handleClearMasterSearch = () => {
     setMasterSearchTerm('');
+    setSearchTerm(''); // Also clear the regular search field
+    setDebouncedSearchTerm(''); // Clear debounced search term
     // Remove masterSearch parameter from URL
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.delete('masterSearch');
     navigate(`/products?${newSearchParams.toString()}`);
     setHasInitialized(false); // Reset flag to allow API calls
+    // Reset pagination to first page
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
 
@@ -542,6 +547,13 @@ const Products: React.FC = () => {
       if (newSet.has(categoryId)) {
         newSet.delete(categoryId);
       } else {
+        // Clear search term for this category when expanding
+        // This ensures that when switching between categories, each category starts with a clear search
+        setSubcategorySearchTerm(prevTerms => {
+          const newTerms = { ...prevTerms };
+          newTerms[categoryId] = '';
+          return newTerms;
+        });
         newSet.add(categoryId);
       }
       return newSet;
@@ -571,7 +583,7 @@ const Products: React.FC = () => {
     setSelectedCategories([]);
     setSelectedSubcategories([]);
     setExpandedCategories(new Set());
-    setSubcategorySearchTerm('');
+    setSubcategorySearchTerm({});
     setSearchTerm('');
     setMasterSearchTerm(''); // Clear masterSearchTerm state
     setSubcategoryDisplayCounts({});
@@ -1079,9 +1091,9 @@ const Products: React.FC = () => {
                       }
                     }}
                   />
-                  {/* Clear search button when search is from URL */}
-                  {masterSearchTerm  && (
-                    <Tooltip title="Clear master search">
+                  {/* Clear search button when search has value */}
+                  {(masterSearchTerm || searchTerm) && (
+                    <Tooltip title="Clear search">
                       <IconButton
                         size="small"
                         onClick={handleClearMasterSearch}
@@ -1173,19 +1185,21 @@ const Products: React.FC = () => {
                         >
                          {cat.name}
                         </Typography>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleCategoryExpand(cat.id)}
-                          sx={{ 
-                            p: 0.25,
-                            color: expandedCategories.has(cat.id) ? 'primary.main' : 'grey.500',
-                            '&:hover': {
-                              backgroundColor: 'primary.50'
-                            }
-                          }}
-                        >
-                          {expandedCategories.has(cat.id) ? '−' : '+'}
-                        </IconButton>
+                        {cat.subcategories && cat.subcategories.length > 0 && (
+                          <IconButton
+                            size="small"
+                            onClick={() => handleCategoryExpand(cat.id)}
+                            sx={{ 
+                              p: 0.25,
+                              color: expandedCategories.has(cat.id) ? 'primary.main' : 'grey.500',
+                              '&:hover': {
+                                backgroundColor: 'primary.50'
+                              }
+                            }}
+                          >
+                            {expandedCategories.has(cat.id) ? '−' : '+'}
+                          </IconButton>
+                        )}
                       </Box>
                       
                       {/* Subcategories Dropdown */}
@@ -1195,8 +1209,11 @@ const Products: React.FC = () => {
                           <TextField
                             size="small"
                             placeholder="Search subcategories..."
-                            value={subcategorySearchTerm}
-                            onChange={(e) => setSubcategorySearchTerm(e.target.value)}
+                            value={subcategorySearchTerm[cat.id] || ''}
+                            onChange={(e) => setSubcategorySearchTerm(prev => ({
+                              ...prev,
+                              [cat.id]: e.target.value
+                            }))}
                             sx={{ 
                               mb: 1,
                               '& .MuiOutlinedInput-root': {
@@ -1217,7 +1234,7 @@ const Products: React.FC = () => {
                           }}>
                             {cat.subcategories
                               .filter(sub => 
-                                sub.name.toLowerCase().includes(subcategorySearchTerm.toLowerCase())
+                                sub.name.toLowerCase().includes((subcategorySearchTerm[cat.id] || '').toLowerCase())
                               )
                               .slice(0, getSubcategoryDisplayCount(cat.id))
                               ?.map((sub : any) => (
@@ -1634,9 +1651,9 @@ const Products: React.FC = () => {
                     }
                   }}
                 />
-                {/* Clear search button when search is from URL */}
-                {masterSearchTerm && (
-                  <Tooltip title="Clear master search">
+                {/* Clear search button when search has value */}
+                {(masterSearchTerm || searchTerm) && (
+                  <Tooltip title="Clear search">
                     <IconButton
                       size="small"
                       onClick={handleClearMasterSearch}
@@ -1728,19 +1745,21 @@ const Products: React.FC = () => {
                       >
                         {cat.name}
                       </Typography>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleCategoryExpand(cat.id)}
-                        sx={{ 
-                          p: 0.25,
-                          color: expandedCategories.has(cat.id) ? 'primary.main' : 'grey.500',
-                          '&:hover': {
-                            backgroundColor: 'primary.50'
-                          }
-                        }}
-                      >
-                        {expandedCategories.has(cat.id) ? '−' : '+'}
-                      </IconButton>
+                      {cat.subcategories && cat.subcategories.length > 0 && (
+                        <IconButton
+                          size="small"
+                          onClick={() => handleCategoryExpand(cat.id)}
+                          sx={{ 
+                            p: 0.25,
+                            color: expandedCategories.has(cat.id) ? 'primary.main' : 'grey.500',
+                            '&:hover': {
+                              backgroundColor: 'primary.50'
+                            }
+                          }}
+                        >
+                          {expandedCategories.has(cat.id) ? '−' : '+'}
+                        </IconButton>
+                      )}
                     </Box>
                     
                     {/* Subcategories Dropdown */}
@@ -1750,8 +1769,11 @@ const Products: React.FC = () => {
                         <TextField
                           size="small"
                           placeholder="Search subcategories..."
-                          value={subcategorySearchTerm}
-                          onChange={(e) => setSubcategorySearchTerm(e.target.value)}
+                          value={subcategorySearchTerm[cat.id] || ''}
+                          onChange={(e) => setSubcategorySearchTerm(prev => ({
+                            ...prev,
+                            [cat.id]: e.target.value
+                          }))}
                           sx={{ 
                             mb: 1,
                             '& .MuiOutlinedInput-root': {
@@ -1772,7 +1794,7 @@ const Products: React.FC = () => {
                         }}>
                           {cat.subcategories
                             .filter((sub : any) => 
-                              sub.name.toLowerCase().includes(subcategorySearchTerm.toLowerCase())
+                              sub.name.toLowerCase().includes((subcategorySearchTerm[cat.id] || '').toLowerCase())
                             )
                             .slice(0, getSubcategoryDisplayCount(cat.id))
                             .map((sub : any) => (
@@ -1988,6 +2010,9 @@ const Products: React.FC = () => {
          </Box>
        )}
 
+      {/* Sticky Social Media */}
+      <StickySocialMedia contactData={contactData} />
+
       {/* Footer */}
       <Footer contactData={contactData} />
 
@@ -2036,6 +2061,11 @@ const Products: React.FC = () => {
                       <strong>Item ID:</strong> {selectedProduct.Item_Number}
                     </Typography>
                   )}
+                  {selectedProduct.SalesCategory && (
+                    <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
+                      <strong>Category:</strong> {selectedProduct.SalesCategory}
+                    </Typography>
+                  )}
                   {selectedProduct.Pack && (
                     <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
                       <strong>Pack:</strong> {selectedProduct.Pack}
@@ -2049,16 +2079,6 @@ const Products: React.FC = () => {
                   {selectedProduct.CaseCount && (
                     <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
                       <strong>Case Count:</strong> {selectedProduct.CaseCount}
-                    </Typography>
-                  )}
-                  {selectedProduct.PriceClass && (
-                    <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
-                      <strong>Price Class:</strong> {selectedProduct.PriceClass}
-                    </Typography>
-                  )}
-                  {selectedProduct.SalesCategory && (
-                    <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
-                      <strong>Sales Category:</strong> {selectedProduct.SalesCategory}
                     </Typography>
                   )}
                 </Box>

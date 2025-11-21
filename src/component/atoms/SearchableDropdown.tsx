@@ -397,14 +397,24 @@ console.log('Options:', options);
               startAdornment: (
                 <>
                   {params.InputProps.startAdornment}
-                  <SearchIcon 
-                    sx={{ 
-                      color: theme.palette.text.secondary,
-                      ml: 2,
-                      mr: 2,
-                      fontSize: 18
-                    }} 
-                  />
+                  <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    height: value.length > 0 ? '36px' : '100%',
+                    minHeight: '36px',
+                    alignSelf: value.length > 0 ? 'flex-start' : 'center',
+                    flexShrink: 0,
+                    mt: value.length > 0 ? '4px' : 0
+                  }}>
+                    <SearchIcon 
+                      sx={{ 
+                        color: theme.palette.text.secondary,
+                        ml: 2,
+                        mr: 2,
+                        fontSize: 18
+                      }} 
+                    />
+                  </Box>
                 </>
               ),
               endAdornment: (
@@ -428,6 +438,20 @@ console.log('Options:', options);
                 transition: "all 0.3s ease",
                 minHeight: "44px",
                 padding: "4px",
+                alignItems: "flex-start",
+                "& .MuiAutocomplete-inputRoot": {
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                },
+                "& .MuiAutocomplete-tag": {
+                  margin: "4px",
+                },
+                "& .MuiInputBase-input": {
+                  alignSelf: "center",
+                },
+                "& .MuiAutocomplete-input": {
+                  alignSelf: "center",
+                },
                 "& fieldset": {
                   borderColor: error
                     ? theme.palette.error.main
@@ -556,41 +580,76 @@ console.log('Options:', options);
             </Box>
           );
         }}
-        renderTags={(value, getTagProps) =>
-          value.map((option, index) => (
-            <Chip
-              {...getTagProps({ index })}
-              key={option.value}
-              label={option.label}
-              size="medium"
-              deleteIcon={<span style={{ fontSize: '22px', fontWeight: 400 }}>×</span>}
+        renderTags={(value, getTagProps) => {
+          const maxRows = 6;
+          const chipHeight = 28; // height of each chip
+          const chipMargin = 8; // 4px top + 4px bottom margin
+          const maxHeight = maxRows * (chipHeight + chipMargin);
+          const hasMoreThanMaxRows = value.length > maxRows;
+          
+          return (
+            <Box
+              component="span"
               sx={{
-                backgroundColor: theme.palette.background.default,
-                color: theme.palette.text.primary,
-                fontSize: "14px",
-                height: "28px",
-                margin: "4px",
-                fontWeight: 400,
-                borderRadius: "4px",
-                border: `1.5px solid ${theme.palette.grey[300]}`,
-                transition: "all 0.2s ease",
-                '& .MuiChip-label': {
-                  padding: '0 12px',
+                display: 'inline-flex',
+                flexWrap: 'wrap',
+                gap: '4px',
+                maxHeight: hasMoreThanMaxRows ? `${maxHeight}px` : 'none',
+                overflowY: hasMoreThanMaxRows ? 'auto' : 'visible',
+                overflowX: 'hidden',
+                width: '100%',
+                alignItems: 'flex-start',
+                '&::-webkit-scrollbar': {
+                  width: '6px',
                 },
-                '& .MuiChip-deleteIcon': {
-                  color: theme.palette.text.secondary,
+                '&::-webkit-scrollbar-track': {
+                  backgroundColor: 'transparent',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: theme.palette.grey[400],
+                  borderRadius: '3px',
                   '&:hover': {
-                    color: theme.palette.error.main,
-                  }
+                    backgroundColor: theme.palette.grey[500],
+                  },
                 },
-                "&:hover": {
-                  backgroundColor: theme.palette.grey[200],
-                  borderColor: theme.palette.grey[400],
-                }
               }}
-            />
-          ))
-        }
+            >
+              {value.map((option, index) => (
+                <Chip
+                  {...getTagProps({ index })}
+                  key={option.value}
+                  label={option.label}
+                  size="medium"
+                  deleteIcon={<span style={{ fontSize: '22px', fontWeight: 400 }}>×</span>}
+                  sx={{
+                    backgroundColor: theme.palette.background.default,
+                    color: theme.palette.text.primary,
+                    fontSize: "14px",
+                    height: "28px",
+                    margin: "4px",
+                    fontWeight: 400,
+                    borderRadius: "4px",
+                    border: `1.5px solid ${theme.palette.grey[300]}`,
+                    transition: "all 0.2s ease",
+                    '& .MuiChip-label': {
+                      padding: '0 12px',
+                    },
+                    '& .MuiChip-deleteIcon': {
+                      color: theme.palette.text.secondary,
+                      '&:hover': {
+                        color: theme.palette.error.main,
+                      }
+                    },
+                    "&:hover": {
+                      backgroundColor: theme.palette.grey[200],
+                      borderColor: theme.palette.grey[400],
+                    }
+                  }}
+                />
+              ))}
+            </Box>
+          );
+        }}
         sx={{
           "& .MuiAutocomplete-paper": {
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
@@ -616,6 +675,12 @@ console.log('Options:', options);
           },
           "& .MuiAutocomplete-listbox": {
             padding: 0,
+          },
+          "& .MuiAutocomplete-inputRoot": {
+            flexWrap: "wrap",
+            "& .MuiAutocomplete-tag": {
+              margin: "4px",
+            },
           },
         }}
         {...rest}

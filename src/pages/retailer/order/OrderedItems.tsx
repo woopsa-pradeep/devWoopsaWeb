@@ -69,7 +69,7 @@ const OrderedItems = () => {
   const [pageSize, setPageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('1week');
   
   // Cart state
   const [cartItemsData, setCartItemsData] = useState<{ [key: string]: any }>({});
@@ -993,12 +993,7 @@ const OrderedItems = () => {
             style={{ width: 40, height: 40, objectFit: 'contain' }} 
           />
           <Box>
-            <Typography fontSize={13} fontWeight={400} sx={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                maxWidth: '150px'
-            }}>{row.Description || "-"}</Typography>
+            <Typography fontSize={13} fontWeight={400}>{row.Description || "-"}</Typography>
             <Typography fontSize={12} color="text.secondary">
               Pack: {row.Pack || "-"} Case: {row.CaseCount || "-"} Size: {row.UOM || "-"} Unit: {row.UnitOunces || "-"}
             </Typography>

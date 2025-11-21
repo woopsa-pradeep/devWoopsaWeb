@@ -36,6 +36,7 @@ import CheckboxInput from '../component/atoms/CheckboxInput';
 import SwitchInput from '../component/atoms/SwitchInput';
 import FileUploadInput from '../component/atoms/FileUploadInput';
 import Footer from '../component/atoms/Footer';
+import StickySocialMedia from '../component/atoms/StickySocialMedia';
 import becomeRetailerImage from '../assets/becomeretailer.jpg';
 import '../pages/LandingPage.css';
 import { 
@@ -1556,6 +1557,9 @@ const ContactUsRequestForm: React.FC = () => {
         </Paper>
       </Box>
       
+      {/* Sticky Social Media */}
+      <StickySocialMedia contactData={contactData} />
+
       {/* Footer */}
       <Footer contactData={contactData} />
     </Box>

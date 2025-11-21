@@ -42,6 +42,7 @@ import AdvertisementBanner from '../component/atoms/AdvertisementBanner';
 import CommonModal from '../component/atoms/CommonModal';
 import CategoryIcon from '../component/atoms/CategoryIcon';
 import Footer from '../component/atoms/Footer';
+import StickySocialMedia from '../component/atoms/StickySocialMedia';
 import './LandingPage.css';
 import logo from '../assets/Vector.svg';
 import distributorLogo from '../assets/Woopsa White.svg';
@@ -1845,6 +1846,9 @@ const LandingPage: React.FC = () => {
         </Box>
       )}
 
+      {/* Sticky Social Media */}
+      <StickySocialMedia contactData={contactData} />
+
       {/* Footer */}
       <Footer contactData={contactData} />
 
@@ -1884,10 +1888,6 @@ const LandingPage: React.FC = () => {
                   {selectedProduct?.name}
                 </Typography>
 
-                <Typography variant="body2" sx={{ color: '#666', mb: 3, lineHeight: 1.6 }}>
-                  {selectedProduct?.description || 'Product description not available.'}
-                </Typography>
-
                 <Divider sx={{ my: 2 }} />
 
                 {/* Product Info */}
@@ -1900,11 +1900,11 @@ const LandingPage: React.FC = () => {
                       <strong>Category:</strong> {selectedProduct?.category}
                     </Typography>
                   )}
-                  {selectedProduct?.subcategory && (
+                  {/* {selectedProduct?.subcategory && (
                     <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
                       <strong>Subcategory:</strong> {selectedProduct?.subcategory}
                     </Typography>
-                  )}
+                  )} */}
                   {selectedProduct?.pack && (
                     <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
                       <strong>Pack:</strong> {selectedProduct?.pack}

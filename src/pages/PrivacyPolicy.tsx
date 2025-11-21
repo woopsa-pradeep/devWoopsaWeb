@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Container, Box, Typography, CircularProgress, Drawer, IconButton, useMediaQuery, useTheme, List, ListItemText, ListItemButton } from '@mui/material';
 import CustomButton from '../component/atoms/CustomButton';
 import Footer from '../component/atoms/Footer';
+import StickySocialMedia from '../component/atoms/StickySocialMedia';
 import './LandingPage.css';
 import distributorLogo from '../assets/Woopsa White.svg';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -546,6 +547,9 @@ const PrivacyPolicy: React.FC = () => {
           </Box>
         </Container>
       </div>
+
+      {/* Sticky Social Media */}
+      <StickySocialMedia contactData={contactData} />
 
       {/* Footer */}
       <Footer contactData={contactData} />

@@ -114,17 +114,29 @@ export const adminNavigationConfig: NavigationItem[] = [
     check: "distributor",
   },
   {
+    name: "Products",
+    path: "/admin/products",
+    icon: "products",
+    check: "distributor",
+  },
+  {
     name: "Retailers",
     path: "/admin/retailers",
     icon: "customers",
     check: "distributor",
   },
   {
-    name: "Products",
-    path: "/admin/products",
-    icon: "products",
+    name: "Vendors",
+    path: "/admin/vendors",
+    icon: "vendors",
     check: "distributor",
   },
+  // {
+  //   name: "Inventory",
+  //   path: "/admin/inventory",
+  //   icon: "inventory",
+  //   check: "distributor",
+  // },
   {
     name: "Orders",
     path: "/admin/order",
@@ -135,12 +147,6 @@ export const adminNavigationConfig: NavigationItem[] = [
     name: "Account Receivable",
     path: "/admin/account",
     icon: "account",
-    check: "distributor",
-  },
-  {
-    name: "Vendors",
-    path: "/admin/vendors",
-    icon: "vendors",
     check: "distributor",
   },
   {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Container, Grid, Typography, IconButton } from '@mui/material';
+import { Box, Container, Grid, Typography } from '@mui/material';
 import logo from '../../assets/Woopsa White.svg';
 import UserWhiteIcon from '../../assets/User_White.svg';
 import EmailWhiteIcon from '../../assets/Email_White.svg';
@@ -46,7 +46,7 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
       <Container maxWidth="xl" sx={{ py: 6 }}>
         <Grid container spacing={1}>
           {/* Company Information & Partnership */}
-          <Grid size={{ xs: 12, md: 4, lg: 3 }} sx={{ mb: {xs: 2, md: 0}}}>
+          <Grid size={{ xs: 12, md: 4, lg: 4 }} sx={{ mb: {xs: 2, md: 0}}}>
             <Box sx={{ mb: 1 }}>
               <img src={contactData?.logo ? contactData.logo : logo} alt={contactData?.D_Name} style={{ height: '28px', marginBottom: '6px' }} />
             </Box>
@@ -167,7 +167,7 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
           </Grid>
 
           {/* Contact Us */}
-          <Grid size={{ xs: 12, md: 3, lg: 2 }} sx={{ mb: {xs: 2, md: 0}}}>
+          <Grid size={{ xs: 12, md: 3, lg: 3 }} sx={{ mb: {xs: 2, md: 0}}}>
             <Typography variant="h6" sx={{ color: 'white', fontWeight: 500, mb: 2, fontSize: '0.9rem' }}>
               Contact Us
             </Typography>
@@ -200,19 +200,19 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
           </Grid>
 
           {/* Map Section */}
-          <Grid size={{ xs: 12, md: 3, lg: 3 }} sx={{ mb: {xs: 2, md: 0}}}>
+          <Grid size={{ xs: 12, md: 2, lg: 3 }} sx={{ mb: {xs: 2, md: 0}}}>
             {contactData?.location && contactData.location.length > 0 ? (
               <MapImage
                 latitude={contactData.location[0].latitude}
                 longitude={contactData.location[0].longitude}
-                width="95%"
-                height="180px"
+                width="100%"
+                height="200px"
                 address={`${contactData.D_Addr1}, ${contactData.D_City}, ${contactData.D_State} ${contactData.D_Zip}`}
               />
             ) : (
               <Box sx={{ 
-                width: '95%', 
-                height: '180px', 
+                width: '100%', 
+                height: '200px', 
                 backgroundColor: 'rgba(255, 255, 255, 0.1)', 
                 borderRadius: '6px',
                 display: 'flex',
@@ -227,75 +227,6 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
             )}
           </Grid>
 
-          {/* Social Media */}
-          <Grid
-            size={{ xs: 12, md: 3, lg: 2 }}
-            sx={{
-              display: 'flex',
-              alignItems: { xs: 'flex-start', md: 'flex-start' },
-              flexDirection: 'column',
-              width: '100%',
-              pl: 1,
-            }}
-          >
-            <Typography
-              variant="h6"
-              sx={{
-                color: 'white',
-                fontWeight: 500,
-                mb: 1,
-                fontSize: '0.9rem',
-                textAlign: { xs: 'left', md: 'left' },
-                width: '100%',
-              }}
-            >
-              Social Media
-            </Typography>
-            <Box
-              sx={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                justifyContent: { xs: 'flex-start', md: 'flex-start' },
-                width: '100%',
-              }}
-            >
-              {contactData?.links && contactData.links.length > 0 ? (
-                contactData.links.map((link) => (
-                  <IconButton
-                    key={link.id}
-                    component="a"
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.8)',
-                      '&:hover': { color: 'white' },
-                      padding: '2px',
-                      '& .MuiSvgIcon-root': { fontSize: '1rem' },
-                      minWidth: 26,
-                      minHeight: 26,
-                      borderRadius: '50%',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                    }}
-                  >
-                    {link.logo ? (
-                      <img
-                        src={link.logo}
-                        alt={link.name}
-                        style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '50%' }}
-                      />
-                    ) : (
-                      <Typography sx={{ fontSize: '0.6rem', fontWeight: 600 }}>
-                        {link.name}
-                      </Typography>
-                    )}
-                  </IconButton>
-                ))
-              ) : (
-                "-"
-              )}
-            </Box>
-          </Grid>
         </Grid>
       </Container>
 
