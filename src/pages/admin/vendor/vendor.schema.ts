@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { string, z } from 'zod';
 
 // Helper to allow both string and number input, parses to number
 function numberOrStringNumber(minValue = 0, errorMsg = 'Must be a number and at least ' + minValue) {
@@ -60,9 +60,9 @@ export const vendorSchema = z.object({
   V_MinOrder_Weight: numberOrStringNumber(0).max(999999, 'Minimum Order Weight must be maximum 6 digits'),
   V_MinOrder_Dollars: numberOrStringNumber(0).max(999999, 'Minimum Order Dollars must be maximum 6 digits'),
   V_MinOrder_Cases: numberOrStringNumber(0).max(9999, 'Minimum Order Cases must be maximum 4 digits'),
-  V_Terms: numberOrStringNumber(0),
+  V_Terms: z.string(),
   V_AccountNumber: z.string(),
-  V_EFT: numberOrStringNumber(0),
+  V_EFT: z.string(),
   V_Comment: z.string(),
   V_Backorders: numberOrStringNumber(0),
   V_BackorderAmount: numberOrStringNumber(0),
@@ -109,7 +109,7 @@ export const vendorSchema = z.object({
   V_PO_InputOption: numberOrStringNumber(0),
   FTP_Protocol: numberOrStringNumber(0),
   FTP_Mode: numberOrStringNumber(0),
-  FTP_FileExt: numberOrStringNumber(0),
+  FTP_FileExt: z.string(),
   V_FullCase: z.string().refine((val) => ['S', 'A', 'N'].includes(val), {
     message: 'Full Case must be S, A, or N'
   }),

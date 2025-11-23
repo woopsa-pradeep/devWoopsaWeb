@@ -72,12 +72,12 @@ const AddVendor: React.FC = () => {
       V_MinOrder_Weight: 0,
       V_MinOrder_Dollars: 0,
       V_MinOrder_Cases: 0,
-      V_Terms: 0,
+      V_Terms: '',
       V_AccountNumber: '',
-      V_EFT: 1,
+      V_EFT: '',
       V_Comment: '',
       V_Backorders: 1,
-      V_BackorderAmount: 1,
+      V_BackorderAmount: 0,
       V_BillTo_Name: '',
       V_BillTo_Addr1: '',
       V_BillTo_Addr2: '',
@@ -121,7 +121,7 @@ const AddVendor: React.FC = () => {
       V_PO_InputOption: 0,
       FTP_Protocol: 0,
       FTP_Mode: 0,
-      FTP_FileExt: 0,
+      FTP_FileExt: "",
       V_FullCase: 'A',
       V_Inactive: 0,
       V_EmailSend: 0,
@@ -393,7 +393,7 @@ const AddVendor: React.FC = () => {
                 <input type="hidden" {...register('QB_TaxVendor')} />
                 <input type="hidden" {...register('FTP_Protocol', { valueAsNumber: true })} />
                 <input type="hidden" {...register('FTP_Mode', { valueAsNumber: true })} />
-                <input type="hidden" {...register('FTP_FileExt', { valueAsNumber: true })} />
+                <input type="hidden" {...register('FTP_FileExt')} />
                 <input type="hidden" {...register('V_EmailSend', { valueAsNumber: true })} />
                 <input type="hidden" {...register('V_PrimarySupplier', { valueAsNumber: true })} />
                 <input type="hidden" {...register('V_PurchaseSchedule', { valueAsNumber: true })} />
@@ -533,7 +533,7 @@ const AddVendor: React.FC = () => {
                             // Find the selected term and set V_Terms to TermsType, TermsCode, and TermsType automatically
                             const selectedTerm = termsData.find((term: any) => String(term.TermsCode) === termsCode);
                             if (selectedTerm) {
-                              setValue('V_Terms', selectedTerm.TermsType);
+                              setValue('V_Terms', selectedTerm.Terms);
                               setValue('TermsCode', String(selectedTerm.TermsCode));
                             }
                           }}
@@ -947,7 +947,7 @@ const AddVendor: React.FC = () => {
                     </Box>
 
                     <Grid container spacing={1.5}>
-                  <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  {/* <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                     <Controller
                       name="V_EFT"
                       control={control}
@@ -959,7 +959,7 @@ const AddVendor: React.FC = () => {
                         />
                       )}
                     />
-                  </Grid>
+                  </Grid> */}
                   <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                     <Controller
                       name="V_Backorders"

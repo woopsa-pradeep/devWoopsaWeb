@@ -33,11 +33,18 @@ interface FooterProps {
       latitude: string;
       longitude: string;
     }>;
+    contactUs?: {
+      PhoneNO?: string;
+      WhatupNo?: string;
+      EmailAdd?: string;
+      Fax?: string;
+    };
   };
 }
 
 const Footer: React.FC<FooterProps> = ({ contactData }) => {
   
+  console.log("contactData", contactData);
 
   
   return (
@@ -187,13 +194,13 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <img src={CallWhiteIcon} alt="Phone" style={{ width: '16px', height: '16px' }} />
                 <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.75rem', wordBreak: 'break-all' }}>
-                  {contactData?.D_Phone ? `+1 (${contactData.D_Phone.slice(0, 3)}) ${contactData.D_Phone.slice(3, 6)}-${contactData.D_Phone.slice(6)}` : '-'}
+                  {contactData?.contactUs && contactData?.contactUs?.PhoneNO ? contactData?.contactUs?.PhoneNO : contactData?.D_Phone ? `+1 (${contactData.D_Phone.slice(0, 3)}) ${contactData.D_Phone.slice(3, 6)}-${contactData.D_Phone.slice(6)}` : '-'}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <img src={EmailWhiteIcon} alt="Email" style={{ width: '16px', height: '16px' }} />
                 <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.75rem', wordBreak: 'break-all',  '&:hover': { color: 'white' }, cursor: 'pointer' , textDecoration: 'none'}} component="a" href={`mailto:${contactData?.D_Email}`}>
-                  {contactData?.D_Email || '-'}
+                  {contactData?.contactUs && contactData?.contactUs?.EmailAdd ? contactData?.contactUs?.EmailAdd : contactData?.D_Email || '-'}
                 </Typography>
               </Box>
             </Box>

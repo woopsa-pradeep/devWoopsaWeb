@@ -243,11 +243,21 @@ const PromoTabs = () => {
             const response = await getEmailForCampaign({ routes: [], days: [] });
             console.log('Email options API response:', response);
             
-            // Transform the response data to match EmailOption interface
-            const options: EmailOption[] = response.map((item: any) => ({
-                value: item.C_Email || item,
-                label: item.C_Name || item
-            }));
+            // Filter out entries without C_Email and transform the response data
+            const options: EmailOption[] = response
+                .filter((item: any) => {
+                    // Keep plain strings (email addresses)
+                    if (typeof item === 'string') return true;
+                    // For objects, only keep if C_Email exists and is not empty
+                    if (typeof item === 'object' && item !== null) {
+                        return item.C_Email && item.C_Email.trim() !== '';
+                    }
+                    return false;
+                })
+                .map((item: any) => ({
+                    value: item.C_Email || item,
+                    label: item.C_Name || item
+                }));
             
             setEmailOptions(options);
         } catch (error) {
@@ -519,11 +529,21 @@ const PromoTabs = () => {
                 console.log('Fetching emails for filters:', payload);
                 const response = await getEmailForCampaign(payload);
                 
-                // Transform the response data to match EmailOption interface
-                const options: EmailOption[] = response.map((item: any) => ({
-                    value: item.C_Email || item,
-                    label: item.C_Name || item
-                }));
+                // Filter out entries without C_Email and transform the response data
+                const options: EmailOption[] = response
+                    .filter((item: any) => {
+                        // Keep plain strings (email addresses)
+                        if (typeof item === 'string') return true;
+                        // For objects, only keep if C_Email exists and is not empty
+                        if (typeof item === 'object' && item !== null) {
+                            return item.C_Email && item.C_Email.trim() !== '';
+                        }
+                        return false;
+                    })
+                    .map((item: any) => ({
+                        value: item.C_Email || item,
+                        label: item.C_Name || item
+                    }));
                 
                 setEmailOptions(options);
                 // Clear selected recipients when filters change
@@ -1480,6 +1500,7 @@ const PromoTabs = () => {
                             disabled={emailFormLoading}
                             appearance="outlined"
                             sx={{ borderRadius: 2 }}
+                            fullWidth={false}
                         >
                             Cancel
                         </CustomButton>
@@ -1489,6 +1510,7 @@ const PromoTabs = () => {
                             disabled={emailFormLoading}
                             appearance="outlined"
                             sx={{ borderRadius: 2 }}
+                            fullWidth={false}
                         >
                             Save as Draft
                         </CustomButton>
@@ -1498,6 +1520,7 @@ const PromoTabs = () => {
                             disabled={emailFormLoading}
                             icon={emailFormLoading ? <CircularProgress size={16} /> : null}
                             sx={{ borderRadius: 2 }}
+                            fullWidth={false}
                         >
                             {emailFormLoading ? 'Sending...' : 'Send Campaign'}
                         </CustomButton>
