@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Container, Grid, Typography, IconButton } from '@mui/material';
+import { Box, Container, Grid, Typography } from '@mui/material';
 import logo from '../../assets/Woopsa White.svg';
 import UserWhiteIcon from '../../assets/User_White.svg';
 import EmailWhiteIcon from '../../assets/Email_White.svg';
@@ -33,11 +33,18 @@ interface FooterProps {
       latitude: string;
       longitude: string;
     }>;
+    contactUs?: {
+      PhoneNO?: string;
+      WhatupNo?: string;
+      EmailAdd?: string;
+      Fax?: string;
+    };
   };
 }
 
 const Footer: React.FC<FooterProps> = ({ contactData }) => {
   
+  console.log("contactData", contactData);
 
   
   return (
@@ -46,7 +53,7 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
       <Container maxWidth="xl" sx={{ py: 6 }}>
         <Grid container spacing={1}>
           {/* Company Information & Partnership */}
-          <Grid size={{ xs: 12, md: 4, lg: 3 }} sx={{ mb: {xs: 2, md: 0}}}>
+          <Grid size={{ xs: 12, md: 4, lg: 4 }} sx={{ mb: {xs: 2, md: 0}}}>
             <Box sx={{ mb: 1 }}>
               <img src={contactData?.logo ? contactData.logo : logo} alt={contactData?.D_Name} style={{ height: '28px', marginBottom: '6px' }} />
             </Box>
@@ -167,7 +174,7 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
           </Grid>
 
           {/* Contact Us */}
-          <Grid size={{ xs: 12, md: 3, lg: 2 }} sx={{ mb: {xs: 2, md: 0}}}>
+          <Grid size={{ xs: 12, md: 3, lg: 3 }} sx={{ mb: {xs: 2, md: 0}}}>
             <Typography variant="h6" sx={{ color: 'white', fontWeight: 500, mb: 2, fontSize: '0.9rem' }}>
               Contact Us
             </Typography>
@@ -187,32 +194,32 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <img src={CallWhiteIcon} alt="Phone" style={{ width: '16px', height: '16px' }} />
                 <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.75rem', wordBreak: 'break-all' }}>
-                  {contactData?.D_Phone ? `+1 (${contactData.D_Phone.slice(0, 3)}) ${contactData.D_Phone.slice(3, 6)}-${contactData.D_Phone.slice(6)}` : '-'}
+                  {contactData?.contactUs && contactData?.contactUs?.PhoneNO ? contactData?.contactUs?.PhoneNO : contactData?.D_Phone ? `+1 (${contactData.D_Phone.slice(0, 3)}) ${contactData.D_Phone.slice(3, 6)}-${contactData.D_Phone.slice(6)}` : '-'}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <img src={EmailWhiteIcon} alt="Email" style={{ width: '16px', height: '16px' }} />
                 <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.75rem', wordBreak: 'break-all',  '&:hover': { color: 'white' }, cursor: 'pointer' , textDecoration: 'none'}} component="a" href={`mailto:${contactData?.D_Email}`}>
-                  {contactData?.D_Email || '-'}
+                  {contactData?.contactUs && contactData?.contactUs?.EmailAdd ? contactData?.contactUs?.EmailAdd : contactData?.D_Email || '-'}
                 </Typography>
               </Box>
             </Box>
           </Grid>
 
           {/* Map Section */}
-          <Grid size={{ xs: 12, md: 3, lg: 3 }} sx={{ mb: {xs: 2, md: 0}}}>
+          <Grid size={{ xs: 12, md: 2, lg: 3 }} sx={{ mb: {xs: 2, md: 0}}}>
             {contactData?.location && contactData.location.length > 0 ? (
               <MapImage
                 latitude={contactData.location[0].latitude}
                 longitude={contactData.location[0].longitude}
-                width="95%"
-                height="180px"
+                width="100%"
+                height="200px"
                 address={`${contactData.D_Addr1}, ${contactData.D_City}, ${contactData.D_State} ${contactData.D_Zip}`}
               />
             ) : (
               <Box sx={{ 
-                width: '95%', 
-                height: '180px', 
+                width: '100%', 
+                height: '200px', 
                 backgroundColor: 'rgba(255, 255, 255, 0.1)', 
                 borderRadius: '6px',
                 display: 'flex',
@@ -227,75 +234,6 @@ const Footer: React.FC<FooterProps> = ({ contactData }) => {
             )}
           </Grid>
 
-          {/* Social Media */}
-          <Grid
-            size={{ xs: 12, md: 3, lg: 2 }}
-            sx={{
-              display: 'flex',
-              alignItems: { xs: 'flex-start', md: 'flex-start' },
-              flexDirection: 'column',
-              width: '100%',
-              pl: 1,
-            }}
-          >
-            <Typography
-              variant="h6"
-              sx={{
-                color: 'white',
-                fontWeight: 500,
-                mb: 1,
-                fontSize: '0.9rem',
-                textAlign: { xs: 'left', md: 'left' },
-                width: '100%',
-              }}
-            >
-              Social Media
-            </Typography>
-            <Box
-              sx={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                justifyContent: { xs: 'flex-start', md: 'flex-start' },
-                width: '100%',
-              }}
-            >
-              {contactData?.links && contactData.links.length > 0 ? (
-                contactData.links.map((link) => (
-                  <IconButton
-                    key={link.id}
-                    component="a"
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.8)',
-                      '&:hover': { color: 'white' },
-                      padding: '2px',
-                      '& .MuiSvgIcon-root': { fontSize: '1rem' },
-                      minWidth: 26,
-                      minHeight: 26,
-                      borderRadius: '50%',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                    }}
-                  >
-                    {link.logo ? (
-                      <img
-                        src={link.logo}
-                        alt={link.name}
-                        style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '50%' }}
-                      />
-                    ) : (
-                      <Typography sx={{ fontSize: '0.6rem', fontWeight: 600 }}>
-                        {link.name}
-                      </Typography>
-                    )}
-                  </IconButton>
-                ))
-              ) : (
-                "-"
-              )}
-            </Box>
-          </Grid>
         </Grid>
       </Container>
 

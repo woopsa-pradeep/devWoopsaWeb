@@ -1,12 +1,12 @@
 import React from 'react';
-import { Box, Typography, Container } from '@mui/material';
+import { Box, Container } from '@mui/material';
 import DistributorCalendar from '../../../component/atoms/DistributorCalendar';
 
 const DistributorCalendarPage: React.FC = () => {
   return (
     <Container maxWidth="xl">
       <Box p={{ xs: "10px", sm: "10px", md: "10px 15px" }}>
-        <Box
+        {/* <Box
           display="flex"
           justifyContent="space-between"
           alignItems="center"
@@ -17,7 +17,7 @@ const DistributorCalendarPage: React.FC = () => {
           <Typography fontSize="22px" fontWeight={500}>
             Distributor Calendar
           </Typography>
-        </Box>
+        </Box> */}
         
         <DistributorCalendar />
       </Box>

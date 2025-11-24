@@ -15,7 +15,7 @@ import {
   Add as AddIcon, 
   Visibility as ViewIcon, 
   Edit as EditIcon, 
-  Delete as DeleteIcon,
+  // Delete as DeleteIcon,
   MoreVert as MoreVertIcon
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
@@ -423,12 +423,12 @@ const Notifications = () => {
             </ListItemIcon>
             <ListItemText primary="Edit" />
           </MenuItem>
-          <MenuItem onClick={() => handleMenuAction('delete')}>
+          {/* <MenuItem onClick={() => handleMenuAction('delete')}>
             <ListItemIcon>
               <DeleteIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText primary="Delete" />
-          </MenuItem>
+          </MenuItem> */}
         </Menu>
 
         {/* Delete Modal */}

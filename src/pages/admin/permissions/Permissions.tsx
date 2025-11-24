@@ -117,6 +117,23 @@ const Permissions = () => {
     }
   };
 
+  const handleAllowDeliveryChargeChange = async (row: SalesPerson) => {
+    try {
+      const newAllowDeliveryChargeValue = !row.allowDeliveryCharge;
+      const response: any = await updateUser(row.id, { 
+        allowDeliveryCharge: newAllowDeliveryChargeValue 
+      });
+      if (response.status === 200) {
+        toast.success(response?.data?.message || 'Allow delivery charge updated successfully');
+        fetchUserList();
+      } else {
+        toast.error(response?.data?.message || 'Failed to update allow delivery charge');
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to update allow delivery charge');
+    }
+  };
+
   // Handle edit user limit
   const handleEditLimit = (user: SalesPerson) => {
     setSelectedUser(user);
@@ -216,6 +233,26 @@ const Permissions = () => {
             : 'N/A'}
         </Typography>
       ),
+    },
+    {
+      id: 'allowDeliveryCharge',
+      label: 'Allow Delivery Charge',
+      render: (row) => {
+        // Only show this column when role is 'sales'
+        if (row.role !== 'sales') {
+          return null;
+        }
+        return (
+          <SwitchInput
+            checked={row.allowDeliveryCharge || false}
+            onChange={() => {
+              handleAllowDeliveryChargeChange(row);
+            }}
+            sx={{ mb: 0 }}
+            isShowLabel={false}
+          />
+        );
+      },
     },
     {
       id: 'allowDiscount',

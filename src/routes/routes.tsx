@@ -4,7 +4,7 @@ import ErrorBoundaryWrapper from "../pages/error/ErrorBoundaryWrapper";
 import PrivateRoute from "../components/PrivateRoute";
 import RoleBasedRoute from "../components/RoleBasedRoute";
 
-import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AdminPromo, AccountReceivable, Vendors, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, SalesReturnOrder, SalesReturnCartPage  } from "./lazyComponents";
+import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AddRetailer, AdminPromo, AccountReceivable, Vendors, AddVendor, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, Inventory, SalesReturnOrder, SalesReturnCartPage  } from "./lazyComponents";
 import { Navigate } from "react-router-dom";
 
 // Check if user is logged in
@@ -295,10 +295,26 @@ export const adminRoutes = [
             ),
           },
           {
+            path: "retailer/add",
+            element: (
+              <RoleBasedRoute path="/admin/retailer/add">
+                <AddRetailer />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "products",
             element: (
               <RoleBasedRoute path="/admin/products">
                 <AdminProduct />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "product/add",
+            element: (
+              <RoleBasedRoute path="/admin/product/add">
+                <Inventory />
               </RoleBasedRoute>
             ),
           },
@@ -339,6 +355,14 @@ export const adminRoutes = [
             element: (
               <RoleBasedRoute path="/admin/vendors">
                 <Vendors />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "vendor/add",
+            element: (
+              <RoleBasedRoute path="/admin/vendor/add">
+                <AddVendor />
               </RoleBasedRoute>
             ),
           },

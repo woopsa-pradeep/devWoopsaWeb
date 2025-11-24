@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, IconButton, Menu, MenuItem, Paper } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import AddIcon from '@mui/icons-material/Add';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import TextInput from '../../../component/atoms/TextInput';
 import { customerList } from '../../../redux/apis/distrubutor/retailerApis';
@@ -12,6 +13,8 @@ import CustomerLimitModal from '../../../component/molecules/CustomerLimitModal'
 import { setCustomerLimit } from '../../../redux/apis/distrubutor/settingApis';
 import { CustomerLimitFormData } from './customerLimitSchema';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import CustomButton from '../../../component/atoms/CustomButton';
 
 function ActionMenu({ row, onView, onSetLimit }: { row: any; onView: (row: any) => void; onSetLimit: (row: any) => void }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -43,6 +46,7 @@ function ActionMenu({ row, onView, onSetLimit }: { row: any; onView: (row: any) 
 }
 
 const Retailer = () => {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 400);
   const [retailers, setRetailers] = useState<any[]>([]);
@@ -185,6 +189,15 @@ const Retailer = () => {
     <Box sx={{ p: 3, pt: 0 }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} mt={0}>
         <Typography fontSize={18} fontWeight={400} color="text.primary">Retailers</Typography>
+        <CustomButton 
+          fullWidth={false}
+          onClick={() => navigate('/admin/retailer/add')}
+          icon={<AddIcon sx={{ fontSize: 20 }} />}
+          iconPosition="left"
+          sx={{ mt: 0 }} 
+        >
+          Add Retailer
+        </CustomButton>
       </Box>
       <Paper
         sx={{ mb: 2, boxShadow: 'none', borderRadius: '0px' }}

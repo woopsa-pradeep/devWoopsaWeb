@@ -85,3 +85,14 @@ export const updateRetailerRequestStatus = async (id: string, data?: { status?: 
     const response = await axiosInstance.put(`/distrubutor/retailer-requests/${id}`, data);
     return response.data;
 };
+
+export const listOfCustomersCreate = async () => {
+    const response = await axiosInstance.get("/list/listOfCustomersCreate");
+    return response.data;
+};
+
+export const createCustomer = async (params: any) => {
+    const response = await axiosInstance.post("/distrubutor/createCustomer", params);
+    return response.data;
+};
+    

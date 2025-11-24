@@ -31,6 +31,14 @@ const RolesPermissionsPage = () => {
       view: false,
       edit: false,
     },
+    {
+      salesId: id,
+      name: name,
+      module: 'Return Orders',
+      add: false,
+      view: false,
+      edit: false,
+    },
     // {
     //   salesId: id,
     //   name: name,

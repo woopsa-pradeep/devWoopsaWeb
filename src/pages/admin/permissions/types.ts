@@ -14,6 +14,7 @@ export interface SalesPerson {
   setUserDiscountLimit?: number;
   userLimit?: number; // User discount limit
   allowDiscount?: boolean;
+  allowDeliveryCharge?: boolean;
   salesRep?: {
     S_Number: number;
     S_Desc: string;

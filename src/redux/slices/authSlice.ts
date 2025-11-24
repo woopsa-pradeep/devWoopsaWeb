@@ -63,6 +63,7 @@ interface AuthState {
   logo: string | null;
   allowDiscount: boolean | null;
   discountLimit: number | null;
+  allowDeliveryCharge: boolean | null;
   hasMultipleStore: boolean | null;
   stores: Store[] | null;
   selectedStore: Store | null;
@@ -85,6 +86,7 @@ const initialState: AuthState = {
   logo: null,
   allowDiscount: null,
   discountLimit: null,
+  allowDeliveryCharge: null,
   hasMultipleStore: null,
   stores: null,
   selectedStore: null,
@@ -109,6 +111,7 @@ const authSlice = createSlice({
       state.isSessionActive = null;
       state.allowDiscount = null;
       state.discountLimit = null;
+      state.allowDeliveryCharge = null;
       state.hasMultipleStore = null;
       state.stores = null;
       state.selectedStore = null;
@@ -259,6 +262,7 @@ const authSlice = createSlice({
         state.storeDetail = data?.storeDetail;
         state.allowDiscount = data?.profile?.allowDiscount ?? null;
         state.discountLimit = data?.profile?.discountLimit ?? null;
+        state.allowDeliveryCharge = data?.profile?.allowDeliveryCharge ?? null;
         // Convert wholesaledetail object to array
         state.wareHouseDetail = data?.wholeStoreDetail ? [data.wholeStoreDetail] : null;
         localStorage.setItem('token', data.token);

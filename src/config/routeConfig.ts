@@ -99,8 +99,18 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
+  '/admin/retailer/add': {
+    path: '/admin/retailer/add',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
   '/admin/products': {
     path: '/admin/products',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
+  '/admin/product/add': {
+    path: '/admin/product/add',
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
@@ -121,6 +131,11 @@ export const routeConfig: { [key: string]: RouteConfig } = {
   },
   '/admin/vendors': {
     path: '/admin/vendors',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
+  '/admin/vendor/add': {
+    path: '/admin/vendor/add',
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },

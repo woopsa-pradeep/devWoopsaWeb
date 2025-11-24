@@ -855,9 +855,9 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                     borderColor: 'divider',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
-                    backgroundColor: selectedIndex === index ? 'action.selected' : 'background.paper',
+                    backgroundColor: selectedIndex === index ? 'primary.main' : 'background.paper',
                     '&:hover': {
-                      backgroundColor: 'action.hover'
+                      backgroundColor: selectedIndex === index ? 'primary.dark' : 'action.hover'
                     },
                     '&:last-child': {
                       borderBottom: 'none'
@@ -899,7 +899,7 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                        variant="body2"
                        sx={{
                          fontWeight: 500,
-                         color: 'text.primary',
+                         color: selectedIndex === index ? 'white' : 'text.primary',
                          fontSize: '13px',
                          lineHeight: 1.2,
                          mb: 0.5
@@ -910,7 +910,7 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                      <Typography
                        variant="body2"
                        sx={{
-                         color: 'text.secondary',
+                         color: selectedIndex === index ? 'rgba(255, 255, 255, 0.9)' : 'text.secondary',
                          fontSize: '12px',
                          lineHeight: 1.2
                        }}
@@ -924,7 +924,7 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                      <IconButton 
                        size="small" 
                        sx={{ 
-                         color: "primary.main",
+                         color: selectedIndex === index ? "white" : "primary.main",
                          p: 0.5,
                        }} 
                        onClick={() => onHistoryClick?.(product)}
@@ -939,7 +939,7 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                       <Typography 
                         variant="body2" 
                         sx={{
-                          color: 'text.secondary',
+                          color: selectedIndex === index ? 'rgba(255, 255, 255, 0.9)' : 'text.secondary',
                           fontSize: '12px'
                         }}
                       >
@@ -953,8 +953,12 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                           textTransform: 'capitalize',
                           fontSize: '10px',
                           height: '20px',
-                          color: product.stock === 'in stock' ? 'success.main' : 'error.main',
-                          bgcolor: product.stock === 'in stock' ? 'success.light' : 'error.light'
+                          color: selectedIndex === index 
+                            ? (product.stock === 'in stock' ? 'white' : 'white')
+                            : (product.stock === 'in stock' ? 'success.main' : 'error.main'),
+                          bgcolor: selectedIndex === index
+                            ? 'rgba(255, 255, 255, 0.2)'
+                            : (product.stock === 'in stock' ? 'success.light' : 'error.light')
                         }}
                       />
                     )}
@@ -965,7 +969,7 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                     <Typography 
                       variant="body2" 
                       sx={{
-                        color: 'text.primary',
+                        color: selectedIndex === index ? 'white' : 'text.primary',
                         fontSize: '13px'
                       }}
                     >
@@ -980,7 +984,7 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                         variant="body2" 
                         sx={{ 
                           fontWeight: 500,
-                          color: 'error.main'
+                          color: selectedIndex === index ? 'white' : 'error.main'
                         }}
                       >
                         Out of Stock
@@ -1079,6 +1083,7 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                              width: "32px",
                              height: "32px",
                              padding: "2px",
+                             border: selectedIndex === index ? "1px solid white" : "none",
                              transition: "transform 0.2s ease-in-out",
                              "&:hover": {
                                transform: "scale(1.1)"
@@ -1091,10 +1096,10 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                         
                         <Box
                           sx={{
-                            backgroundColor: 'background.paper',
+                            backgroundColor: selectedIndex === index ? 'rgba(255, 255, 255, 0.2)' : 'background.paper',
                             borderRadius: 1,
                             border: '1px solid',
-                            borderColor: 'divider',
+                            borderColor: selectedIndex === index ? 'rgba(255, 255, 255, 0.3)' : 'divider',
                             padding: '4px 8px',
                             minWidth: '40px',
                             textAlign: 'center'
@@ -1105,7 +1110,7 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                             sx={{ 
                               fontWeight: 500,
                               fontSize: '12px',
-                              color: 'text.primary'
+                              color: selectedIndex === index ? 'white' : 'text.primary'
                             }}
                           >
                             {orderItems[product.id]?.quantity}

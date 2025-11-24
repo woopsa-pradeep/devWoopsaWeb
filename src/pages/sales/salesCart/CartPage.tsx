@@ -120,7 +120,7 @@ const CartPage: React.FC = () => {
 
   // Get cart state from Redux
   const { items: cartItems, userLimitMinOrderAmount, totalAmountWithTax, totalAmount } = useSelector((state: RootState) => state.salesCart) as any;
-  const { selectedCustomer, allowDiscount, discountLimit } = useSelector((state: RootState) => state.auth);
+  const { selectedCustomer, allowDiscount, discountLimit, allowDeliveryCharge } = useSelector((state: RootState) => state.auth);
   const shippingAddress = `${selectedCustomer?.C_Name || 'Customer'}`;
   const warehouseAddress = `Warehouse Address`;
 
@@ -1236,9 +1236,14 @@ const CartPage: React.FC = () => {
 
         <Grid size={{ xs: 12, lg: 4 }}>
           <Grid container spacing={3}>
-{cartItems.length > 0 && cartItems.some((item: any) => !item.showWithOutPrice) && (
+            {cartItems.length > 0 && cartItems.some((item: any) => !item.showWithOutPrice) && (
             <Grid size={12}>
-              <PriceDetails {...priceDetails} />
+              <PriceDetails 
+                {...priceDetails} 
+                deliveryCharge={deliveryCharge}
+                onDeliveryChargeChange={allowDeliveryCharge ? setDeliveryCharge : undefined}
+                allowEditDeliveryCharge={allowDeliveryCharge || false}
+              />
             </Grid>
             )}
             <Grid size={12}>
