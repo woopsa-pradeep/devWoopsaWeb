@@ -15,7 +15,7 @@ import TextInput from '../../atoms/TextInput';
 import FileUploadInput from '../../atoms/FileUploadInput';
 import toast from 'react-hot-toast';
 import { getProductCatalog, addProductCatalog, updateProductCatalog } from '../../../redux/apis/distrubutor/productCatalogApis';
-import DeleteIcon from '@mui/icons-material/Delete';
+// import DeleteIcon from '@mui/icons-material/Delete';
 import ViewIcon from '@mui/icons-material/Visibility';
 // import EditIcon from '@mui/icons-materi';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -755,12 +755,12 @@ const ProductCatalog: React.FC = () => {
             </ListItemIcon>
             <ListItemText primary="Preview" />
           </MenuItem>
-          <MenuItem onClick={() => handleMenuAction('delete')}>
+          {/* <MenuItem onClick={() => handleMenuAction('delete')}>
             <ListItemIcon>
               <DeleteIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText primary="Delete" />
-          </MenuItem>
+          </MenuItem> */}
         </Menu>
       </Box>
     );

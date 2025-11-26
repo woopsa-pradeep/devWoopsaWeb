@@ -506,30 +506,42 @@ const CartPage: React.FC = () => {
 
   // Handle place order
   const handlePlaceOrder = async () => {
-    // Validate cart before placing order
-    const cartItemsForValidation = cartItems.map((item: CartItem) => ({
-      id: item.Description,
-      quantity: item.Product.Qty,
-      price: item.Product.Price,
-      priceWithTax: item.Product.Price_With_Tax,
-      hasProductLimit: item.hasProductLimit || false,
-      productLimit: item.productLimit || null
-    }));
-
-    const validationData = {
-      userLimitMinOrderAmount,
-      totalAmountWithTax,
-      totalAmount
-    };
-
-    if (!validateCartForCheckout(cartItemsForValidation, validationData)) {
-      return;
-    }
-
     setPlaceOrderLoading(true);
     try {
-      // Prepare order payload
-      const orderPayload = cartItems.map((item: any) => ({
+      // Refresh cart items from server before placing order
+      const result = await dispatch(fetchCartItems());
+      if (!fetchCartItems.fulfilled.match(result)) {
+        toast.error('Failed to refresh cart items. Please try again.');
+        setPlaceOrderLoading(false);
+        return;
+      }
+      
+      // Get fresh cart items from API response
+      const freshCartItems = result.payload?.finalCartItems || cartItems;
+      
+      // Validate cart before placing order
+      const cartItemsForValidation = freshCartItems.map((item: CartItem) => ({
+        id: item.Description,
+        quantity: item.Product.Qty,
+        price: item.Product.Price,
+        priceWithTax: item.Product.Price_With_Tax,
+        hasProductLimit: item.hasProductLimit || false,
+        productLimit: item.productLimit || null
+      }));
+
+      const validationData = {
+        userLimitMinOrderAmount: result.payload?.userLimitMinOrderAmount || userLimitMinOrderAmount,
+        totalAmountWithTax: result.payload?.totalAmountWithTax || totalAmountWithTax,
+        totalAmount: result.payload?.totalAmount || totalAmount
+      };
+
+      if (!validateCartForCheckout(cartItemsForValidation, validationData)) {
+        setPlaceOrderLoading(false);
+        return;
+      }
+
+      // Prepare order payload using fresh cart items from API
+      const orderPayload = freshCartItems.map((item: any) => ({
         Customer_Number: item.Product.Customer_Number,
         Item_Number: item.Item_Number,
         Price: Number(item.Product.Price).toFixed(2),  

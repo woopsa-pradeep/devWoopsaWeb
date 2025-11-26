@@ -6,13 +6,13 @@ import {
     CardContent,
     CardActions,
     Grid,
-    IconButton,
+    // IconButton,
     useTheme
 } from '@mui/material';
 import dayjs from 'dayjs';
 import {
     Add as AddIcon,
-    Delete as DeleteIcon,
+    // Delete as DeleteIcon,
     Visibility as ViewIcon
 } from '@mui/icons-material';
 import CustomButton from '../../atoms/CustomButton';
@@ -97,10 +97,10 @@ const Stories: React.FC = () => {
         setSelectedStory(null);
     };
 
-    const handleDelete = (storyId: number) => {
-        setStories(prev => prev.filter(story => story.id !== storyId));
-        toast.success('Story deleted successfully!');
-    };
+    // const handleDelete = (storyId: number)   => {
+    //     setStories(prev => prev.filter(story => story.id !== storyId));
+    //     toast.success('Story deleted successfully!');
+    // };
 
     const getStatusColor = (isActive: boolean) => {
         return isActive ? theme.palette.success.main : theme.palette.grey[500];
@@ -316,13 +316,13 @@ const Stories: React.FC = () => {
 
                             <CardActions
                                 sx={{
-                                    justifyContent: 'space-between',
+                                    justifyContent: 'flex-end',
                                     px: { xs: 1, sm: 2 },
                                     pb: 1,
                                     pt: 0,
                                 }}
                             >
-                                <IconButton
+                                {/* <IconButton
                                     size="small"
                                     onClick={() => handleDelete(story.id)}
                                     sx={{
@@ -332,7 +332,7 @@ const Stories: React.FC = () => {
                                     aria-label="Delete story"
                                 >
                                     <DeleteIcon fontSize="small" />
-                                </IconButton>
+                                </IconButton> */}
                                 <CustomButton
                                     size="small"
                                     appearance="outlined"
