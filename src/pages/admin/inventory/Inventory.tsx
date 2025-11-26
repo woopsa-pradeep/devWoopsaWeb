@@ -131,7 +131,7 @@ const Inventory: React.FC = () => {
       CaseWeight: 0,
       Sequence: 0,
       Case_Discounts: true,
-      ShortOrderForm: false,
+      ShortOrderForm: true,
       PriceBook_Include: true,
       Cig_Pack: '20',
       Cig_Sticks: 200,
@@ -141,7 +141,7 @@ const Inventory: React.FC = () => {
       I_Cube: 0,
       DepositAmount: 0,
       CaseDiscount_Pct: 0,
-      Project_Identifier: '',
+      Project_Identifier: '--',
       UnitOunces: 0,
       Reorder_Level: 0,
       HeadingFlag: false,
@@ -209,9 +209,16 @@ const Inventory: React.FC = () => {
         const response: any = await getListForInventory();
         setApiData(response.data);
 
-        // Set Project Identifier to first option if available
+        // Set Project Identifier to '--' (N/A) if available, otherwise first option
         if (response.data?.projectIdentifier && response.data.projectIdentifier.length > 0) {
-          setValue('Project_Identifier', response.data.projectIdentifier[0].Project_Identifier);
+          const defaultOption = response.data.projectIdentifier.find(
+            (item: any) => item.Project_Identifier === '--'
+          );
+          if (defaultOption) {
+            setValue('Project_Identifier', '--');
+          } else {
+            setValue('Project_Identifier', response.data.projectIdentifier[0].Project_Identifier);
+          }
         }
 
         // Set NACS to first option if available
