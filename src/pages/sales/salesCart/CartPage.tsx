@@ -120,9 +120,12 @@ const CartPage: React.FC = () => {
 
   // Get cart state from Redux
   const { items: cartItems, userLimitMinOrderAmount, totalAmountWithTax, totalAmount } = useSelector((state: RootState) => state.salesCart) as any;
-  const { selectedCustomer, allowDiscount, discountLimit, allowDeliveryCharge } = useSelector((state: RootState) => state.auth);
-  const shippingAddress = `${selectedCustomer?.C_Name || 'Customer'}`;
-  const warehouseAddress = `Warehouse Address`;
+  const { selectedCustomer, allowDiscount, discountLimit, allowDeliveryCharge, storeDetail, wareHouseDetail
+  } = useSelector((state: RootState) => state.auth);
+
+
+const shippingAddress = `${storeDetail?.C_Address}, ${storeDetail?.C_City}, ${storeDetail?.C_State}`;
+const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDetail?.[0]?.D_City || ''} ,${wareHouseDetail?.[0]?.D_State || ''}`;
 
   // State for discount amounts per item
   const [itemDiscounts, setItemDiscounts] = useState<{ [key: number]: number }>({});
