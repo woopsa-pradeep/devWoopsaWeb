@@ -209,12 +209,12 @@ export const adminNavigationConfig: NavigationItem[] = [
     icon: "CalendarMonthIcon",
     check: "distributor",
   },
-  // {
-  //   name: "E-pick",
-  //   path: "/admin/e-pick-settings",
-  //   icon: "e-pick-settings",
-  //   check: "distributor",
-  // },
+  {
+    name: "E-pick",
+    path: "/admin/e-pick-settings",
+    icon: "e-pick-settings",
+    check: "distributor",
+  },
   
   
   // {

@@ -47,5 +47,5 @@ export type SalesPersonFormData = z.infer<typeof salesPersonSchema>;
 // Dropdown options
 export const roleOptions = [
   { label: "Sales Representative", value: "sales"},
-  // { label: "E-pick", value: "epick"}
+  { label: "E-pick", value: "epick"}
 ];
