@@ -32,8 +32,8 @@ export const salesPersonSchema = z.object({
   
   status: z.boolean(),
 }).refine((data) => {
-  // If role is not 'epick', salesRepNumber is required
-  if (data.role !== 'epick') {
+  // If role is not 'epick' or 'checker', salesRepNumber is required
+  if (data.role !== 'epick' && data.role !== 'checker') {
     return data.salesRepNumber && data.salesRepNumber.length > 0;
   }
   return true;
@@ -47,5 +47,6 @@ export type SalesPersonFormData = z.infer<typeof salesPersonSchema>;
 // Dropdown options
 export const roleOptions = [
   { label: "Sales Representative", value: "sales"},
-  { label: "E-pick", value: "epick"}
+  { label: "E-pick", value: "epick"},
+  { label: "Checker", value: "checker"}
 ];

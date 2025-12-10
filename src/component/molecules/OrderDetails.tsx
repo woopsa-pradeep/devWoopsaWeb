@@ -395,7 +395,7 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({
                           wordBreak: 'break-all',
                         }}
                       >
-                        {item.showWithOutPrice ? '-' : `$${(item.priceWithTax * item.quantity).toFixed(2)}`}
+                        {item.showWithOutPrice ? '-' : `$${Number(Number(item.priceWithTax * item.quantity).toFixed(2))}`}
                       </Typography>
                     </Box>
                   </Box>
@@ -445,7 +445,7 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({
                   Total
                 </Typography>
                 <Typography fontWeight={500} fontSize={{ xs: "11px", sm: "12px" }} color="primary.main">
-                  {items.some(item => item.showWithOutPrice) ? '-' : `$${total.toFixed(2)}`}
+                  {items.some(item => item.showWithOutPrice) ? '-' : `$${Number(Number(total).toFixed(2))}`}
                 </Typography>
               </Box>
 

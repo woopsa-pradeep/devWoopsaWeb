@@ -155,6 +155,63 @@ const SalesDashboard = () => {
     setDiscountModalOpen(true);
   };
 
+  // Helper function to calculate cart payload with prepaidTaxRate
+  // New calculation: Price_With_Tax = Price_With_Tax * (1 + prepaidTaxRate)
+  // Where base Price_With_Tax = price + Tax_Rate
+  const calculateCartPayload = (product: any, quantity: number, finalPriceWithTax?: number) => {
+    const basePrice = product.price;
+    const prepaidTaxRate = product.prepaidTaxRate || 0;
+    const taxRate = product.Tax_Rate || 0;
+    
+    let priceWithTax: number;
+    let price: number;
+    let prepaidTaxPerUnit: number;
+    let totalPrepaidTax: number;
+    
+    if (finalPriceWithTax !== undefined) {
+      // For discounted items, use the provided finalPriceWithTax
+      priceWithTax = finalPriceWithTax;
+      
+      // Calculate base Price_With_Tax (before prepaid tax): finalPriceWithTax / (1 + prepaidTaxRate)
+      const basePriceWithTax = prepaidTaxRate > 0 ? finalPriceWithTax / (1 + prepaidTaxRate) : finalPriceWithTax;
+      
+      // Calculate price from basePriceWithTax: basePriceWithTax - Tax_Rate
+      price = basePriceWithTax - taxRate;
+      
+      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
+      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
+      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
+      totalPrepaidTax = prepaidTaxPerUnit * quantity;
+    } else {
+      // Standard calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
+      const basePriceWithTax = basePrice + taxRate;
+      
+      // Calculate final Price_With_Tax: basePriceWithTax * (1 + prepaidTaxRate)
+      priceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
+      price = basePrice;
+      
+      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
+      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
+      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
+      totalPrepaidTax = prepaidTaxPerUnit * quantity;
+    }
+    
+    // Calculate total price with tax: Price_With_Tax * qty
+    const totalPriceWithTax = priceWithTax * quantity;
+    
+    return {
+      Price: Number(price.toFixed(2)),
+      Price_With_Tax: Number(priceWithTax.toFixed(2)),
+      Qty: quantity,
+      Tax_Rate: Number(taxRate.toFixed(2)),
+      TotalPrice: Number((price * quantity).toFixed(2)),
+      TotalPriceWithTax: Number(totalPriceWithTax.toFixed(2)),
+      originalPrice: Number(basePrice.toFixed(2)),
+      prepaidTaxRate: Number(prepaidTaxRate.toFixed(4)), // Pass actual prepaidTaxRate from API
+      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
+    };
+  };
+
   // Handle discount confirmation
   const handleDiscountConfirm = async (discountInfo: any) => {
     if (selectedDiscountProduct && discountInfo && selectedCustomer?.C_Number) {
@@ -163,31 +220,39 @@ const SalesDashboard = () => {
         const quantity = discountInfo.quantity || discountInfo.minQty || 1;
         
         // Calculate discounted price
-        let discountedPrice = product.priceWithTax;
+        // IMPORTANT: Apply discount to BASE PRICE first, then calculate Price_With_Tax
+        const basePrice = product.price;
+        const prepaidTaxRate = product.prepaidTaxRate || 0;
+        const taxRate = product.Tax_Rate || 0;
+        
+        let discountedBasePrice = basePrice;
         if (discountInfo.type === 'case') {
-          const discountAmount = (product.priceWithTax * discountInfo.discountPercentage) / 100;
-          discountedPrice = product.priceWithTax - discountAmount;
+          // Case discount: apply percentage discount to base price
+          const discountAmount = (basePrice * discountInfo.discountPercentage) / 100;
+          discountedBasePrice = basePrice - discountAmount;
         } else if (discountInfo.type === 'quantity') {
+          // Quantity discount: apply based on discount tier to base price
           if (discountInfo.discount.hasPercentageDiscount) {
-            const discountAmount = (product.priceWithTax * discountInfo.discount.perDiscount) / 100;
-            discountedPrice = product.priceWithTax - discountAmount;
+            const discountAmount = (basePrice * discountInfo.discount.perDiscount) / 100;
+            discountedBasePrice = basePrice - discountAmount;
           } else {
-            discountedPrice = product.priceWithTax - discountInfo.discount.amountDiscount;
+            // Apply amount discount to base price
+            discountedBasePrice = basePrice - discountInfo.discount.amountDiscount;
           }
         }
         
-        discountedPrice = Math.max(0, discountedPrice);
+        // Ensure discounted base price doesn't go below 0
+        discountedBasePrice = Math.max(0, discountedBasePrice);
+        
+        // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
+        const basePriceWithTax = discountedBasePrice + taxRate;
+        const discountedPrice = basePriceWithTax * (1 + prepaidTaxRate);
         
         // Add to cart with discounted price
+        const payload = calculateCartPayload(product, quantity, discountedPrice);
         await addToCart(selectedCustomer.C_Number.toString(), {
           Item_Number: parseInt(product.id),
-          Price: product.price - (product.priceWithTax - discountedPrice),
-          Price_With_Tax: discountedPrice,
-          Qty: quantity,
-          Tax_Rate: product.Tax_Rate,
-          TotalPrice: product.price * quantity,
-          TotalPriceWithTax: discountedPrice * quantity,
-          originalPrice: product.price
+          ...payload
         });
         
         // Show success message (you can implement toast notification here)
@@ -213,15 +278,10 @@ const SalesDashboard = () => {
         const product = selectedDiscountProduct;
         const quantity = 1; // Default quantity when no discount is selected
         
+        const payload = calculateCartPayload(product, quantity);
         await addToCart(selectedCustomer.C_Number.toString(), {
           Item_Number: parseInt(product.id),
-          Price: product.price,
-          Price_With_Tax: product.priceWithTax,
-          Qty: quantity,
-          Tax_Rate: product.Tax_Rate,
-          TotalPrice: product.price * quantity,
-          TotalPriceWithTax: product.priceWithTax * quantity,
-          originalPrice: product.price
+          ...payload
         });
         
         // console.log(`Added ${quantity} ${product.name} to cart without discount.`);

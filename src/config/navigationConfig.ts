@@ -155,6 +155,12 @@ export const adminNavigationConfig: NavigationItem[] = [
     icon: "promo",
     check: "distributor",
   },
+  {
+    name: "Reports & Analytics",
+    path: "/admin/reports-analytics",
+    icon: "reports-analytics",
+    check: "distributor",
+  },
   // {
   //   name: "Purchase Orders",
   //   path: "/admin/purchase-orders",
@@ -210,7 +216,7 @@ export const adminNavigationConfig: NavigationItem[] = [
     check: "distributor",
   },
   {
-    name: "E-pick",
+    name: "E-pick & Checker",
     path: "/admin/e-pick-settings",
     icon: "e-pick-settings",
     check: "distributor",
@@ -264,6 +270,12 @@ export const salesNavigationConfig: NavigationItem[] = [
     check: "sales",
   },
   {
+    name: "Order Confirmation",
+    path: "/sales/order-confirmation",
+    icon: "order",
+    check: "sales",
+  },
+  {
     name: "Ordered Items",
     path: "/sales/ordered-items", 
     icon: "ordered-items",
@@ -275,13 +287,19 @@ export const salesNavigationConfig: NavigationItem[] = [
     icon: "order-history",
     check: "sales",
   },
-
+{
+  name: "Order Checker",
+  path: "/sales/order-checker",
+  icon: "order",
+  check: "sales",
+},
   {
     name: "Calender",
     path: "/sales/calender",
     icon: "CalendarMonthIcon",
     check: "sales",
   },
+
   {
     name: "Retailers",
     path: "/sales/retailers",

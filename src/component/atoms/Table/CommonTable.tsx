@@ -42,6 +42,9 @@ interface CommonTableProps<T = any> {
   stickyFirstColumn?: boolean;
   stickyLastColumn?: boolean;
   stickyFirstTwoColumns?: boolean;
+  stickyFirstThreeColumns?: boolean;
+  stickyLastTwoColumns?: boolean;
+  stickyLastThreeColumns?: boolean;
   // Other props
   loading?: boolean;
   filterComponent?: React.ReactNode;
@@ -82,6 +85,9 @@ const CommonTable = <T,>({
   stickyFirstColumn = false,
   stickyLastColumn = false,
   stickyFirstTwoColumns = false,
+  stickyFirstThreeColumns = false,
+  stickyLastTwoColumns = false,
+  stickyLastThreeColumns = false,
   // Other props
   loading = false,
   filterComponent,
@@ -108,6 +114,9 @@ const CommonTable = <T,>({
     if (stickyFirstColumn && columnIndex === 0) return true;
     if (stickyLastColumn && columnIndex === columns.length - 1) return true;
     if (stickyFirstTwoColumns && (columnIndex === 0 || columnIndex === 1)) return true;
+    if (stickyFirstThreeColumns && (columnIndex === 0 || columnIndex === 1 || columnIndex === 2)) return true;
+    if (stickyLastTwoColumns && (columnIndex === columns.length - 1 || columnIndex === columns.length - 2)) return true;
+    if (stickyLastThreeColumns && (columnIndex === columns.length - 1 || columnIndex === columns.length - 2 || columnIndex === columns.length - 3)) return true;
     return false;
   };
 
@@ -127,8 +136,37 @@ const CommonTable = <T,>({
       if (columnIndex === 0) {
         left = '0px';
       } else if (columnIndex === 1) {
-        const firstColumnWidth = columns[0]?.minWidth || 150;
+        const firstColumnWidth = columns[0]?.minWidth || 80;
         left = `${firstColumnWidth}px`;
+      }
+    } else if (stickyFirstThreeColumns) {
+      if (columnIndex === 0) {
+        left = '0px';
+      } else if (columnIndex === 1) {
+        const firstColumnWidth = columns[0]?.minWidth || 80;
+        left = `${firstColumnWidth}px`;
+      } else if (columnIndex === 2) {
+        const firstColumnWidth = columns[0]?.minWidth || 80;
+        const secondColumnWidth = columns[1]?.minWidth || 80;
+        left = `${firstColumnWidth + secondColumnWidth}px`;
+      }
+    } else if (stickyLastTwoColumns) {
+      if (columnIndex === columns.length - 1) {
+        right = '-1px';
+      } else if (columnIndex === columns.length - 2) {
+        const lastColumnWidth = columns[columns.length - 1]?.minWidth || 80;
+        right = `${lastColumnWidth}px`;
+      }
+    } else if (stickyLastThreeColumns) {
+      if (columnIndex === columns.length - 1) {
+        right = '-1px';
+      } else if (columnIndex === columns.length - 2) {
+        const lastColumnWidth = columns[columns.length - 1]?.minWidth || 80;
+        right = `${lastColumnWidth}px`;
+      } else if (columnIndex === columns.length - 3) {
+        const lastColumnWidth = columns[columns.length - 1]?.minWidth || 80;
+        const secondLastColumnWidth = columns[columns.length - 2]?.minWidth || 80;
+        right = `${lastColumnWidth + secondLastColumnWidth}px`;
       }
     }
 

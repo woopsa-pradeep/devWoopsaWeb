@@ -149,6 +149,11 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
+  '/admin/reports-analytics': {
+    path: '/admin/reports-analytics',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
   '/admin/track-login-devices': {
     path: '/admin/track-login-devices',
     allowedRoles: ['distributor'],
@@ -292,8 +297,23 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     redirectPath: '/sales/dashboard'
   },
 
+  '/sales/order-checker': {
+    path: '/sales/order-checker',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
 
 
+  '/sales/order-confirmation': {
+    path: '/sales/order-confirmation',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/order-confirmation/:orderId': {
+    path: '/sales/order-confirmation/:orderId',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
 
   '/sales/order/history': {
     path: '/sales/order/history',

@@ -66,6 +66,8 @@ interface ApiProduct {
   // Quantity discount fields
   hasQtyDiscount?: boolean;
   qtyDiscount?: any;
+  // Prepaid tax rate
+  prepaidTaxRate?: number;
 }
 
 interface Product {
@@ -97,6 +99,8 @@ interface Product {
   hasQtyDiscount?: boolean;
   qtyDiscount?: any;
   isNewItem: boolean;
+  // Prepaid tax rate
+  prepaidTaxRate?: number;
   productDetails?: {
     brand: string;
     category: string;
@@ -148,6 +152,7 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
   const productLimit = apiProduct.productLimit || null;
   const hasQtyDiscount = apiProduct.hasQtyDiscount || false;
   const qtyDiscount = apiProduct.qtyDiscount || null;
+  const prepaidTaxRate = apiProduct.prepaidTaxRate || 0;
   
   // Determine stock status based on API flags
   let stock: 'in stock' | 'low stock' | 'out of stock' = 'in stock';
@@ -189,6 +194,7 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
     productLimit: productLimit,
     hasQtyDiscount: hasQtyDiscount,
     qtyDiscount: qtyDiscount,
+    prepaidTaxRate: prepaidTaxRate,
     productDetails: {
       brand: priceClass,
       category: salesCategory,
@@ -332,6 +338,65 @@ const Order = () => {
   // Helper function to check if a product is currently loading
   const isProductLoading = (productId: string) => {
     return productLoadingStates[productId] || false;
+  };
+
+  // Helper function to calculate cart payload with prepaidTaxRate
+  // New calculation: Price_With_Tax = Price_With_Tax * (1 + prepaidTaxRate)
+  // Where base Price_With_Tax = price + Tax_Rate
+  const calculateCartPayload = (product: Product, quantity: number, finalPriceWithTax?: number) => {
+    // Convert all values to numbers to prevent string operations
+    const basePrice = Number(product.price) || 0;
+    const prepaidTaxRate = Number(product.prepaidTaxRate) || 0;
+    const taxRate = Number(product.Tax_Rate) || 0;
+    const qty = Number(quantity) || 0;
+    
+    let priceWithTax: number;
+    let price: number;
+    let prepaidTaxPerUnit: number;
+    let totalPrepaidTax: number;
+    
+    if (finalPriceWithTax !== undefined) {
+      // For discounted items, use the provided finalPriceWithTax
+      priceWithTax = Number(finalPriceWithTax) || 0;
+      
+      // Calculate base Price_With_Tax (before prepaid tax): finalPriceWithTax / (1 + prepaidTaxRate)
+      const basePriceWithTax = prepaidTaxRate > 0 ? priceWithTax / (1 + prepaidTaxRate) : priceWithTax;
+      
+      // Calculate price from basePriceWithTax: basePriceWithTax - Tax_Rate
+      price = basePriceWithTax - taxRate;
+      
+      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
+      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
+      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
+      totalPrepaidTax = prepaidTaxPerUnit * qty;
+    } else {
+      // Standard calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
+      const basePriceWithTax = basePrice + taxRate;
+      
+      // Calculate final Price_With_Tax: basePriceWithTax * (1 + prepaidTaxRate)
+      priceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+      price = basePrice;
+      
+      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
+      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
+      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
+      totalPrepaidTax = prepaidTaxPerUnit * qty;
+    }
+    
+    // Calculate total price with tax: Price_With_Tax * qty
+    const totalPriceWithTax = priceWithTax * qty;
+    
+    return {
+      Price: Number(Number(price).toFixed(2)),
+      Price_With_Tax: Number(Number(priceWithTax).toFixed(2)),
+      Qty: Number(qty),
+      Tax_Rate: Number(Number(taxRate).toFixed(2)),
+      TotalPrice: Number(Number(price * qty).toFixed(2)),
+      TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
+      originalPrice: Number(Number(basePrice).toFixed(2)),
+      prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)), // Pass actual prepaidTaxRate from API
+      TotalprepaidTaxRate: Number(Number(totalPrepaidTax).toFixed(2))
+    };
   };
 
   const handleProductClick = (product: Product) => {
@@ -505,7 +570,9 @@ const Order = () => {
               // Quantity discount fields
               hasQtyDiscount: item.hasQtyDiscount || false,
               qtyDiscount: item.qtyDiscount || null,
-              isNewItem: item.isNewItem || false
+              isNewItem: item.isNewItem || false,
+              // Prepaid tax rate
+              prepaidTaxRate: item.prepaidTaxRate || 0
             };
             
             const product = transformApiProduct(productData);
@@ -874,58 +941,62 @@ const Order = () => {
       
       try {
         // Check if quantity discount should be applied
-        let finalPrice = Number(item.priceWithTax); // Ensure price is a number
+        // IMPORTANT: Apply discount to BASE PRICE first, then calculate Price_With_Tax
+        // Convert all values to numbers to prevent string operations
+        const basePrice = Number(item.price || 0);
+        const prepaidTaxRate = Number(item.prepaidTaxRate || 0);
+        const taxRate = Number(item.Tax_Rate || 0);
+        const qty = Number(newQuantity) || 0;
+        
+        let discountedBasePrice = basePrice;
         let discountApplied = false;
         
         if (item.hasQtyDiscount && item.qtyDiscount) {
-          if (item.qtyDiscount.isCaseDiscount && newQuantity >= item.qtyDiscount.minimumQtyForCaseDiscount) {
-            // Apply case discount
-            const discountAmount = (Number(item.priceWithTax) * item.qtyDiscount.percentageCaseDiscount) / 100;
-            finalPrice = Number(item.priceWithTax) - discountAmount;
+          const minQtyForCaseDiscount = Number(item.qtyDiscount.minimumQtyForCaseDiscount || 0);
+          if (item.qtyDiscount.isCaseDiscount && qty >= minQtyForCaseDiscount) {
+            // Apply case discount to base price
+            const percentageCaseDiscount = Number(item.qtyDiscount.percentageCaseDiscount || 0);
+            const discountAmount = (basePrice * percentageCaseDiscount) / 100;
+            discountedBasePrice = basePrice - discountAmount;
             discountApplied = true;
           } else if (item.qtyDiscount.isQtyDiscount) {
             // Find applicable quantity discount tier
             const applicableDiscount = item.qtyDiscount.qtyDiscount
-              .filter((discount: any) => newQuantity >= discount.minQty)
-              .sort((a: any, b: any) => b.minQty - a.minQty)[0];
+              .filter((discount: any) => qty >= Number(discount.minQty || 0))
+              .sort((a: any, b: any) => Number(b.minQty || 0) - Number(a.minQty || 0))[0];
             
             if (applicableDiscount) {
               if (applicableDiscount.hasPercentageDiscount) {
-                const discountAmount = (Number(item.priceWithTax) * applicableDiscount.perDiscount) / 100;
-                finalPrice = Number(item.priceWithTax) - discountAmount;
+                // Apply percentage discount to base price
+                const perDiscount = Number(applicableDiscount.perDiscount || 0);
+                const discountAmount = (basePrice * perDiscount) / 100;
+                discountedBasePrice = basePrice - discountAmount;
               } else {
-                finalPrice = Number(item.priceWithTax) - applicableDiscount.amountDiscount;
+                // Apply amount discount to base price
+                const amountDiscount = Number(applicableDiscount.amountDiscount || 0);
+                discountedBasePrice = basePrice - amountDiscount;
               }
               discountApplied = true;
             }
           }
         }
         
-        // Ensure price doesn't go below 0
-        finalPrice = Math.max(0, finalPrice);
+        // Ensure discounted base price doesn't go below 0
+        discountedBasePrice = Math.max(0, discountedBasePrice);
         
+        // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
+        const basePriceWithTax = Number(Number(discountedBasePrice + taxRate).toFixed(2));
+        const finalPriceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+        
+        const payload = calculateCartPayload(item, qty, discountApplied ? finalPriceWithTax : undefined);
         if (currentItem?.productId) {
           // Update existing item
-          await updateCartItem(currentItem.productId.toString(), {
-            Qty: newQuantity,
-            Price: Number(item.price) - (Number(item.priceWithTax) - finalPrice), // Ensure price is a number
-            Price_With_Tax: finalPrice, // Use discounted price if applicable
-            Tax_Rate: Number(item.Tax_Rate), // Ensure tax rate is a number
-            TotalPrice: (Number(item.price) * newQuantity).toFixed(2),
-            TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-            originalPrice: Number(item.price)
-          }, selectedCustomer?.C_Number?.toString() || '');
+          await updateCartItem(currentItem.productId.toString(), payload, selectedCustomer?.C_Number?.toString() || '');
         } else {
           // Add new item
           await addToCart(selectedCustomer?.C_Number?.toString() || '', {
             Item_Number: parseInt(id),
-            Price: Number(item.price) - (Number(item.priceWithTax) - finalPrice), // Ensure price is a number
-            Price_With_Tax: finalPrice, // Use discounted price if applicable
-            Qty: newQuantity,
-            Tax_Rate: Number(item.Tax_Rate), // Ensure tax rate is a number
-            TotalPrice: (Number(item.price) * newQuantity).toFixed(2),
-            TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-            originalPrice: Number(item.price)
+            ...payload
           });
         }
         
@@ -935,8 +1006,8 @@ const Order = () => {
             ...prev,
             [id]: {
               ...prev[id],
-              price: finalPrice,
-              priceWithTax: finalPrice // Also update priceWithTax to maintain consistency
+              price: finalPriceWithTax,
+              priceWithTax: finalPriceWithTax // Also update priceWithTax to maintain consistency
             }
           }));
         }
@@ -1121,59 +1192,63 @@ const Order = () => {
           }
           
           // Check if quantity discount should be applied for existing items
-          let finalPrice = Number(item.priceWithTax); // Ensure price is a number
+          // IMPORTANT: Apply discount to BASE PRICE first, then calculate Price_With_Tax
+          // Convert all values to numbers to prevent string operations
+          const basePrice = Number(item.price || 0);
+          const prepaidTaxRate = Number(item.prepaidTaxRate || 0);
+          const taxRate = Number(item.Tax_Rate || 0);
+          const qty = Number(newQuantity) || 0;
+          
+          let discountedBasePrice = basePrice;
           let discountApplied = false;
           
           if (item.hasQtyDiscount && item.qtyDiscount) {
-            if (item.qtyDiscount.isCaseDiscount && newQuantity >= item.qtyDiscount.minimumQtyForCaseDiscount) {
-              // Apply case discount
-              const discountAmount = (Number(item.priceWithTax) * item.qtyDiscount.percentageCaseDiscount) / 100;
-              finalPrice = Number(item.priceWithTax) - discountAmount;
+            const minQtyForCaseDiscount = Number(item.qtyDiscount.minimumQtyForCaseDiscount || 0);
+            if (item.qtyDiscount.isCaseDiscount && qty >= minQtyForCaseDiscount) {
+              // Apply case discount to base price
+              const percentageCaseDiscount = Number(item.qtyDiscount.percentageCaseDiscount || 0);
+              const discountAmount = (basePrice * percentageCaseDiscount) / 100;
+              discountedBasePrice = basePrice - discountAmount;
               discountApplied = true;
             } else if (item.qtyDiscount.isQtyDiscount) {
               // Find applicable quantity discount tier
               const applicableDiscount = item.qtyDiscount.qtyDiscount
-                .filter((discount: any) => newQuantity >= discount.minQty)
-                .sort((a: any, b: any) => b.minQty - a.minQty)[0];
+                .filter((discount: any) => qty >= Number(discount.minQty || 0))
+                .sort((a: any, b: any) => Number(b.minQty || 0) - Number(a.minQty || 0))[0];
               
               if (applicableDiscount) {
                 if (applicableDiscount.hasPercentageDiscount) {
-                  const discountAmount = (Number(item.priceWithTax) * applicableDiscount.perDiscount) / 100;
-                  finalPrice = Number(item.priceWithTax) - discountAmount;
+                  // Apply percentage discount to base price
+                  const perDiscount = Number(applicableDiscount.perDiscount || 0);
+                  const discountAmount = (basePrice * perDiscount) / 100;
+                  discountedBasePrice = basePrice - discountAmount;
                 } else {
-                  finalPrice = Number(item.priceWithTax) - applicableDiscount.amountDiscount;
+                  // Apply amount discount to base price
+                  const amountDiscount = Number(applicableDiscount.amountDiscount || 0);
+                  discountedBasePrice = basePrice - amountDiscount;
                 }
                 discountApplied = true;
               }
             }
           }
           
-          // Ensure price doesn't go below 0
-          finalPrice = Math.max(0, finalPrice);
+          // Ensure discounted base price doesn't go below 0
+          discountedBasePrice = Math.max(0, discountedBasePrice);
           
-          const currentItem = orderItems[id];
-          if (currentItem?.productId) {
-            await updateCartItem(currentItem.productId.toString(), {
-              Qty: newQuantity,
-              Price: Number(item.price) - (Number(item.priceWithTax) - finalPrice), // Ensure price is a number
-              Price_With_Tax: finalPrice, // Use discounted price if applicable
-              Tax_Rate: Number(item.Tax_Rate), // Ensure tax rate is a number
-              TotalPrice: (Number(item.price) * newQuantity).toFixed(2),
-              TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-              originalPrice: Number(item.price)
-            }, selectedCustomer?.C_Number?.toString() || '');
-          } else {
-            await addToCart(selectedCustomer?.C_Number?.toString() || '', {
-              Item_Number: parseInt(id),
-              Price: Number(item.price) - (Number(item.priceWithTax) - finalPrice), // Ensure price is a number
-              Price_With_Tax: finalPrice, // Use discounted price if applicable
-              Qty: newQuantity,
-              Tax_Rate: Number(item.Tax_Rate), // Ensure tax rate is a number
-              TotalPrice: (Number(item.price) * newQuantity).toFixed(2),
-              TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-              originalPrice: Number(item.price)
-            });
-          }
+          // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
+          const basePriceWithTax = discountedBasePrice + taxRate;
+          const finalPriceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
+          
+        const currentItem = orderItems[id];
+        const payload = calculateCartPayload(item, qty, discountApplied ? finalPriceWithTax : undefined);
+        if (currentItem?.productId) {
+          await updateCartItem(currentItem.productId.toString(), payload, selectedCustomer?.C_Number?.toString() || '');
+        } else {
+          await addToCart(selectedCustomer?.C_Number?.toString() || '', {
+            Item_Number: parseInt(id),
+            ...payload
+          });
+        }
           
           // Update local state with discounted price if discount was applied
           if (discountApplied) {
@@ -1181,8 +1256,8 @@ const Order = () => {
               ...prev,
               [id]: {
                 ...prev[id],
-                price: finalPrice,
-                priceWithTax: finalPrice // Also update priceWithTax to maintain consistency
+                price: finalPriceWithTax,
+                priceWithTax: finalPriceWithTax // Also update priceWithTax to maintain consistency
               }
             }));
           }
@@ -1314,13 +1389,22 @@ const Order = () => {
         
         // Ensure price doesn't go below 0
         finalPrice = Math.max(0, finalPrice);
+        
+        // Calculate price with prepaid tax using new formula: (basePrice + Tax_Rate) * (1 + prepaidTaxRate)
+        const basePrice = finalPrice;
+        const prepaidTaxRate = productData?.prepaidTaxRate || 0;
+        const taxRate = Number(item.Product.Tax_Rate || 0);
+        const basePriceWithTax = basePrice + taxRate;
+        const priceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
+        const totalPriceWithTax = priceWithTax * item.Product.Qty;
+        
         await updateCartItem(item.Product.id.toString(), {
           Qty: item.Product.Qty,
           Price: finalPrice.toFixed(2), // Use discounted price if applicable
-          Price_With_Tax: finalPrice + Number(item.Product.Tax_Rate), 
-          Tax_Rate: Number(item.Product.Tax_Rate || 0).toFixed(2), 
+          Price_With_Tax: priceWithTax.toFixed(2), 
+          Tax_Rate: taxRate.toFixed(2), 
           TotalPrice: (finalPrice * item.Product.Qty).toFixed(2),
-          TotalPriceWithTax: Number(((finalPrice + Number(item.Product.Tax_Rate)) * item.Product.Qty).toFixed(2)),
+          TotalPriceWithTax: totalPriceWithTax.toFixed(2),
           originalPrice: Number(item.newPrice) 
         }, selectedCustomer?.C_Number?.toString() || '');
       }
@@ -1608,15 +1692,20 @@ const Order = () => {
       }
 
       // For barcode scanning, automatically apply discounts without opening modal
-      let finalPrice = Number(matchingProduct.priceWithTax); // Ensure price is a number
+      // IMPORTANT: Apply discount to BASE PRICE first, then calculate Price_With_Tax
+      const basePrice = matchingProduct.price || 0;
+      const prepaidTaxRate = matchingProduct.prepaidTaxRate || 0;
+      const taxRate = matchingProduct.Tax_Rate || 0;
+      
+      let discountedBasePrice = basePrice;
       let discountApplied = false;
       let discountMessage = '';
       
       if (matchingProduct.hasQtyDiscount && matchingProduct.qtyDiscount) {
         if (matchingProduct.qtyDiscount.isCaseDiscount && newQuantity >= matchingProduct.qtyDiscount.minimumQtyForCaseDiscount) {
-          // Apply case discount
-          const discountAmount = (Number(matchingProduct.priceWithTax) * matchingProduct.qtyDiscount.percentageCaseDiscount) / 100;
-          finalPrice = Number(matchingProduct.priceWithTax) - discountAmount;
+          // Apply case discount to base price
+          const discountAmount = (basePrice * matchingProduct.qtyDiscount.percentageCaseDiscount) / 100;
+          discountedBasePrice = basePrice - discountAmount;
           discountApplied = true;
           discountMessage = `Case discount applied: ${matchingProduct.qtyDiscount.percentageCaseDiscount}% off`;
         } else if (matchingProduct.qtyDiscount.isQtyDiscount) {
@@ -1627,17 +1716,26 @@ const Order = () => {
           
           if (applicableDiscount) {
             if (applicableDiscount.hasPercentageDiscount) {
-              const discountAmount = (Number(matchingProduct.priceWithTax) * applicableDiscount.perDiscount) / 100;
-              finalPrice = Number(matchingProduct.priceWithTax) - discountAmount;
+              // Apply percentage discount to base price
+              const discountAmount = (basePrice * applicableDiscount.perDiscount) / 100;
+              discountedBasePrice = basePrice - discountAmount;
               discountMessage = `Quantity discount applied: ${applicableDiscount.perDiscount}% off`;
             } else {
-              finalPrice = Number(matchingProduct.priceWithTax) - applicableDiscount.amountDiscount;
+              // Apply amount discount to base price
+              discountedBasePrice = basePrice - applicableDiscount.amountDiscount;
               discountMessage = `Quantity discount applied: $${applicableDiscount.amountDiscount} off`;
             }
             discountApplied = true;
           }
         }
       }
+      
+      // Ensure discounted base price doesn't go below 0
+      discountedBasePrice = Math.max(0, discountedBasePrice);
+      
+      // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
+      const basePriceWithTax = discountedBasePrice + taxRate;
+      let finalPrice = basePriceWithTax * (1 + prepaidTaxRate);
       
       // Ensure price doesn't go below 0
       finalPrice = Math.max(0, finalPrice);
@@ -1656,38 +1754,16 @@ const Order = () => {
 
       // Add to cart or update existing item
       try {
-        
-
-        
+        const payload = calculateCartPayload(matchingProduct, newQuantity, discountApplied ? finalPrice : undefined);
         if (existingItem?.productId) {
           // Update existing item
-          // console.log('Updating existing cart item with productId:', existingItem.productId); // Debug log
-          const updateParams = {
-            Qty: newQuantity,
-            Price: Number(matchingProduct.price) - (Number(matchingProduct.priceWithTax) - finalPrice), // Ensure price is a number
-            Price_With_Tax: finalPrice, // Use discounted price if applicable
-            Tax_Rate: Number(matchingProduct.Tax_Rate), // Ensure tax rate is a number
-            TotalPrice: (Number(matchingProduct.price) * newQuantity).toFixed(2),
-            TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-            originalPrice: Number(matchingProduct.price)
-          };
-          // console.log('Update params:', updateParams); // Debug log
-          await updateCartItem(existingItem.productId.toString(), updateParams, customerId.toString());
+          await updateCartItem(existingItem.productId.toString(), payload, customerId.toString());
         } else {
           // Add new item
-          // console.log('Adding new cart item'); // Debug log
-          const addParams = {
+          await addToCart(customerId.toString(), {
             Item_Number: parseInt(matchingProduct.id),
-            Price: Number(matchingProduct.price) - (Number(matchingProduct.priceWithTax) - finalPrice), // Ensure price is a number
-            Price_With_Tax: finalPrice, // Use discounted price if applicable
-            Qty: newQuantity,
-            Tax_Rate: Number(matchingProduct.Tax_Rate), // Ensure tax rate is a number
-            TotalPrice: (Number(matchingProduct.price) * newQuantity).toFixed(2),
-            TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-            originalPrice: Number(matchingProduct.price)
-          };
-          // console.log('Add params:', addParams); // Debug log
-          await addToCart(customerId.toString(), addParams);
+            ...payload
+          });
         }
         
         // Update local state with discounted price if discount was applied
@@ -2050,11 +2126,20 @@ const Order = () => {
       label: 'Price',
       minWidth: 100,
       align: 'right',
-      render: (row) => (
-        <Typography fontSize={"14px"} color="textSecondary">
-          {row.showWithOutPrice ? '-' : `$${Number(row.priceWithTax).toFixed(2)}` || '$0'}
-        </Typography>
-      ),
+      render: (row) => {
+        // Calculate display price: (price + Tax_Rate) * (1 + prepaidTaxRate)
+        const basePrice = row.price || 0;
+        const prepaidTaxRate = row.prepaidTaxRate || 0;
+        const taxRate = row.Tax_Rate || 0;
+        const basePriceWithTax = basePrice + taxRate;
+        const displayPrice = basePriceWithTax * (1 + prepaidTaxRate);
+        
+        return (
+          <Typography fontSize={"14px"} color="textSecondary">
+            {row.showWithOutPrice ? '-' : `$${Number(displayPrice).toFixed(2)}` || '$0'}
+          </Typography>
+        );
+      },
     },
     // {
     //   id: 'crvPrice',
@@ -2259,14 +2344,19 @@ const Order = () => {
                         }
                         
                         // Check if quantity discount should be applied for existing items
-                        let finalPrice = Number(row.priceWithTax); // Ensure price is a number
+                        // IMPORTANT: Apply discount to BASE PRICE first, then calculate Price_With_Tax
+                        const basePrice = row.price;
+                        const prepaidTaxRate = row.prepaidTaxRate || 0;
+                        const taxRate = row.Tax_Rate || 0;
+                        
+                        let discountedBasePrice = basePrice;
                         let discountApplied = false;
                         
                         if (row.hasQtyDiscount && row.qtyDiscount) {
                           if (row.qtyDiscount.isCaseDiscount && newQuantity >= row.qtyDiscount.minimumQtyForCaseDiscount) {
-                            // Apply case discount
-                            const discountAmount = (Number(row.priceWithTax) * row.qtyDiscount.percentageCaseDiscount) / 100;
-                            finalPrice = Number(row.priceWithTax) - discountAmount;
+                            // Apply case discount to base price
+                            const discountAmount = (basePrice * row.qtyDiscount.percentageCaseDiscount) / 100;
+                            discountedBasePrice = basePrice - discountAmount;
                             discountApplied = true;
                           } else if (row.qtyDiscount.isQtyDiscount) {
                             // Find applicable quantity discount tier
@@ -2276,40 +2366,36 @@ const Order = () => {
                             
                             if (applicableDiscount) {
                               if (applicableDiscount.hasPercentageDiscount) {
-                                const discountAmount = (Number(row.priceWithTax) * applicableDiscount.perDiscount) / 100;
-                                finalPrice = Number(row.priceWithTax) - discountAmount;
+                                // Apply percentage discount to base price
+                                const discountAmount = (basePrice * applicableDiscount.perDiscount) / 100;
+                                discountedBasePrice = basePrice - discountAmount;
                               } else {
-                                finalPrice = Number(row.priceWithTax) - applicableDiscount.amountDiscount;
+                                // Apply amount discount to base price
+                                discountedBasePrice = basePrice - applicableDiscount.amountDiscount;
                               }
                               discountApplied = true;
                             }
                           }
                         }
                         
+                        // Ensure discounted base price doesn't go below 0
+                        discountedBasePrice = Math.max(0, discountedBasePrice);
+                        
+                        // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
+                        const basePriceWithTax = discountedBasePrice + taxRate;
+                        let finalPrice = basePriceWithTax * (1 + prepaidTaxRate);
+                        
                         // Ensure price doesn't go below 0
                         finalPrice = Math.max(0, finalPrice);
                         
+                        const payload = calculateCartPayload(row, newQuantity, discountApplied ? finalPrice : undefined);
                         if (currentItem?.productId) {
                           // Update existing item
-                          await updateCartItem(currentItem.productId.toString(), {
-                            Qty: newQuantity,
-                            Price: Number(row.price) - (Number(row.priceWithTax) - finalPrice), // Ensure price is a number
-                            Price_With_Tax: finalPrice, // Use discounted price if applicable
-                            Tax_Rate: Number(row.Tax_Rate), // Ensure tax rate is a number
-                            TotalPrice: (Number(row.price) * newQuantity).toFixed(2),
-                            TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-                            originalPrice: Number(row.price)
-                          }, selectedCustomer?.C_Number?.toString() || '');
+                          await updateCartItem(currentItem.productId.toString(), payload, selectedCustomer?.C_Number?.toString() || '');
                         } else {
                           await addToCart(selectedCustomer?.C_Number?.toString() || '', {
                             Item_Number: parseInt(row.id),
-                            Price: Number(row.price) - (Number(row.priceWithTax) - finalPrice), // Ensure price is a number
-                            Price_With_Tax: finalPrice, // Use discounted price if applicable
-                            Qty: newQuantity,
-                            Tax_Rate: Number(row.Tax_Rate), // Ensure tax rate is a number
-                            TotalPrice: (Number(row.price) * newQuantity).toFixed(2),
-                            TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-                            originalPrice: Number(row.price)
+                            ...payload
                           });
                         }
                         
@@ -2406,23 +2492,33 @@ const Order = () => {
         const quantity = currentQuantity > 0 ? currentQuantity : discountInfo.minQty;
         
         // Calculate discounted price
-        let discountedPrice = Number(product.priceWithTax); // Ensure price is a number
+        // IMPORTANT: Apply discount to BASE PRICE first, then calculate Price_With_Tax
+        const basePrice = product.price;
+        const prepaidTaxRate = product.prepaidTaxRate || 0;
+        const taxRate = product.Tax_Rate || 0;
+        
+        let discountedBasePrice = basePrice;
         if (discountInfo.type === 'case') {
-          // Case discount: apply percentage discount
-          const discountAmount = (Number(product.priceWithTax) * discountInfo.discountPercentage) / 100;
-          discountedPrice = Number(product.priceWithTax) - discountAmount;
+          // Case discount: apply percentage discount to base price
+          const discountAmount = (basePrice * discountInfo.discountPercentage) / 100;
+          discountedBasePrice = basePrice - discountAmount;
         } else if (discountInfo.type === 'quantity') {
-          // Quantity discount: apply based on discount tier
+          // Quantity discount: apply based on discount tier to base price
           if (discountInfo.discount.hasPercentageDiscount) {
-            const discountAmount = (Number(product.priceWithTax) * discountInfo.discount.perDiscount) / 100;
-            discountedPrice = Number(product.priceWithTax) - discountAmount;
+            const discountAmount = (basePrice * discountInfo.discount.perDiscount) / 100;
+            discountedBasePrice = basePrice - discountAmount;
           } else {
-            discountedPrice = Number(product.priceWithTax) - discountInfo.discount.amountDiscount;
+            // Apply amount discount to base price
+            discountedBasePrice = basePrice - discountInfo.discount.amountDiscount;
           }
         }
         
-        // Ensure price doesn't go below 0
-        discountedPrice = Math.max(0, discountedPrice);
+        // Ensure discounted base price doesn't go below 0
+        discountedBasePrice = Math.max(0, discountedBasePrice);
+        
+        // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
+        const basePriceWithTax = discountedBasePrice + taxRate;
+        const discountedPrice = basePriceWithTax * (1 + prepaidTaxRate);
         
         // Update local state with discounted price
         setOrderItems(prev => ({
@@ -2437,18 +2533,13 @@ const Order = () => {
           }
         }));
         
-        // Add to cart via API with discounted price
+        // Add to cart via API with discounted price using calculateCartPayload
         setTimeout(async () => {
           try {
+            const payload = calculateCartPayload(product, quantity, discountedPrice);
             await addToCart(selectedCustomer?.C_Number?.toString() || '', {
               Item_Number: parseInt(product.id),
-              Price: Number(product.price) - (Number(product.priceWithTax) - discountedPrice), // Ensure price is a number
-              Price_With_Tax: discountedPrice, // Use discounted price
-              Qty: quantity,
-              Tax_Rate: Number(product.Tax_Rate), // Ensure tax rate is a number
-              TotalPrice: (Number(product.price) * quantity).toFixed(2),
-              TotalPriceWithTax: (discountedPrice * quantity).toFixed(2),
-              originalPrice: Number(product.price)
+              ...payload
             });
             
             // Refresh cart data
@@ -2488,14 +2579,21 @@ const Order = () => {
         // Add 1 quantity without discount
         const quantity = 1;
         
+        // Calculate original price with tax including prepaidTaxRate: (price + Tax_Rate) * (1 + prepaidTaxRate)
+        const basePrice = product.price;
+        const prepaidTaxRate = product.prepaidTaxRate || 0;
+        const taxRate = product.Tax_Rate || 0;
+        const basePriceWithTax = basePrice + taxRate;
+        const originalPriceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
+        
         // Update local state
         setOrderItems(prev => ({
           ...prev,
           [product.id]: {
             quantity: quantity,
             Description: product.name,
-            price: product.priceWithTax, // Use original price (no discount)
-            priceWithTax: product.priceWithTax, // Also update priceWithTax to maintain consistency
+            price: originalPriceWithTax, // Use calculated price with prepaid tax (no discount)
+            priceWithTax: originalPriceWithTax, // Also update priceWithTax to maintain consistency
             productId: prev[product.id]?.productId || 0,
             placedBySalesPerson: product?.Product?.placedBySalesPerson || false
           }
@@ -2504,15 +2602,10 @@ const Order = () => {
         // Add to cart via API with original price
         setTimeout(async () => {
           try {
+            const payload = calculateCartPayload(product, quantity);
             await addToCart(selectedCustomer?.C_Number?.toString() || '', {
               Item_Number: parseInt(product.id),
-              Price: Number(product.price), // Use original price since no discount
-              Price_With_Tax: Number(product.priceWithTax), // Use original price
-              Qty: quantity,
-              Tax_Rate: Number(product.Tax_Rate), // Ensure tax rate is a number
-              TotalPrice: (Number(product.price) * quantity).toFixed(2),
-              TotalPriceWithTax: (Number(product.priceWithTax) * quantity).toFixed(2),
-              originalPrice: Number(product.price)
+              ...payload
             });
             
             // Refresh cart data

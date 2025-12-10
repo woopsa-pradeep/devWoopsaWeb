@@ -87,3 +87,19 @@ export const updateEmailManagement = async (id: string, data: any) => {
 export const testEmailManagement = async (data: any) => {
     return axiosInstance.post('/distrubutor/email-configs/test', data);
 };
+
+export const createErpUser = async (data: any) => {
+    return axiosInstance.post('/distrubutor/createErpUser', data);
+};
+
+export const updateErpUser = async (id: string, data: any) => {
+    return axiosInstance.put(`/distrubutor/updateErpUser/${id}`, data);
+};
+
+export const getErpUsers = async () => {
+    return axiosInstance.get('/distrubutor/erp-users');
+};
+
+export const getErpUser = async (id: string) => {
+    return axiosInstance.get(`/distrubutor/erpuser/${id}`);
+};

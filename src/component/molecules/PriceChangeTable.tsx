@@ -20,6 +20,7 @@ interface PriceChangeItem {
   showDistributorImage: boolean;
   distributorImage: string | null;
   masterImage: string;
+  prepaidTaxRate?: number;
   Product: {
     id: number;
     Customer_Number: number;
@@ -27,6 +28,7 @@ interface PriceChangeItem {
     Price: string;
     Qty: number;
     TotalPrice: string;
+    Tax_Rate?: number;
     isActive: boolean;
     createdAt: string;
     updatedAt: string;
@@ -64,10 +66,21 @@ const PriceChangeTable: React.FC<PriceChangeTableProps> = ({
         </TableHead>
         <TableBody>
           {items.map((item) => {
-            const priceChangeColor = getPriceChangeColor(item.oldPrice, item.newPrice);
-            const priceChangeIcon = getPriceChangeIcon(item.oldPrice, item.newPrice);
-            const priceDifference = item.newPrice - item.oldPrice;
-            const priceChangePercent = ((priceDifference / item.oldPrice) * 100).toFixed(1);
+            // Calculate prices with prepaid tax: (price + Tax_Rate) * (1 + prepaidTaxRate)
+            const calculatePriceWithPrepaidTax = (basePrice: number) => {
+              const prepaidTaxRate = item.prepaidTaxRate || 0;
+              const taxRate = Number(item.Product.Tax_Rate || 0);
+              const basePriceWithTax = basePrice + taxRate;
+              return basePriceWithTax * (1 + prepaidTaxRate);
+            };
+            
+            const oldPriceWithTax = calculatePriceWithPrepaidTax(item.oldPrice);
+            const newPriceWithTax = calculatePriceWithPrepaidTax(item.newPrice);
+            
+            const priceChangeColor = getPriceChangeColor(oldPriceWithTax, newPriceWithTax);
+            const priceChangeIcon = getPriceChangeIcon(oldPriceWithTax, newPriceWithTax);
+            const priceDifference = newPriceWithTax - oldPriceWithTax;
+            const priceChangePercent = ((priceDifference / oldPriceWithTax) * 100).toFixed(1);
 
             return (
               <TableRow
@@ -114,12 +127,12 @@ const PriceChangeTable: React.FC<PriceChangeTableProps> = ({
                 </TableCell>
                 <TableCell>
                   <Typography fontSize="14px" color="text.secondary">
-                    ${item.oldPrice.toFixed(2)}
+                    ${oldPriceWithTax.toFixed(2)}
                   </Typography>
                 </TableCell>
                 <TableCell>
                   <Typography fontSize="14px" fontWeight={500}>
-                    ${item.newPrice.toFixed(2)}
+                    ${newPriceWithTax.toFixed(2)}
                   </Typography>
                 </TableCell>
                 <TableCell>

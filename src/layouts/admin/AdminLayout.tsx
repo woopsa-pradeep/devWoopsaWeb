@@ -37,7 +37,7 @@ const AdminLayout: React.FC = () => {
     0: [ // Store Details
       { icon: companyIcon, label: "Company's Name", value: auth.storeDetail?.C_Name || auth.storeDetail?.C_CoName || '-' },
       { icon: accountIcon, label: "Account Number", value: auth.storeDetail?.C_Number || '-' },
-      { icon: locationIcon, label: "Business Address", value: `${auth.storeDetail?.C_Address || ''}, ${auth.storeDetail?.C_City || ''}, ${auth.storeDetail?.C_State || ''}` },
+      { icon: locationIcon, label: "Business Address", value: `${auth.storeDetail?.C_Address || ''}, ${auth.storeDetail?.C_City || ''}, ${auth.storeDetail?.C_State || ''}, ${auth.storeDetail?.C_Zip || ''}` },
       { icon: phoneIcon, label: "Phone Number", value: auth.storeDetail?.C_Phone || '-' },
       { icon: routeIcon, label: "Routes", value: String(auth.storeDetail?.Routes?.[0]?.Route_Number || '-') },
       { icon: stopIcon, label: "Stops", value: String(auth.storeDetail?.Routes?.[0]?.Stop_Number || '-') },
@@ -64,7 +64,7 @@ const AdminLayout: React.FC = () => {
     0: [ // Store Details
       { icon: companyIcon, label: "Company's Name", value: auth.storeDetail?.C_Name || auth.storeDetail?.C_CoName || '-' },
       { icon: accountIcon, label: "Account Number", value: auth.storeDetail?.C_Number || '-' },
-      { icon: locationIcon, label: "Business Address", value: `${auth.storeDetail?.C_Address || ''}, ${auth.storeDetail?.C_City || ''}, ${auth.storeDetail?.C_State || ''}` },
+      { icon: locationIcon, label: "Business Address", value: `${auth.storeDetail?.C_Address || ''}, ${auth.storeDetail?.C_City || ''}, ${auth.storeDetail?.C_State || ''}, ${auth.storeDetail?.C_Zip || ''}` },
       { icon: phoneIcon, label: "Phone Number", value: auth.storeDetail?.C_Phone || '-' },
       { icon: routeIcon, label: "Routes", value: String(auth.storeDetail?.Routes?.[0]?.Route_Number || '-') },
       { icon: stopIcon, label: "Stops", value: String(auth.storeDetail?.Routes?.[0]?.Stop_Number || '-') },
@@ -129,7 +129,13 @@ const AdminLayout: React.FC = () => {
         selectedTab={selectedTab ?? -1}
         isDrawerOpen={isMobile ? mobileOpen : collapsed}
       />
-      {isVertical && selectedTab !== null && (
+      {(
+        (auth?.role === "sales"
+          ? auth?.module?.some((moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true)
+          : true
+        )
+        && isVertical && selectedTab !== null
+      ) && (
         <Box sx={{
           pl: isMobile ? 0 : `${collapsed ? COLLAPSED_DRAWER_WIDTH : FULL_DRAWER_WIDTH}px`,
           transition: "padding-left 0.3s ease",
@@ -143,7 +149,13 @@ const AdminLayout: React.FC = () => {
           />
         </Box>
       )}
-      {!isVertical && selectedTab !== null && (
+      {(
+        (auth?.role === "sales"
+          ? auth?.module?.some((moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true)
+          : true
+        )
+        && !isVertical && selectedTab !== null
+      ) && (
         <SubHeader 
           isOpen={isDetailsOpen} 
           onClose={handleSubHeaderClose}

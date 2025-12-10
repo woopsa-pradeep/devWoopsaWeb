@@ -13,6 +13,7 @@ import salesDashboardReducer from "./slices/salesDashboardSlice";
 import notificationReducer from "./slices/notificationSlice";
 import navigationReducer from "./slices/navigationSlice";
 import retailerRequestReducer from "./slices/retailerRequestSlice";
+import orderConfirmReducer from "./slices/orderConfirmSlice";
 import { useDispatch, useSelector } from 'react-redux';
 
 const formPersistConfig = {
@@ -71,6 +72,7 @@ export const store = configureStore({
     notification: notificationReducer,
     navigation: navigationReducer,
     retailerRequest: retailerRequestReducer,
+    orderConfirm: orderConfirmReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

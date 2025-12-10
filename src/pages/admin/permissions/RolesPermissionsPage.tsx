@@ -22,32 +22,105 @@ const RolesPermissionsPage = () => {
     
 
   // Default permissions template
-  const getDefaultPermissions = (id: string, name: string) => [
-    {
-      salesId: id,
-      name: name,
-      module: 'Account Receivable',
-      add: false,
-      view: false,
-      edit: false,
-    },
-    {
-      salesId: id,
-      name: name,
-      module: 'Return Orders',
-      add: false,
-      view: false,
-      edit: false,
-    },
-    // {
-    //   salesId: id,
-    //   name: name,
-    //   module: 'Vendors',
-    //   add: false,
-    //   view: false,
-    //   edit: false,
-    // },
-  ];
+  const getDefaultPermissions = (id: string, name: string, role?: string, isNewUser?: boolean) => {
+    const allModules = [
+      {
+        salesId: id,
+        name: name,
+        module: 'Account Receivable',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Return Orders',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Orders',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Ordered Items',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Order History',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Order Confirmation',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Order Checker',
+        add: role === 'checker' && isNewUser ? true : false,
+        view: role === 'checker' && isNewUser ? true : false,
+        edit: role === 'checker' && isNewUser ? true : false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Calender',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Retailers',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Dashboard',
+        add: role === 'sales' && isNewUser ? true : false,
+        view: role === 'sales' && isNewUser ? true : false,
+        edit: role === 'sales' && isNewUser ? true : false,
+      },
+      // {
+      //   salesId: id,
+      //   name: name,
+      //   module: 'Vendors',
+      //   add: false,
+      //   view: false,
+      //   edit: false,
+      // },
+    ];
+
+    // If role is checker, only return Order Checker module
+    if (role === 'checker') {
+      return allModules.filter(module => module.module === 'Order Checker');
+    }
+
+    return allModules;
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -59,10 +132,11 @@ const RolesPermissionsPage = () => {
         if (id === 'new') {
           setIsNew(true);
           
-          const defaultPermissions = getDefaultPermissions('new', userData?.firstName + ' ' + userData?.lastName || 'New User');
+          const userRole = userData?.role || 'sales';
+          const defaultPermissions = getDefaultPermissions('new', userData?.firstName + ' ' + userData?.lastName || 'New User', userRole, true);
           const withPath = defaultPermissions.map((row: any) => ({
             ...row,
-            path: generatePath('sales', row.module),
+            path: generatePath(userRole, row.module),
           }));
           setRows(withPath);
         } else {
@@ -71,12 +145,13 @@ const RolesPermissionsPage = () => {
 
           const response: any = await getUserRolePermissions(id);
           const permissionsData = response?.data?.data;
+          const userRole = userData?.role || 'sales';
           
-          const defaultPermissions = getDefaultPermissions(id, userData?.firstName + ' ' + userData?.lastName || 'User');
+          const defaultPermissions = getDefaultPermissions(id, userData?.firstName + ' ' + userData?.lastName || 'User', userRole, false);
           
           if (Array.isArray(permissionsData)) {
             // Merge existing permissions with default permissions
-            const mergedPermissions = defaultPermissions.map(defaultModule => {
+            let mergedPermissions = defaultPermissions.map(defaultModule => {
               const existingModule = permissionsData.find(p => p.module === defaultModule.module);
               if (existingModule) {
                 return {
@@ -90,9 +165,14 @@ const RolesPermissionsPage = () => {
               return defaultModule;
             });
 
+            // If role is checker, filter to only show Order Checker module
+            if (userRole === 'checker') {
+              mergedPermissions = mergedPermissions.filter(module => module.module === 'Order Checker');
+            }
+
             const withPath = mergedPermissions.map((row: any) => ({
               ...row,
-              path: generatePath(userData?.role || 'sales', row.module),
+              path: generatePath(userRole, row.module),
             }));
             setRows(withPath);
             setIsNew(false);
@@ -101,7 +181,7 @@ const RolesPermissionsPage = () => {
             setIsNew(true);
             const withPath = defaultPermissions.map((row: any) => ({
               ...row,
-              path: generatePath(userData?.role || 'sales', row.module),
+              path: generatePath(userRole, row.module),
             }));
             setRows(withPath);
           }
@@ -126,11 +206,23 @@ const RolesPermissionsPage = () => {
 
   const handleToggle = (rowIdx: number, field: string, value: boolean) => {
     setRows((prev) =>
-      prev.map((row, idx) =>
-        idx === rowIdx
-          ? { ...row, [field]: value }
-          : row
-      )
+      prev.map((row, idx) => {
+        if (idx !== rowIdx) return row;
+        
+        const updatedRow = { ...row, [field]: value };
+        
+        // If add or edit is enabled, automatically enable view
+        if ((field === 'add' || field === 'edit') && value === true) {
+          updatedRow.view = true;
+        }
+        
+        // If trying to disable view but add or edit is enabled, keep view as true
+        if (field === 'view' && value === false && (updatedRow.add || updatedRow.edit)) {
+          updatedRow.view = true;
+        }
+        
+        return updatedRow;
+      })
     );
   };
 
@@ -219,6 +311,7 @@ const RolesPermissionsPage = () => {
         <SwitchInput
           checked={!!row.view}
           onChange={(checked) => handleToggle(rowIdx, 'view', checked)}
+          disabled={!!row.add || !!row.edit}
           sx={{ mb: 0 }}
           isShowLabel={false}
         />

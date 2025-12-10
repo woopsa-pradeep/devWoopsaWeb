@@ -35,11 +35,11 @@ type ProfileData = {
   lastName: string;
   email: string;
   role: string;
-  salesRepNumber: string;
+  salesRepNumber: string[];
   salesRep: {
     S_Number: number;
     S_Desc: string;
-  };
+  }[];
 };
 
 const ProfileTab = () => {
@@ -208,14 +208,32 @@ const ProfileTab = () => {
                   <Typography fontSize={14} fontWeight={400}>Role</Typography>
                   <Typography fontSize={13} fontWeight={400} color="text.secondary">{profileData.role}</Typography>
                 </Grid>
-                <Grid size={{xs:12, sm:6, md:4}}>
-                  <Typography fontSize={14} fontWeight={400}>Sales Rep Number</Typography>
-                  <Typography fontSize={13} fontWeight={400} color="text.secondary">{profileData.salesRepNumber}</Typography>
-                </Grid>
-                <Grid size={{xs:12, sm:6, md:4}}>
-                  <Typography fontSize={14} fontWeight={400}>Sales Rep</Typography>
-                  <Typography fontSize={13} fontWeight={400} color="text.secondary">{profileData.salesRep?.S_Desc}</Typography>
-                </Grid>
+                {profileData.salesRepNumber && profileData.salesRepNumber.length > 0 && (
+                  <Grid size={{xs:12, sm:6, md:4}}>
+                    <Typography fontSize={14} fontWeight={400}>Sales Rep Number</Typography>
+                    <Typography fontSize={13} fontWeight={400} color="text.secondary">
+                      {profileData.salesRepNumber.join(', ')}
+                    </Typography>
+                  </Grid>
+                )}
+                {profileData.salesRep && profileData.salesRep.length > 0 && (
+                  <Grid size={{xs:12, sm:6, md:4}}>
+                    <Typography fontSize={14} fontWeight={400}>Sales Rep</Typography>
+                    <Box>
+                      {profileData.salesRep.map((rep, index, array) => (
+                        <Typography 
+                          key={rep.S_Number} 
+                          fontSize={13} 
+                          fontWeight={400} 
+                          color="text.secondary"
+                          sx={{ mb: index < array.length - 1 ? 0.5 : 0 }}
+                        >
+                          {rep.S_Desc}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
             ) : null}
           </Box>

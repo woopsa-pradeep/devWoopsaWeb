@@ -34,6 +34,8 @@ interface StoreDetail {
   salesRep: SalesRep;
   Routes: Route[];
   LastBalance: number;
+  C_Zip: string;
+  Jurisdiction_State: string;
 }
 
 interface Customer {

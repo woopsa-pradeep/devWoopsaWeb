@@ -4,7 +4,7 @@ import ErrorBoundaryWrapper from "../pages/error/ErrorBoundaryWrapper";
 import PrivateRoute from "../components/PrivateRoute";
 import RoleBasedRoute from "../components/RoleBasedRoute";
 
-import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AddRetailer, AdminPromo, AccountReceivable, Vendors, AddVendor, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, Inventory, SalesReturnOrder, SalesReturnCartPage  } from "./lazyComponents";
+import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AddRetailer, AdminPromo, AccountReceivable, Vendors, AddVendor, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, Inventory, SalesOrderConfirmation, SalesOrderConfirmationDetail, SalesReturnOrder, SalesReturnCartPage, OrderChecker, ReportsAnalytics  } from "./lazyComponents";
 import { Navigate } from "react-router-dom";
 
 // Check if user is logged in
@@ -391,6 +391,14 @@ export const adminRoutes = [
             ),
           },  
           {
+            path: "reports-analytics",
+            element: (
+              <RoleBasedRoute path="/admin/reports-analytics">
+                <ReportsAnalytics />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "track-login-devices",
             element: (
               <RoleBasedRoute path="/admin/track-login-devices">
@@ -622,6 +630,22 @@ export const salesRoutes = [
             ),
           },
           {
+            path: "order-confirmation",
+            element: (
+              <RoleBasedRoute path="/sales/order-confirmation">
+                <SalesOrderConfirmation />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "order-confirmation/:orderId",
+            element: (
+              <RoleBasedRoute path="/sales/order-confirmation/:orderId">
+                <SalesOrderConfirmationDetail />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "ordered-items",
             element: (
               <RoleBasedRoute path="/sales/ordered-items">
@@ -666,6 +690,14 @@ export const salesRoutes = [
             element: (
               <RoleBasedRoute path="/sales/return-cart">
                 <SalesReturnCartPage />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "order-checker",
+            element: (
+              <RoleBasedRoute path="/sales/order-checker">
+                <OrderChecker />
               </RoleBasedRoute>
             ),
           },

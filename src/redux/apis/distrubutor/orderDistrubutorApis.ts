@@ -24,3 +24,8 @@ export const getOrderDeliveryStatus = async (id: any) => {
     const response = await axiosInstance.get(`/distrubutor/orderDeliveryStatus/${id}`);
     return response.data;
 }
+
+export const getOrderDetailByOrderNumberForInvoice = async (id: any) => {
+    const response = await axiosInstance.get(`/distrubutor/orderDetailByOrderNumberForInvoice/${id}`);
+    return response.data;
+}

@@ -129,11 +129,11 @@ const SalesPersonForm: React.FC<SalesPersonFormProps> = ({
     }
   }, [initialData, setValue]);
 
-  // Clear salesRepNumber when role changes to 'epick'
+  // Clear salesRepNumber when role changes to 'epick' or 'checker'
   const handleRoleChange = (selectedOption: any) => {
     if (selectedOption) {
       setValue('role', selectedOption.value || '');
-      if (selectedOption.value === 'epick') {
+      if (selectedOption.value === 'epick' || selectedOption.value === 'checker') {
         setValue('salesRepNumber', []);
       }
     }
@@ -158,9 +158,9 @@ const SalesPersonForm: React.FC<SalesPersonFormProps> = ({
 
   const handleFormSubmit = async (data: SalesPersonFormData) => {
     try {
-      // If role is 'epick', remove salesRepNumber from payload
+      // If role is 'epick' or 'checker', remove salesRepNumber from payload
       const payload = { ...data };
-      if (data.role === 'epick') {
+      if (data.role === 'epick' || data.role === 'checker') {
         delete payload.salesRepNumber;
       } else if (data.salesRepNumber && Array.isArray(data.salesRepNumber)) {
         // Ensure salesRepNumber is an array of strings
@@ -280,8 +280,8 @@ const SalesPersonForm: React.FC<SalesPersonFormProps> = ({
               />
             </Grid>
 
-            {/* Sales Rep Number - Only show when role is not 'epick' */}
-            {watch('role') !== 'epick' && (
+            {/* Sales Rep Number - Only show when role is not 'epick' or 'checker' */}
+            {watch('role') !== 'epick' && watch('role') !== 'checker' && (
               <Grid size={{ xs: 12, sm: 6 }}>
                 <MultiSearchableDropdown
                   label="Sales Rep Number"

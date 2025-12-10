@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import SwitchInput from '../../../component/atoms/SwitchInput';
-import TextInput from '../../../component/atoms/TextInput';
+// import TextInput from '../../../component/atoms/TextInput';
 import CustomButton from '../../../component/atoms/CustomButton';
 import { showSuccessToast, showErrorToast } from '../../../utils/toastUtils';
 import { 
@@ -144,13 +144,13 @@ const PinSettingsTab: React.FC = () => {
           {/* Hidden ID field */}
           <input type="hidden" {...form.register('id')} />
           
-          <TextInput
+          {/* <TextInput
             label="PIN"
             {...form.register('pin')}
             error={!!form.formState.errors.pin}
             helperText={form.formState.errors.pin?.message}
             placeholder="Enter PIN for Epick settings"
-          />
+          /> */}
           
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
             <Typography sx={{ fontSize: 14 }}>Allow Single Scan</Typography>

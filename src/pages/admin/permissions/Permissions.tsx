@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, Paper, IconButton, Tooltip, CircularProgress } from '@mui/material';
 import { Add as AddIcon, Visibility as ViewIcon, ViewList as ViewListIcon, Edit as EditIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -15,7 +15,6 @@ import toast from 'react-hot-toast';
 const Permissions = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<SalesPerson[]>([]);
-  const [originalData, setOriginalData] = useState<SalesPerson[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -49,33 +48,36 @@ const Permissions = () => {
   }
 };
 
-  const fetchUserList = async () => {
-    const res: any = await getUserList();
-    const users = res?.data?.data;
-    const userList = users?.userListWithSalesRep || [];
-    setData(userList);
-    setOriginalData(userList);
-    setTotalItems(users?.totalCount || userList.length);
-    setTotalPages(Math.ceil((users?.totalCount || userList.length) / pageSize));
-  };
-
-  // Fetch user list on mount
-  useEffect(() => {
+  const fetchUserList = useCallback(async () => {
     setLoading(true);
-    getUserList()
-      .then((res: any) => {
-        const users = res?.data?.data;
-        const userList = users?.userListWithSalesRep || [];
-        setData(userList);
-        setOriginalData(userList);
-        setTotalItems(users?.totalCount || userList.length);
-        setTotalPages(Math.ceil((users?.totalCount || userList.length) / pageSize));
-      })
-      .catch(() => {
-        toast.error('Failed to load user list');
-      })
-      .finally(() => setLoading(false));
-  }, [pageSize]);
+    try {
+      const params = {
+        page: currentPage,
+        limit: pageSize,
+        ...(debouncedSearch && { search: debouncedSearch })
+      };
+      const res: any = await getUserList(params);
+      const users = res?.data?.data;
+      const userList = users?.userListWithSalesRep || [];
+      setData(userList);
+      setTotalItems(users?.totalCount || 0);
+      setTotalPages(Math.ceil((users?.totalCount || 0) / pageSize));
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to load user list');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, pageSize, debouncedSearch]);
+
+  // Fetch user list when pagination or search changes
+  useEffect(() => {
+    fetchUserList();
+  }, [fetchUserList]);
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
 
   // Handler for roles & permissions icon
   const handleRolesPermissions = (row: SalesPerson) => {
@@ -166,26 +168,6 @@ const Permissions = () => {
     }
   };
 
-  // Handle search
-  useEffect(() => {
-    if (!originalData.length) return;
-    
-    const filteredData = originalData.filter(item =>
-      item.firstName?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      item.lastName?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      item.email?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      item.role?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      item.userNumber?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      (Array.isArray(item.salesRep) 
-        ? item.salesRep.some(rep => rep.S_Desc?.toLowerCase().includes(debouncedSearch.toLowerCase()))
-        : false)
-    );
-    
-    setData(filteredData);
-    setTotalItems(filteredData.length);
-    setTotalPages(Math.ceil(filteredData.length / pageSize));
-    setCurrentPage(1);
-  }, [debouncedSearch, originalData, pageSize]);
 
   const columns: TableColumn<SalesPerson>[] = [
     // {
@@ -277,7 +259,11 @@ const Permissions = () => {
     {
       id: 'setUserDiscountLimit',
       label: 'User Limit',
-      render: (row) => (
+      render: (row) => {
+        if (row.role !== 'sales') {
+          return null;
+        }
+        return (
         <Box display="flex" alignItems="center" gap={1}>
           <Typography color="text.secondary" fontSize={14}>
             {row.setUserDiscountLimit ? `$${row.setUserDiscountLimit}` : 'No limit'}
@@ -292,16 +278,23 @@ const Permissions = () => {
             </IconButton>
           </Tooltip>
         </Box>
-      ),
+        );
+      },
     },
     {
       id: 'rolesPermissions',
       label: 'Roles & Permissions',
-      render: (row) => (
-        <IconButton onClick={() => handleRolesPermissions(row)} color="primary">
-          <ViewListIcon />
-        </IconButton>
-      ),
+      render: (row) => {
+        // Don't show Roles & Permissions icon for epick and checker users
+        if (row.role === 'epick' || row.role === 'checker') {
+          return null;
+        }
+        return (
+          <IconButton onClick={() => handleRolesPermissions(row)} color="primary">
+            <ViewListIcon />
+          </IconButton>
+        );
+      },
     },
     {
       id: 'status',

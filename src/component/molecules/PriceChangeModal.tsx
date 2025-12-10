@@ -13,6 +13,7 @@ interface PriceChangeItem {
   showDistributorImage: boolean;
   distributorImage: string | null;
   masterImage: string;
+  prepaidTaxRate?: number;
   Product: {
     id: number;
     Customer_Number: number;
@@ -20,6 +21,7 @@ interface PriceChangeItem {
     Price: string;
     Qty: number;
     TotalPrice: string;
+    Tax_Rate?: number;
     isActive: boolean;
     createdAt: string;
     updatedAt: string;

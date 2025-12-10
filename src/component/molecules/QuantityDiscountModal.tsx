@@ -56,22 +56,41 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
     // Reset when modal opens
   }, [open]);
 
-  // Helper function to get the product name and price
+  // Helper function to get the product name and price with prepaid tax
   const getProductInfo = () => {
     if (!product) return { name: 'Product', priceWithTax: 0 };
     
+    // Calculate price with prepaid tax: (price + Tax_Rate) * (1 + prepaidTaxRate)
+    const calculatePriceWithPrepaidTax = (basePrice: number, prepaidTaxRate: number = 0, taxRate: number = 0) => {
+      const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
+      return Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+    };
+    
     // Handle cart item structure
     if (product.Description && product.Product) {
+      // Use originalPrice if available (for cart items), otherwise use Price or price
+      const basePrice = Number(product.Product.originalPrice) || Number(product.Product.Price) || Number(product.price) || 0;
+      const prepaidTaxRate = Number(product.prepaidTaxRate) || 0;
+      const taxRate = Number(product.Product.Tax_Rate) || 0;
+      // Always calculate from base price to ensure prepaid tax is included
+      const priceWithTax = calculatePriceWithPrepaidTax(basePrice, prepaidTaxRate, taxRate);
+      
       return {
         name: product.Description,
-        priceWithTax: product.Product.Price_With_Tax || product.Product.Price || 0
+        priceWithTax: priceWithTax
       };
     }
     
     // Handle regular product structure
+    const basePrice = Number(product.price) || 0;
+    const prepaidTaxRate = Number(product.prepaidTaxRate) || 0;
+    const taxRate = Number(product.Tax_Rate) || 0;
+    // Always calculate from base price to ensure prepaid tax is included
+    const calculatedPriceWithTax = calculatePriceWithPrepaidTax(basePrice, prepaidTaxRate, taxRate);
+    
     return {
       name: product.name || 'Product',
-      priceWithTax: product.priceWithTax || product.price || 0
+      priceWithTax: calculatedPriceWithTax
     };
   };
 

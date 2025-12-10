@@ -1,4 +1,5 @@
 import axiosInstance from "../../../config/axios";
+import { store } from "../../store";
 
 export const getOrderHistoryByOrderNumber = async (orderNumber: string, page: number, pageSize: number, customerId: string) => {
     const response = await axiosInstance.get(`/sales/orderHistoryByOrderNumber/${orderNumber}?page=${page}&limit=${pageSize}`,{
@@ -36,7 +37,15 @@ export const placeOrder = async (customerId: string, params: any) => {
     return response.data;
 }
 export const getInventoryItems = async (customerId: string, params?: any) => {
-    const response = await axiosInstance.post(`/sales/getInventoryItems/${customerId}`, params, {
+    const storeDetail = store.getState().auth.storeDetail;
+    const payload = {
+        ...(params || {}),
+        state: storeDetail?.C_State,
+        zip: storeDetail?.C_Zip,
+        jurisdiction: storeDetail?.Jurisdiction_State
+    };
+    
+    const response = await axiosInstance.post(`/sales/getInventoryItems/${customerId}`, payload, {
         headers: {
             'customer': customerId
         }
@@ -44,7 +53,15 @@ export const getInventoryItems = async (customerId: string, params?: any) => {
     return response.data;
 }
 export const getInventoryItemsBySalesRep = async (customerId: string, params?: any) => {
-    const response = await axiosInstance.post(`/sales/getInventoryItemsBySalesMan/${customerId}`, params, {
+    const storeDetail = store.getState().auth.storeDetail;
+    const payload = {
+        ...(params || {}),
+        state: storeDetail?.C_State,
+        zip: storeDetail?.C_Zip,
+        jurisdiction: storeDetail?.Jurisdiction_State
+    };
+    
+    const response = await axiosInstance.post(`/sales/getInventoryItemsBySalesMan/${customerId}`, payload, {
         headers: {
             'customer': customerId
         }

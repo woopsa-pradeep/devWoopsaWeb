@@ -1,8 +1,8 @@
 
 import axiosInstance from "../../../config/axios";
 
-export const getUserList = async () => {
-    return axiosInstance.get('/distrubutor/userList');
+export const getUserList = async (params?: { page?: number; limit?: number; search?: string }) => {
+    return axiosInstance.get('/distrubutor/userList', { params });
 };
 
 export const createUser = async (params: any) => {

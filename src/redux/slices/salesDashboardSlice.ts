@@ -40,6 +40,8 @@ interface ApiProduct {
   // Additional fields for consistency with Order component
   isDiscounted?: boolean;
   isNewItem?: boolean;
+  // Prepaid tax rate
+  prepaidTaxRate?: number;
 }
 
 // Interface for dashboard product
@@ -85,6 +87,8 @@ interface DashboardProduct {
   // Additional fields for consistency with Order component
   isDiscounted?: boolean;
   isNewItem?: boolean;
+  // Prepaid tax rate
+  prepaidTaxRate?: number;
 }
 
 // Function to get the appropriate image URL based on showDistributorImage flag
@@ -128,6 +132,7 @@ const transformApiProduct = (apiProduct: ApiProduct): DashboardProduct => {
   const qtyDiscount = apiProduct.qtyDiscount || null;
   const isDiscounted = apiProduct.isDiscounted || false;
   const isNewItem = apiProduct.isNewItem || false;
+  const prepaidTaxRate = apiProduct.prepaidTaxRate || 0;
   
   // Determine stock status based on API flags
   let stock: 'in stock' | 'low stock' = 'in stock';
@@ -178,7 +183,9 @@ const transformApiProduct = (apiProduct: ApiProduct): DashboardProduct => {
     qtyDiscount: qtyDiscount,
     // Additional fields for consistency with Order component
     isDiscounted: isDiscounted,
-    isNewItem: isNewItem
+    isNewItem: isNewItem,
+    // Prepaid tax rate
+    prepaidTaxRate: prepaidTaxRate
   };
 };
 

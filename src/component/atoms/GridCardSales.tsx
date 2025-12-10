@@ -64,6 +64,8 @@ interface Product {
   // Quantity discount fields
   hasQtyDiscount?: boolean;
   qtyDiscount?: any;
+  // Prepaid tax rate
+  prepaidTaxRate?: number;
   productDetails?: {
     brand: string;
     category: string;
@@ -125,6 +127,8 @@ interface GridCardSalesProps {
   // Role and customer props
   role?: string;
   customerId?: any;
+  // Return order flag - disables qty discount functionality
+  isReturnOrder?: boolean;
 }
 
 const GridCardSales: React.FC<GridCardSalesProps> = ({
@@ -172,7 +176,8 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
   isDiscounted,
   hasQtyDiscount,
   role,
-  customerId
+  customerId,
+  isReturnOrder = false
 }) => {
   const theme = useTheme();
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -432,10 +437,11 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
     if (!product.allowToOrder) return;
 
     // Check if this is the first time adding this product and if it has quantity discount
+    // Skip qty discount for return orders
     const currentQty = orderItems[product.id]?.quantity || 0;
     const isFirstTimeAdding = currentQty === 0;
     
-    if (isFirstTimeAdding && product.hasQtyDiscount && product.qtyDiscount && onDiscountModalOpen) {
+    if (!isReturnOrder && isFirstTimeAdding && product.hasQtyDiscount && product.qtyDiscount && onDiscountModalOpen) {
       // Open discount modal automatically for first-time additions
       onDiscountModalOpen(product, product.qtyDiscount);
       return; // Don't add to cart yet, wait for modal confirmation
@@ -487,10 +493,11 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
       }
       
       // Check if this is the first time adding this product and if it has quantity discount
+      // Skip qty discount for return orders
       const currentQty = orderItems[product.id]?.quantity || 0;
       const isFirstTimeAdding = currentQty === 0;
       
-      if (isFirstTimeAdding && product.hasQtyDiscount && product.qtyDiscount && onDiscountModalOpen) {
+      if (!isReturnOrder && isFirstTimeAdding && product.hasQtyDiscount && product.qtyDiscount && onDiscountModalOpen) {
         // Open discount modal automatically
         onDiscountModalOpen(product, product.qtyDiscount);
         // Clear quantity input and remove focus
@@ -602,7 +609,14 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
       upc: item.upc,
       stockCount: item.stockCount,
       stock: item.stock,
-      price: item.showWithOutPrice ? undefined : item.priceWithTax,
+      price: item.showWithOutPrice ? undefined : (() => {
+        // Calculate display price: (price + Tax_Rate) * (1 + prepaidTaxRate)
+        const basePrice = item.price || 0;
+        const prepaidTaxRate = item.prepaidTaxRate || 0;
+        const taxRate = item.Tax_Rate || 0;
+        const basePriceWithTax = basePrice + taxRate;
+        return basePriceWithTax * (1 + prepaidTaxRate);
+      })(),
       discount: item.crvPrice,
       productDetails: item.productDetails,
       isNewItem: item.isNewItem || false,
@@ -661,7 +675,8 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
           }}
           onClick={() => {
             // Check if product has quantity discount for first-time addition
-            if (item.hasQtyDiscount && item.qtyDiscount && onDiscountModalOpen) {
+            // Skip qty discount for return orders
+            if (!isReturnOrder && item.hasQtyDiscount && item.qtyDiscount && onDiscountModalOpen) {
               onDiscountModalOpen(item, item.qtyDiscount);
             } else {
               onAddToCart?.(item.id);
@@ -973,7 +988,15 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                         fontSize: '13px'
                       }}
                     >
-                      {product.showWithOutPrice ? '-' : `$${Number(product.priceWithTax).toFixed(2)}`}
+                      {product.showWithOutPrice ? '-' : (() => {
+                        // Calculate display price: (price + Tax_Rate) * (1 + prepaidTaxRate)
+                        const basePrice = product.price || 0;
+                        const prepaidTaxRate = product.prepaidTaxRate || 0;
+                        const taxRate = product.Tax_Rate || 0;
+                        const basePriceWithTax = basePrice + taxRate;
+                        const displayPrice = basePriceWithTax * (1 + prepaidTaxRate);
+                        return `$${displayPrice.toFixed(2)}`;
+                      })()}
                     </Typography>
                   </Box>
   
@@ -1067,14 +1090,15 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                                return;
                              }
                              
-                             // Check if product has quantity discount for first-time addition
-                             if (product.hasQtyDiscount && product.qtyDiscount && onDiscountModalOpen) {
-                               onDiscountModalOpen(product, product.qtyDiscount);
-                             } else {
-                               // Just focus the input, don't add to cart automatically
-                               setFocusedProductId(product.id);
-                               setQuantityInput(prev => ({ ...prev, [product.id]: '' }));
-                             }
+                            // Check if product has quantity discount for first-time addition
+                            // Skip qty discount for return orders
+                            if (!isReturnOrder && product.hasQtyDiscount && product.qtyDiscount && onDiscountModalOpen) {
+                              onDiscountModalOpen(product, product.qtyDiscount);
+                            } else {
+                              // Just focus the input, don't add to cart automatically
+                              setFocusedProductId(product.id);
+                              setQuantityInput(prev => ({ ...prev, [product.id]: '' }));
+                            }
                            }}
                            sx={{ 
                              cursor: "pointer", 

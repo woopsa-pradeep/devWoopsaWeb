@@ -29,5 +29,13 @@ export const updateProductLimit = async (id: string, params: any) => {
     return axiosInstance.put(`/distrubutor/itemLimits/${id}`, params);
 };
 
-
+export const inventoryForReport = async (onDownloadProgress?: (progressEvent: any) => void) => {
+    return axiosInstance.get('/distrubutor/inventoryForReport', {
+        timeout: 1800000, // 30 minutes timeout for this long-running request
+        ...(onDownloadProgress && { onDownloadProgress }),
+        // Increase maxContentLength and maxBodyLength for large responses
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+    } as any);
+};
 

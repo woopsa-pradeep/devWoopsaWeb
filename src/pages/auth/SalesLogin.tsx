@@ -49,13 +49,19 @@ const SalesLogin = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { isAuthenticated, role } = useSelector((state: RootState) => state.auth);
+  const checker = useSelector((state: RootState) => state.auth);
   const [ageConfirmModal, setAgeConfirmModal] = useState(true);
   const [isAgeConfirmed, setIsAgeConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && role === 'sales') {
-      navigate('/sales/dashboard');
+      if(checker.module?.some((moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true)) {
+        navigate('/sales/dashboard');
+      } else {
+        navigate('/sales/order-checker');
+
+      }
     } else if (isAuthenticated && role) {
       // Redirect to appropriate dashboard based on role
       const dashboardPath = role === 'distributor' ? '/admin/dashboard' : '/retailer/dashboard';
@@ -85,11 +91,15 @@ const SalesLogin = () => {
     try {
       setLoading(true);
       const result: any = await dispatch(loginSalesUser(data)).unwrap();
-      
+      console.log(result);
       if (result.success) {
         toast.success("Sales login successful!");
         // Navigate to sales dashboard after successful login
-        navigate('/sales/dashboard');
+        if(result?.data?.rolesPermission?.some((moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true)) {
+          navigate('/sales/dashboard');
+        } else {
+          navigate('/sales/order-checker');
+        }
       } else {
         toast.error(result.error || "Login failed");
       }

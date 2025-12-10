@@ -187,7 +187,10 @@ export const Inventory = lazyLoad(
   () => import("../pages/admin/inventory/Inventory"),
   "Loading Inventory..."
 );
-
+export const ReportsAnalytics = lazyLoad(
+  () => import("../pages/admin/reportsAnalytics/ReportsAnalytics"),
+  "Loading Reports Analytics..."
+);
 // sales
 export const SalesDashboard = lazyLoad(
   () => import("../pages/sales/dashboard/SalesDashboard"),
@@ -226,6 +229,7 @@ export const SalesReturnCartPage = lazyLoad(
   () => import("../pages/sales/salesCart/ReturnOrderCartPage"),
   "Loading Sales Return Cart..."
 );
+
 export const SalesCartPage = lazyLoad(
   () => import("../pages/sales/salesCart/CartPage"),
   "Loading Sales Cart..."
@@ -242,10 +246,21 @@ export const AccountReceivableSales = lazyLoad(
   () => import("../pages/sales/account/AccountReceivable"),
   "Loading Account Receivable..."
 );
-
+export const SalesOrderConfirmation = lazyLoad(
+  () => import("../pages/sales/orderConfirm/OrderConfirmation"),
+  "Loading Order Confirmation..."
+);
+export const SalesOrderConfirmationDetail = lazyLoad(
+  () => import("../pages/sales/orderConfirm/OrderConfirmationDetail"),
+  "Loading Order Confirmation Detail..."
+);
 export const SalesCalenderPage = lazyLoad(
   () => import("../pages/sales/calender/salesCalender"),
   "Loading Sales Calender..."
+);
+export const OrderChecker = lazyLoad(
+  () => import("../pages/sales/checker/OrderChecker"),
+  "Loading Order Checker..."
 );
 
 export const SalesCalenderViewPage = lazyLoad(

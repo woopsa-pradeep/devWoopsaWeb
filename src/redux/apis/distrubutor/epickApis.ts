@@ -70,3 +70,65 @@ export const updateUserOrderPreferences = async (userId: number, data: { order_t
     const response = await axiosInstance.put(`/distrubutor/users/${userId}/orderPreferences`, data);
     return response.data;
 }
+
+export const getCheckerUsers = async () => {
+    const response = await axiosInstance.get('/distrubutor/checker-users');
+     return response.data;
+}
+// Get pending override requests by order number
+export const getPendingOverrideRequestsByOrderNumber = async (orderNumber: number) => {
+    const response = await axiosInstance.get(`/distrubutor/pendingOverrideRequests/${orderNumber}`);
+    return response.data;
+}
+
+// Get complete orders
+export const getCompleteOrders = async () => {
+    const response = await axiosInstance.get('/epick/getCompleteOrder');
+    return response.data;
+}
+
+// Get complete order details
+export const getCompleteOrderDetails = async (orderNumber: number) => {
+    const response = await axiosInstance.get(`/checker/getOrderDetails/${orderNumber}`);
+    return response.data;
+}
+
+// Get epick reports with pagination and optional user filter
+export const getEpickReports = async (params?: { userId?: number; page?: number; limit?: number }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.userId) queryParams.append('userId', params.userId.toString());
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    const queryString = queryParams.toString();
+    const url = `/distrubutor/epickReports${queryString ? `?${queryString}` : ''}`;
+    const response = await axiosInstance.get(url);
+    return response.data;
+}
+
+// Get user report with date range for download
+export const getUserReportWithDateRange = async (params?: { 
+    userId?: number; 
+    fromDate?: string; 
+    toDate?: string; 
+    page?: number; 
+    limit?: number 
+}) => {
+    const queryParams = new URLSearchParams();
+    if (params?.userId) queryParams.append('userId', params.userId.toString());
+    if (params?.fromDate) queryParams.append('fromDate', params.fromDate);
+    if (params?.toDate) queryParams.append('toDate', params.toDate);
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    const queryString = queryParams.toString();
+    const url = `/epick/getUserReportWithDateRange${queryString ? `?${queryString}` : ''}`;
+    const response = await axiosInstance.get(url);
+    return response.data;
+}
+
+// Get order details by order number
+export const getOrderDetailsByOrderNumber = async (orderNumber: number) => {
+    const response = await axiosInstance.get(`/epick/getOrderDetailsByOrderNumber/${orderNumber}`);
+    return response.data;
+}

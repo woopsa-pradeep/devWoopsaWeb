@@ -1,4 +1,5 @@
 import axiosInstance from "../../../config/axios";
+import { store } from "../../store";
 
 // Type definition for inventory API parameters
 export interface InventoryParams {
@@ -8,10 +9,21 @@ export interface InventoryParams {
   masterSearch?: string;
   salesCategoryId?: string[];
   priceClassId?: string[];
+  state?: string;
+  zip?: string;
+  jurisdiction?: string;
 }
 
 export const getInventoryItems = async (params: InventoryParams) => {
-    const response = await axiosInstance.post('/retailer/getInventory',  params);
+    const storeDetail = store.getState().auth.storeDetail;
+    const payload = {
+        ...params,
+        state: storeDetail?.C_State,
+        zip: storeDetail?.C_Zip,
+        jurisdiction: storeDetail?.Jurisdiction_State
+    };
+    
+    const response = await axiosInstance.post('/retailer/getInventory', payload);
     return response.data;
 }
 
@@ -94,7 +106,15 @@ export const getOrderHistoryByOrderNumber = async (
 }
 
 export const getOrderedProducts = async (params: any) => {
-    const response = await axiosInstance.post('/retailer/orderedProducts', params);
+    const storeDetail = store.getState().auth.storeDetail;
+    const payload = {
+        ...(params || {}),
+        state: storeDetail?.C_State,
+        zip: storeDetail?.C_Zip,
+        jurisdiction: storeDetail?.Jurisdiction_State
+    };
+    
+    const response = await axiosInstance.post('/retailer/orderedProducts', payload);
     return response.data;
 }
 

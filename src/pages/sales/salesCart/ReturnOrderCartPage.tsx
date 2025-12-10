@@ -16,7 +16,6 @@ import DeleteConfirmationModal from '../../../component/atoms/DeleteConfirmation
 import PriceChangeModal from '../../../component/molecules/PriceChangeModal';
 import InactiveItemsModal from '../../../component/molecules/InactiveItemsModal';
 import OrderCelebration from '../../../component/atoms/OrderCelebration';
-import QuantityDiscountModal from '../../../component/molecules/QuantityDiscountModal';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../../../redux/store';
@@ -57,6 +56,8 @@ interface CartItem {
   // Quantity discount fields
   hasQtyDiscount?: boolean;
   qtyDiscount?: any;
+  // Prepaid tax rate
+  prepaidTaxRate?: number;
   Product: {
     id: number;
     Customer_Number: number;
@@ -111,9 +112,6 @@ const ReturnOrderCartPage: React.FC = () => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
   
   // Quantity discount modal state
-  const [discountModalOpen, setDiscountModalOpen] = useState(false);
-  const [selectedDiscountProduct, setSelectedDiscountProduct] = useState<CartItem | null>(null);
-  const [selectedDiscountData, setSelectedDiscountData] = useState<any>(null);
 
   // Debounced input state
   const [inputValues, setInputValues] = useState<{ [key: number]: number }>({});
@@ -198,7 +196,65 @@ const ReturnOrderCartPage: React.FC = () => {
       });
     };
   }, []);
-  
+
+  // Helper function to calculate cart payload with prepaidTaxRate
+  // New calculation: Price_With_Tax = Price_With_Tax * (1 + prepaidTaxRate)
+  // Where base Price_With_Tax = price + Tax_Rate
+  const calculateCartPayload = (item: CartItem, quantity: number, finalPriceWithTax?: number) => {
+    // Convert all values to numbers to prevent string operations
+    const basePrice = Number(item.Product.originalPrice || item.price || 0);
+    const prepaidTaxRate = Number(item.prepaidTaxRate || 0);
+    const taxRate = Number(item.Product.Tax_Rate || 0);
+    const qty = Number(quantity) || 0;
+    
+    let priceWithTax: number;
+    let price: number;
+    let prepaidTaxPerUnit: number;
+    let totalPrepaidTax: number;
+    
+    if (finalPriceWithTax !== undefined) {
+      // For discounted items, use the provided finalPriceWithTax
+      priceWithTax = Number(finalPriceWithTax) || 0;
+      
+      // Calculate base Price_With_Tax (before prepaid tax): finalPriceWithTax / (1 + prepaidTaxRate)
+      const basePriceWithTax = prepaidTaxRate > 0 ? priceWithTax / (1 + prepaidTaxRate) : priceWithTax;
+      
+      // Calculate price from basePriceWithTax: basePriceWithTax - Tax_Rate
+      price = basePriceWithTax - taxRate;
+      
+      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
+      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
+      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
+      totalPrepaidTax = prepaidTaxPerUnit * qty;
+    } else {
+      // Standard calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
+      const basePriceWithTax = basePrice + taxRate;
+      
+      // Calculate final Price_With_Tax: basePriceWithTax * (1 + prepaidTaxRate)
+      priceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+      price = basePrice;
+      
+      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
+      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
+      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
+      totalPrepaidTax = prepaidTaxPerUnit * qty;
+    }
+    
+    // Calculate total price with tax: Price_With_Tax * qty
+    const totalPriceWithTax = priceWithTax * qty;
+    
+    return {
+      Price: Number(Number(price).toFixed(2)),
+      Price_With_Tax: Number(Number(priceWithTax).toFixed(2)),
+      Qty: Number(qty),
+      Tax_Rate: Number(Number(taxRate).toFixed(2)),
+      TotalPrice: Number(Number(price * qty).toFixed(2)),
+      TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
+      originalPrice: Number(Number(basePrice).toFixed(2)),
+      prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)), // Pass actual prepaidTaxRate from API
+      TotalprepaidTaxRate: Number(Number(totalPrepaidTax).toFixed(2))
+    };
+  };
 
   // Handle quantity change
   const handleQuantityChange = async (item: CartItem, change: number) => {
@@ -221,72 +277,17 @@ const ReturnOrderCartPage: React.FC = () => {
       return;
     }
 
-    // Check if this is the first time adding this product and if it has quantity discount
-    const isFirstTimeAdding = item.Product.Qty === 0;
-    if (isFirstTimeAdding && item.hasQtyDiscount && item.qtyDiscount) {
-      // Open discount modal automatically for first-time additions
-      setSelectedDiscountProduct(item);
-      setSelectedDiscountData(item.qtyDiscount);
-      setDiscountModalOpen(true);
-      
-      // Show toast message about discount modal
-      toast.success(`Quantity discount available for ${item.Description}! Please review discount options.`);
-      return; // Don't update cart yet, wait for modal confirmation
-    }
-
     try {
-      // Check if quantity discount should be applied
-      // Always calculate from original base price to prevent compounding discounts
-      const originalBasePrice = Number(item.Product.originalPrice) + Number(item.Product.Tax_Rate);
-      let finalPrice = originalBasePrice;
-      
-      if (item.hasQtyDiscount && item.qtyDiscount) {
-        if (item.qtyDiscount.isCaseDiscount && newQuantity >= item.qtyDiscount.minimumQtyForCaseDiscount) {
-          // Apply case discount from original base price
-          const discountAmount = (originalBasePrice * item.qtyDiscount.percentageCaseDiscount) / 100;
-          finalPrice = originalBasePrice - discountAmount;
-        } else if (item.qtyDiscount.isQtyDiscount) {
-          // Find applicable quantity discount tier from original base price
-          const applicableDiscount = item.qtyDiscount.qtyDiscount
-            .filter((discount: any) => newQuantity >= discount.minQty)
-            .sort((a: any, b: any) => b.minQty - a.minQty)[0];
-          
-          if (applicableDiscount) {
-            if (applicableDiscount.hasPercentageDiscount) {
-              const discountAmount = (originalBasePrice * applicableDiscount.perDiscount) / 100;
-              finalPrice = originalBasePrice - discountAmount;
-            } else {
-              finalPrice = originalBasePrice - applicableDiscount.amountDiscount;
-            }
-          }
-        }
-      }
-      
-      // Ensure price doesn't go below 0
-      finalPrice = Math.max(0, finalPrice);
-
+      // For return orders, no quantity discounts - use regular price
+      const payload = calculateCartPayload(item, newQuantity);
       if (item.Product?.id) {
         // Update existing item
-        await updateCartItem(item.Product.id.toString(), {
-          Qty: newQuantity,
-          Price: Number((Number(item.Product.originalPrice) - (originalBasePrice - finalPrice)).toFixed(2)),
-          Price_With_Tax: Number(finalPrice.toFixed(2)), // Use discounted price if applicable with 2 decimal places
-          Tax_Rate: Number(Number(item.Product.Tax_Rate).toFixed(2)), // Ensure tax rate is a number with 2 decimal places
-          TotalPrice: (Number(item.Product.Price) * newQuantity).toFixed(2),
-          TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-          originalPrice: Number(Number(item.Product.originalPrice).toFixed(2))
-        }, selectedCustomer?.C_Number?.toString() || '');
+        await updateCartItem(item.Product.id.toString(), payload, selectedCustomer?.C_Number?.toString() || '');
       } else {
         // Add new item
         await addToCart(selectedCustomer?.C_Number?.toString() || '', {
           Item_Number: item.Item_Number,
-          Price: Number((Number(item.Product.originalPrice) - (originalBasePrice - finalPrice)).toFixed(2)),
-          Price_With_Tax: Number(finalPrice.toFixed(2)), // Use discounted price if applicable with 2 decimal places
-          Qty: newQuantity,
-          Tax_Rate: Number(Number(item.Product.Tax_Rate).toFixed(2)), // Ensure tax rate is a number with 2 decimal places
-          TotalPrice: (Number(item.Product.Price) * newQuantity).toFixed(2),
-          TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-          originalPrice: Number(Number(item.Product.originalPrice).toFixed(2))
+          ...payload
         });
       }
       await loadCartItems(); // Refresh cart from server
@@ -333,72 +334,17 @@ const ReturnOrderCartPage: React.FC = () => {
       return;
     }
 
-    // Check if this is the first time adding this product and if it has quantity discount
-    const isFirstTimeAdding = item.Product.Qty === 0;
-    if (isFirstTimeAdding && item.hasQtyDiscount && item.qtyDiscount) {
-      // Open discount modal automatically for first-time additions
-      setSelectedDiscountProduct(item);
-      setSelectedDiscountData(item.qtyDiscount);
-      setDiscountModalOpen(true);
-      
-      // Show toast message about discount modal
-      toast.success(`Quantity discount available for ${item.Description}! Please review discount options.`);
-      return; // Don't update cart yet, wait for modal confirmation
-    }
-
     try {
-      // Check if quantity discount should be applied
-      // Always calculate from original base price to prevent compounding discounts
-      const originalBasePrice = Number(item.Product.originalPrice) + Number(item.Product.Tax_Rate);
-      let finalPrice = originalBasePrice;
-      
-      if (item.hasQtyDiscount && item.qtyDiscount) {
-        if (item.qtyDiscount.isCaseDiscount && newQuantity >= item.qtyDiscount.minimumQtyForCaseDiscount) {
-          // Apply case discount from original base price
-          const discountAmount = (originalBasePrice * item.qtyDiscount.percentageCaseDiscount) / 100;
-          finalPrice = originalBasePrice - discountAmount;
-        } else if (item.qtyDiscount.isQtyDiscount) {
-          // Find applicable quantity discount tier from original base price
-          const applicableDiscount = item.qtyDiscount.qtyDiscount
-            .filter((discount: any) => newQuantity >= discount.minQty)
-            .sort((a: any, b: any) => b.minQty - a.minQty)[0];
-          
-          if (applicableDiscount) {
-            if (applicableDiscount.hasPercentageDiscount) {
-              const discountAmount = (originalBasePrice * applicableDiscount.perDiscount) / 100;
-              finalPrice = originalBasePrice - discountAmount;
-            } else {
-              finalPrice = originalBasePrice - applicableDiscount.amountDiscount;
-            }
-          }
-        }
-      }
-      
-      // Ensure price doesn't go below 0
-      finalPrice = Math.max(0, finalPrice);
-
+      // For return orders, no quantity discounts - use regular price
+      const payload = calculateCartPayload(item, newQuantity);
       if (item.Product?.id) {
         // Update existing item
-        await updateCartItem(item.Product.id.toString(), {
-          Qty: newQuantity,
-          Price: Number((Number(item.Product.originalPrice) - (originalBasePrice - finalPrice)).toFixed(2)),
-          Price_With_Tax: Number(finalPrice.toFixed(2)), // Use discounted price if applicable with 2 decimal places
-          Tax_Rate: Number(Number(item.Product.Tax_Rate).toFixed(2)), // Ensure tax rate is a number with 2 decimal places
-          TotalPrice: (Number(item.Product.Price) * newQuantity).toFixed(2),
-          TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-          originalPrice: Number(Number(item.Product.originalPrice).toFixed(2))
-        }, selectedCustomer?.C_Number?.toString() || '');
+        await updateCartItem(item.Product.id.toString(), payload, selectedCustomer?.C_Number?.toString() || '');
       } else {
         // Add new item
         await addToCart(selectedCustomer?.C_Number?.toString() || '', {
           Item_Number: item.Item_Number,
-          Price: Number((Number(item.Product.originalPrice) - (originalBasePrice - finalPrice)).toFixed(2)),
-          Price_With_Tax: Number(finalPrice.toFixed(2)), // Use discounted price if applicable with 2 decimal places
-          Qty: newQuantity,
-          Tax_Rate: Number(Number(item.Product.Tax_Rate).toFixed(2)), // Ensure tax rate is a number with 2 decimal places
-          TotalPrice: (Number(item.Product.Price) * newQuantity).toFixed(2),
-          TotalPriceWithTax: (finalPrice * newQuantity).toFixed(2),
-          originalPrice: Number(Number(item.Product.originalPrice).toFixed(2))
+          ...payload
         });
       }
       await loadCartItems(); // Refresh cart from server
@@ -438,65 +384,35 @@ const ReturnOrderCartPage: React.FC = () => {
         // Get the cart item data to check for discounts
         const cartItem = cartItems.find((cartItem: CartItem) => cartItem.Item_Number === item.Item_Number);
         
-        let finalPrice = Number(item.newPrice);
+        // let finalPrice = Number(item.newPrice);
         // let discountApplied = false;
 
-        // Check if quantity discount should be applied to the new price
-        if (cartItem?.hasQtyDiscount && cartItem?.qtyDiscount) {
-          const currentQuantity = item.Product?.Qty || 0;
-          
-          if (cartItem.qtyDiscount.isCaseDiscount && currentQuantity >= cartItem.qtyDiscount.minimumQtyForCaseDiscount) {
-            // Apply case discount to new price
-            const discountAmount = (Number(item.newPrice) * cartItem.qtyDiscount.percentageCaseDiscount) / 100;
-            finalPrice = Number(item.newPrice) - discountAmount;
-            // discountApplied = true;
-          } else if (cartItem.qtyDiscount.isQtyDiscount) {
-            // Find applicable quantity discount tier for new price
-            const applicableDiscount = cartItem.qtyDiscount.qtyDiscount
-              .filter((discount: any) => currentQuantity >= discount.minQty)
-              .sort((a: any, b: any) => b.minQty - a.minQty)[0];
-            
-            if (applicableDiscount) {
-              if (applicableDiscount.hasPercentageDiscount) {
-                const discountAmount = (Number(item.newPrice) * cartItem.qtyDiscount.perDiscount) / 100;
-                finalPrice = Number(item.newPrice) - discountAmount;
-              } else {
-                finalPrice = Number(item.newPrice) - applicableDiscount.amountDiscount;
-              }
-              // discountApplied = true;
-            }
-          }
-        }
+        // For return orders, no quantity discounts - use regular price
+        const basePrice = Number(item.newPrice);
+        const prepaidTaxRate = cartItem?.prepaidTaxRate || 0;
+        const taxRate = Number(cartItem?.Product?.Tax_Rate) || 0;
+        // Create product object for calculateCartPayload
+        const productForPayload = {
+          ...cartItem,
+          Product: {
+            ...cartItem?.Product,
+            originalPrice: basePrice,
+            Tax_Rate: taxRate
+          },
+          price: basePrice,
+          prepaidTaxRate: prepaidTaxRate
+        };
         
-        // Ensure price doesn't go below 0
-        finalPrice = Math.max(0, finalPrice);
+        const payload = calculateCartPayload(productForPayload, item.Product.Qty);
         
-        await updateCartItem(item.Product.id.toString(), {
-          Qty: item.Product.Qty,
-          Price: Number(finalPrice.toFixed(2)), // Use discounted price if applicable with 2 decimal places
-          Price_With_Tax: Number((finalPrice + Number(item.Product.Tax_Rate)).toFixed(2)), // Ensure tax rate is a number with 2 decimal places
-          Tax_Rate: Number(Number(item.Product.Tax_Rate || 0).toFixed(2)), // Ensure tax rate is a number with 2 decimal places
-          TotalPrice: (finalPrice * item.Product.Qty).toFixed(2),
-          TotalPriceWithTax: Number(((finalPrice + Number(item.Product.Tax_Rate)) * item.Product.Qty).toFixed(2)),
-          originalPrice: Number(Number(item.newPrice).toFixed(2)) // Keep original new price for reference with 2 decimal places
-        }, selectedCustomer?.C_Number?.toString() || '');
+        await updateCartItem(item.Product.id.toString(), payload, selectedCustomer?.C_Number?.toString() || '');
       }
       
       // Refresh cart items and update Redux state
       await loadCartItems();
       setPriceChangeModalOpen(false);
       
-      // Show success message if discounts were applied
-      const itemsWithDiscounts = priceChangeItems.filter((item: any) => {
-        const cartItem = cartItems.find((cartItem: CartItem) => cartItem.Item_Number === item.Item_Number);
-        return cartItem?.hasQtyDiscount && cartItem?.qtyDiscount;
-      });
-      
-      if (itemsWithDiscounts.length > 0) {
-        toast.success(`Price changes applied with automatic discounts for ${itemsWithDiscounts.length} item(s)`);
-      } else {
-        toast.success('Price changes applied successfully');
-      }
+      toast.success('Price changes applied successfully');
     } catch (error) {
       console.error('Failed to update price changes:', error);
       setPriceChangeModalOpen(false);
@@ -558,15 +474,27 @@ const ReturnOrderCartPage: React.FC = () => {
       const orderPayload = cartItems.map((item: any) => {
         // For return orders, Qty should always be negative
         const qty = Math.abs(item.Product.Qty) * -1;
+        
+        // Use values directly from cart item Product (already includes discounts)
+        const price = Number(item.Product.Price || 0);
+        const priceWithTax = Number(item.Product.Price_With_Tax || 0);
+        const totalPrice = Number(item.Product.TotalPrice || 0);
+        const totalPriceWithTax = Number(item.Product.TotalPriceWithTax || 0);
+        const taxRate = Number(item.Product.Tax_Rate || 0);
+        // Use TotalprepaidTaxRate directly from cart (already calculated correctly)
+        const prepaidTaxRateValue = Number(item.Product.TotalprepaidTaxRate || 0);
+        
         return {
           Customer_Number: item.Product.Customer_Number,
           Item_Number: item.Item_Number,
-          Price: Number(item.Product.Price).toFixed(2),  
-          Price_With_Tax: Number(item.Product.Price_With_Tax).toFixed(2), // Use Price as Price_With_Tax since it's already the main price
+          Price: Number(price.toFixed(2)),  
+          Price_With_Tax: Number(priceWithTax.toFixed(2)),
           Qty: qty,
-          Tax_Rate: Number(item.Product.Tax_Rate).toFixed(2), // Default tax rate
-          TotalPrice: (Number(item.Product.Price) * qty).toFixed(2),
-          TotalPriceWithTax: (Number(item.Product.Price_With_Tax) * qty).toFixed(2), // Use negative quantity for totals
+          Tax_Rate: Number(taxRate.toFixed(2)),
+          TotalPrice: Number(totalPrice.toFixed(2)),
+          TotalPriceWithTax: Number(totalPriceWithTax.toFixed(2)),
+          prepaidTaxRate: Number(prepaidTaxRateValue.toFixed(2)), // Use TotalprepaidTaxRate from cart
+          originalPrice: Number(item.Product.originalPrice || price).toFixed(2),
           id: item.Product.id
         };
       });
@@ -878,152 +806,6 @@ const ReturnOrderCartPage: React.FC = () => {
 
   const priceDetails = calculatePriceDetails();
 
-  // Quantity discount modal handlers
-  const handleDiscountConfirm = (discountInfo: any) => {
-    if (selectedDiscountProduct && discountInfo) {
-      try {
-        // Apply the discount and add the specified quantity to cart
-        const item: any = selectedDiscountProduct;
-        
-        // Use the quantity that was manually typed by user, or fall back to minimum discount quantity
-        const currentQuantity = item.Product?.Qty || 0;
-        const quantity = currentQuantity > 0 ? currentQuantity : discountInfo.minQty;
-        
-        // Calculate discounted price
-        // Always calculate from original base price to prevent compounding discounts
-        const originalBasePrice = Number(item.Product.originalPrice) + Number(item.Product.Tax_Rate);
-        let discountedPrice = originalBasePrice;
-        
-        if (discountInfo.type === 'case') {
-          // Case discount: apply percentage discount from original base price
-          const discountAmount = (originalBasePrice * discountInfo.discountPercentage) / 100;
-          discountedPrice = originalBasePrice - discountAmount;
-        } else if (discountInfo.type === 'quantity') {
-          // Quantity discount: apply based on discount tier from original base price
-          if (discountInfo.discount.hasPercentageDiscount) {
-            const discountAmount = (originalBasePrice * discountInfo.discount.perDiscount) / 100;
-            discountedPrice = originalBasePrice - discountAmount;
-          } else {
-            discountedPrice = originalBasePrice - discountInfo.discount.amountDiscount;
-          }
-        }
-        
-        // Ensure price doesn't go below 0
-        discountedPrice = Math.max(0, discountedPrice);
-        
-        // Add to cart via API with discounted price
-        setTimeout(async () => {
-          try {
-            if (item.Product?.id) {
-              // Update existing item
-              await updateCartItem(item.Product.id.toString(), {
-                Qty: quantity,
-                Price: Number((Number(item.Product.originalPrice) - (originalBasePrice - discountedPrice)).toFixed(2)), // Ensure price is a number with 2 decimal places
-                Price_With_Tax: Number(discountedPrice.toFixed(2)), // Use discounted price with 2 decimal places
-                Tax_Rate: Number(Number(item.Product.Tax_Rate).toFixed(2)), // Ensure tax rate is a number with 2 decimal places
-                TotalPrice: (Number(item.Product.Price) * quantity).toFixed(2),
-                TotalPriceWithTax: (discountedPrice * quantity).toFixed(2),
-                originalPrice: Number(Number(item.Product.originalPrice).toFixed(2))
-              }, selectedCustomer?.C_Number?.toString() || '');
-            } else {
-              // Add new item
-              await addToCart(selectedCustomer?.C_Number?.toString() || '', {
-                Item_Number: item.Item_Number,
-                Price: Number((Number(item.Product.originalPrice) - (originalBasePrice - discountedPrice)).toFixed(2)), // Ensure price is a number with 2 decimal places
-                Price_With_Tax: Number(discountedPrice.toFixed(2)), // Use discounted price with 2 decimal places
-                Qty: quantity,
-                Tax_Rate: Number(Number(item.Product.Tax_Rate).toFixed(2)), // Ensure tax rate is a number with 2 decimal places
-                TotalPrice: (Number(item.Product.Price) * quantity).toFixed(2),
-                TotalPriceWithTax: (discountedPrice * quantity).toFixed(2),
-                originalPrice: Number(Number(item.Product.originalPrice).toFixed(2))
-              });
-            }
-            
-            // Refresh cart data
-            await loadCartItems();
-            
-            toast.success(`Discount applied! Updated ${item.Description} quantity to ${quantity} with discounted price.`);
-          } catch (error) {
-            console.error('Failed to update discounted item in cart:', error);
-            toast.error('Failed to update discounted item in cart. Please try again.');
-          }
-        }, 300);
-        
-        // Close the modal
-        setDiscountModalOpen(false);
-        setSelectedDiscountProduct(null);
-        setSelectedDiscountData(null);
-      } catch (error) {
-        console.error('Error applying discount:', error);
-        toast.error('Failed to apply discount. Please try again.');
-      }
-    }
-  };
-
-  // Function to handle opening discount modal
-  // const handleDiscountModalOpen = (item: CartItem, discountData: any) => {
-  //   setSelectedDiscountProduct(item);
-  //   setSelectedDiscountData(discountData);
-  //   setDiscountModalOpen(true);
-  // };
-
-  // Function to handle no discount selection - add 1 quantity without discount
-  const handleNoDiscount = async () => {
-    if (selectedDiscountProduct) {
-      try {
-        const item: any = selectedDiscountProduct;
-        
-        // Add 1 quantity without discount
-        const quantity = 1;
-        
-        // Add to cart via API with original price
-        setTimeout(async () => {
-          try {
-            if (item.Product?.id) {
-              // Update existing item
-              await updateCartItem(item.Product.id.toString(), {
-                Qty: quantity,
-                Price: Number(Number(item.Product.Price).toFixed(2)),
-                Price_With_Tax: Number(Number(item.Product.Price_With_Tax).toFixed(2)), // Use original price with 2 decimal places
-                Tax_Rate: Number(Number(item.Product.Tax_Rate).toFixed(2)),
-                TotalPrice: (Number(item.Product.Price) * quantity).toFixed(2),
-                TotalPriceWithTax: (Number(item.Product.Price_With_Tax) * quantity).toFixed(2),
-                originalPrice: Number(Number(item.Product.originalPrice).toFixed(2))
-              }, selectedCustomer?.C_Number?.toString() || '');
-            } else {
-              // Add new item
-              await addToCart(selectedCustomer?.C_Number?.toString() || '', {
-                Item_Number: item.Item_Number,
-                Price: Number(Number(item.Product.Price).toFixed(2)),
-                Price_With_Tax: Number(Number(item.Product.Price_With_Tax).toFixed(2)), // Use original price with 2 decimal places
-                Qty: quantity,
-                Tax_Rate: Number(Number(item.Product.Tax_Rate).toFixed(2)),
-                TotalPrice: (Number(item.Product.Price) * quantity).toFixed(2),
-                TotalPriceWithTax: (Number(item.Product.Price_With_Tax) * quantity).toFixed(2),
-                originalPrice: Number(Number(item.Product.originalPrice).toFixed(2))
-              });
-            }
-            
-            // Refresh cart data
-            await loadCartItems();
-            
-            toast.success(`Added ${quantity} ${item.Description} to cart without discount.`);
-          } catch (error) {
-            console.error('Failed to add item to cart:', error);
-            toast.error('Failed to add item to cart. Please try again.');
-          }
-        }, 300);
-        
-        // Close the modal
-        setDiscountModalOpen(false);
-        setSelectedDiscountProduct(null);
-        setSelectedDiscountData(null);
-      } catch (error) {
-        console.error('Error adding item without discount:', error);
-        toast.error('Failed to add item to cart. Please try again.');
-      }
-    }
-  };
 
   return (
     <Box sx={{ p: 2, pt: 0 }}>
@@ -1164,18 +946,6 @@ const ReturnOrderCartPage: React.FC = () => {
       />
 
       {/* Quantity Discount Modal */}
-      <QuantityDiscountModal
-        open={discountModalOpen}
-        onClose={() => {
-          setDiscountModalOpen(false);
-          setSelectedDiscountProduct(null);
-          setSelectedDiscountData(null);
-        }}
-        onConfirm={handleDiscountConfirm}
-        onNoDiscount={handleNoDiscount}
-        product={selectedDiscountProduct}
-        qtyDiscountData={selectedDiscountData}
-      />
     </Box>
   );
 };

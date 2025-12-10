@@ -8,11 +8,13 @@ import {
   Tabs, 
   Tab,
 } from '@mui/material';
-import { VpnKey as PinIcon, PendingActions as PendingIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon } from '@mui/icons-material';
+import { VpnKey as PinIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon, Assessment as ReportsIcon, Person as CheckerUserIcon } from '@mui/icons-material';
 import PinSettingsTab from './PinSettingsTab';
-import PendingRequestsTab from './PendingRequestsTab';
 import OngoingOrdersTab from './OngoingOrdersTab';
 import OrderPreferencesTab from './OrderPreferencesTab';
+import EpickReportsTab from './EpickReportsTab';
+import CheckerUsersTab from './CheckerUsersTab';
+
 
 const EpickSetting = () => {
   const theme = useTheme();
@@ -37,7 +39,7 @@ const EpickSetting = () => {
             TabIndicatorProps={{ style: { display: "none" } }}
           >
             <Tab
-              label="Pin Settings"
+              label="Settings"
               icon={<PinIcon sx={{ fontSize: 20 }} />}
               iconPosition="start"
               sx={{
@@ -57,27 +59,7 @@ const EpickSetting = () => {
               }}
             />
             <Tab
-              label="Manager Override"
-              icon={<PendingIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              sx={{
-                alignItems: "center",
-                justifyContent: "flex-start",
-                textTransform: "none",
-                minHeight: { xs: 35, md: 48 },
-                fontWeight: 400,
-                gap: { xs: 0.3, md: 1 },
-                margin: '4px 8px',
-                transition: 'all 0.2s ease-in-out',
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
-                  fontWeight: 500,
-                  borderLeft: `4px solid ${theme.palette.primary.main}`,
-                },
-              }}
-            />
-            <Tab
-              label="Ongoing Orders"
+              label="Orders"
               icon={<OngoingOrdersIcon sx={{ fontSize: 20 }} />}
               iconPosition="start"
               sx={{
@@ -99,6 +81,46 @@ const EpickSetting = () => {
             <Tab
               label="Order Preferences"
               icon={<OrderPreferencesIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              sx={{
+                alignItems: "center",
+                justifyContent: "flex-start",
+                textTransform: "none",
+                minHeight: { xs: 35, md: 48 },
+                fontWeight: 400,
+                gap: { xs: 0.3, md: 1 },
+                margin: '4px 8px',
+                transition: 'all 0.2s ease-in-out',
+                "&.Mui-selected": {
+                  color: theme.palette.primary.main,
+                  fontWeight: 500,
+                  borderLeft: `4px solid ${theme.palette.primary.main}`,
+                },
+              }}
+            />
+            <Tab
+              label="E-pick Reports"
+              icon={<ReportsIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              sx={{
+                alignItems: "center",
+                justifyContent: "flex-start",
+                textTransform: "none",
+                minHeight: { xs: 35, md: 48 },
+                fontWeight: 400,
+                gap: { xs: 0.3, md: 1 },
+                margin: '4px 8px',
+                transition: 'all 0.2s ease-in-out',
+                "&.Mui-selected": {
+                  color: theme.palette.primary.main,
+                  fontWeight: 500,
+                  borderLeft: `4px solid ${theme.palette.primary.main}`,
+                },
+              }}
+            />
+            <Tab
+              label="Checker User"
+              icon={<CheckerUserIcon sx={{ fontSize: 20 }} />}
               iconPosition="start"
               sx={{
                 alignItems: "center",
@@ -143,11 +165,13 @@ const EpickSetting = () => {
             {activeTab === 0 ? (
               <PinSettingsTab />
             ) : activeTab === 1 ? (
-              <PendingRequestsTab />
-            ) : activeTab === 2 ? (
               <OngoingOrdersTab />
-            ) : (
+            ) : activeTab === 2 ? (
               <OrderPreferencesTab />
+            ) : activeTab === 3 ? (
+              <EpickReportsTab />
+            ) : (
+              <CheckerUsersTab />
             )}
           </Box>
         </Paper>

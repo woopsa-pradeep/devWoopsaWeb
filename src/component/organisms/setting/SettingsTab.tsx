@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Box, Tabs, Tab, Paper, useMediaQuery, Typography, TextField, useTheme } from "@mui/material";
+import { Box, Tabs, Tab, Paper, useMediaQuery, Typography, TextField, useTheme, IconButton } from "@mui/material";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import EditIcon from '@mui/icons-material/Edit';
 import {
   getWarehouseSetting,
   updateSalesRepSetting,
@@ -17,30 +18,38 @@ import {
   createEmailManagement,
   getEmailManagement,
   updateEmailManagement,
-  testEmailManagement
+  testEmailManagement,
+  createErpUser,
+  updateErpUser,
+  getErpUsers
 } from '../../../redux/apis/distrubutor/settingApis';
 import SwitchInput from '../../atoms/SwitchInput';
 import CustomButton from '../../atoms/CustomButton';
 import TimeSlotPicker from '../../atoms/TimeSlotPicker';
 import TextInput from '../../atoms/TextInput';
+import CommonTable from '../../atoms/Table/CommonTable';
+import CommonModal from '../../atoms/CommonModal';
 import { showSuccessToast, showErrorToast } from '../../../utils/toastUtils';
-import salesRepIcon from '../../../assets/salesrep.svg';
+// import salesRepIcon from '../../../assets/salesrep.svg';
 import salesRepActiveIcon from '../../../assets/salesrepactive.svg';
-import itemsIcon from '../../../assets/itemsGlobal.svg';
+// import itemsIcon from '../../../assets/itemsGlobal.svg';
 import itemsActiveIcon from '../../../assets/itemsGlobalActive.svg';
-import retailersIcon from '../../../assets/retailersGlobal.svg';
+// import retailersIcon from '../../../assets/retailersGlobal.svg';
 import retailersActiveIcon from '../../../assets/retailerGlobalActive.svg';
-import warehouseIcon from '../../../assets/retailersGlobal.svg';
+// import warehouseIcon from '../../../assets/retailersGlobal.svg';
 import warehouseActiveIcon from '../../../assets/retailerGlobalActive.svg';
 // Placeholder icons - replace with actual demanded items icons
-import demandedItemsIcon from '../../../assets/privacyPolicy (2).svg';
+// import demandedItemsIcon from '../../../assets/privacyPolicy (2).svg';
 import demandedItemsActiveIcon from '../../../assets/privacyPolicyActive.svg';
 // Contact Us icons - using phone call icon
 import contactUsIcon from '../../../assets/phoneCall.svg';
-import contactUsActiveIcon from '../../../assets/Call_White.svg';
-import emailIcon from '../../../assets/Email_White.svg';
-import emailActiveIcon from '../../../assets/Email_White.svg';
+// import contactUsActiveIcon from '../../../assets/Call_White.svg';
+import emailIcon from '../../../assets/email_1.svg';
+// import emailActiveIcon from '../../../assets/Email_White.svg';
+import userIcon from '../../../assets/icons/user_1.svg';
+import userActiveIcon from '../../../assets/icons/user_1.svg';
 import PromotedItemsSelector from "./PromotedItemsSelector";
+import { TableColumn } from '../../atoms/Table/CommonTable';
 
 interface TimeSlot {
   id: string;
@@ -113,6 +122,22 @@ interface EmailManagementData {
   updatedAt?: string;
 }
 
+interface ErpUserData {
+  id?: any;
+  UserNumber?: number;
+  UserID: string;
+  UserName: string;
+  UserPassword: string;
+  UserGroup?: number;
+  UserIsPicker?: boolean;
+  UserIsChecker?: boolean;
+  UserIsAdmin?: boolean;
+  UserIsEpickAdmin?: boolean;
+  UserIsActive: boolean | number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 
 interface FormData {
   salesRep: {
@@ -175,38 +200,47 @@ const emailManagementSchema = z.object({
   id: z.number().optional(),
 });
 
+const erpUserSchema = z.object({
+  UserID: z.string().min(3, "User ID must be at least 3 characters").max(5, "User ID must be at most 5 characters"),
+  UserName: z.string().min(1, "User Name is required").max(50, "User Name must be at most 50 characters"),
+  UserPassword: z.string().min(3, "User Password must be at least 3 characters").max(5, "User Password must be at most 5 characters"),
+  UserIsActive: z.number().min(0).max(1),
+  id: z.number().optional(),
+});
+
 type ContactUsFormData = z.infer<typeof contactUsSchema> & { id?: number };
 type EmailManagementFormData = z.infer<typeof emailManagementSchema> & { id?: number };
+type ErpUserFormData = z.infer<typeof erpUserSchema> & { id?: number };
 
 const tabConfigs = [
   {
     label: 'Sales Rep',
-    icon: salesRepIcon,
+    icon: salesRepActiveIcon,
     activeIcon: salesRepActiveIcon,
     apiType: 'salesRep' as const,
   },
   {
     label: 'Item Global',
-    icon: itemsIcon,
+    icon: itemsActiveIcon,
     activeIcon: itemsActiveIcon,
     apiType: 'itemGlobal' as const,
   },
   {
     label: 'Retailer',
-    icon: retailersIcon,
+    icon: retailersActiveIcon,
     activeIcon: retailersActiveIcon,
     apiType: 'retailer' as const,
   },
   {
     label: 'Warehouse Profile',
-    icon: warehouseIcon,
+    icon: warehouseActiveIcon,
     activeIcon: warehouseActiveIcon,
     apiType: 'warehouseProfile' as const,
   },
   {
     label: 'Demanded Items',
     apiType: 'demandedItems' as const,
-    icon: demandedItemsIcon,
+    icon: demandedItemsActiveIcon,
     activeIcon: demandedItemsActiveIcon,
     schema: homeSettingsSchema,
     // isHomeSettings: true,
@@ -222,14 +256,20 @@ const tabConfigs = [
   {
     label: 'Contact Us',
     apiType: 'contactUs' as const,
-    icon: contactUsActiveIcon,
+    icon: contactUsIcon,
     activeIcon: contactUsIcon
   },
   {
     label: 'Email Management',
     apiType: 'emailManagement' as const,
     icon: emailIcon,
-    activeIcon: emailActiveIcon
+    activeIcon: emailIcon
+  },
+  {
+    label: 'User',
+    apiType: 'user' as const,
+    icon: userIcon,
+    activeIcon: userActiveIcon
   }
 ];
 
@@ -247,6 +287,11 @@ const SettingsTabs = () => {
   const [emailManagementData, setEmailManagementData] = useState<EmailManagementData | null>(null);
   const [emailManagementLoading, setEmailManagementLoading] = useState(false);
   const [testEmailLoading, setTestEmailLoading] = useState(false);
+  const [erpUsers, setErpUsers] = useState<ErpUserData[]>([]);
+  const [erpUsersLoading, setErpUsersLoading] = useState(false);
+  const [erpUserModalOpen, setErpUserModalOpen] = useState(false);
+  const [selectedErpUser, setSelectedErpUser] = useState<ErpUserData | null>(null);
+  const [erpUserFormLoading, setErpUserFormLoading] = useState(false);
   // const [contactUsLoadingTab, setContactUsLoadingTab] = useState(false);
 
   // React Hook Form setup
@@ -271,6 +316,17 @@ const SettingsTabs = () => {
       password: '',
       fromEmail: '',
       fromName: '',
+      id: 0,
+    },
+  });
+
+  const erpUserForm = useForm<ErpUserFormData>({
+    resolver: zodResolver(erpUserSchema),
+    defaultValues: {
+      UserID: '',
+      UserName: '',
+      UserPassword: '',
+      UserIsActive: 1,
       id: 0,
     },
   });
@@ -306,6 +362,30 @@ const SettingsTabs = () => {
     }
   }, [emailManagementData, tab]);
 
+  // Effect to populate ERP user form when editing
+  useEffect(() => {
+    if (selectedErpUser) {
+      const isActive = typeof selectedErpUser.UserIsActive === 'boolean' 
+        ? (selectedErpUser.UserIsActive ? 1 : 0)
+        : selectedErpUser.UserIsActive;
+      erpUserForm.reset({
+        id: selectedErpUser.id,
+        UserID: selectedErpUser.UserID,
+        UserName: selectedErpUser.UserName,
+        UserPassword: selectedErpUser.UserPassword,
+        UserIsActive: isActive,
+      });
+    } else {
+      erpUserForm.reset({
+        UserID: '',
+        UserName: '',
+        UserPassword: '',
+        UserIsActive: 1,
+        id: 0,
+      });
+    }
+  }, [selectedErpUser]);
+
   useEffect(() => {
     if (tabConfigs[tab].apiType === 'demandedItems') {
       // Fetch home settings for Demanded Items tab
@@ -318,6 +398,9 @@ const SettingsTabs = () => {
     } else if (tabConfigs[tab].apiType === 'emailManagement') {
       // Fetch Email Management data
       fetchEmailManagementData();
+    } else if (tabConfigs[tab].apiType === 'user') {
+      // Fetch ERP Users data
+      fetchErpUsers();
     }
   }, [tab]);
 
@@ -617,6 +700,127 @@ const SettingsTabs = () => {
       showErrorToast('Failed to send test email. Please check your configuration.');
     } finally {
       setTestEmailLoading(false);
+    }
+  };
+
+  // ERP Users handlers
+  const fetchErpUsers = async () => {
+    setErpUsersLoading(true);
+    try {
+      const response: any = await getErpUsers();
+      const usersData = response.data?.data || response.data || [];
+      const normalizedUsers = Array.isArray(usersData) 
+        ? usersData.map((user: any) => ({
+            ...user,
+            // Ensure we have both id and UserNumber for compatibility
+            // Handle UserNumber: 0 case properly (0 is falsy but valid)
+            id: user.id !== undefined ? user.id : user.UserNumber,
+            UserNumber: user.UserNumber !== undefined ? user.UserNumber : (user.id !== undefined ? user.id : null),
+          }))
+        : [];
+      console.log('Fetched ERP Users:', normalizedUsers);
+      setErpUsers(normalizedUsers);
+    } catch (error) {
+      console.error('Failed to fetch ERP Users:', error);
+      showErrorToast('Failed to fetch ERP Users');
+      setErpUsers([]);
+    } finally {
+      setErpUsersLoading(false);
+    }
+  };
+
+  const handleAddErpUser = () => {
+    setSelectedErpUser(null);
+    setErpUserModalOpen(true);
+  };
+
+  const handleEditErpUser = (user: ErpUserData) => {
+    setSelectedErpUser(user);
+    setErpUserModalOpen(true);
+  };
+
+  const handleCloseErpUserModal = () => {
+    setErpUserModalOpen(false);
+    setSelectedErpUser(null);
+    erpUserForm.reset({
+      UserID: '',
+      UserName: '',
+      UserPassword: '',
+      UserIsActive: 1,
+      id: 0,
+    });
+  };
+
+  const handleToggleUserActive = async (user: ErpUserData) => {
+    try {
+      const currentActive = typeof user.UserIsActive === 'boolean' 
+        ? (user.UserIsActive ? 1 : 0)
+        : user.UserIsActive;
+      const newActive = currentActive === 1 ? 0 : 1;
+      
+      // Use UserNumber as the identifier (required by API)
+      // Handle UserNumber: 0 case properly (0 is falsy but valid)
+      const userNumber = user.UserNumber !== undefined ? user.UserNumber : user.id;
+      console.log('Toggling user active status:', { user, userNumber, newActive });
+      
+      if (userNumber === undefined || userNumber === null || (typeof userNumber !== 'number' && typeof userNumber !== 'string')) {
+        console.error('UserNumber not found:', user);
+        showErrorToast('User Number not found. Please refresh the page.');
+        return;
+      }
+
+      // Only send the changed field (UserIsActive) in the payload
+      const updatePayload = {
+        UserIsActive: newActive,
+      };
+      
+      console.log('Updating user with UserNumber:', { userNumber, updatePayload });
+      await updateErpUser(userNumber.toString(), updatePayload);
+      
+      showSuccessToast(`User ${newActive === 1 ? 'activated' : 'deactivated'} successfully!`);
+      await fetchErpUsers();
+    } catch (error: any) {
+      console.error('Failed to toggle user active status:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to update user status';
+      showErrorToast(errorMessage);
+    }
+  };
+
+  const handleErpUserSubmit = async (data: ErpUserFormData) => {
+    setErpUserFormLoading(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, ...formData } = data;
+      
+      // Use UserNumber as the identifier (required by API)
+      // Handle UserNumber: 0 case properly (0 is falsy but valid)
+      const userNumber = selectedErpUser?.UserNumber !== undefined 
+        ? selectedErpUser.UserNumber 
+        : (selectedErpUser?.id !== undefined ? selectedErpUser.id : null);
+      console.log('Submitting ERP User:', { data, selectedErpUser, userNumber });
+      
+      // Check if userNumber is a valid number (including 0) or string
+      if (userNumber !== undefined && userNumber !== null && (typeof userNumber === 'number' || typeof userNumber === 'string')) {
+        // Update existing user - use UserNumber
+        console.log('Updating user with UserNumber:', userNumber, 'Payload:', formData);
+        await updateErpUser(userNumber.toString(), formData);
+        showSuccessToast('User updated successfully!');
+      } else {
+        // Create new user
+        console.log('Creating new user with payload:', formData);
+        await createErpUser(formData);
+        showSuccessToast('User created successfully!');
+      }
+      
+      // Refresh users list
+      await fetchErpUsers();
+      handleCloseErpUserModal();
+    } catch (error: any) {
+      console.error('Failed to save ERP User:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to save user';
+      showErrorToast(errorMessage);
+    } finally {
+      setErpUserFormLoading(false);
     }
   };
 
@@ -1216,6 +1420,89 @@ const SettingsTabs = () => {
           </Box>
         );
 
+      case 'user':
+        const erpUserColumns: TableColumn<ErpUserData>[] = [
+          {
+            id: 'UserID',
+            label: 'User ID',
+            minWidth: 100,
+          },
+          {
+            id: 'UserName',
+            label: 'User Name',
+            minWidth: 150,
+          },
+          {
+            id: 'UserIsActive',
+            label: 'Status',
+            minWidth: 100,
+            align: 'center',
+            render: (row) => {
+              const isActive = typeof row.UserIsActive === 'boolean' 
+                ? row.UserIsActive 
+                : row.UserIsActive === 1;
+              return (
+                <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                  <SwitchInput
+                    checked={isActive}
+                    onChange={() => handleToggleUserActive(row)}
+                    sx={{ mb: 0 }}
+                    isShowLabel={false}
+                  />
+                </Box>
+              );
+            },
+          },
+          {
+            id: 'actions',
+            label: 'Actions',
+            minWidth: 100,
+            align: 'right',
+            render: (row) => (
+              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                <IconButton
+                  size="small"
+                  onClick={() => handleEditErpUser(row)}
+                  sx={{ color: 'primary.main' }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            ),
+          },
+        ];
+
+        return (
+          <Box sx={{ p: 0 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0, pr: 2 }}>
+              <CustomButton
+                onClick={handleAddErpUser}
+                fullWidth={false}
+                sx={{ minWidth: 120, mt: 0 }}
+              >
+                Add User
+              </CustomButton>
+            </Box>
+            <CommonTable
+              data={erpUsers}
+              columns={erpUserColumns}
+              currentPage={1}
+              totalPages={1}
+              totalItems={erpUsers.length}
+              pageSize={10}
+              onPageChange={() => {}}
+              onPageSizeChange={() => {}}
+              showPageSizeSelector={false}
+              showTotalItems={false}
+              showPageNumbers={false}
+              loading={erpUsersLoading}
+              isPagination={false}
+              containerHeight="calc(100vh - 350px)"
+              emptyStateComponent={<Typography>No users found</Typography>}
+            />
+          </Box>
+        );
+
       default:
         return null;
     }
@@ -1290,8 +1577,8 @@ const SettingsTabs = () => {
             {renderForm()}
           </Box>
 
-          {/* Save Button - Hide for Demanded Items, Contact Us, and Email Management tabs since they have their own save handling */}
-          {tabConfigs[tab].apiType !== 'demandedItems' && tabConfigs[tab].apiType !== 'contactUs' && tabConfigs[tab].apiType !== 'emailManagement' && (
+          {/* Save Button - Hide for Demanded Items, Contact Us, Email Management, and User tabs since they have their own save handling */}
+          {tabConfigs[tab].apiType !== 'demandedItems' && tabConfigs[tab].apiType !== 'contactUs' && tabConfigs[tab].apiType !== 'emailManagement' && tabConfigs[tab].apiType !== 'user' && (
             <Box sx={{
               position: "sticky",
               bottom: 0,
@@ -1315,6 +1602,79 @@ const SettingsTabs = () => {
           )}
         </Box>
       </Paper>
+
+      {/* ERP User Modal */}
+      <CommonModal
+        open={erpUserModalOpen}
+        onClose={handleCloseErpUserModal}
+        title={selectedErpUser ? "Edit User" : "Add User"}
+        size="md"
+      >
+        <form onSubmit={erpUserForm.handleSubmit(handleErpUserSubmit)}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Hidden ID field */}
+            <input type="hidden" {...erpUserForm.register('id')} />
+            
+            <TextInput
+              label="User ID"
+              {...erpUserForm.register('UserID')}
+              error={!!erpUserForm.formState.errors.UserID}
+              helperText={erpUserForm.formState.errors.UserID?.message}
+              inputProps={{ maxLength: 5 }}
+            />
+            
+            <TextInput
+              label="User Name"
+              {...erpUserForm.register('UserName')}
+              error={!!erpUserForm.formState.errors.UserName}
+              helperText={erpUserForm.formState.errors.UserName?.message}
+              inputProps={{ maxLength: 50 }}
+            />
+            
+            <TextInput
+              label="User Password"
+              type="password"
+              {...erpUserForm.register('UserPassword')}
+              error={!!erpUserForm.formState.errors.UserPassword}
+              helperText={erpUserForm.formState.errors.UserPassword?.message}
+              inputProps={{ maxLength: 5 }}
+            />
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography sx={{ fontSize: 14 }}>User Is Active</Typography>
+              <SwitchInput
+                checked={erpUserForm.watch('UserIsActive') === 1}
+                onChange={(checked) => erpUserForm.setValue('UserIsActive', checked ? 1 : 0)}
+                sx={{ mb: 0 }}
+                isShowLabel={false}
+              />
+            </Box>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 1 }}>
+              <CustomButton
+                appearance="outlined"
+                onClick={handleCloseErpUserModal}
+                type="button"
+                size="small"
+                fullWidth={false}
+                sx={{ mt: 0 }}
+              >
+                Cancel
+              </CustomButton>
+              <CustomButton
+                appearance="filled"
+                type="submit"
+                size="small"
+                fullWidth={false}
+                loading={erpUserFormLoading}
+                sx={{ mt: 0 }}
+              >
+                {selectedErpUser ? 'Update' : 'Save'}
+              </CustomButton>
+            </Box>
+          </Box>
+        </form>
+      </CommonModal>
     </Box>
   );
 };

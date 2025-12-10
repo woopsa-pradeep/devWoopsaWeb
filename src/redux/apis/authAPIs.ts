@@ -41,6 +41,8 @@ interface StoreDetail {
   C_OrderDay: any;
   salesRep: SalesRep;
   Routes: Route[];
+  C_Zip: string;
+  Jurisdiction_State: string;
 }
 
 interface AuthResponse {

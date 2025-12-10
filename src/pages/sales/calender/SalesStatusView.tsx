@@ -260,6 +260,8 @@ const SalesStatusView: React.FC = () => {
               C_OrderDay: storeDetails.C_OrderDay,
               Routes: storeDetails.Routes,
               salesRep: storeDetails.salesRep,
+              C_Zip: storeDetails.C_Zip,
+              Jurisdiction_State: storeDetails.Jurisdiction_State,
             }
           });
         }

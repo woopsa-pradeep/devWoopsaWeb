@@ -172,6 +172,8 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                       C_OrderDay: storeDetails.C_OrderDay, 
                       Routes: storeDetails.Routes,
                       salesRep: storeDetails.salesRep,
+                      C_Zip: storeDetails.C_Zip,
+                      Jurisdiction_State: storeDetails.Jurisdiction_State,
                     }
                   });
                 }
@@ -218,6 +220,8 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                   C_OrderDay: storeDetails.C_OrderDay,
                   Routes: storeDetails.Routes,
                   salesRep: storeDetails.salesRep,
+                  C_Zip: storeDetails.C_Zip,
+                  Jurisdiction_State: storeDetails.Jurisdiction_State,
                 }
               });
             }
@@ -382,6 +386,8 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                   C_OrderDay: storeDetails.C_OrderDay,
                   Routes: storeDetails.Routes,
                   salesRep: storeDetails.salesRep,
+                  C_Zip: storeDetails.C_Zip,
+                  Jurisdiction_State: storeDetails.Jurisdiction_State,
                 }
               });
             }
@@ -432,6 +438,10 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                     Routes: storeDetails.Routes,
 
                     salesRep: storeDetails.salesRep,
+
+                    C_Zip: storeDetails.C_Zip,
+
+                    Jurisdiction_State: storeDetails.Jurisdiction_State,
 
                   }
 
@@ -678,7 +688,7 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                 },
               }}
             >
-              {(auth?.role === "distributor" ? staticTabsForDistributor : auth?.role === "sales" ? staticTabsForSales : staticTabs).map((tab) => (
+              {(auth?.role === "distributor" ? staticTabsForDistributor : auth?.role === "sales" && auth?.module?.some((moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true) ? staticTabsForSales : auth?.role === "retailer" ? staticTabs : []).map((tab) => (
                 <Tab
                   key={tab.value}
                   label={tab.label}
@@ -710,159 +720,178 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
           }}
         >
           {/* Balance Box */}
-          {auth?.role !== "distributor" && <><Box
-            sx={{
-              height: 40,
-              border: (theme) => `1px solid ${theme.palette.divider}`,
-              borderRadius: "18px",
-              pl: 0.5,
-              pr: 2,
-              bgcolor: "background.paper",
-              display: { xs: "none", lg: "flex" },
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {(
+            // Show for: 
+            // - Not distributor: show.
+            // - For "sales": only show if Dashboard module present with view=true.
+            // - Never for distributor.
+            auth?.role !== "distributor" && (
+              auth?.role !== "sales" ||
+              (
+                Array.isArray(auth?.module) &&
+                auth?.module.some(
+                  (moduleItem: any) =>
+                    moduleItem.module === "Dashboard" && moduleItem?.view === true
+                )
+              )
+            )
+          ) && (
+            <>
               <Box
                 sx={{
-                  backgroundColor: (theme) =>
-                    theme.palette.mode === "dark"
-                      ? "rgba(17, 197, 17, 0.2)"
-                      : "rgba(17, 197, 17, 0.2)",
-                  borderRadius: "50%",
-                  padding: "4px",
-                  display: "flex",
+                  height: 40,
+                  border: (theme) => `1px solid ${theme.palette.divider}`,
+                  borderRadius: "18px",
+                  pl: 0.5,
+                  pr: 2,
+                  bgcolor: "background.paper",
+                  display: { xs: "none", lg: "flex" },
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <BalanceIcon />
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box
+                    sx={{
+                      backgroundColor: (theme) =>
+                        theme.palette.mode === "dark"
+                          ? "rgba(17, 197, 17, 0.2)"
+                          : "rgba(17, 197, 17, 0.2)",
+                      borderRadius: "50%",
+                      padding: "4px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <BalanceIcon />
+                  </Box>
+                  <Typography fontSize={"14px"} fontWeight={400} color="text.secondary">
+                    Outstanding balance <span style={{ fontWeight: 600, color: "primary.secondary" }}>${ Number(auth?.storeDetail?.LastBalance).toFixed(2) || '0'}</span>
+                  </Typography>
+                </Box>
               </Box>
-              <Typography fontSize={"14px"} fontWeight={400} color="text.secondary">
-                Outstanding balance <span style={{ fontWeight: 600, color: "primary.secondary" }}>${ Number(auth?.storeDetail?.LastBalance).toFixed(2) || '0'}</span>
-              </Typography>
-            </Box>
-          </Box>
-          {/* Days to Order Box */}
-          <Box
-            sx={{
-              height: 40,
-              border: (theme) => `1px solid ${theme.palette.divider}`,
-              borderRadius: "20px",
-              pl: 0.5,
-              pr: 2,
-              bgcolor: "background.paper",
-              display: { xs: "none", lg: "flex" },
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {(() => {
-                // 0 = N/A, 8 = Other, 1=Monday ... 7=Sunday
-                const orderDayRaw = auth?.storeDetail?.C_OrderDay;
-                const orderDay = typeof orderDayRaw === 'number'
-                  ? orderDayRaw
-                  : parseInt(orderDayRaw || '0', 10);
+              {/* Days to Order Box */}
+              <Box
+                sx={{
+                  height: 40,
+                  border: (theme) => `1px solid ${theme.palette.divider}`,
+                  borderRadius: "20px",
+                  pl: 0.5,
+                  pr: 2,
+                  bgcolor: "background.paper",
+                  display: { xs: "none", lg: "flex" },
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  {(() => {
+                    // 0 = N/A, 8 = Other, 1=Monday ... 7=Sunday
+                    const orderDayRaw = auth?.storeDetail?.C_OrderDay;
+                    const orderDay = typeof orderDayRaw === 'number'
+                      ? orderDayRaw
+                      : parseInt(orderDayRaw || '0', 10);
 
-                let daysLeft: number | string = 'N/A';
-                let isOrderDayToday = false;
-                if (orderDay === 0) {
-                  daysLeft = 'NA';
-                } else if (orderDay === 8) {
-                  daysLeft = 'OT';
-                } else if (orderDay >= 1 && orderDay <= 7) {
-                  const today = new Date();
-                  const todayDay = today.getDay(); // 0=Sunday, ..., 6=Saturday
-                  const ourTodayDay = todayDay === 0 ? 7 : todayDay;
-                  const diff = (orderDay - ourTodayDay + 7) % 7;
-                  if (diff === 0) {
-                    isOrderDayToday = true;
-                  } else {
-                    daysLeft = diff;
-                  }
-                }
-
-                // Determine color based on daysLeft
-                let borderColor = "#FFCD1B"; // default yellow
-                let bgColor = "transparent";
-                if (typeof daysLeft === "number") {
-                  if (daysLeft >= 5 && daysLeft <= 7) {
-                    borderColor = "#11C511"; // green
-                    bgColor = "rgba(17, 197, 17, 0.15)";
-                  } else if (daysLeft >= 3 && daysLeft <= 4) {
-                    borderColor = "#FFCD1B"; // yellow
-                    bgColor = "rgba(255, 205, 27, 0.15)";
-                  } else if (daysLeft === 2) {
-                    borderColor = "#FF9800"; // orange
-                    bgColor = "rgba(255, 152, 0, 0.15)";
-                  } else if (daysLeft <= 1) {
-                    borderColor = "#FF3333"; // red
-                    bgColor = "rgba(255, 51, 51, 0.15)";
-                  }
-                } else if (isOrderDayToday) {
-                  borderColor = "#11C511";
-                  bgColor = "rgba(17, 197, 17, 0.15)";
-                }
-
-                // Map orderDay to day name
-                const dayNames = {
-                  1: "Monday",
-                  2: "Tuesday",
-                  3: "Wednesday",
-                  4: "Thursday",
-                  5: "Friday",
-                  6: "Saturday",
-                  7: "Sunday"
-                };
-                let orderDayText = "";
-                if (orderDay >= 1 && orderDay <= 7) {
-                  orderDayText = dayNames[orderDay as keyof typeof dayNames];
-                } else if (orderDay === 8) {
-                  orderDayText = "Other";
-                } else {
-                  orderDayText = "";
-                }
-
-                return (
-                  <>
-                    {!isOrderDayToday && <Box
-                      sx={{
-                        border: `2px solid ${borderColor}`,
-                        backgroundColor: bgColor,
-                        borderRadius: "50%",
-                        minWidth: 30,
-                        minHeight: 30,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "0.875rem",
-                        fontWeight: 500,
-                        color: "text.secondary",
-                        lineHeight: 1,
-                      }}
-                    >
-                        {daysLeft}
-                    </Box>}
-                    <Typography fontSize={"14px"} fontWeight={400} color="text.secondary" ml={isOrderDayToday ? 1 : 0}>
-                      {isOrderDayToday
-                        ? `  Today is your order day.`
-                        : orderDay === 0
-                          ? "No order day set."
-                          : orderDay === 8
-                            ? "Order day: Other."
-                            : daysLeft !== 'N/A'
-                              ? `Days to go to place the order${orderDayText ? ` (${orderDayText})` : ""}.`
-                              : "Days to go to place the order."
+                    let daysLeft: number | string = 'N/A';
+                    let isOrderDayToday = false;
+                    if (orderDay === 0) {
+                      daysLeft = 'NA';
+                    } else if (orderDay === 8) {
+                      daysLeft = 'OT';
+                    } else if (orderDay >= 1 && orderDay <= 7) {
+                      const today = new Date();
+                      const todayDay = today.getDay(); // 0=Sunday, ..., 6=Saturday
+                      const ourTodayDay = todayDay === 0 ? 7 : todayDay;
+                      const diff = (orderDay - ourTodayDay + 7) % 7;
+                      if (diff === 0) {
+                        isOrderDayToday = true;
+                      } else {
+                        daysLeft = diff;
                       }
-                    </Typography>
-                  </>
-                );
-              })()}
-            </Box>
-          </Box></>}
-          {auth?.role === "sales" && (
+                    }
+
+                    // Determine color based on daysLeft
+                    let borderColor = "#FFCD1B"; // default yellow
+                    let bgColor = "transparent";
+                    if (typeof daysLeft === "number") {
+                      if (daysLeft >= 5 && daysLeft <= 7) {
+                        borderColor = "#11C511"; // green
+                        bgColor = "rgba(17, 197, 17, 0.15)";
+                      } else if (daysLeft >= 3 && daysLeft <= 4) {
+                        borderColor = "#FFCD1B"; // yellow
+                        bgColor = "rgba(255, 205, 27, 0.15)";
+                      } else if (daysLeft === 2) {
+                        borderColor = "#FF9800"; // orange
+                        bgColor = "rgba(255, 152, 0, 0.15)";
+                      } else if (daysLeft <= 1) {
+                        borderColor = "#FF3333"; // red
+                        bgColor = "rgba(255, 51, 51, 0.15)";
+                      }
+                    } else if (isOrderDayToday) {
+                      borderColor = "#11C511";
+                      bgColor = "rgba(17, 197, 17, 0.15)";
+                    }
+
+                    // Map orderDay to day name
+                    const dayNames = {
+                      1: "Monday",
+                      2: "Tuesday",
+                      3: "Wednesday",
+                      4: "Thursday",
+                      5: "Friday",
+                      6: "Saturday",
+                      7: "Sunday"
+                    };
+                    let orderDayText = "";
+                    if (orderDay >= 1 && orderDay <= 7) {
+                      orderDayText = dayNames[orderDay as keyof typeof dayNames];
+                    } else if (orderDay === 8) {
+                      orderDayText = "Other";
+                    } else {
+                      orderDayText = "";
+                    }
+
+                    return (
+                      <>
+                        {!isOrderDayToday && <Box
+                          sx={{
+                            border: `2px solid ${borderColor}`,
+                            backgroundColor: bgColor,
+                            borderRadius: "50%",
+                            minWidth: 30,
+                            minHeight: 30,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "0.875rem",
+                            fontWeight: 500,
+                            color: "text.secondary",
+                            lineHeight: 1,
+                          }}
+                        >
+                            {daysLeft}
+                        </Box>}
+                        <Typography fontSize={"14px"} fontWeight={400} color="text.secondary" ml={isOrderDayToday ? 1 : 0}>
+                          {isOrderDayToday
+                            ? `  Today is your order day.`
+                            : orderDay === 0
+                              ? "No order day set."
+                              : orderDay === 8
+                                ? "Order day: Other."
+                                : daysLeft !== 'N/A'
+                                  ? `Days to go to place the order${orderDayText ? ` (${orderDayText})` : ""}.`
+                                  : "Days to go to place the order."
+                          }
+                        </Typography>
+                      </>
+                    );
+                  })()}
+                </Box>
+              </Box>
+            </>
+          )}
+          {auth?.role === "sales" && auth?.module?.some((moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true) && (
             <Box sx={{ minWidth: { xs: 150, md: 200 } }}>
               {isCustomerListLoaded ? (
                 <CustomSearchDropdown
@@ -981,6 +1010,17 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
 
           {/* Cart Icon */}
           {auth?.role !== "distributor" && (() => {
+            // For sales users, check if they have the "Orders" module with view permission
+            if (auth?.role === "sales") {
+              const hasOrderModule = auth?.module?.some(
+                (moduleItem: any) => moduleItem.module === "Orders" && moduleItem?.view === true
+              );
+              // Hide cart if sales user doesn't have Order module
+              if (!hasOrderModule) {
+                return null;
+              }
+            }
+            
             // Check if user is already on a cart page
             const isOnCartPage = auth?.role === "retailer" 
               ? location.pathname.includes('/retailer/cart')

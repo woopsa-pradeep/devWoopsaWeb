@@ -41,6 +41,7 @@ import LinkIcon from "../../../assets/link.svg";
 import RetailerRequestsIcon from "../../../assets/icons/licence-active.svg";
 import EpickSettingIcon from "../../../assets/epick_setting.svg";
 import InventoryIcon from "../../../assets/itemsGlobal.svg";
+import ReportsAnalyticsIcon from "../../../assets/Menu Icon.svg";
 
 const iconMap: { [key: string]: string } = {
   dashboard: DashboardIcon,
@@ -75,6 +76,8 @@ const iconMap: { [key: string]: string } = {
   "retailer-requests": RetailerRequestsIcon,
   "e-pick-settings": EpickSettingIcon,
   "inventory": InventoryIcon,
+  "reports-analytics": ReportsAnalyticsIcon,
+  orderChecker: OrderIcon,
 };
 
 interface SidebarProps {
@@ -97,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Get role-based navigation config
   const salesNavigationConfig = getNavigationConfig(role).filter((item) => item.check === "sales");
   const filterByRoleModule = salesNavigationConfig.filter((item) => 
-    ["Dashboard", "Orders", "Ordered Items", "Order History", "Retailers", "Policies", "Calender"].includes(item.name) || 
+    ["Policies"].includes(item.name) || 
     module?.some((moduleItem: any) => moduleItem.module === item.name && moduleItem?.view === true)
   );
   const navigationConfig = role === "sales" ? filterByRoleModule : getNavigationConfig(role);
