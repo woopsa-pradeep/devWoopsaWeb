@@ -33,6 +33,9 @@ import {
   Remove,
   ExpandMore,
   ExpandLess,
+  Image as ImageIcon,
+  ArrowBack,
+  ArrowForward,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import CustomButton from '../../../component/atoms/CustomButton';
@@ -106,6 +109,8 @@ const OrderChecker = () => {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportType, setReportType] = useState<'summary' | 'detail' | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [imageCarouselModalOpen, setImageCarouselModalOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [confirmationData, setConfirmationData] = useState<{
     title: string;
     message: string;
@@ -2104,19 +2109,45 @@ const OrderChecker = () => {
                             </Box>
 
                             {isSelected && (isEditingAllowed || (activeTab === 'completed' && order.invoiced)) && (
-                              <CustomButton
-                                buttonType="primary"
-                                fullWidth
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setBundleCreationModalOpen(true);
-                                }}
-                                icon={<Box component="img" src={BoxIcon} alt="Box" sx={{ width: 16, height: 16 , filter: 'brightness(0) invert(1)', opacity: 1 }} />}
-                                iconPosition="left"
-                                sx={{ mt: 1 }}
-                              >
-                               {activeTab === 'completed' && order.invoiced ? 'Bundle Print' : 'Bundle Creation'}
-                              </CustomButton>
+                              <Box display="flex" gap={1} alignItems="center">
+                                <CustomButton
+                                  buttonType="primary"
+                                  fullWidth
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBundleCreationModalOpen(true);
+                                  }}
+                                  icon={<Box component="img" src={BoxIcon} alt="Box" sx={{ width: 16, height: 16 , filter: 'brightness(0) invert(1)', opacity: 1 }} />}
+                                  iconPosition="left"
+                                  sx={{ flex: 1, mt:0 }}
+                                >
+                                 {activeTab === 'completed' && order.invoiced ? 'Bundle Print' : 'Bundle Creation'}
+                                </CustomButton>
+                                {activeTab === 'completed' && completedOrderImages.length > 0 && (
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCurrentImageIndex(0);
+                                      setImageCarouselModalOpen(true);
+                                    }}
+                                    sx={{
+                                      bgcolor: 'primary.main',
+                                      color: 'white',
+                                      width: 35,
+                                      height: 35,
+                                      borderRadius: '4px !important',
+                                      padding: 0,
+                                      '&:hover': {
+                                        bgcolor: 'primary.dark',
+                                      },
+                                      m:0,
+                                    }}
+                                  >
+                                    <ImageIcon />
+                                  </IconButton>
+                                )}
+                              </Box>
                             )}
                           </Box>
                         </Collapse>
@@ -2283,7 +2314,7 @@ const OrderChecker = () => {
                       fullWidth
                       sx={{ mt: 0 }}
                     >
-                      Add Container
+                      Add Bundle
                     </CustomButton>
                   </Box>
                 )}
@@ -4369,6 +4400,172 @@ const OrderChecker = () => {
             </>
           )}
         </Box>
+      </CommonModal>
+
+      {/* Image Carousel Modal */}
+      <CommonModal
+        open={imageCarouselModalOpen}
+        onClose={() => {
+          setImageCarouselModalOpen(false);
+          setCurrentImageIndex(0);
+        }}
+        title={selectedOrder ? `Order Photos - Order #${selectedOrder.orderNumber}` : 'Order Photos'}
+        size="xl"
+      >
+        {completedOrderImages.length > 0 ? (
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 2,
+            height: 'calc(100vh - 200px)',
+            minHeight: '500px',
+          }}>
+            {/* Image Display Area */}
+            <Box sx={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              bgcolor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+              borderRadius: 2,
+              overflow: 'hidden',
+              minHeight: 0,
+              p: 2,
+            }}>
+              {/* Previous Button */}
+              <IconButton
+                onClick={() => {
+                  setCurrentImageIndex((prev) => 
+                    prev > 0 ? prev - 1 : completedOrderImages.length - 1
+                  );
+                }}
+                sx={{
+                  position: 'absolute',
+                  left: 16,
+                  bgcolor: 'rgba(0, 0, 0, 0.5)',
+                  color: 'white',
+                  zIndex: 2,
+                  '&:hover': {
+                    bgcolor: 'rgba(0, 0, 0, 0.7)',
+                  },
+                }}
+              >
+                <ArrowBack />
+              </IconButton>
+
+              {/* Image */}
+              <Box
+                component="img"
+                src={completedOrderImages[currentImageIndex]}
+                alt={`Order Photo ${currentImageIndex + 1}`}
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                }}
+                onError={(e) => {
+                  e.currentTarget.src = '/src/assets/Default-Product-Image.jpg';
+                }}
+              />
+
+              {/* Next Button */}
+              <IconButton
+                onClick={() => {
+                  setCurrentImageIndex((prev) => 
+                    prev < completedOrderImages.length - 1 ? prev + 1 : 0
+                  );
+                }}
+                sx={{
+                  position: 'absolute',
+                  right: 16,
+                  bgcolor: 'rgba(0, 0, 0, 0.5)',
+                  color: 'white',
+                  zIndex: 2,
+                  '&:hover': {
+                    bgcolor: 'rgba(0, 0, 0, 0.7)',
+                  },
+                }}
+              >
+                <ArrowForward />
+              </IconButton>
+            </Box>
+
+            {/* Image Counter and Thumbnails */}
+            <Box sx={{ flexShrink: 0 }}>
+              <Typography variant="body2" fontSize={14} color="text.secondary" textAlign="center" mb={1}>
+                {currentImageIndex + 1} / {completedOrderImages.length}
+              </Typography>
+              
+              {/* Thumbnail Strip */}
+              <Box sx={{
+                display: 'flex',
+                gap: 1,
+                overflowX: 'auto',
+                pb: 1,
+                '&::-webkit-scrollbar': {
+                  height: 8,
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  bgcolor: 'rgba(0,0,0,0.2)',
+                  borderRadius: 4,
+                },
+              }}>
+                {completedOrderImages.map((image, index) => (
+                  <Box
+                    key={index}
+                    onClick={() => setCurrentImageIndex(index)}
+                    sx={{
+                      width: 80,
+                      height: 80,
+                      flexShrink: 0,
+                      borderRadius: 1,
+                      overflow: 'hidden',
+                      border: '2px solid',
+                      borderColor: currentImageIndex === index ? 'primary.main' : 'divider',
+                      cursor: 'pointer',
+                      bgcolor: 'divider',
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                        opacity: 0.8,
+                      },
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={image}
+                      alt={`Thumbnail ${index + 1}`}
+                      sx={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                      onError={(e) => {
+                        e.currentTarget.src = '/src/assets/Default-Product-Image.jpg';
+                      }}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          </Box>
+        ) : (
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            height: '400px',
+            color: 'text.secondary',
+          }}>
+            <ImageIcon sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+            <Typography variant="body2" fontSize={14}>
+              No photos available
+            </Typography>
+          </Box>
+        )}
       </CommonModal>
     </Box>
   );

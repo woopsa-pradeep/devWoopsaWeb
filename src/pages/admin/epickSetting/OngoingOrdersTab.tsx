@@ -23,6 +23,7 @@ import {
   getCompleteOrderDetails,
   approveOverrideRequest,
   cancelOverrideRequest,
+  requestAllStatusOverride,
 } from '../../../redux/apis/distrubutor/epickApis';
 import moment from 'moment';
 
@@ -50,6 +51,7 @@ interface OngoingOrder {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  flagPass?: boolean;
 }
 
 interface OverrideRequest {
@@ -181,6 +183,11 @@ const OngoingOrdersTab: React.FC = () => {
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [processingRequestId, setProcessingRequestId] = useState<number | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
+  
+  // Approve/Reject All modal states
+  const [approveAllModalOpen, setApproveAllModalOpen] = useState(false);
+  const [rejectAllModalOpen, setRejectAllModalOpen] = useState(false);
+  const [processingAllRequests, setProcessingAllRequests] = useState(false);
   
   // Completed tab states
   const [completeOrders, setCompleteOrders] = useState<CompleteOrder[]>([]);
@@ -343,6 +350,44 @@ const OngoingOrdersTab: React.FC = () => {
     } finally {
       setProcessingRequestId(null);
       setSelectedRequestId(null);
+    }
+  };
+
+  // Handle approve all requests
+  const handleApproveAll = async () => {
+    if (!selectedOrderNumberForOverride) return;
+    
+    setProcessingAllRequests(true);
+    setApproveAllModalOpen(false);
+    try {
+      await requestAllStatusOverride(selectedOrderNumberForOverride, 'approved');
+      showSuccessToast('All requests approved successfully!');
+      // Refresh override requests
+      await fetchOverrideRequests(selectedOrderNumberForOverride, true, false);
+    } catch (error) {
+      console.error('Failed to approve all requests:', error);
+      showErrorToast('Failed to approve all requests');
+    } finally {
+      setProcessingAllRequests(false);
+    }
+  };
+
+  // Handle reject all requests
+  const handleRejectAll = async () => {
+    if (!selectedOrderNumberForOverride) return;
+    
+    setProcessingAllRequests(true);
+    setRejectAllModalOpen(false);
+    try {
+      await requestAllStatusOverride(selectedOrderNumberForOverride, 'rejected');
+      showSuccessToast('All requests rejected successfully!');
+      // Refresh override requests
+      await fetchOverrideRequests(selectedOrderNumberForOverride, true, false);
+    } catch (error) {
+      console.error('Failed to reject all requests:', error);
+      showErrorToast('Failed to reject all requests');
+    } finally {
+      setProcessingAllRequests(false);
     }
   };
 
@@ -979,14 +1024,27 @@ const OngoingOrdersTab: React.FC = () => {
       label: 'Order#',
       // minWidth: 120,
       render: (row) => (
-        <Typography 
-          fontSize={14} 
-          fontWeight={400}
-          sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}
-          onClick={() => handleOverrideClick(row.orderNumber)}
-        >
-          {row.orderNumber}
-        </Typography>
+        <Box display="flex" alignItems="center" gap={1}>
+          {row.flagPass && (
+            <Box
+              sx={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                bgcolor: 'error.main',
+                flexShrink: 0,
+              }}
+            />
+          )}
+          <Typography 
+            fontSize={14} 
+            fontWeight={400}
+            sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}
+            onClick={() => handleOverrideClick(row.orderNumber)}
+          >
+            {row.orderNumber}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -1326,22 +1384,52 @@ const OngoingOrdersTab: React.FC = () => {
       {activeTab === 0 && showOverrideRequests && (
         <Box>
           {/* Header with Back Button */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton
-              onClick={handleBackToOrders}
-              // sx={{ 
-              //   border: '1px solid',
-              //   borderColor: 'divider',
-              //   '&:hover': {
-              //     bgcolor: 'action.hover',
-              //   }
-              // }}
-            >
-              <ArrowBackIcon fontSize="small" />
-            </IconButton>
-            <Typography sx={{ fontWeight: 500, fontSize: 16, color: "text.primary" }}>
-              Override Requests - Order #{selectedOrderNumberForOverride}
-            </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton
+                onClick={handleBackToOrders}
+                // sx={{ 
+                //   border: '1px solid',
+                //   borderColor: 'divider',
+                //   '&:hover': {
+                //     bgcolor: 'action.hover',
+                //   }
+                // }}
+              >
+                <ArrowBackIcon fontSize="small" />
+              </IconButton>
+              <Typography sx={{ fontWeight: 500, fontSize: 16, color: "text.primary" }}>
+                Override Requests - Order #{selectedOrderNumberForOverride}
+              </Typography>
+            </Box>
+            
+            {/* Approve All / Reject All Buttons */}
+            {overrideRequests.length > 0 && (
+              <Box sx={{ display: 'flex',justifyContent: 'flex-end', gap: 1 , width: '100%'}}>
+                <CustomButton
+                  buttonType="primary"
+                  appearance="filled"
+                  onClick={() => setApproveAllModalOpen(true)}
+                  disabled={processingAllRequests}
+                  size="small"
+                  fullWidth={false}
+                  sx={{ minWidth: 100, mt: 0 }}
+                >
+                  Approve All
+                </CustomButton>
+                <CustomButton
+                  buttonType="delete"
+                  appearance="filled"
+                  onClick={() => setRejectAllModalOpen(true)}
+                  disabled={processingAllRequests}
+                  size="small"
+                  fullWidth={false}
+                  sx={{ minWidth: 100, mt: 0 }}
+                >
+                  Reject All
+                </CustomButton>
+              </Box>
+            )}
           </Box>
 
           {/* Override Requests Table */}
@@ -1521,6 +1609,84 @@ const OngoingOrdersTab: React.FC = () => {
               sx={{ minWidth: 100 }}
             >
               Reject
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
+
+      {/* Approve All Confirmation Modal */}
+      <CommonModal
+        open={approveAllModalOpen}
+        onClose={() => setApproveAllModalOpen(false)}
+        size="sm"
+        title="Confirm Approve All"
+      >
+        <Box>
+          <Typography fontSize={14} color="text.secondary" sx={{ mb: 2 }}>
+            Are you sure you want to approve all override requests for this order? This action will approve all {overrideRequests.length} pending request(s) and cannot be undone.
+          </Typography>
+          {selectedOrderNumberForOverride && (
+            <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 2 }}>
+              Order Number: {selectedOrderNumberForOverride}
+            </Typography>
+          )}
+          <Box display="flex" gap={2} justifyContent="flex-end">
+            <CustomButton
+              appearance="outlined"
+              buttonType="cancel"
+              onClick={() => setApproveAllModalOpen(false)}
+              disabled={processingAllRequests}
+              sx={{ minWidth: 100 }}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              appearance="filled"
+              buttonType="primary"
+              onClick={handleApproveAll}
+              loading={processingAllRequests}
+              sx={{ minWidth: 100 }}
+            >
+              Approve All
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
+
+      {/* Reject All Confirmation Modal */}
+      <CommonModal
+        open={rejectAllModalOpen}
+        onClose={() => setRejectAllModalOpen(false)}
+        size="sm"
+        title="Confirm Reject All"
+      >
+        <Box>
+          <Typography fontSize={14} color="text.secondary" sx={{ mb: 2 }}>
+            Are you sure you want to reject all override requests for this order? This action will reject all {overrideRequests.length} pending request(s) and cannot be undone.
+          </Typography>
+          {selectedOrderNumberForOverride && (
+            <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 2 }}>
+              Order Number: {selectedOrderNumberForOverride}
+            </Typography>
+          )}
+          <Box display="flex" gap={2} justifyContent="flex-end">
+            <CustomButton
+              appearance="outlined"
+              buttonType="cancel"
+              onClick={() => setRejectAllModalOpen(false)}
+              disabled={processingAllRequests}
+              sx={{ minWidth: 100 }}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              appearance="filled"
+              buttonType="delete"
+              onClick={handleRejectAll}
+              loading={processingAllRequests}
+              sx={{ minWidth: 100 }}
+            >
+              Reject All
             </CustomButton>
           </Box>
         </Box>

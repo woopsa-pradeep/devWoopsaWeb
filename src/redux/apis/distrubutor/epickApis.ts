@@ -134,3 +134,9 @@ export const getOrderDetailsByOrderNumber = async (orderNumber: number) => {
     const response = await axiosInstance.get(`/epick/getOrderDetailsByOrderNumber/${orderNumber}`);
     return response.data;
 }
+
+// Approve/Reject all override requests for an order
+export const requestAllStatusOverride = async (orderNumber: number, status: 'approved' | 'rejected') => {
+    const response = await axiosInstance.put(`/checker/requestAllStatusOverride/${orderNumber}?status=${status}`);
+    return response.data;
+}

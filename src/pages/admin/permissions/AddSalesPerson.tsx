@@ -48,14 +48,14 @@ const AddSalesPerson = () => {
         } catch (permError: any) {
           console.error('Error creating permissions:', permError);
           // Don't fail the whole operation if permissions creation fails
-          toast.error('User created but failed to set permissions. Please set them manually.');
+          toast.error(permError?.response?.data?.message || permError?.message || 'User created but failed to set permissions. Please set them manually.');
         }
       }
       
       navigate('/admin/permissions');
     } catch (error: any) {
       console.error('Error creating user:', error);
-      toast.error(error?.message || 'Failed to create user. Please try again.');
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to create user. Please try again.');
     } finally {
       setLoading(false);
     }

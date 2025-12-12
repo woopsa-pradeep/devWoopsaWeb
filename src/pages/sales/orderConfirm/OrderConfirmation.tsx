@@ -292,6 +292,18 @@ const OrderConfirmation = () => {
         </Box>
       ),
     },
+    
+    {
+      id: 'totalShipped',
+      label: 'Scanned (Qty)',
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">
+            {Number(row.totalShipped).toFixed(0)}
+          </Typography>
+        </Box>
+      ),
+    },
     {
       id: 'status',
       label: 'Status',
