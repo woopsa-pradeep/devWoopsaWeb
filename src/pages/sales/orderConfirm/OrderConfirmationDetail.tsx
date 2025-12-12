@@ -1191,14 +1191,14 @@ const OrderConfirmationDetail = () => {
     }, 0);
   }, [orderDetails, confirmedLines]);
 
-  // Auto-open completion modal when all items are scanned
+  // Auto-open completion modal when all items are scanned (but not in review mode)
   useEffect(() => {
-    if (!orderDetails.length || isOrderCompleted || completionModalOpen || modalManuallyClosed) return;
+    if (!orderDetails.length || isOrderCompleted || completionModalOpen || modalManuallyClosed || isReviewMode) return;
     
     if (areAllProductsScanned()) {
       setCompletionModalOpen(true);
     }
-  }, [confirmedLines, orderDetails, mode, currentOrderline, isOrderCompleted, completionModalOpen, modalManuallyClosed, areAllProductsScanned]);
+  }, [confirmedLines, orderDetails, mode, currentOrderline, isOrderCompleted, completionModalOpen, modalManuallyClosed, areAllProductsScanned, isReviewMode]);
 
   // Helper function to get page size CSS based on label size
   // const getPageSizeCSS = (size: LabelSize): string => {
@@ -2531,33 +2531,47 @@ const OrderConfirmationDetail = () => {
                 </Typography>
               )}
               {isReviewMode ? (
-                <CustomButton
-                  appearance="filled"
-                  onClick={() => {
-                    const bundles = getBundlesFromOrderList();
-                    if (bundles > 0) {
-                      setPendingBundlesCount(bundles);
-                      setSelectedBundleSize('4x6'); // Default to 4x6 for review mode
-                      setBundleSizeModalOpen(true);
-                    } else {
-                      toast.error('No bundles found for this order');
-                    }
-                  }}
-                  sx={{ 
-                    minWidth: 120,
-                    fontSize: 11,
-                    fontWeight: 400,
-                    px: 1.5,
-                    py: 0.5,
-                    mt: 0,
-                    height: '28px',
-                    borderRadius: '6px',
-                    textTransform: 'none',
-                  }}
-                  fullWidth={false}
-                >
-                  Print Bundles
-                </CustomButton>
+                (() => {
+                  // Get erpConfirmStatus from orderList
+                  const currentOrder = orderList.find((item) => item.Order_Number === currentOrderNumber);
+                  const erpConfirmStatus = (currentOrder as any)?.erpConfirmStatus;
+                  const isERPConfirmed = erpConfirmStatus === 'Confirmed from ERP';
+                  
+                  // Hide Print Bundles button if order is confirmed from ERP
+                  if (isERPConfirmed) {
+                    return null;
+                  }
+                  
+                  return (
+                    <CustomButton
+                      appearance="filled"
+                      onClick={() => {
+                        const bundles = getBundlesFromOrderList();
+                        if (bundles > 0) {
+                          setPendingBundlesCount(bundles);
+                          setSelectedBundleSize('4x6'); // Default to 4x6 for review mode
+                          setBundleSizeModalOpen(true);
+                        } else {
+                          toast.error('No bundles found for this order');
+                        }
+                      }}
+                      sx={{ 
+                        minWidth: 120,
+                        fontSize: 11,
+                        fontWeight: 400,
+                        px: 1.5,
+                        py: 0.5,
+                        mt: 0,
+                        height: '28px',
+                        borderRadius: '6px',
+                        textTransform: 'none',
+                      }}
+                      fullWidth={false}
+                    >
+                      Print Bundles
+                    </CustomButton>
+                  );
+                })()
               ) : (
                 <>
                   <CustomButton

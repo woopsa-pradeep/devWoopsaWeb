@@ -126,17 +126,21 @@ const Product = () => {
   // Print Label states
   const [printLabelDrawerOpen, setPrintLabelDrawerOpen] = useState(false);
   const [printLabelForm, setPrintLabelForm] = useState({
-    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4",
+    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4",
     orientation: 'landscape' as "landscape" | "portrait",
     salesCategory: [] as FilterOption[],
     priceClass: [] as FilterOption[],
+    rows: 1 as number,
+    columns: 1 as number,
   });
   const [printLabelLoading, setPrintLabelLoading] = useState(false);
   const [individualPrintModalOpen, setIndividualPrintModalOpen] = useState(false);
   const [individualPrintProduct, setIndividualPrintProduct] = useState<Product | null>(null);
   const [individualPrintForm, setIndividualPrintForm] = useState({
-    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4",
+    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4",
     orientation: 'landscape' as "landscape" | "portrait",
+    rows: 1 as number,
+    columns: 1 as number,
   });
   const [individualPrintLoading, setIndividualPrintLoading] = useState(false);
 
@@ -144,6 +148,27 @@ const Product = () => {
     fetchSalesCategories();
     fetchPriceClasses();
   }, []);
+
+  // Reset rows when column count changes for A4 layouts
+  useEffect(() => {
+    if (printLabelForm.size.startsWith('A4-')) {
+      const columnCount = parseInt(printLabelForm.size.split('-')[1]) || 1;
+      const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
+      if (printLabelForm.rows > maxRows) {
+        setPrintLabelForm(prev => ({ ...prev, rows: maxRows }));
+      }
+    }
+  }, [printLabelForm.size]);
+
+  useEffect(() => {
+    if (individualPrintForm.size.startsWith('A4-')) {
+      const columnCount = parseInt(individualPrintForm.size.split('-')[1]) || 1;
+      const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
+      if (individualPrintForm.rows > maxRows) {
+        setIndividualPrintForm(prev => ({ ...prev, rows: maxRows }));
+      }
+    }
+  }, [individualPrintForm.size]);
 
   const fetchSalesCategories = async () => {
     setLoadingSalesCategory(true);
@@ -416,10 +441,13 @@ const Product = () => {
   // };
 
   // Generate and print labels - optimized for performance with chunking
-  const generateAndPrintLabels = (products: Product[], size: string, orientation: string) => {
-    // Handle A4 size differently
+  const generateAndPrintLabels = (products: Product[], size: string, orientation: string, rows: number = 1) => {
+    // Handle A4 sizes differently
     let pageWidth, pageHeight;
-    if (size === 'A4') {
+    const isA4Column = size.startsWith('A4-');
+    const columnCount = isA4Column ? parseInt(size.split('-')[1]) : 1;
+    
+    if (size === 'A4' || isA4Column) {
       pageWidth = '8.27in';
       pageHeight = '11.69in';
     } else {
@@ -430,8 +458,20 @@ const Product = () => {
       pageHeight = isLandscape ? `${width}in` : `${height}in`;
     }
 
-    // Calculate responsive sizes based on label dimensions and orientation
+    // Calculate responsive sizes based on label dimensions, orientation, and rows
     const getSize = (base: number) => {
+      if (isA4Column) {
+        // Calculate size multiplier based on column count and rows
+        // Fewer rows = larger labels (more space per label)
+        const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
+        const rowMultiplier = maxRows / rows; // More rows selected = smaller multiplier
+        
+        if (columnCount === 4) return `${base * 0.4 * rowMultiplier}px`;
+        if (columnCount === 3) return `${base * 0.5 * rowMultiplier}px`;
+        if (columnCount === 2) return `${base * 0.7 * rowMultiplier}px`;
+        if (columnCount === 1) return `${base * 1.2 * rowMultiplier}px`;
+        return `${base * 1.5 * rowMultiplier}px`;
+      }
       if (size === 'A4') return `${base * 1.5}px`;
       const [w, h] = size.split('x').map(Number);
       const isLandscape = orientation === 'landscape';
@@ -637,6 +677,270 @@ const Product = () => {
         image-rendering: -webkit-optimize-contrast;
         image-rendering: crisp-edges;
       }
+      /* A4 Multi-column layouts */
+      .label-container-a4-multi {
+        width: ${pageWidth};
+        height: ${pageHeight};
+        margin: 0;
+        padding: 0.1in;
+        display: grid;
+        grid-template-columns: ${isA4Column && columnCount === 4 ? 'repeat(4, 1fr)' : 
+                                isA4Column && columnCount === 3 ? 'repeat(3, 1fr)' : 
+                                isA4Column && columnCount === 2 ? 'repeat(2, 1fr)' : 
+                                isA4Column && columnCount === 1 ? '1fr' : '1fr'};
+        grid-template-rows: ${isA4Column ? `repeat(${rows}, 1fr)` : '1fr'};
+        grid-auto-rows: 0;
+        overflow: hidden;
+        gap: 0.1in;
+        page-break-after: always;
+        page-break-inside: avoid;
+        box-sizing: border-box;
+        align-content: stretch;
+      }
+      .label-container-a4-multi > * {
+        min-height: 0;
+        overflow: hidden;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      .label-item-a4-4 {
+        border: 1px solid #ccc;
+        padding: 0.05in;
+        display: flex;
+        flex-direction: column;
+        gap: 0.03in;
+        font-size: ${getSize(8)}px;
+        height: 100%;
+        justify-content: space-between;
+      }
+      .label-item-a4-4 .label-item-number {
+        font-weight: bold;
+        font-size: ${getSize(9)}px;
+      }
+      .label-item-a4-4 .label-item-description {
+        font-size: ${getSize(7)}px;
+        display: flex;
+        flex-wrap: wrap;
+        line-height: 1.2;
+      }
+      .label-item-a4-4 .label-item-details {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.02in;
+        font-size: ${getSize(7)}px;
+      }
+      .label-item-a4-4 .label-item-barcode {
+        max-height: 0.4in;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: auto;
+      }
+      .label-item-a4-3 {
+        border: 1px solid #ccc;
+        padding: 0.06in;
+        display: flex;
+        flex-direction: column;
+        gap: 0.04in;
+        font-size: ${getSize(10)}px;
+        height: 100%;
+        justify-content: space-between;
+      }
+      .label-item-a4-3 .label-item-number {
+        font-weight: bold;
+        font-size: ${getSize(11)}px;
+      }
+      .label-item-a4-3 .label-item-description {
+        font-size: ${getSize(9)}px;
+        display: flex;
+        flex-wrap: wrap;
+        line-height: 1.2;
+      }
+      .label-item-a4-3 .label-item-details {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.03in;
+        font-size: ${getSize(9)}px;
+      }
+      .label-item-a4-3 .label-item-price {
+        font-weight: bold;
+        color: #dc2626;
+        font-size: ${getSize(12)}px;
+      }
+      .label-item-a4-3 .label-item-barcode {
+        max-height: 0.5in;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: auto;
+      }
+      .label-item-a4-2 {
+        border: 1px solid #ccc;
+        padding: 0.08in;
+        display: flex;
+        flex-direction: row;
+        gap: 0.1in;
+        font-size: ${getSize(12)}px;
+        height: 100%;
+        box-sizing: border-box;
+      }
+      .label-item-a4-2 .label-item-image {
+        width: 38%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .label-item-a4-2 .label-item-image img {
+        max-width: 100%;
+        max-height: 100%;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .label-item-a4-2 .label-item-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.05in;
+        min-width: 0;
+      }
+      .label-item-a4-2 .label-item-barcode {
+        max-height: 0.6in;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: auto;
+      }
+      .label-item-a4-2 .label-item-number-row {
+        font-weight: bold;
+        font-size: ${getSize(13)}px;
+        margin-bottom: 0.03in;
+      }
+      .label-item-a4-2 .label-item-description {
+        font-size: ${getSize(11)}px;
+        line-height: 1.2;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 0.03in;
+      }
+      .label-item-a4-2 .label-item-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.04in;
+        font-size: ${getSize(10)}px;
+      }
+      .label-item-a4-2 .label-item-details > div {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .label-item-a4-2 .label-item-details > div:not(.label-item-price) span:first-child {
+        font-weight: 700;
+        color: #6c757d;
+        text-transform: uppercase;
+        font-size: ${getSize(9)}px;
+      }
+      .label-item-a4-2 .label-item-details > div:not(.label-item-price) span:last-child {
+        font-weight: 700;
+        color: #000000;
+        font-size: ${getSize(12)}px;
+      }
+      .label-item-a4-2 .label-item-price {
+        grid-column: 1 / -1;
+        font-weight: bold;
+        color: #dc2626;
+        font-size: ${getSize(18)}px;
+        font-weight: 900;
+        text-align: left;
+      }
+      .label-item-a4-1 {
+        border: 1px solid #ccc;
+        padding: 0.1in;
+        display: flex;
+        flex-direction: row;
+        gap: 0.12in;
+        font-size: ${getSize(14)}px;
+        height: 100%;
+        box-sizing: border-box;
+      }
+      .label-item-a4-1 .label-item-image {
+        width: 40%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .label-item-a4-1 .label-item-image img {
+        max-width: 100%;
+        max-height: 100%;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .label-item-a4-1 .label-item-info-wrapper {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.06in;
+        min-width: 0;
+      }
+      .label-item-a4-1 .label-item-barcode {
+        max-height: 0.8in;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: auto;
+      }
+      .label-item-a4-1 .label-item-number-row {
+        font-weight: bold;
+        font-size: ${getSize(15)}px;
+        margin-bottom: 0.04in;
+      }
+      .label-item-a4-1 .label-item-description {
+        font-size: ${getSize(13)}px;
+        line-height: 1.3;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 0.04in;
+      }
+      .label-item-a4-1 .label-item-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.05in;
+        font-size: ${getSize(12)}px;
+      }
+      .label-item-a4-1 .label-item-details > div {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .label-item-a4-1 .label-item-details > div:not(.label-item-price) span:first-child {
+        font-weight: 700;
+        color: #6c757d;
+        text-transform: uppercase;
+        font-size: ${getSize(11)}px;
+      }
+      .label-item-a4-1 .label-item-details > div:not(.label-item-price) span:last-child {
+        font-weight: 700;
+        color: #000000;
+        font-size: ${getSize(14)}px;
+      }
+      .label-item-a4-1 .label-item-price {
+        grid-column: 1 / -1;
+        font-weight: bold;
+        color: #dc2626;
+        font-size: ${getSize(24)}px;
+        font-weight: 900;
+        text-align: left;
+      }
     `;
 
     // Open window first
@@ -681,6 +985,76 @@ const Product = () => {
       const isSmallSize = size === '2x2' || size === '2x3' || size === '3x2';
       // Check if it's a square size (4x4, 3x3)
       const isSquareSize = size === '4x4' || size === '3x3';
+
+      // Handle A4 column layouts
+      if (isA4Column) {
+        if (columnCount === 4) {
+          // 4 columns: small font, itemNumber, description (flex), pack, case, small barcode
+          return `
+            <div class="label-item-a4-4" data-upc="${upc}">
+              <div class="label-item-number">${itemNumber}</div>
+              <div class="label-item-description">${productName}</div>
+              <div class="label-item-details">
+                <span>P: ${pack}</span>
+                <span>C: ${caseCount}</span>
+              </div>
+              <div class="label-item-barcode" data-barcode-placeholder="${upc}"></div>
+            </div>
+          `;
+        } else if (columnCount === 3) {
+          // 3 columns: with price, adjusted font size
+          return `
+            <div class="label-item-a4-3" data-upc="${upc}">
+              <div class="label-item-number">${itemNumber}</div>
+              <div class="label-item-description">${productName}</div>
+              <div class="label-item-details">
+                <span>P: ${pack}</span>
+                <span>C: ${caseCount}</span>
+                <span class="label-item-price">$${price}</span>
+              </div>
+              <div class="label-item-barcode" data-barcode-placeholder="${upc}"></div>
+            </div>
+          `;
+        } else if (columnCount === 2) {
+          // 2 columns: same as 4x6 landscape style but size adjusted
+          return `
+            <div class="label-item-a4-2" data-upc="${upc}">
+              <div class="label-item-image">
+                <img src="${productImage}" alt="${productName}" onerror="this.onerror=null; this.src='${img}';" />
+              </div>
+              <div class="label-item-info">
+                <div class="label-item-description">${productName}</div>
+                <div class="label-item-number-row">${itemNumber}</div>
+                <div class="label-item-details">
+                  <div><span>PACK:</span><span>${pack}</span></div>
+                  <div><span>CASE:</span><span>${caseCount}</span></div>
+                  <div class="label-item-price">$${price}</div>
+                </div>
+                <div class="label-item-barcode" data-barcode-placeholder="${upc}"></div>
+              </div>
+            </div>
+          `;
+        } else if (columnCount === 1) {
+          // 1 column: same as 4x6 landscape style but size adjusted
+          return `
+            <div class="label-item-a4-1" data-upc="${upc}">
+              <div class="label-item-image">
+                <img src="${productImage}" alt="${productName}" onerror="this.onerror=null; this.src='${img}';" />
+              </div>
+              <div class="label-item-info-wrapper">
+                <div class="label-item-description">${productName}</div>
+                <div class="label-item-number-row">${itemNumber}</div>
+                <div class="label-item-details">
+                  <div><span>PACK:</span><span>${pack}</span></div>
+                  <div><span>CASE:</span><span>${caseCount}</span></div>
+                  <div class="label-item-price">$${price}</div>
+                </div>
+                <div class="label-item-barcode" data-barcode-placeholder="${upc}"></div>
+              </div>
+            </div>
+          `;
+        }
+      }
 
       if (isSmallSize) {
         // Small sizes: No image, no labels, small font
@@ -777,10 +1151,16 @@ const Product = () => {
       }
     };
 
-    // Process in tiny chunks - generate HTML first (fast), barcodes later (slow)
-    const CHUNK_SIZE = 3; // Very small chunks
+    // Process in optimized chunks - generate HTML first (fast), barcodes later (slow)
+    // For large batches (5k+), use larger chunks but yield more frequently
+    const CHUNK_SIZE = products.length > 1000 ? 50 : products.length > 500 ? 25 : 10;
     let currentIndex = 0;
     const totalProducts = products.length;
+    // Calculate items per page: columns * rows
+    const itemsPerPage = isA4Column ? (columnCount * rows) : 1;
+    
+    // For A4 columns, we need to track items across chunks to create proper pages
+    const pageBuffer: Product[] = [];
 
     const processChunk = () => {
       const endIndex = Math.min(currentIndex + CHUNK_SIZE, totalProducts);
@@ -788,8 +1168,26 @@ const Product = () => {
       
       // Generate HTML without barcodes (fast)
       let chunkHTML = '';
-      for (let i = 0; i < chunk.length; i++) {
-        chunkHTML += generateLabelWithoutBarcode(chunk[i]);
+      
+      if (isA4Column) {
+        // Add chunk items to page buffer
+        pageBuffer.push(...chunk);
+        
+        // Process complete pages from buffer
+        while (pageBuffer.length >= itemsPerPage) {
+          const pageItems = pageBuffer.splice(0, itemsPerPage);
+          chunkHTML += `<div class="label-container-a4-multi">`;
+          // Add exactly itemsPerPage items
+          for (let j = 0; j < pageItems.length; j++) {
+            chunkHTML += generateLabelWithoutBarcode(pageItems[j]);
+          }
+          chunkHTML += `</div>`;
+        }
+      } else {
+        // Regular labels
+        for (let i = 0; i < chunk.length; i++) {
+          chunkHTML += generateLabelWithoutBarcode(chunk[i]);
+        }
       }
       
       // Append to document immediately
@@ -801,13 +1199,26 @@ const Product = () => {
       
       // Continue processing if more chunks remain
       if (currentIndex < totalProducts) {
-        // Yield immediately
+        // Yield to browser for better performance with large batches
         setTimeout(processChunk, 0);
       } else {
-        // All labels generated, now add barcodes asynchronously
+        // Process any remaining items in buffer (last incomplete page)
+        if (isA4Column && pageBuffer.length > 0) {
+          let finalPageHTML = `<div class="label-container-a4-multi">`;
+          for (let j = 0; j < pageBuffer.length; j++) {
+            finalPageHTML += generateLabelWithoutBarcode(pageBuffer[j]);
+          }
+          finalPageHTML += `</div>`;
+          
+          if (printWindow && printWindow.document && printWindow.document.body) {
+            printWindow.document.body.insertAdjacentHTML('beforeend', finalPageHTML);
+          }
+        }
+        // All labels generated, now add barcodes asynchronously in batches
         const addBarcodes = () => {
-          const containers = printWindow?.document?.querySelectorAll('.label-container[data-upc]');
-          if (!containers || containers.length === 0) {
+          // Find all barcode placeholders (support both regular and A4 column layouts)
+          const barcodePlaceholders = printWindow?.document?.querySelectorAll('[data-barcode-placeholder]');
+          if (!barcodePlaceholders || barcodePlaceholders.length === 0) {
             setTimeout(() => {
               if (printWindow) {
                 printWindow.print();
@@ -817,8 +1228,10 @@ const Product = () => {
           }
 
           let barcodeIndex = 0;
-          const addBarcode = () => {
-            if (barcodeIndex >= containers.length) {
+          const BATCH_SIZE = 10; // Process 10 barcodes at a time
+          
+          const addBarcodeBatch = () => {
+            if (barcodeIndex >= barcodePlaceholders.length) {
               setTimeout(() => {
                 if (printWindow) {
                   printWindow.print();
@@ -827,27 +1240,29 @@ const Product = () => {
               return;
             }
 
-             const container = containers[barcodeIndex] as HTMLElement;
-             const upc = container.getAttribute('data-upc') || '';
-             const barcodePlaceholder = container.querySelector('.label-barcode-section[data-barcode-placeholder]');
-             const barcodePlaceholderSquare = container.querySelector('.label-left-section .label-barcode-section[data-barcode-placeholder]');
-             
-             if ((barcodePlaceholder || barcodePlaceholderSquare) && upc) {
-               const barcodeImage = generateBarcodeImage(upc);
-               if (barcodeImage) {
-                 const target = barcodePlaceholder || barcodePlaceholderSquare;
-                 if (target) {
-                   target.innerHTML = `<img src="${barcodeImage}" alt="Barcode" class="label-barcode" />`;
-                   target.removeAttribute('data-barcode-placeholder');
-                 }
-               }
-             }
+            // Process a batch of barcodes
+            const endBatch = Math.min(barcodeIndex + BATCH_SIZE, barcodePlaceholders.length);
+            for (let i = barcodeIndex; i < endBatch; i++) {
+              const placeholder = barcodePlaceholders[i] as HTMLElement;
+              const upc = placeholder.getAttribute('data-barcode-placeholder') || '';
+              
+              if (upc) {
+                const barcodeImage = generateBarcodeImage(upc);
+                if (barcodeImage) {
+                  placeholder.innerHTML = `<img src="${barcodeImage}" alt="Barcode" class="label-barcode" />`;
+                  placeholder.removeAttribute('data-barcode-placeholder');
+                }
+              }
+            }
 
-            barcodeIndex++;
-            setTimeout(addBarcode, 0);
+            barcodeIndex = endBatch;
+            
+            // Yield to browser for better performance
+            setTimeout(addBarcodeBatch, 0);
           };
 
-          setTimeout(addBarcode, 0);
+          // Start adding barcodes after a short delay
+          setTimeout(addBarcodeBatch, 50);
         };
 
         // Start adding barcodes after a short delay
@@ -909,7 +1324,8 @@ const Product = () => {
               generateAndPrintLabels(
                 allProducts,
                 printLabelForm.size,
-                printLabelForm.orientation
+                printLabelForm.orientation,
+                printLabelForm.rows
               );
             });
           }, 0);
@@ -940,7 +1356,8 @@ const Product = () => {
               generateAndPrintLabels(
                 [individualPrintProduct],
                 individualPrintForm.size,
-                individualPrintForm.orientation
+                individualPrintForm.orientation,
+                individualPrintForm.rows
               );
               toast.success('Label generated successfully');
             });
@@ -1543,12 +1960,16 @@ const Product = () => {
             <InputLabel>Label Size</InputLabel>
             <Select
               value={printLabelForm.size}
-              onChange={(e) =>
+              onChange={(e) => {
+                const newSize = e.target.value as any;
+                const newColumnCount = newSize.startsWith('A4-') ? parseInt(newSize.split('-')[1]) || 1 : 0;
+                const maxRows = newColumnCount === 4 ? 7 : newColumnCount === 3 ? 5 : newColumnCount === 2 ? 4 : newColumnCount === 1 ? 4 : 1;
                 setPrintLabelForm({
                   ...printLabelForm,
-                  size: e.target.value as any,
-                })
-              }
+                  size: newSize,
+                  rows: newColumnCount > 0 && printLabelForm.rows > maxRows ? maxRows : printLabelForm.rows,
+                });
+              }}
               label="Label Size"
             >
               <MenuItem value="4x3">4x3</MenuItem>
@@ -1562,8 +1983,42 @@ const Product = () => {
               <MenuItem value="5x3">5x3</MenuItem>
               <MenuItem value="6x4">6x4</MenuItem>
               <MenuItem value="A4">A4</MenuItem>
+              <MenuItem value="A4-1">A4 (1 Column)</MenuItem>
+              <MenuItem value="A4-2">A4 (2 Columns)</MenuItem>
+              <MenuItem value="A4-3">A4 (3 Columns)</MenuItem>
+              <MenuItem value="A4-4">A4 (4 Columns)</MenuItem>
             </Select>
           </FormControl>
+
+          {(printLabelForm.size.startsWith('A4-')) && (() => {
+            const columnCount = parseInt(printLabelForm.size.split('-')[1]) || 1;
+            const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
+            const rowOptions = [];
+            for (let i = 1; i <= maxRows; i++) {
+              rowOptions.push(i);
+            }
+            const currentRows = Math.min(printLabelForm.rows, maxRows);
+            
+            return (
+              <FormControl fullWidth>
+                <InputLabel>Rows per Page</InputLabel>
+                <Select
+                  value={currentRows}
+                  onChange={(e) =>
+                    setPrintLabelForm({
+                      ...printLabelForm,
+                      rows: Number(e.target.value),
+                    })
+                  }
+                  label="Rows per Page"
+                >
+                  {rowOptions.map(row => (
+                    <MenuItem key={row} value={row}>{row}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            );
+          })()}
 
           <FormControl fullWidth>
             <InputLabel>Display Orientation</InputLabel>
@@ -1651,12 +2106,16 @@ const Product = () => {
             <InputLabel>Label Size</InputLabel>
             <Select
               value={individualPrintForm.size}
-              onChange={(e) =>
+              onChange={(e) => {
+                const newSize = e.target.value as any;
+                const newColumnCount = newSize.startsWith('A4-') ? parseInt(newSize.split('-')[1]) || 1 : 0;
+                const maxRows = newColumnCount === 4 ? 7 : newColumnCount === 3 ? 5 : newColumnCount === 2 ? 4 : newColumnCount === 1 ? 4 : 1;
                 setIndividualPrintForm({
                   ...individualPrintForm,
-                  size: e.target.value as any,
-                })
-              }
+                  size: newSize,
+                  rows: newColumnCount > 0 && individualPrintForm.rows > maxRows ? maxRows : individualPrintForm.rows,
+                });
+              }}
               label="Label Size"
             >
               <MenuItem value="4x3">4x3</MenuItem>
@@ -1670,8 +2129,42 @@ const Product = () => {
               <MenuItem value="5x3">5x3</MenuItem>
               <MenuItem value="6x4">6x4</MenuItem>
               <MenuItem value="A4">A4</MenuItem>
+              {/* <MenuItem value="A4-1">A4 (1 Column)</MenuItem>
+              <MenuItem value="A4-2">A4 (2 Columns)</MenuItem>
+              <MenuItem value="A4-3">A4 (3 Columns)</MenuItem>
+              <MenuItem value="A4-4">A4 (4 Columns)</MenuItem> */}
             </Select>
           </FormControl>
+
+          {(individualPrintForm.size.startsWith('A4-')) && (() => {
+            const columnCount = parseInt(individualPrintForm.size.split('-')[1]) || 1;
+            const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
+            const rowOptions = [];
+            for (let i = 1; i <= maxRows; i++) {
+              rowOptions.push(i);
+            }
+            const currentRows = Math.min(individualPrintForm.rows, maxRows);
+            
+            return (
+              <FormControl fullWidth>
+                <InputLabel>Rows per Page</InputLabel>
+                <Select
+                  value={currentRows}
+                  onChange={(e) =>
+                    setIndividualPrintForm({
+                      ...individualPrintForm,
+                      rows: Number(e.target.value),
+                    })
+                  }
+                  label="Rows per Page"
+                >
+                  {rowOptions.map(row => (
+                    <MenuItem key={row} value={row}>{row}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            );
+          })()}
 
           <FormControl fullWidth>
             <InputLabel>Display Orientation</InputLabel>

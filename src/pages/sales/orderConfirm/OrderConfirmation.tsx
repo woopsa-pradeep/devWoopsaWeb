@@ -216,7 +216,9 @@ const OrderConfirmation = () => {
   const getConfirmMessage = (): string => {
     if (!pendingAction) return '';
     
-    if (pendingAction.status === 'pending') {
+    if (pendingAction.status === 'confirmed') {
+      return 'This order is already confirmed from ERP and cannot be modified.';
+    } else if (pendingAction.status === 'pending') {
       return 'Choose an action for this pending order:';
     } else if (pendingAction.status === 'in-progress') {
       return 'This order is in progress. Continue working on it?';
@@ -231,7 +233,9 @@ const OrderConfirmation = () => {
   const getConfirmTitle = (): string => {
     if (!pendingAction) return 'Order Actions';
     
-    if (pendingAction.status === 'pending') {
+    if (pendingAction.status === 'confirmed') {
+      return 'Order Confirmed';
+    } else if (pendingAction.status === 'pending') {
       return 'Pending Order';
     } else if (pendingAction.status === 'in-progress') {
       return 'Order In Progress';
@@ -291,20 +295,27 @@ const OrderConfirmation = () => {
     {
       id: 'status',
       label: 'Status',
-      render: (row) => (
-        <Chip
-          label={row.status}
-          size="small"
-          color={
-            row.status === 'completed'
-              ? 'success'
-              : row.status === 'pending'
-              ? 'warning'
-              : 'default'
-          }
-          sx={{ fontSize: '0.75rem' }}
-        />
-      ),
+      render: (row) => {
+        // Check if ERP confirmed and status is pending - treat as confirmed
+        const isERPConfirmed = row.erpConfirmStatus === 'Confirmed from ERP';
+        const orderStatus = row.isOrderConfirmed?.status;
+        const effectiveStatus = isERPConfirmed && orderStatus === 'pending' ? 'confirmed' : row.status;
+        
+        return (
+          <Chip
+            label={effectiveStatus}
+            size="small"
+            color={
+              effectiveStatus === 'completed' || effectiveStatus === 'confirmed'
+                ? 'success'
+                : effectiveStatus === 'pending'
+                ? 'warning'
+                : 'default'
+            }
+            sx={{ fontSize: '0.75rem' }}
+          />
+        );
+      },
     },
     {
       id: 'Order_Source_Name',
@@ -340,7 +351,10 @@ const OrderConfirmation = () => {
       render: (row) => {
         // Check if order is pending or completed with isOrderConfirmed
         const orderStatus = row.isOrderConfirmed?.status;
-        const isPending = orderStatus === 'pending';
+        const isERPConfirmed = row.erpConfirmStatus === 'Confirmed from ERP';
+        // If ERP confirmed and status is pending, treat as confirmed
+        const isConfirmed = isERPConfirmed && orderStatus === 'pending';
+        const isPending = orderStatus === 'pending' && !isConfirmed;
         const isCompleted = orderStatus === 'completed';
         const isInProgress = orderStatus === 'in-progress';
         const isInvoiceGenerated = row.Invoice_Generated === true;
@@ -350,13 +364,16 @@ const OrderConfirmation = () => {
         // Check if current user can access this order
         // If in-progress: only allow if sales_id matches current user's ID
         // If locked: only allow if sales_id exists and matches current user's ID
+        // If confirmed: disable action (order is already confirmed)
         // Otherwise: allow access (for pending, completed, or not locked orders)
         const canAccessOrder = 
-          isInProgress 
-            ? (orderSalesId && currentSalesId && orderSalesId === currentSalesId) // In-progress: must match sales_id
-            : isLocked 
-              ? (orderSalesId && currentSalesId && orderSalesId === currentSalesId) // Locked: must match sales_id if available
-              : true; // Not in-progress and not locked: allow access
+          isConfirmed
+            ? false // Confirmed orders cannot be accessed
+            : isInProgress 
+              ? (orderSalesId && currentSalesId && orderSalesId === currentSalesId) // In-progress: must match sales_id
+              : isLocked 
+                ? (orderSalesId && currentSalesId && orderSalesId === currentSalesId) // Locked: must match sales_id if available
+                : true; // Not in-progress and not locked: allow access
         
         // Determine which action to show in modal based on status
         let modalType: 'continue' | 'accept' | 'restart' = 'accept';
@@ -373,8 +390,8 @@ const OrderConfirmation = () => {
             <CustomButton
               size="small"
               appearance="outlined"
-              onClick={() => handleOpenConfirmModal(modalType, row.Order_Number, orderStatus)}
-              disabled={isInvoiceGenerated || !canAccessOrder}
+              onClick={() => handleOpenConfirmModal(modalType, row.Order_Number, isConfirmed ? 'confirmed' : orderStatus)}
+              disabled={isInvoiceGenerated || (!isConfirmed && !canAccessOrder)}
               sx={{ 
                 mt: 0, 
                 height: 28, 
@@ -382,7 +399,10 @@ const OrderConfirmation = () => {
                 minWidth: 28,
                 p: 0,
                 '&:hover': {
-                  backgroundColor: 'action.hover',
+                  backgroundColor: isConfirmed ? 'action.hover' : 'action.hover',
+                },
+                '&.Mui-disabled': {
+                  opacity: isConfirmed ? 0.6 : 0.3,
                 }
               }}
               fullWidth={false}
@@ -396,6 +416,11 @@ const OrderConfirmation = () => {
             {isInvoiceGenerated && (
               <Typography fontSize={10} fontWeight={400} color="text.secondary">
                 Invoice Generated
+              </Typography>
+            )}
+            {isConfirmed && (
+              <Typography fontSize={10} fontWeight={400} color="success.main">
+                Confirmed
               </Typography>
             )}
           </Box>
@@ -647,6 +672,22 @@ const OrderConfirmation = () => {
               disabled={acceptLoading || restartLoading || lockLoading}
             >
               OK
+            </CustomButton>
+          )}
+          
+          {/* Show only Close button for confirmed status */}
+          {pendingAction?.status === 'confirmed' && (
+            <CustomButton
+              onClick={() => {
+                setConfirmModalOpen(false);
+                setPendingAction(null);
+              }}
+              appearance="filled"
+              fullWidth={false}
+              sx={{ minWidth: 100 }}
+              size="small"
+            >
+              Close
             </CustomButton>
           )}
         </DialogActions>
