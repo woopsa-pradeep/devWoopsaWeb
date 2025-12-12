@@ -85,6 +85,7 @@ interface OverrideRequest {
   rejectionReason?: string | null;
   createdAt: string;
   updatedAt: string;
+  qty?: number;
 }
 
 interface OrderItem {
@@ -168,6 +169,22 @@ const EpickReportsTab: React.FC = () => {
   const [startDate, setStartDate] = useState<Dayjs | null>(null);
   const [endDate, setEndDate] = useState<Dayjs | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Summary report modal states
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [summaryUserId, setSummaryUserId] = useState<number | ''>('');
+  const [summaryDateFilter, setSummaryDateFilter] = useState<string>('none');
+  const [summaryStartDate, setSummaryStartDate] = useState<Dayjs | null>(null);
+  const [summaryEndDate, setSummaryEndDate] = useState<Dayjs | null>(null);
+  const [downloadingSummary, setDownloadingSummary] = useState(false);
+
+  // Request report modal states
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [requestUserId, setRequestUserId] = useState<number | ''>('');
+  const [requestDateFilter, setRequestDateFilter] = useState<string>('none');
+  const [requestStartDate, setRequestStartDate] = useState<Dayjs | null>(null);
+  const [requestEndDate, setRequestEndDate] = useState<Dayjs | null>(null);
+  const [downloadingRequest, setDownloadingRequest] = useState(false);
 
   // Fetch epick users for filter dropdown
   const fetchEpickUsers = async () => {
@@ -406,9 +423,10 @@ const EpickReportsTab: React.FC = () => {
       doc.line(margin, yPosition, pageWidth - margin, yPosition);
       yPosition += 8;
 
-      // Order Header Section: Left (Order Info) and Right (Picker & Customer)
+      // Order Header Section: Three-column layout (Left: Order Info, Center: Picking Time, Right: Picker & Customer)
       const orderLeftY = yPosition;
       const orderRightY = yPosition;
+      const centerX = pageWidth / 2;
 
       // Left side: Order details
       doc.setFontSize(12);
@@ -420,19 +438,25 @@ const EpickReportsTab: React.FC = () => {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       const orderLeftInfo = [
-        `totalQtyOrdered: ${order.totalQty || 0}`,
-        `scannedQty: ${order.scannedQty || 0}`,
+        `Total Qty Ordered: ${order.totalQty || 0}`,
+        `Scanned Qty: ${order.scannedQty || 0}`,
         `Total Lines: ${order.totalLines || 0}`,
         `Scanned Lines: ${order.scannedLines || 0}`,
         `Out of Stock Items: ${order.OutOfStockItem || 0}`,
         `Override Requests: ${order.overrideRequestCount || 0}`,
-        `Picking Time: ${order.pickingTimeFormatted || 'N/A'}`,
       ];
 
       orderLeftInfo.forEach((text) => {
         doc.text(text, margin, leftY);
         leftY += 4;
       });
+
+      // Center: Picking Time (only time value, centered)
+      const pickingTime = order.pickingTimeFormatted || 'N/A';
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(60, 60, 60);
+      doc.text(pickingTime, centerX, orderLeftY + 8, { align: 'center' });
 
       // Right side: Picker and Customer details
       const pickerName = order.picker 
@@ -478,7 +502,7 @@ const EpickReportsTab: React.FC = () => {
 
       // Order Items Table
       if (order.orderItems && Array.isArray(order.orderItems) && order.orderItems.length > 0) {
-        const orderItemsHeaders = ['Line #', 'Item #', 'Description', 'Qty Ordered', 'Qty Shipped', 'Pack', 'Case'];
+        const orderItemsHeaders = ['Line #', 'Item #', 'Description', 'Qty Ordered', 'Qty Shipped'];
         const orderItemsData: any[][] = [];
 
         order.orderItems.forEach((item: any) => {
@@ -487,8 +511,6 @@ const EpickReportsTab: React.FC = () => {
           const description = item.inventory?.Description || item.itemDescription || item.ItemDescription || '';
           const qtyOrdered = item.Quantity_Ordered || item.quantityOrdered || 0;
           const qtyShipped = item.Quantity_Shipped || item.quantityShipped || 0;
-          const pack = item.Pack || item.pack || 0;
-          const caseCount = item.CaseCount || item.caseCount || 0;
 
           orderItemsData.push([
             lineNumber.toString(),
@@ -496,8 +518,6 @@ const EpickReportsTab: React.FC = () => {
             description,
             qtyOrdered.toString(),
             qtyShipped.toString(),
-            pack.toString(),
-            caseCount.toString(),
           ]);
 
           // Group by sales category
@@ -522,7 +542,7 @@ const EpickReportsTab: React.FC = () => {
           body: orderItemsData,
           startY: yPosition,
           margin: { left: margin, right: margin },
-          tableWidth: 'wrap',
+          tableWidth: tableWidth,
           styles: { 
             fontSize: 8, 
             cellPadding: 2, 
@@ -541,11 +561,9 @@ const EpickReportsTab: React.FC = () => {
           columnStyles: {
             0: { cellWidth: tableWidth * 0.08, halign: 'center' }, // Line #
             1: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Item #
-            2: { cellWidth: tableWidth * 0.35, halign: 'left' }, // Description
+            2: { cellWidth: tableWidth * 0.55, halign: 'left' }, // Description
             3: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Ordered
             4: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Shipped
-            5: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Pack
-            6: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Case
           },
           didDrawPage: (data: any) => {
             addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
@@ -562,17 +580,19 @@ const EpickReportsTab: React.FC = () => {
           yPosition = margin;
         }
 
-        const overrideHeaders = ['Item #', 'Status', 'Note', 'Rejection Reason'];
+        const overrideHeaders = ['Item #', 'Qty', 'Status', 'Note', 'Rejection Reason'];
         const overrideData: any[][] = [];
 
         order.overrideRequests.forEach((override: any) => {
           const itemNumber = override.itemNumber || '';
+          const qty = override.qty || 0;
           const status = override.status || 'N/A';
           const note = override.note || 'N/A';
           const rejectionReason = override.rejectionReason || '';
 
           overrideData.push([
             itemNumber.toString(),
+            qty.toString(),
             status.toUpperCase(),
             note,
             rejectionReason || '-',
@@ -586,7 +606,7 @@ const EpickReportsTab: React.FC = () => {
           body: overrideData,
           startY: yPosition,
           margin: { left: margin, right: margin },
-          tableWidth: 'wrap',
+          tableWidth: tableWidth,
           styles: { 
             fontSize: 8, 
             cellPadding: 2, 
@@ -604,9 +624,10 @@ const EpickReportsTab: React.FC = () => {
           alternateRowStyles: { fillColor: [250, 250, 250] },
           columnStyles: {
             0: { cellWidth: tableWidth * 0.15, halign: 'center' }, // Item #
-            1: { cellWidth: tableWidth * 0.15, halign: 'center' }, // Status
-            2: { cellWidth: tableWidth * 0.35, halign: 'left' }, // Note
-            3: { cellWidth: tableWidth * 0.35, halign: 'left' }, // Rejection Reason
+            1: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Qty
+            2: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Status
+            3: { cellWidth: tableWidth * 0.30, halign: 'left' }, // Note
+            4: { cellWidth: tableWidth * 0.33, halign: 'left' }, // Rejection Reason
           },
           didDrawPage: (data: any) => {
             addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
@@ -621,6 +642,12 @@ const EpickReportsTab: React.FC = () => {
         doc.addPage();
         yPosition = margin;
       }
+
+      // Dark divider before Sales Category Summary
+      doc.setDrawColor(80, 80, 80);
+      doc.setLineWidth(1);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 8;
 
       const sortedCategories = Object.keys(categoryGroups).sort();
       const categorySummaryData: any[][] = [];
@@ -657,7 +684,7 @@ const EpickReportsTab: React.FC = () => {
           body: categorySummaryData,
           startY: yPosition,
           margin: { left: margin, right: margin },
-          tableWidth: 'wrap',
+          tableWidth: tableWidth,
           styles: { 
             fontSize: 9, 
             cellPadding: 2.5, 
@@ -1079,9 +1106,10 @@ const EpickReportsTab: React.FC = () => {
           yPosition = margin;
         }
 
-        // Order Header Section: Left (Order Info) and Right (Picker & Customer)
+        // Order Header Section: Three-column layout (Left: Order Info, Center: Picking Time, Right: Picker & Customer)
         const orderLeftY = yPosition;
         const orderRightY = yPosition;
+        const centerX = pageWidth / 2;
 
         // Left side: Order details
         doc.setFontSize(12);
@@ -1093,19 +1121,25 @@ const EpickReportsTab: React.FC = () => {
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
         const orderLeftInfo = [
-            `totalQtyOrdered: ${order.totalQty || 0}`,
-            `scannedQty: ${order.scannedQty || 0}`,
-            `Total Lines: ${order.totalLines || 0}`,
+          `Total Qty Ordered: ${order.totalQty || 0}`,
+          `Scanned Qty: ${order.scannedQty || 0}`,
+          `Total Lines: ${order.totalLines || 0}`,
           `Scanned Lines: ${order.scannedLines || 0}`,
           `Out of Stock Items: ${order.OutOfStockItem || 0}`,
           `Override Requests: ${order.overrideRequestCount || 0}`,
-          `Picking Time: ${order.pickingTimeFormatted || 'N/A'}`,
         ];
 
         orderLeftInfo.forEach((text) => {
           doc.text(text, margin, leftY);
           leftY += 4;
         });
+
+        // Center: Picking Time (only time value, centered)
+        const pickingTime = order.pickingTimeFormatted || 'N/A';
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(60, 60, 60);
+        doc.text(pickingTime, centerX, orderLeftY + 8, { align: 'center' });
 
         // Right side: Picker and Customer details
         const pickerName = order.picker 
@@ -1149,7 +1183,7 @@ const EpickReportsTab: React.FC = () => {
 
         // Order Items Table
         if (order.orderItems && Array.isArray(order.orderItems) && order.orderItems.length > 0) {
-          const orderItemsHeaders = ['Line #', 'Item #', 'Description', 'Qty Ordered', 'Qty Shipped', 'Pack', 'Case'];
+          const orderItemsHeaders = ['Line #', 'Item #', 'Description', 'Qty Ordered', 'Qty Shipped'];
           const orderItemsData: any[][] = [];
 
           order.orderItems.forEach((item: any) => {
@@ -1158,8 +1192,6 @@ const EpickReportsTab: React.FC = () => {
             const description = item.inventory?.Description || item.itemDescription || item.ItemDescription || '';
             const qtyOrdered = item.Quantity_Ordered || item.quantityOrdered || 0;
             const qtyShipped = item.Quantity_Shipped || item.quantityShipped || 0;
-            const pack = item.Pack || item.pack || 0;
-            const caseCount = item.CaseCount || item.caseCount || 0;
 
             orderItemsData.push([
               lineNumber.toString(),
@@ -1167,8 +1199,6 @@ const EpickReportsTab: React.FC = () => {
               description,
               qtyOrdered.toString(),
               qtyShipped.toString(),
-              pack.toString(),
-              caseCount.toString(),
             ]);
 
             // Collect for category summary
@@ -1196,7 +1226,7 @@ const EpickReportsTab: React.FC = () => {
             body: orderItemsData,
             startY: yPosition,
             margin: { left: margin, right: margin },
-            tableWidth: 'wrap',
+            tableWidth: tableWidth,
             styles: { 
               fontSize: 8, 
               cellPadding: 2, 
@@ -1215,11 +1245,9 @@ const EpickReportsTab: React.FC = () => {
             columnStyles: {
               0: { cellWidth: tableWidth * 0.08, halign: 'center' }, // Line #
               1: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Item #
-              2: { cellWidth: tableWidth * 0.35, halign: 'left' }, // Description
+              2: { cellWidth: tableWidth * 0.55, halign: 'left' }, // Description
               3: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Ordered
               4: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Shipped
-              5: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Pack
-              6: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Case
             },
             didDrawPage: (data: any) => {
               addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
@@ -1237,17 +1265,19 @@ const EpickReportsTab: React.FC = () => {
             yPosition = margin;
           }
 
-          const overrideHeaders = ['Item #', 'Status', 'Note', 'Rejection Reason'];
+          const overrideHeaders = ['Item #', 'Qty', 'Status', 'Note', 'Rejection Reason'];
           const overrideData: any[][] = [];
 
           order.overrideRequests.forEach((override: any) => {
             const itemNumber = override.itemNumber || '';
+            const qty = override.qty || 0;
             const status = override.status || 'N/A';
             const note = override.note || 'N/A';
             const rejectionReason = override.rejectionReason || '';
 
             overrideData.push([
               itemNumber.toString(),
+              qty.toString(),
               status.toUpperCase(),
               note,
               rejectionReason || '-',
@@ -1262,7 +1292,7 @@ const EpickReportsTab: React.FC = () => {
             body: overrideData,
             startY: yPosition,
             margin: { left: margin, right: margin },
-            tableWidth: 'wrap',
+            tableWidth: tableWidth,
             styles: { 
               fontSize: 8, 
               cellPadding: 2, 
@@ -1280,9 +1310,10 @@ const EpickReportsTab: React.FC = () => {
             alternateRowStyles: { fillColor: [250, 250, 250] },
             columnStyles: {
               0: { cellWidth: tableWidth * 0.15, halign: 'center' }, // Item #
-              1: { cellWidth: tableWidth * 0.15, halign: 'center' }, // Status
-              2: { cellWidth: tableWidth * 0.35, halign: 'left' }, // Note
-              3: { cellWidth: tableWidth * 0.35, halign: 'left' }, // Rejection Reason
+              1: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Qty
+              2: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Status
+              3: { cellWidth: tableWidth * 0.30, halign: 'left' }, // Note
+              4: { cellWidth: tableWidth * 0.33, halign: 'left' }, // Rejection Reason
             },
             didDrawPage: (data: any) => {
               addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
@@ -1292,7 +1323,7 @@ const EpickReportsTab: React.FC = () => {
           yPosition = (doc as any).lastAutoTable.finalY + 10;
         }
 
-        // Divider between orders
+        // Divider between orders (light gray for order separators)
         if (yPosition < pageHeight - 20) {
           doc.setDrawColor(220, 220, 220);
           doc.setLineWidth(0.5);
@@ -1300,6 +1331,16 @@ const EpickReportsTab: React.FC = () => {
           yPosition += 8;
         }
       });
+
+      // Dark divider before Sales Category Summary (after last order)
+      if (yPosition > pageHeight - 40) {
+        doc.addPage();
+        yPosition = margin;
+      }
+      doc.setDrawColor(80, 80, 80);
+      doc.setLineWidth(1);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 8;
 
       // Sales Category Summary (aggregated from all orders)
       if (yPosition > pageHeight - 40) {
@@ -1344,7 +1385,7 @@ const EpickReportsTab: React.FC = () => {
           body: categorySummaryData,
           startY: yPosition,
           margin: { left: margin, right: margin },
-          tableWidth: 'wrap',
+          tableWidth: tableWidth,
           styles: { 
             fontSize: 9, 
             cellPadding: 2.5, 
@@ -1380,8 +1421,9 @@ const EpickReportsTab: React.FC = () => {
         yPosition = margin;
       }
 
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.5);
+      // Dark divider above Final Summary
+      doc.setDrawColor(80, 80, 80);
+      doc.setLineWidth(1);
       doc.line(margin, yPosition - 2, pageWidth - margin, yPosition - 2);
       yPosition += 3;
       
@@ -1438,6 +1480,591 @@ const EpickReportsTab: React.FC = () => {
       showErrorToast('Failed to download report');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  // Handle Summary Report - Generate PDF with orderwise summary table
+  const handleDownloadSummaryReport = async () => {
+    setDownloadingSummary(true);
+    try {
+      const params: {
+        userId?: number;
+        fromDate?: string;
+        toDate?: string;
+        page?: number;
+        limit?: number;
+      } = {};
+
+      if (summaryUserId) {
+        params.userId = summaryUserId;
+      }
+
+      if (summaryDateFilter !== 'none' && summaryStartDate && summaryEndDate) {
+        params.fromDate = summaryStartDate.format('YYYY-MM-DD');
+        params.toDate = summaryEndDate.format('YYYY-MM-DD');
+      }
+
+      params.limit = 10000;
+      params.page = 1;
+
+      const response: any = await getUserReportWithDateRange(params);
+      
+      if (!response?.data?.data || !Array.isArray(response.data.data) || response.data.data.length === 0) {
+        showErrorToast('No data available to download');
+        return;
+      }
+
+      const reportData = response.data.data;
+      const distributor = response.data.distributor || {};
+      const logoUrl = response.data.logo;
+
+      // Load logos
+      const [distributorLogoDataUrl, rabbitLogoDataUrl] = await Promise.all([
+        logoUrl ? loadLogoAsDataUrl(logoUrl) : Promise.resolve(null),
+        loadLogoAsDataUrl(),
+      ]);
+
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 10;
+      let yPosition = margin;
+
+      const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
+
+      // Header Section
+      let distributorY = margin;
+      let logoY = margin;
+
+      if (distributorLogoDataUrl && distributorLogoDataUrl.startsWith('data:')) {
+        try {
+          const logoWidth = 30;
+          const logoHeight = 10;
+          const formatMatch = distributorLogoDataUrl.match(/data:image\/(\w+);/);
+          const format = formatMatch ? formatMatch[1].toUpperCase() : 'PNG';
+          try {
+            doc.addImage(distributorLogoDataUrl, format, margin, logoY, logoWidth, logoHeight);
+            logoY += logoHeight + 2;
+          } catch {
+            logoY = margin;
+          }
+        } catch {
+          logoY = margin;
+        }
+      }
+
+      const distributorX = pageWidth - margin;
+      doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+      
+      if (distributor.D_Name) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(distributor.D_Name, distributorX, distributorY, { align: 'right' });
+        distributorY += 5;
+      }
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      if (distributor.D_Addr1) {
+        doc.text(distributor.D_Addr1, distributorX, distributorY, { align: 'right' });
+        distributorY += 4;
+      }
+      if (distributor.D_Addr2) {
+        doc.text(distributor.D_Addr2, distributorX, distributorY, { align: 'right' });
+        distributorY += 4;
+      }
+      const cityStateZip = `${distributor.D_City || ''}${distributor.D_State ? `, ${distributor.D_State}` : ''} ${distributor.D_Zip || ''}`.trim();
+      if (cityStateZip) {
+        doc.text(cityStateZip, distributorX, distributorY, { align: 'right' });
+        distributorY += 4;
+      }
+      
+      if (distributor.D_Phone) {
+        const phoneText = distributor.D_Phone;
+        const textWidth = doc.getTextWidth(phoneText);
+        doc.setTextColor(0, 102, 204);
+        doc.text(phoneText, distributorX, distributorY, { align: 'right' });
+        doc.link(distributorX - textWidth, distributorY - 3, textWidth, 4, { url: `tel:${distributor.D_Phone}` });
+        doc.setTextColor(60, 60, 60);
+        distributorY += 4;
+      }
+      
+      if (distributor.D_Email) {
+        const emailText = distributor.D_Email;
+        const textWidth = doc.getTextWidth(emailText);
+        doc.setTextColor(0, 102, 204);
+        doc.text(emailText, distributorX, distributorY, { align: 'right' });
+        doc.link(distributorX - textWidth, distributorY - 3, textWidth, 4, { url: `mailto:${distributor.D_Email}` });
+        doc.setTextColor(60, 60, 60);
+        distributorY += 4;
+      }
+
+      yPosition = Math.max(logoY, distributorY) + 8;
+
+      // Divider
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 8;
+
+      // Title
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(60, 60, 60);
+      doc.text('Summary Report', margin, yPosition);
+      yPosition += 10;
+
+      // Prepare summary table data
+      const summaryHeaders = ['Order #', 'Picker', 'Customer', 'Time', 'Override Requests', 'Total Items', 'Total Qty', 'Scanned Qty'];
+      const summaryData: any[][] = [];
+
+      reportData.forEach((order: any) => {
+        const pickerName = order.picker 
+          ? `${order.picker.firstName || ''} ${order.picker.lastName || ''}`.trim() || order.picker.email || 'N/A'
+          : 'N/A';
+        const customerName = order.customer?.C_Name || order.customer?.customerName || 'N/A';
+        const pickingTime = order.pickingTimeFormatted || 'N/A';
+        const totalOverrideRequests = order.overrideRequestCount || 0;
+        
+        // Calculate from orderItems array
+        const orderItems = order.orderItems || [];
+        const totalItems = orderItems.length;
+        const totalQty = orderItems.reduce((sum: number, item: any) => {
+          return sum + Number(item.Quantity_Ordered || item.quantityOrdered || 0);
+        }, 0);
+        const scannedQty = orderItems.reduce((sum: number, item: any) => {
+          return sum + Number(item.Quantity_Shipped || item.quantityShipped || 0);
+        }, 0);
+
+        summaryData.push([
+          order.orderNumber?.toString() || 'N/A',
+          pickerName,
+          customerName,
+          pickingTime,
+          totalOverrideRequests.toString(),
+          totalItems.toString(),
+          totalQty.toString(),
+          scannedQty.toString(),
+        ]);
+      });
+
+      const tableWidth = pageWidth - (margin * 2);
+
+      autoTableFn(doc, {
+        head: [summaryHeaders],
+        body: summaryData,
+        startY: yPosition,
+        margin: { left: margin, right: margin },
+        tableWidth: tableWidth,
+        styles: { 
+          fontSize: 8, 
+          cellPadding: 2, 
+          lineWidth: 0.1,
+          lineColor: [220, 220, 220],
+          textColor: [50, 50, 50]
+        },
+        headStyles: { 
+          fillColor: [60, 60, 60], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold', 
+          lineWidth: 0.1,
+          fontSize: 8
+        },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        columnStyles: {
+          0: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Order #
+          1: { cellWidth: tableWidth * 0.15, halign: 'left' }, // Picker
+          2: { cellWidth: tableWidth * 0.20, halign: 'left' }, // Customer
+          3: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Time
+          4: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Total Override Requests
+          5: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Total Items
+          6: { cellWidth: tableWidth * 0.11, halign: 'center' }, // Total Qty
+          7: { cellWidth: tableWidth * 0.11, halign: 'center' }, // Scanned Qty
+        },
+        didDrawPage: (data: any) => {
+          addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
+        },
+      });
+
+      // Add footer to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        addFooterToPage(doc, rabbitLogoDataUrl || undefined, i, totalPages);
+      }
+
+      // Save PDF
+      const fileName = `Epick-Summary-Report-${summaryUserId || 'all'}-${summaryDateFilter}-${moment().format('YYYY-MM-DD')}.pdf`;
+      doc.save(fileName);
+      
+      showSuccessToast('Summary report downloaded successfully');
+      setSummaryModalOpen(false);
+      setSummaryUserId('');
+      setSummaryDateFilter('none');
+      setSummaryStartDate(null);
+      setSummaryEndDate(null);
+    } catch (error) {
+      console.error('Failed to download summary report:', error);
+      showErrorToast('Failed to download summary report');
+    } finally {
+      setDownloadingSummary(false);
+    }
+  };
+
+  // Handle Request Report - Generate PDF with note-wise grouped override requests
+  const handleDownloadRequestReport = async () => {
+    setDownloadingRequest(true);
+    try {
+      const params: {
+        userId?: number;
+        fromDate?: string;
+        toDate?: string;
+        page?: number;
+        limit?: number;
+      } = {};
+
+      if (requestUserId) {
+        params.userId = requestUserId;
+      }
+
+      if (requestDateFilter !== 'none' && requestStartDate && requestEndDate) {
+        params.fromDate = requestStartDate.format('YYYY-MM-DD');
+        params.toDate = requestEndDate.format('YYYY-MM-DD');
+      }
+
+      params.limit = 10000;
+      params.page = 1;
+
+      const response: any = await getUserReportWithDateRange(params);
+      
+      if (!response?.data?.data || !Array.isArray(response.data.data) || response.data.data.length === 0) {
+        showErrorToast('No data available to download');
+        return;
+      }
+
+      const reportData = response.data.data;
+      const distributor = response.data.distributor || {};
+      const logoUrl = response.data.logo;
+
+      // Load logos
+      const [distributorLogoDataUrl, rabbitLogoDataUrl] = await Promise.all([
+        logoUrl ? loadLogoAsDataUrl(logoUrl) : Promise.resolve(null),
+        loadLogoAsDataUrl(),
+      ]);
+
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      let yPosition = margin;
+
+      const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
+
+      // Header Section
+      let distributorY = margin;
+      let logoY = margin;
+
+      if (distributorLogoDataUrl && distributorLogoDataUrl.startsWith('data:')) {
+        try {
+          const logoWidth = 30;
+          const logoHeight = 10;
+          const formatMatch = distributorLogoDataUrl.match(/data:image\/(\w+);/);
+          const format = formatMatch ? formatMatch[1].toUpperCase() : 'PNG';
+          try {
+            doc.addImage(distributorLogoDataUrl, format, margin, logoY, logoWidth, logoHeight);
+            logoY += logoHeight + 2;
+          } catch {
+            logoY = margin;
+          }
+        } catch {
+          logoY = margin;
+        }
+      }
+
+      const distributorX = pageWidth - margin;
+      doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+      
+      if (distributor.D_Name) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(distributor.D_Name, distributorX, distributorY, { align: 'right' });
+        distributorY += 5;
+      }
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      if (distributor.D_Addr1) {
+        doc.text(distributor.D_Addr1, distributorX, distributorY, { align: 'right' });
+        distributorY += 4;
+      }
+      if (distributor.D_Addr2) {
+        doc.text(distributor.D_Addr2, distributorX, distributorY, { align: 'right' });
+        distributorY += 4;
+      }
+      const cityStateZip = `${distributor.D_City || ''}${distributor.D_State ? `, ${distributor.D_State}` : ''} ${distributor.D_Zip || ''}`.trim();
+      if (cityStateZip) {
+        doc.text(cityStateZip, distributorX, distributorY, { align: 'right' });
+        distributorY += 4;
+      }
+      
+      if (distributor.D_Phone) {
+        const phoneText = distributor.D_Phone;
+        const textWidth = doc.getTextWidth(phoneText);
+        doc.setTextColor(0, 102, 204);
+        doc.text(phoneText, distributorX, distributorY, { align: 'right' });
+        doc.link(distributorX - textWidth, distributorY - 3, textWidth, 4, { url: `tel:${distributor.D_Phone}` });
+        doc.setTextColor(60, 60, 60);
+        distributorY += 4;
+      }
+      
+      if (distributor.D_Email) {
+        const emailText = distributor.D_Email;
+        const textWidth = doc.getTextWidth(emailText);
+        doc.setTextColor(0, 102, 204);
+        doc.text(emailText, distributorX, distributorY, { align: 'right' });
+        doc.link(distributorX - textWidth, distributorY - 3, textWidth, 4, { url: `mailto:${distributor.D_Email}` });
+        doc.setTextColor(60, 60, 60);
+        distributorY += 4;
+      }
+
+      yPosition = Math.max(logoY, distributorY) + 8;
+
+      // Divider
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 8;
+
+      // Title
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(60, 60, 60);
+      doc.text('Request Report', margin, yPosition);
+      yPosition += 10;
+
+      // Collect all override requests and group by note
+      const noteGroups: { [key: string]: any[] } = {};
+      // Create a map of itemNumber to description from all order items
+      const itemDescriptionMap: { [key: number]: string } = {};
+
+      reportData.forEach((order: any) => {
+        // Build item description map from order items
+        if (order.orderItems && Array.isArray(order.orderItems)) {
+          order.orderItems.forEach((item: any) => {
+            const itemNum = item.Item_Number || item.itemNumber;
+            if (itemNum && !itemDescriptionMap[itemNum]) {
+              const desc = item.inventory?.Description || item.itemDescription || item.ItemDescription || 'N/A';
+              itemDescriptionMap[itemNum] = desc;
+            }
+          });
+        }
+
+        if (order.overrideRequests && Array.isArray(order.overrideRequests)) {
+          order.overrideRequests.forEach((request: any) => {
+            // Only process approved requests
+            if (request.status === 'approved') {
+              const note = request.note || 'No Note';
+              if (!noteGroups[note]) {
+                noteGroups[note] = [];
+              }
+              noteGroups[note].push(request);
+            }
+          });
+        }
+      });
+
+      // Process each note group
+      const sortedNotes = Object.keys(noteGroups).sort();
+      
+      sortedNotes.forEach((note, noteIndex) => {
+        // Check if we need a new page
+        if (yPosition > pageHeight - 50) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        // Note header
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(60, 60, 60);
+        doc.text(note, margin, yPosition);
+        yPosition += 8;
+
+        // Group by itemNumber within this note
+        const itemGroups: { [key: string]: { itemNumber: number; description: string; totalQty: number } } = {};
+
+        noteGroups[note].forEach((request: any) => {
+          const itemNumber = request.itemNumber || '';
+          // Try to get description from request first, then from map, then 'N/A'
+          const description = request.itemDescription || itemDescriptionMap[itemNumber] || 'N/A';
+          const qty = request.qty || 0;
+
+          if (!itemGroups[itemNumber]) {
+            itemGroups[itemNumber] = {
+              itemNumber: itemNumber,
+              description: description,
+              totalQty: 0,
+            };
+          }
+          itemGroups[itemNumber].totalQty += qty;
+        });
+
+        // Create table data for this note
+        const requestHeaders = ['Item Number', 'Description', 'Total Qty'];
+        const requestData: any[][] = [];
+
+        const sortedItems = Object.keys(itemGroups).sort((a, b) => Number(a) - Number(b));
+        sortedItems.forEach((itemKey) => {
+          const item = itemGroups[itemKey];
+          requestData.push([
+            item.itemNumber.toString(),
+            item.description,
+            item.totalQty.toString(),
+          ]);
+        });
+
+        if (requestData.length > 0) {
+          const tableWidth = pageWidth - (margin * 2);
+
+          autoTableFn(doc, {
+            head: [requestHeaders],
+            body: requestData,
+            startY: yPosition,
+            margin: { left: margin, right: margin },
+            tableWidth: tableWidth,
+            styles: { 
+              fontSize: 8, 
+              cellPadding: 2, 
+              lineWidth: 0.1,
+              lineColor: [220, 220, 220],
+              textColor: [50, 50, 50]
+            },
+            headStyles: { 
+              fillColor: [60, 60, 60], 
+              textColor: [255, 255, 255], 
+              fontStyle: 'bold', 
+              lineWidth: 0.1,
+              fontSize: 8
+            },
+            alternateRowStyles: { fillColor: [250, 250, 250] },
+            columnStyles: {
+              0: { cellWidth: tableWidth * 0.20, halign: 'center' }, // Item Number
+              1: { cellWidth: tableWidth * 0.60, halign: 'left' }, // Description
+              2: { cellWidth: tableWidth * 0.20, halign: 'center' }, // Total Qty
+            },
+            didDrawPage: (data: any) => {
+              addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
+            },
+          });
+
+          yPosition = (doc as any).lastAutoTable.finalY + 10;
+
+          // Add divider between note sections (except for last one)
+          if (noteIndex < sortedNotes.length - 1) {
+            if (yPosition > pageHeight - 20) {
+              doc.addPage();
+              yPosition = margin;
+            } else {
+              doc.setDrawColor(220, 220, 220);
+              doc.setLineWidth(0.5);
+              doc.line(margin, yPosition, pageWidth - margin, yPosition);
+              yPosition += 8;
+            }
+          }
+        }
+      });
+
+      // Add footer to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        addFooterToPage(doc, rabbitLogoDataUrl || undefined, i, totalPages);
+      }
+
+      // Save PDF
+      const fileName = `Epick-Request-Report-${requestUserId || 'all'}-${requestDateFilter}-${moment().format('YYYY-MM-DD')}.pdf`;
+      doc.save(fileName);
+      
+      showSuccessToast('Request report downloaded successfully');
+      setRequestModalOpen(false);
+      setRequestUserId('');
+      setRequestDateFilter('none');
+      setRequestStartDate(null);
+      setRequestEndDate(null);
+    } catch (error) {
+      console.error('Failed to download request report:', error);
+      showErrorToast('Failed to download request report');
+    } finally {
+      setDownloadingRequest(false);
+    }
+  };
+
+  // Handle date filter change for summary report
+  const handleSummaryDateFilterChange = (value: string) => {
+    setSummaryDateFilter(value);
+    const today = dayjs();
+    
+    switch (value) {
+      case 'today':
+        setSummaryStartDate(today);
+        setSummaryEndDate(today);
+        break;
+      case 'yesterday':
+        const yesterday = today.subtract(1, 'day');
+        setSummaryStartDate(yesterday);
+        setSummaryEndDate(yesterday);
+        break;
+      case 'lastWeek':
+        const weekAgo = today.subtract(7, 'day');
+        setSummaryStartDate(weekAgo);
+        setSummaryEndDate(today);
+        break;
+      case 'lastMonth':
+        const monthAgo = today.subtract(1, 'month');
+        setSummaryStartDate(monthAgo);
+        setSummaryEndDate(today);
+        break;
+      case 'customize':
+        break;
+      default:
+        setSummaryStartDate(null);
+        setSummaryEndDate(null);
+        break;
+    }
+  };
+
+  // Handle date filter change for request report
+  const handleRequestDateFilterChange = (value: string) => {
+    setRequestDateFilter(value);
+    const today = dayjs();
+    
+    switch (value) {
+      case 'today':
+        setRequestStartDate(today);
+        setRequestEndDate(today);
+        break;
+      case 'yesterday':
+        const yesterday = today.subtract(1, 'day');
+        setRequestStartDate(yesterday);
+        setRequestEndDate(yesterday);
+        break;
+      case 'lastWeek':
+        const weekAgo = today.subtract(7, 'day');
+        setRequestStartDate(weekAgo);
+        setRequestEndDate(today);
+        break;
+      case 'lastMonth':
+        const monthAgo = today.subtract(1, 'month');
+        setRequestStartDate(monthAgo);
+        setRequestEndDate(today);
+        break;
+      case 'customize':
+        break;
+      default:
+        setRequestStartDate(null);
+        setRequestEndDate(null);
+        break;
     }
   };
 
@@ -1888,6 +2515,17 @@ const EpickReportsTab: React.FC = () => {
       ),
     },
     {
+      id: 'qty',
+      label: 'Qty',
+      minWidth: 80,
+      align: 'center',
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {row.qty || 0}
+        </Typography>
+      ),
+    },
+    {
       id: 'status',
       label: 'Status',
       minWidth: 120,
@@ -1934,17 +2572,41 @@ const EpickReportsTab: React.FC = () => {
             ))}
           </Select>
         </FormControl>
-        <CustomButton
-          appearance="filled"
-          buttonType="primary"
-          onClick={() => setDownloadModalOpen(true)}
-          icon={<DownloadIcon />}
-          iconPosition="left"
-          sx={{ minWidth: 150, mt: 0 }}
-          fullWidth={false}
-        >
-          Report
-        </CustomButton>
+        <Box sx={{ display: 'flex', gap: 2, flexDirection: { md: 'column', lg: 'row' }, justifyContent: { md: 'center', lg: 'flex-end' }, alignItems: { md: 'center', lg: 'flex-start' }, mr: { md: 0, lg: 2 } }}>
+          <CustomButton
+            appearance="filled"
+            buttonType="primary"
+            onClick={() => setDownloadModalOpen(true)}
+            icon={<DownloadIcon />}
+            iconPosition="left"
+            sx={{ minWidth: 150, mt: 0 }}
+            fullWidth={false}
+          >
+            Report
+          </CustomButton>
+          <CustomButton
+            appearance="filled"
+            buttonType="primary"
+            onClick={() => setSummaryModalOpen(true)}
+            icon={<DownloadIcon />}
+            iconPosition="left"
+            sx={{ minWidth: 150, mt: 0 }}
+            fullWidth={false}
+          >
+            Summary Report
+          </CustomButton>
+          <CustomButton
+            appearance="filled"
+            buttonType="primary"
+            onClick={() => setRequestModalOpen(true)}
+            icon={<DownloadIcon />}
+            iconPosition="left"
+            sx={{ minWidth: 150, mt: 0 }}
+            fullWidth={false}
+          >
+            Request Report
+          </CustomButton>
+        </Box>
       </Box>
 
       {/* Table */}
@@ -2176,7 +2838,7 @@ const EpickReportsTab: React.FC = () => {
           setStartDate(null);
           setEndDate(null);
         }}
-        size="md"
+        size={dateFilter === 'customize' ? 'lg' : 'md'}
         title="Download Report"
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -2314,6 +2976,314 @@ const EpickReportsTab: React.FC = () => {
               sx={{ minWidth: 120, mt: 0 }}
               disabled={downloading || (dateFilter === 'customize' && (!startDate || !endDate))}
               loading={downloading}
+            >
+              Download
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
+
+      {/* Summary Report Modal */}
+      <CommonModal
+        open={summaryModalOpen}
+        onClose={() => {
+          setSummaryModalOpen(false);
+          setSummaryUserId('');
+          setSummaryDateFilter('none');
+          setSummaryStartDate(null);
+          setSummaryEndDate(null);
+        }}
+        size={summaryDateFilter === 'customize' ? 'lg' : 'md'}
+        title="Download Summary Report"
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* User Selection */}
+          <FormControl size="small" fullWidth>
+            <InputLabel id="summary-user-label">Select User</InputLabel>
+            <Select
+              labelId="summary-user-label"
+              id="summary-user"
+              value={summaryUserId}
+              label="Select User"
+              onChange={(e) => setSummaryUserId(e.target.value as number | '')}
+              sx={{
+                fontSize: '14px',
+              }}
+            >
+              <MenuItem value="">
+                <em>All Users</em>
+              </MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName} ({user.email})
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Date Filter Selection */}
+          <FormControl size="small" fullWidth>
+            <InputLabel id="summary-date-filter-label">Date Filter</InputLabel>
+            <Select
+              labelId="summary-date-filter-label"
+              id="summary-date-filter"
+              value={summaryDateFilter}
+              label="Date Filter"
+              onChange={(e) => handleSummaryDateFilterChange(e.target.value)}
+              sx={{
+                fontSize: '14px',
+              }}
+            >
+              <MenuItem value="none">None</MenuItem>
+              <MenuItem value="today">Today</MenuItem>
+              <MenuItem value="yesterday">Yesterday</MenuItem>
+              <MenuItem value="lastWeek">Last Week</MenuItem>
+              <MenuItem value="lastMonth">Last Month</MenuItem>
+              <MenuItem value="customize">Customize Date</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Custom Date Range */}
+          {summaryDateFilter === 'customize' && (
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ flex: 1 }}>
+                  <CustomDatePicker
+                    label="Start Date"
+                    value={summaryStartDate}
+                    onChange={(date) => {
+                      setSummaryStartDate(date);
+                      if (date && summaryEndDate && summaryEndDate.isBefore(date)) {
+                        setSummaryEndDate(date);
+                      }
+                    }}
+                    sx={{ mb: 0 }}
+                  />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Box sx={{ mb: 0 }}>
+                    <Typography
+                      fontSize={14}
+                      fontWeight={600}
+                      mb={"5px"}
+                      sx={{ opacity: "70%" }}
+                    >
+                      End Date
+                    </Typography>
+                    <DatePicker
+                      value={summaryEndDate}
+                      onChange={(date: Dayjs | null) => setSummaryEndDate(date)}
+                      minDate={summaryStartDate || undefined}
+                      slotProps={{
+                        textField: {
+                          label: "",
+                          fullWidth: true,
+                          size: "small",
+                          variant: "outlined",
+                          sx: {
+                            fontSize: "12px",
+                            "& .MuiOutlinedInput-root": {
+                              borderRadius: "4px",
+                              "& fieldset": {
+                                borderColor: "#ccc",
+                              },
+                              "&:hover fieldset": {
+                                borderColor: "#1976d2",
+                              },
+                              "&.Mui-focused fieldset": {
+                                borderColor: "#1976d2",
+                              },
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+            </LocalizationProvider>
+          )}
+
+          {/* Action Buttons */}
+          <Box display="flex" gap={2} justifyContent="flex-end" sx={{ mt: 2 }}>
+            <CustomButton
+              appearance="outlined"
+              buttonType="cancel"
+              onClick={() => {
+                setSummaryModalOpen(false);
+                setSummaryUserId('');
+                setSummaryDateFilter('none');
+                setSummaryStartDate(null);
+                setSummaryEndDate(null);
+              }}
+              fullWidth={false}
+              sx={{ minWidth: 100, mt: 0 }}
+              disabled={downloadingSummary}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              appearance="filled"
+              buttonType="primary"
+              onClick={handleDownloadSummaryReport}
+              fullWidth={false}
+              sx={{ minWidth: 120, mt: 0 }}
+              disabled={downloadingSummary || (summaryDateFilter === 'customize' && (!summaryStartDate || !summaryEndDate))}
+              loading={downloadingSummary}
+            >
+              Download
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
+
+      {/* Request Report Modal */}
+      <CommonModal
+        open={requestModalOpen}
+        onClose={() => {
+          setRequestModalOpen(false);
+          setRequestUserId('');
+          setRequestDateFilter('none');
+          setRequestStartDate(null);
+          setRequestEndDate(null);
+        }}
+        size={requestDateFilter === 'customize' ? 'lg' : 'md'}
+        title="Download Request Report"
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* User Selection */}
+          <FormControl size="small" fullWidth>
+            <InputLabel id="request-user-label">Select User</InputLabel>
+            <Select
+              labelId="request-user-label"
+              id="request-user"
+              value={requestUserId}
+              label="Select User"
+              onChange={(e) => setRequestUserId(e.target.value as number | '')}
+              sx={{
+                fontSize: '14px',
+              }}
+            >
+              <MenuItem value="">
+                <em>All Users</em>
+              </MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName} ({user.email})
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Date Filter Selection */}
+          <FormControl size="small" fullWidth>
+            <InputLabel id="request-date-filter-label">Date Filter</InputLabel>
+            <Select
+              labelId="request-date-filter-label"
+              id="request-date-filter"
+              value={requestDateFilter}
+              label="Date Filter"
+              onChange={(e) => handleRequestDateFilterChange(e.target.value)}
+              sx={{
+                fontSize: '14px',
+              }}
+            >
+              <MenuItem value="none">None</MenuItem>
+              <MenuItem value="today">Today</MenuItem>
+              <MenuItem value="yesterday">Yesterday</MenuItem>
+              <MenuItem value="lastWeek">Last Week</MenuItem>
+              <MenuItem value="lastMonth">Last Month</MenuItem>
+              <MenuItem value="customize">Customize Date</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Custom Date Range */}
+          {requestDateFilter === 'customize' && (
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ flex: 1 }}>
+                  <CustomDatePicker
+                    label="Start Date"
+                    value={requestStartDate}
+                    onChange={(date) => {
+                      setRequestStartDate(date);
+                      if (date && requestEndDate && requestEndDate.isBefore(date)) {
+                        setRequestEndDate(date);
+                      }
+                    }}
+                    sx={{ mb: 0 }}
+                  />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Box sx={{ mb: 0 }}>
+                    <Typography
+                      fontSize={14}
+                      fontWeight={600}
+                      mb={"5px"}
+                      sx={{ opacity: "70%" }}
+                    >
+                      End Date
+                    </Typography>
+                    <DatePicker
+                      value={requestEndDate}
+                      onChange={(date: Dayjs | null) => setRequestEndDate(date)}
+                      minDate={requestStartDate || undefined}
+                      slotProps={{
+                        textField: {
+                          label: "",
+                          fullWidth: true,
+                          size: "small",
+                          variant: "outlined",
+                          sx: {
+                            fontSize: "12px",
+                            "& .MuiOutlinedInput-root": {
+                              borderRadius: "4px",
+                              "& fieldset": {
+                                borderColor: "#ccc",
+                              },
+                              "&:hover fieldset": {
+                                borderColor: "#1976d2",
+                              },
+                              "&.Mui-focused fieldset": {
+                                borderColor: "#1976d2",
+                              },
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+            </LocalizationProvider>
+          )}
+
+          {/* Action Buttons */}
+          <Box display="flex" gap={2} justifyContent="flex-end" sx={{ mt: 2 }}>
+            <CustomButton
+              appearance="outlined"
+              buttonType="cancel"
+              onClick={() => {
+                setRequestModalOpen(false);
+                setRequestUserId('');
+                setRequestDateFilter('none');
+                setRequestStartDate(null);
+                setRequestEndDate(null);
+              }}
+              fullWidth={false}
+              sx={{ minWidth: 100, mt: 0 }}
+              disabled={downloadingRequest}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              appearance="filled"
+              buttonType="primary"
+              onClick={handleDownloadRequestReport}
+              fullWidth={false}
+              sx={{ minWidth: 120, mt: 0 }}
+              disabled={downloadingRequest || (requestDateFilter === 'customize' && (!requestStartDate || !requestEndDate))}
+              loading={downloadingRequest}
             >
               Download
             </CustomButton>

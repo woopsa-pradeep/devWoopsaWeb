@@ -8,6 +8,7 @@ import {
   Tab,
   Divider,
   Chip,
+  TextField,
 } from '@mui/material';
 import { Delete as DeleteIcon, Visibility as ViewIcon, Settings as OverrideIcon, ArrowBack as ArrowBackIcon, ThumbUp as ThumbUpIcon, Block as BlockIcon } from '@mui/icons-material';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
@@ -64,6 +65,7 @@ interface OverrideRequest {
   rejectionReason?: string | null;
   createdAt: string;
   updatedAt: string;
+  qty?: string | number;
 }
 
 interface CompleteOrder {
@@ -178,6 +180,7 @@ const OngoingOrdersTab: React.FC = () => {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [processingRequestId, setProcessingRequestId] = useState<number | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string>('');
   
   // Completed tab states
   const [completeOrders, setCompleteOrders] = useState<CompleteOrder[]>([]);
@@ -329,10 +332,11 @@ const OngoingOrdersTab: React.FC = () => {
     setProcessingRequestId(selectedRequestId);
     setRejectModalOpen(false);
     try {
-      await cancelOverrideRequest(selectedRequestId);
+      await cancelOverrideRequest(selectedRequestId, rejectionReason);
       showSuccessToast('Request rejected successfully!');
       // Refresh override requests (with loading since it's a user action)
       await fetchOverrideRequests(selectedOrderNumberForOverride, true, false);
+      setRejectionReason(''); // Reset rejection reason
     } catch (error) {
       console.error('Failed to reject request:', error);
       showErrorToast('Failed to reject request');
@@ -655,6 +659,28 @@ const OngoingOrdersTab: React.FC = () => {
       ),
     },
     {
+      id: 'qty',
+      label: 'Qty',
+      minWidth: 100,
+      align: 'center',
+      render: (row) => {
+        const qtyValue = row.qty;
+        if (qtyValue === undefined || qtyValue === null) {
+          return (
+            <Typography fontSize={14} fontWeight={400}>
+              N/A
+            </Typography>
+          );
+        }
+        const qtyNum = typeof qtyValue === 'string' ? Number(qtyValue) : qtyValue;
+        return (
+          <Typography fontSize={14} fontWeight={400}>
+            {qtyNum === 0 || qtyValue === "0" || qtyValue === 0 ? 'N/A' : String(qtyValue)}
+          </Typography>
+        );
+      },
+    },
+    {
       id: 'pickerUserNumber',
       label: 'Picker User #',
       minWidth: 120,
@@ -823,6 +849,28 @@ const OngoingOrdersTab: React.FC = () => {
           {row.itemDescription}
         </Typography>
       ),
+    },
+    {
+      id: 'qty',
+      label: 'Qty',
+      minWidth: 100,
+      align: 'center',
+      render: (row) => {
+        const qtyValue = row.qty;
+        if (qtyValue === undefined || qtyValue === null) {
+          return (
+            <Typography fontSize={14} fontWeight={400}>
+              N/A
+            </Typography>
+          );
+        }
+        const qtyNum = typeof qtyValue === 'string' ? Number(qtyValue) : qtyValue;
+        return (
+          <Typography fontSize={14} fontWeight={400}>
+            {qtyNum === 0 || qtyValue === "0" || qtyValue === 0 ? 'N/A' : String(qtyValue)}
+          </Typography>
+        );
+      },
     },
     {
       id: 'pickerUserNumber',
@@ -1425,7 +1473,10 @@ const OngoingOrdersTab: React.FC = () => {
       {/* Reject Confirmation Modal */}
       <CommonModal
         open={rejectModalOpen}
-        onClose={() => setRejectModalOpen(false)}
+        onClose={() => {
+          setRejectModalOpen(false);
+          setRejectionReason('');
+        }}
         size="sm"
         title="Confirm Rejection"
       >
@@ -1438,11 +1489,25 @@ const OngoingOrdersTab: React.FC = () => {
               Request ID: {selectedRequestId}
             </Typography>
           )}
+          <TextField
+            fullWidth
+            label="Rejection Reason"
+            placeholder="Enter reason for rejection"
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            multiline
+            rows={3}
+            sx={{ mb: 2 }}
+            disabled={processingRequestId !== null}
+          />
           <Box display="flex" gap={2} justifyContent="flex-end">
             <CustomButton
               appearance="outlined"
               buttonType="cancel"
-              onClick={() => setRejectModalOpen(false)}
+              onClick={() => {
+                setRejectModalOpen(false);
+                setRejectionReason('');
+              }}
               disabled={processingRequestId !== null}
               sx={{ minWidth: 100 }}
             >

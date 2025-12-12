@@ -134,7 +134,7 @@ const OrderCelebration: React.FC<OrderCelebrationProps> = ({ open, onClose }) =>
 
     setShow(true);
     import('canvas-confetti').then(({ default: confetti }) => {
-      const duration = 5000;
+      const duration = 1500;
       const animationEnd = Date.now() + duration;
 
       const randomInRange = (min: number, max: number) => {
@@ -183,8 +183,8 @@ const OrderCelebration: React.FC<OrderCelebrationProps> = ({ open, onClose }) =>
 
     const timer = setTimeout(() => {
       setShow(false);
-      setTimeout(onClose, 500);
-    }, 6000);
+      setTimeout(onClose, 300);
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, [open, onClose]);
@@ -206,9 +206,9 @@ const OrderCelebration: React.FC<OrderCelebrationProps> = ({ open, onClose }) =>
         />
       ))}
 
-      <Fade in={show} timeout={1000}>
+      <Fade in={show} timeout={400}>
         <ContentBox>
-          <Zoom in={show} timeout={1500}>
+          <Zoom in={show} timeout={500}>
             <Box>
               <ThankYouContainer>
                 <ThankYouText>Thank You!</ThankYouText>

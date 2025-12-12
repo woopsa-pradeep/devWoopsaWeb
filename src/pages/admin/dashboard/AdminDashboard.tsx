@@ -9,11 +9,12 @@ import {
   Stack,
   Button,
   IconButton,
+  Fade,
+  Grow,
+  // useMediaQuery,
+  alpha,
 } from "@mui/material";
 import {
-  PieChart,
-  Pie,
-  Cell,
   ResponsiveContainer,
   AreaChart,
   Area,
@@ -23,6 +24,9 @@ import {
   CartesianGrid,
   BarChart,
   Bar,
+  Cell,
+  PieChart,
+  Pie,
 } from "recharts";
 import DashboardCard from "../../../component/atoms/dashboard/DashboardCard";
 import CommonTable, {
@@ -31,12 +35,19 @@ import CommonTable, {
 import RetailersIcon from "../../../assets/retailerGlobalActive.svg";
 import ItemsIcon from "../../../assets/Menu Icon (2).svg";
 import OrdersIcon from "../../../assets/orderItems.svg";
-// import CurrentDueIcon from '../../../assets/currentDue.svg';
-import { getDistributorDashboard } from "../../../redux/apis/dashboardApis";
+import { getDistributorDashboard, getEpickDashboard } from "../../../redux/apis/dashboardApis";
 import CustomDatePicker from "../../../component/atoms/CustomDatePicker";
 import dayjs from "dayjs";
 import LoadingSpinner from "../../../component/atoms/loader/LoadingSpinner";
 import ClearIcon from "@mui/icons-material/Clear";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import PendingIcon from "@mui/icons-material/Pending";
+import PersonIcon from "@mui/icons-material/Person";
+// import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+// import StoreIcon from "@mui/icons-material/Store";
+// import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+// import PeopleIcon from "@mui/icons-material/People";
 
 interface DashboardData {
   summary: {
@@ -44,12 +55,11 @@ interface DashboardData {
     totalCustomer: number;
     totalInactiveCustomer: number;
     totalOrder: number;
-     
   };
-   orderByUser: {
-      sales: number;
-      retailer: number;
-    };
+  orderByUser: {
+    sales: number;
+    retailer: number;
+  };
   orderPlatform: {
     Mobile: number;
     Web: number;
@@ -76,21 +86,50 @@ interface DashboardData {
   }>;
 }
 
+interface EpickDashboardData {
+  orderStatistics: {
+    totalOrders: number;
+    completedByEpick: number;
+    pendingFromEpick: number;
+  };
+  pickerWiseOrders: Array<{
+    pickerId: number;
+    pickerName: string;
+    totalCompletedOrders: number;
+    averageOrderTime: {
+      averageTimeSeconds: number;
+      averageTimeFormatted: string;
+    };
+  }>;
+  averageOrderTime: {
+    averageTimeSeconds: number;
+    averageTimeFormatted: string;
+  };
+  dateRange: {
+    fromDate: string;
+    toDate: string;
+  };
+}
+
 const AdminDashboard = () => {
   const theme = useTheme();
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
-    null
-  );
+  // const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  // const isTablet = useMediaQuery(theme.breakpoints.down("md"));
+  const [activeTab, setActiveTab] = useState(0);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [epickData, setEpickData] = useState<EpickDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [epickLoading, setEpickLoading] = useState(false);
   const [startDate, setStartDate] = useState<dayjs.Dayjs | null>(dayjs().subtract(7, 'day'));
   const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(dayjs());
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(
     new Set(["Mobile", "Web", "ERP"])
   );
   const [highDemandViewMode, setHighDemandViewMode] = useState<"table" | "graph">("table");
+  const [pickerViewMode, setPickerViewMode] = useState<"table" | "graph">("table");
+  const [salesPerformanceViewMode, setSalesPerformanceViewMode] = useState<"table" | "graph">("table");
 
   useEffect(() => {
-    // Only fetch if both dates are selected or if neither date is selected (initial load)
     if ((startDate && endDate) || (!startDate && !endDate)) {
       fetchDashboardData();
     }
@@ -99,15 +138,24 @@ const AdminDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const res: any = await getDistributorDashboard({
-        fromDate: startDate?.format("YYYY-MM-DD") || "",
-        toDate: endDate?.format("YYYY-MM-DD") || "",
-      });
-      setDashboardData(res.data);
+      setEpickLoading(true);
+      const [dashboardRes, epickRes]: any = await Promise.all([
+        getDistributorDashboard({
+          fromDate: startDate?.format("YYYY-MM-DD") || "",
+          toDate: endDate?.format("YYYY-MM-DD") || "",
+        }),
+        getEpickDashboard({
+          fromDate: startDate?.format("YYYY-MM-DD") || "",
+          toDate: endDate?.format("YYYY-MM-DD") || "",
+        }),
+      ]);
+      setDashboardData(dashboardRes.data);
+      setEpickData(epickRes.data);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
       setLoading(false);
+      setEpickLoading(false);
     }
   };
 
@@ -124,8 +172,83 @@ const AdminDashboard = () => {
     setEndDate(null);
   };
 
+  // const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+  //   setActiveTab(newValue);
+  // };
+
+  // Sales/Retailer Summary Cards
+  const summaryCards = dashboardData
+    ? [
+        {
+          title: "Total Retailers",
+          value: dashboardData.summary.totalCustomer.toString(),
+          color: "success" as const,
+          icon: <img src={RetailersIcon} alt="retailers" width={20} height={20} />,
+        },
+        {
+          title: "Total Active Retailers",
+          value: dashboardData.summary.totalActiveCustomer.toString(),
+          color: "success" as const,
+          icon: <img src={ItemsIcon} alt="active" width={20} height={20} />,
+        },
+        {
+          title: "Total Inactive Retailers",
+          value: dashboardData.summary.totalInactiveCustomer.toString(),
+          color: "success" as const,
+          icon: <img src={ItemsIcon} alt="inactive" width={20} height={20} />,
+        },
+        {
+          title: "Total Orders",
+          value: dashboardData.summary.totalOrder.toString(),
+          color: "success" as const,
+          icon: <img src={OrdersIcon} alt="orders" width={20} height={20} />,
+        },
+      ]
+    : [];
+
+  // Epick Summary Cards
+  const epickCards = epickData
+    ? [
+        {
+          title: "Total Epick Orders",
+          value: epickData.orderStatistics.totalOrders.toString(),
+          color: "success" as const,
+          icon: <img src={OrdersIcon} alt="orders" width={20} height={20} />,
+        },
+        {
+          title: "Completed by Epick",
+          value: epickData.orderStatistics.completedByEpick.toString(),
+          color: "success" as const,
+          icon: <CheckCircleIcon sx={{ width: 20, height: 20, color: theme.palette.success.main }} />,
+        },
+        {
+          title: "Pending from Epick",
+          value: epickData.orderStatistics.pendingFromEpick.toString(),
+          color: "warning" as const,
+          icon: <PendingIcon sx={{ width: 20, height: 20, color: theme.palette.warning.main }} />,
+        },
+        {
+          title: "Average Order Time",
+          value: epickData.averageOrderTime.averageTimeFormatted,
+          color: "success" as const,
+          icon: <AccessTimeIcon sx={{ width: 20, height: 20, color: theme.palette.info.main }} />,
+        },
+      ]
+    : [];
+
+  // Chart Data Preparation
+  const allPlatformData = dashboardData
+    ? [
+        { name: "Mobile", value: dashboardData.orderPlatform.Mobile, color: "#FF9800" },
+        { name: "Web", value: dashboardData.orderPlatform.Web, color: "#4CAF50" },
+        { name: "ERP", value: dashboardData.orderPlatform.ERP, color: "#3C50E0" },
+      ]
+    : [];
+
+  const platformData = allPlatformData.filter((item) => selectedPlatforms.has(item.name));
+
   const handlePlatformToggle = (platformName: string) => {
-    setSelectedPlatforms((prev) => {
+    setSelectedPlatforms((prev: Set<string>) => {
       const newSelected = new Set(prev);
       if (newSelected.has(platformName)) {
         newSelected.delete(platformName);
@@ -136,139 +259,99 @@ const AdminDashboard = () => {
     });
   };
 
-  const summaryCards = dashboardData
-    ? [
-        {
-          title: "Total Retailers",
-          value: dashboardData.summary.totalCustomer.toString(),
-          // change: '+6.2%',
-          color: "success" as const,
-          icon: (
-            <img src={RetailersIcon} alt="retailers" width={20} height={20} />
-          ),
-        },
-        {
-          title: "Total Active Retailers",
-          value: dashboardData.summary.totalActiveCustomer.toString(),
-          // change: '+6.2%',
-          color: "success" as const,
-          icon: <img src={ItemsIcon} alt="active" width={20} height={20} />,
-        },
-        {
-          title: "Total Inactive Retailers",
-          value: dashboardData.summary.totalInactiveCustomer.toString(),
-          // change: '+6.2%',
-          color: "success" as const,
-          icon: <img src={ItemsIcon} alt="inactive" width={20} height={20} />,
-        },
-        {
-          title: "Total Orders",
-          value: dashboardData.summary.totalOrder.toString(),
-          // change: '+6.2%',
-          color: "success" as const,
-          icon: <img src={OrdersIcon} alt="orders" width={20} height={20 } />,
-        },
-        // {
-        //   title: 'Current Orders',
-        //   value: dashboardData.summary.totalOrder.toString(),
-        //   change: '+6.2%',
-        //   color: 'success' as const,
-        //   icon: <img src={CurrentDueIcon} alt="current" width={28} height={28} />,
-        // },
-      ]
-    : [];
-
-  const pieData = dashboardData
-    ? [
-        {
-          name: "Mobile",
-          value: dashboardData.orderPlatform.Mobile,
-          color: "#FF9800",
-        },
-        {
-          name: "Web",
-          value: dashboardData.orderPlatform.Web,
-          color: "#4CAF50",
-        },
-        {
-          name: "ERP",
-          value: dashboardData.orderPlatform.ERP,
-          color: "#3C50E0",
-        },
-      ].filter((item) => selectedPlatforms.has(item.name))
-    : [];
-
-  const lineData = dashboardData
+  const salesPersonData = dashboardData
     ? dashboardData.salesPersonPerformance.map((person) => ({
         name: person.salesRepName,
         Sales: person.totalSales,
-        OrderCount: person.orderCount,
-        TotalQuantity: person.totalQuantity,
+        Orders: person.orderCount,
+        Quantity: person.totalQuantity,
       }))
     : [];
 
+  const highDemandBarData = dashboardData?.highDemandProducts.map((product) => ({
+    name: product.inventory.Description.length > 20 
+      ? product.inventory.Description.substring(0, 20) + "..." 
+      : product.inventory.Description,
+    fullName: product.inventory.Description,
+    quantity: product.totalQuantityOrdered,
+    orders: product.orderCount,
+    itemNumber: product.Item_Number,
+    pack: product.inventory.Pack,
+    caseCount: product.inventory.CaseCount,
+    uom: product.inventory.UOM,
+  })) || [];
+
+  const pickerBarData = epickData?.pickerWiseOrders.map((picker) => ({
+    name: picker.pickerName,
+    completedOrders: picker.totalCompletedOrders,
+    averageTime: picker.averageOrderTime.averageTimeSeconds / 3600, // Convert to hours
+    averageTimeFormatted: picker.averageOrderTime.averageTimeFormatted,
+  })) || [];
+
+  // Table Columns
   const highDemandColumns: TableColumn[] = [
     {
       id: "item",
       label: "Item Name",
       render: (row) => (
-        <Box>
-          <Typography fontSize={14} fontWeight={400} color="text.primary">
-            {row.inventory.Description}
-          </Typography>
-          <Typography fontSize={12} color="text.secondary">
-            {row.Item_Number}
-          </Typography>
-        </Box>
+        <Typography fontSize={13} fontWeight={500} color="text.primary">
+          {row.inventory.Description}
+        </Typography>
       ),
     },
     {
-      id: "popularity",
-      label: "Popularity (QTY & Orders)",
+      id: "itemNumber",
+      label: "Item Number",
       render: (row) => (
-        <Box>
-          <Typography fontSize={14} color="text.primary">
-            Qty: {row.totalQuantityOrdered.toLocaleString()}
-          </Typography>
-          <Typography fontSize={12} color="text.secondary">
-            Orders: {row.orderCount}
-          </Typography>
-        </Box>
+        <Typography fontSize={13} color="text.secondary">
+          {row.Item_Number}
+        </Typography>
+      ),
+    },
+    {
+      id: "quantity",
+      label: "Quantity Ordered",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="primary.main">
+          {row.totalQuantityOrdered.toLocaleString()}
+        </Typography>
+      ),
+    },
+    {
+      id: "orders",
+      label: "Order Count",
+      render: (row) => (
+        <Typography fontSize={13} color="text.secondary">
+          {row.orderCount}
+        </Typography>
       ),
     },
     {
       id: "pack",
-      label: "Pack Info",
+      label: "Pack",
       render: (row) => (
-        <Box>
-          <Typography fontSize={14} color="text.primary">
-            Pack: {row.inventory.Pack}
-          </Typography>
-          <Typography fontSize={12} color="text.secondary">
-            Case: {row.inventory.CaseCount} {row.inventory.UOM}
-          </Typography>
-        </Box>
+        <Typography fontSize={13} color="text.secondary">
+          {row.inventory.Pack}
+        </Typography>
+      ),
+    },
+    {
+      id: "caseCount",
+      label: "Case Count",
+      render: (row) => (
+        <Typography fontSize={13} color="text.secondary">
+          {row.inventory.CaseCount} {row.inventory.UOM}
+        </Typography>
       ),
     },
   ];
-
-  // Prepare data for bar chart
-  const highDemandBarData = dashboardData?.highDemandProducts.map((product) => ({
-    itemNumber: product.Item_Number,
-    name: product.inventory.Description,
-    quantity: product.totalQuantityOrdered,
-    orders: product.orderCount,
-    pack: product.inventory.Pack,
-    caseCount: product.inventory.CaseCount,
-    uom: product.inventory.UOM,
-  })) || [];
 
   const salesPersonColumns: TableColumn[] = [
     {
       id: "name",
       label: "Sales Person",
       render: (row) => (
-        <Typography fontSize={14} fontWeight={400} color="text.secondary">
+        <Typography fontSize={13} fontWeight={500} color="text.primary">
           {row.salesRepName}
         </Typography>
       ),
@@ -277,8 +360,8 @@ const AdminDashboard = () => {
       id: "sales",
       label: "Total Sales",
       render: (row) => (
-        <Typography fontSize={14} color="text.secondary">
-          ${row.totalSales.toLocaleString()}
+        <Typography fontSize={13} fontWeight={500} color="text.secondary">
+          ${row.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Typography>
       ),
     },
@@ -286,7 +369,7 @@ const AdminDashboard = () => {
       id: "orders",
       label: "Order Count",
       render: (row) => (
-        <Typography fontSize={14} color="text.secondary">
+        <Typography fontSize={13} color="text.secondary">
           {row.orderCount}
         </Typography>
       ),
@@ -295,748 +378,820 @@ const AdminDashboard = () => {
       id: "quantity",
       label: "Total Quantity",
       render: (row) => (
-        <Typography fontSize={14} color="text.secondary">
+        <Typography fontSize={13} color="text.secondary">
           {row.totalQuantity.toLocaleString()}
         </Typography>
       ),
     },
   ];
 
-  const CustomLineTooltip: React.FC<{ active?: boolean; payload?: any[] }> = ({
-    active,
-    payload,
-  }) => {
+  const pickerColumns: TableColumn[] = [
+    {
+      id: "name",
+      label: "Picker Name",
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <PersonIcon sx={{ fontSize: 16, color: theme.palette.primary.main }} />
+          <Typography fontSize={13} fontWeight={500} color="text.primary">
+            {row.pickerName}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      id: "completedOrders",
+      label: "Completed Orders",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="success.main">
+          {row.totalCompletedOrders}
+        </Typography>
+      ),
+    },
+    {
+      id: "averageTime",
+      label: "Average Time",
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={0.5}>
+          <AccessTimeIcon sx={{ fontSize: 14, color: theme.palette.info.main }} />
+          <Typography fontSize={13} fontWeight={500} color="text.secondary">
+            {row.averageOrderTime.averageTimeFormatted}
+          </Typography>
+        </Box>
+      ),
+    },
+  ];
+
+  // Custom Tooltip Component
+  const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <Box
+        <Paper
+          elevation={8}
           sx={{
-            background: "#1A2B3C",
-            color: "#fff",
-            borderRadius: 2,
-            px: 2,
-            py: 1,
-            boxShadow: 2,
+            p: 1,
+            background: theme.palette.mode === 'dark' 
+              ? alpha(theme.palette.background.paper, 0.95)
+              : theme.palette.background.paper,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 1.5,
           }}
         >
-          <Typography fontWeight={700}>
-            ${payload[0].value.toLocaleString()}
+          <Typography fontSize={11} fontWeight={500} mb={0.5}>
+            {label}
           </Typography>
-          <Typography fontSize={12}>{payload[0].payload.name}</Typography>
-        </Box>
+          {payload.map((entry: any, index: number) => (
+            <Typography key={index} fontSize={10} color={entry.color}>
+              {entry.name}: {typeof entry.value === 'number' 
+                ? entry.value.toLocaleString() 
+                : entry.value}
+            </Typography>
+          ))}
+        </Paper>
       );
     }
     return null;
   };
 
-  // Pie chart: use legend color but with low opacity
 
-  // Get all platform data for legend (including unselected ones)
-  const allPlatformData = dashboardData
-    ? [
-        {
-          name: "Mobile",
-          value: dashboardData.orderPlatform.Mobile,
-          color: "#FF9800",
-        },
-        {
-          name: "Web",
-          value: dashboardData.orderPlatform.Web,
-          color: "#4CAF50",
-        },
-        {
-          name: "ERP",
-          value: dashboardData.orderPlatform.ERP,
-          color: "#3C50E0",
-        },
-      ]
-    : [];
-
-
-
-  if (loading) {
-    return (
-      <LoadingSpinner fullScreen={true} />
-    );
+  if (loading && !dashboardData) {
+    return <LoadingSpinner fullScreen={true} />;
   }
 
   return (
     <Box
       sx={{
-        p: { xs: 1, md: "10px 20px" },
+        p: { sm: 1, md: 1.5 },
         background: theme.palette.background.default,
         minHeight: "100vh",
       }}
     >
-      <Box
-        mb={2}
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-      >
-        <Typography fontSize={20} fontWeight={500}  width={'100%'} color="primary.main">
-          Welcome to Dashboard
-        </Typography>
+      {/* Tabs Header */}
+      <Fade in={true} timeout={500}>
         <Box
-          display="flex"
-          flexDirection={{ xs: "column", sm: "row" }}
-          alignItems="center"
-          gap={{ xs: 0.5, sm: 1.5 }}
+          mb={2}
           sx={{
-            width: "100%",
-            justifyContent: { xs: "flex-start", sm: "flex-end" },
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between',
+            alignItems: { xs: 'flex-start', sm: 'center' },
+            gap: 1.5,
+            pb: 1.5,
+            borderBottom: `1px solid ${theme.palette.divider}`,
           }}
         >
-          <CustomDatePicker
-            value={startDate}
-            onChange={handleStartDateChange}
+          <Box
             sx={{
-              mb: 0,
-              minWidth: 130,
-              maxWidth: 150,
-              "& .MuiInputBase-root": {
-                height: 30,
-                fontSize: 12,
-                py: 0,
-                px: 1,
-              },
-              "& .MuiOutlinedInput-input": {
-                py: "4px",
-                fontSize: 12,
-              },
-            }}
-          />
-          <Typography
-            fontSize={13}
-            fontWeight={500}
-            color="text.secondary"
-            mx={0.5}
-            sx={{
-              minWidth: 18,
-              textAlign: "center",
-              px: 0.5,
-              display: { xs: "none", sm: "inline-block" },
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
             }}
           >
-            to
-          </Typography>
-          <CustomDatePicker
-            value={endDate}
-            onChange={handleEndDateChange}
-            sx={{
-              mb: 0,
-              minWidth: 130,
-              maxWidth: 150,
-              "& .MuiInputBase-root": {
-                height: 30,
-                fontSize: 12,
-                py: 0,
-                px: 1,
-              },
-              "& .MuiOutlinedInput-input": {
-                py: "4px",
-                fontSize: 12,
-              },
-            }}
-          />
-          {(startDate || endDate) && (
-            <IconButton
-              onClick={handleClearDates}
-              size="small"
+            <Button
+              onClick={() => setActiveTab(0)}
               sx={{
-                ml: { xs: 0, sm: 0.5 },
-                p: "2px",
-                width: 22,
-                height: 22,
-                backgroundColor: theme.palette.grey[100],
-                "&:hover": {
-                  backgroundColor: theme.palette.grey[200],
+                textTransform: 'none',
+                fontSize: 13,
+                fontWeight: 500,
+                px: 2,
+                py: 0.75,
+                borderRadius: 2,
+                backgroundColor: activeTab === 0 ? theme.palette.primary.main : 'transparent',
+                color: activeTab === 0 ? '#fff' : theme.palette.text.secondary,
+                minWidth: 'auto',
+                boxShadow: 'none',
+                '&:hover': {
+                  backgroundColor: activeTab === 0 ? theme.palette.primary.dark : alpha(theme.palette.primary.main, 0.08),
+                  boxShadow: 'none',
                 },
-                alignSelf: "center",
               }}
             >
-              <ClearIcon
-                sx={{ color: theme.palette.text.secondary, fontSize: 15 }}
-              />
-            </IconButton>
-          )}
-        </Box>
-      </Box>
-
-      <Grid container spacing={2} mb={2}>
-        {summaryCards.map((card, idx) => (
-          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
-            <DashboardCard {...card} />
-          </Grid>
-        ))}
-      </Grid>
-
-      <Grid container spacing={2}>
-        <Grid size={{ sm: 12, md: 7, xl: 8 }}>
-          <Paper
-            sx={{
-              borderRadius: 3,
-              boxShadow: "none",
-              border: "1px solid divider",
-              pb: 1,
-            }}
+              Sales & Retailer
+            </Button>
+            <Button
+              onClick={() => setActiveTab(1)}
+              sx={{
+                textTransform: 'none',
+                fontSize: 13,
+                fontWeight: 500,
+                px: 2,
+                py: 0.75,
+                borderRadius: 2,
+                backgroundColor: activeTab === 1 ? theme.palette.primary.main : 'transparent',
+                color: activeTab === 1 ? '#fff' : theme.palette.text.secondary,
+                minWidth: 'auto',
+                boxShadow: 'none',
+                '&:hover': {
+                  backgroundColor: activeTab === 1 ? theme.palette.primary.dark : alpha(theme.palette.primary.main, 0.08),
+                  boxShadow: 'none',
+                },
+              }}
+            >
+              Epick Dashboard
+            </Button>
+          </Box>
+          <Box
+            display="flex"
+            flexDirection={{ xs: "column", sm: "row" }}
+            alignItems="center"
+            gap={1}
           >
-            <Box display="flex" justifyContent="space-between" px={2} pt={2} alignItems="center">
-              <Typography fontSize={16} fontWeight={500}>
-                High Demand Products
-              </Typography>
-                             <Stack direction="row" spacing={0.5}>
-                 <Button
-                   size="small"
-                   onClick={() => setHighDemandViewMode("table")}
-                   variant={highDemandViewMode === "table" ? "contained" : "outlined"}
-                   sx={{
-                     backgroundColor:
-                       highDemandViewMode === "table"
-                         ? theme.palette.primary.main
-                         : "transparent",
-                     color:
-                       highDemandViewMode === "table" ? "#fff" : theme.palette.text.primary,
-                     borderColor:
-                       highDemandViewMode === "table"
-                         ? theme.palette.primary.main
-                         : theme.palette.divider,
-                     boxShadow: "none",
-                     minWidth: 60,
-                     fontSize: 12,
-                   }}
-                 >
-                   Table
-                 </Button>
-                 <Button
-                   size="small"
-                   onClick={() => setHighDemandViewMode("graph")}
-                   variant={highDemandViewMode === "graph" ? "contained" : "outlined"}
-                   sx={{
-                     backgroundColor:
-                       highDemandViewMode === "graph"
-                         ? theme.palette.primary.main
-                         : "transparent",
-                     color:
-                       highDemandViewMode === "graph" ? "#fff" : theme.palette.text.primary,
-                     borderColor:
-                       highDemandViewMode === "graph"
-                         ? theme.palette.primary.main
-                         : theme.palette.divider,
-                     boxShadow: "none",
-                     minWidth: 60,
-                     fontSize: 12,
-                   }}
-                 >
-                   Graph
-                 </Button>
-               </Stack>
-            </Box>
-            <Box sx={{ m: 2 }}>
-              {highDemandViewMode === "table" ? (
-                <CommonTable
-                  padding={0}
-                  data={dashboardData?.highDemandProducts || []}
-                  columns={highDemandColumns}
-                  currentPage={1}
-                  totalPages={1}
-                  totalItems={dashboardData?.highDemandProducts.length || 0}
-                  stickyHeader={true}
-                  pageSize={5}
-                  onPageChange={() => {}}
-                  onPageSizeChange={() => {}}
-                  showPageSizeSelector={false}
-                  showTotalItems={false}
-                  showPageNumbers={false}
-                  loading={loading}
-                  containerHeight="320px"
-                  emptyStateComponent={<Typography>No products</Typography>}
-                />
-                                            ) : (
-                 <Box sx={{ height: 300, width: "100%" }}>
-                   <ResponsiveContainer width="100%" height="100%">
-                     <BarChart
-                       data={highDemandBarData}
-                       margin={{ top: 30, right: 30, left: 20, bottom: -20 }}
-                     >
-                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                       <XAxis
-                         dataKey="itemNumber"
-                         angle={-45}
-                         textAnchor="end"
-                         height={60}
-                         interval={0}
-                         tick={{
-                           fontSize: 11,
-                           fill: theme.palette.text.secondary,
-                         }}
-                       />
-                       <YAxis
-                         tick={{
-                           fontSize: 12,
-                           fill: theme.palette.text.secondary,
-                         }}
-                         tickFormatter={(value) => value.toLocaleString()}
-                       />
-                     <Tooltip
-                       content={({ active, payload }) => {
-                         if (active && payload && payload.length) {
-                           const data = payload[0].payload;
-                           return (
-                             <Box
-                               sx={{
-                                 background: "#1A2B3C",
-                                 color: "#fff",
-                                 borderRadius: 2,
-                                 px: 2,
-                                 py: 1,
-                                 boxShadow: 2,
-                                 maxWidth: 280,
-                               }}
-                             >
-                               <Typography fontWeight={700} fontSize={14} mb={1}>
-                                 {data.name}
-                               </Typography>
-                               <Typography fontSize={12} color="#ccc" mb={0.5}>
-                                 Item Number: {data.itemNumber}
-                               </Typography>
-                               <Typography fontSize={12} mb={0.5}>
-                                 Total Quantity: {data.quantity.toLocaleString()}
-                               </Typography>
-                               <Typography fontSize={12} mb={0.5}>
-                                 Total Orders: {data.orders}
-                               </Typography>
-                               <Typography fontSize={12} mb={0.5}>
-                                 Pack Size: {data.pack}
-                               </Typography>
-                               <Typography fontSize={12}>
-                                 Case Count: {data.caseCount} {data.uom}
-                               </Typography>
-                             </Box>
-                           );
-                         }
-                         return null;
-                       }}
-                       cursor={{ fill: "rgba(0,0,0,0.1)" }}
-                     />
-                      <Bar
-                        dataKey="quantity"
-                        fill={theme.palette.primary.main}
-                        radius={[4, 4, 0, 0]}
-                        maxBarSize={80}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              )}
-            </Box>
-          </Paper>
-        </Grid>
-        <Grid size={{ sm: 12, md: 5, xl: 4 }}>
-          <Paper
-            sx={{
-              p: 2,
-              // mb: 2,
-              borderRadius: 4,
-              boxShadow: "none",
-              border: "1px solid divider",
-              height: "100%",
-            }}
-          >
-            <Typography fontSize={16} fontWeight={500} mb={2}>
-              Orders by Platform
+            <CustomDatePicker
+              value={startDate}
+              onChange={handleStartDateChange}
+              sx={{
+                minWidth: { xs: "100%", sm: 120 },
+                "& .MuiInputBase-root": {
+                  height: 34,
+                  fontSize: 12,
+                },
+              }}
+            />
+            <Typography
+              fontSize={12}
+              fontWeight={500}
+              color="text.secondary"
+              sx={{ display: { xs: "none", sm: "block" } }}
+            >
+              to
             </Typography>
-            <Box display="flex" flexDirection="column" alignItems="center">
-              {/* <ResponsiveContainer width={240} height={240}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={95}
-                    outerRadius={110}
-                    startAngle={90}
-                    endAngle={-270}
-                    paddingAngle={4}
-                    cornerRadius={12}
-                    animationDuration={300}
-                    animationBegin={0}
-                  >
-                    {pieData.map((entry, idx) => (
-                      <Cell 
-                        key={`cell-${entry.name}`} 
-                        fill={pieTransparentColors[idx]}
-                      />
-                    ))}
-                  </Pie>
-                                     {pieData.length > 0 && (
-                     <text
-                       x="50%"
-                       y="50%"
-                       textAnchor="middle"
-                       dominantBaseline="middle"
-                       style={{
-                         fontSize: '24px',
-                         fontWeight: 'bold',
-                         fill: theme.palette.text.primary
-                       }}
-                     >
-                       {pieData.reduce((sum, item) => sum + item.value, 0).toLocaleString()}
-                     </text>
-                   )}
-                  <Tooltip
-                    formatter={(value, name) => [value, name]}
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #ccc',
-                      borderRadius: '4px',
-                      padding: '8px'
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer> */}
-              <ResponsiveContainer width={240} height={270}>
-                <PieChart>
-                  {allPlatformData.map((entry, index) => {
-                    const ringWidth = 10;
-                    const spacing = 4;
-                    const baseInner = 55;
-                    const innerRadius =
-                      baseInner + index * (ringWidth + spacing);
-                    const outerRadius = innerRadius + ringWidth;
-
-                    const total =
-                      allPlatformData.reduce((sum, p) => sum + p.value, 0) || 1;
-                    const percent = entry.value / total;
-                    const isSelected = selectedPlatforms.has(entry.name);
-                    const progressColor = isSelected
-                      ? entry.color
-                      : theme.palette.grey[400];
-                    const backgroundColor = theme.palette.grey[200]; // light gray background ring
-
-                    const startAngle = 90;
-                    const endAngle = 90 - percent * 360;
-
-                    return (
-                      <React.Fragment key={entry.name}>
-                        {/* Background full ring */}
-                        <Pie
-                          data={[{ value: 1 }]}
-                          dataKey="value"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={innerRadius}
-                          outerRadius={outerRadius}
-                          startAngle={90}
-                          endAngle={-270}
-                          stroke="none"
-                          isAnimationActive={false}
-                        >
-                          <Cell fill={backgroundColor} />
-                        </Pie>
-
-                        {/* Foreground progress arc */}
-                        <Pie
-                          data={[{ value: entry.value }]}
-                          dataKey="value"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={innerRadius}
-                          outerRadius={outerRadius}
-                          startAngle={startAngle}
-                          endAngle={endAngle}
-                          cornerRadius={ringWidth / 2}
-                          stroke="none"
-                          paddingAngle={0}
-                          isAnimationActive
-                        >
-                          <Cell fill={progressColor} />
-                        </Pie>
-                      </React.Fragment>
-                    );
-                  })}
-
-                  {/* Center Total */}
-                  <text
-                    x="50%"
-                    y="50%"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    style={{
-                      fontSize: "22px",
-                      fontWeight: 500,
-                      fill: theme.palette.text.primary,
-                    }}
-                  >
-                    {pieData
-                      .reduce((sum, item) => sum + item.value, 0)
-                      .toLocaleString()}
-                  </text>
-                </PieChart>
-              </ResponsiveContainer>
-
-              <Stack
-                direction="row"
-                spacing={2}
-                mt={2}
-                flexWrap="wrap"
-                justifyContent="center"
+            <CustomDatePicker
+              value={endDate}
+              onChange={handleEndDateChange}
+              sx={{
+                minWidth: { xs: "100%", sm: 120 },
+                "& .MuiInputBase-root": {
+                  height: 34,
+                  fontSize: 12,
+                },
+              }}
+            />
+            {(startDate || endDate) && (
+              <IconButton
+                onClick={handleClearDates}
+                size="small"
+                sx={{
+                  backgroundColor: theme.palette.action.hover,
+                  "&:hover": {
+                    backgroundColor: theme.palette.action.selected,
+                  },
+                }}
               >
-                {allPlatformData.map((item) => {
-                  const isSelected = selectedPlatforms.has(item.name);
-                  return (
-                    <Box
-                      key={item.name}
-                      display="flex"
-                      alignItems="center"
-                      mb={1}
+                <ClearIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Box>
+        </Box>
+      </Fade>
+
+      {/* Tab Content */}
+      <Fade in={activeTab === 0} timeout={400} style={{ display: activeTab === 0 ? 'block' : 'none' }}>
+        <Box>
+          {/* Summary Cards */}
+          <Grid container spacing={2} mb={2}>
+            {summaryCards.map((card, idx) => (
+              <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
+                <DashboardCard {...card} />
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* Charts Section */}
+          <Grid container spacing={2} mb={2}>
+            {/* Platform Orders */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Grow in={true} timeout={800}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    height: '100%',
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box
+                    display="flex"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    flexWrap="wrap"
+                    gap={1}
+                    mb={1.5}
+                  >
+                    <Typography 
+                      fontSize={14} 
+                      fontWeight={500} 
+                      color="text.primary"
                       sx={{
-                        cursor: "pointer",
-                        opacity: isSelected ? 1 : 0.4,
-                        transition: "all 0.3s ease",
-                        p: 0.5,
-                        borderRadius: 1,
-                        "&:hover": {
-                          opacity: isSelected ? 1 : 0.7,
-                          backgroundColor: theme.palette.action.hover,
-                          transform: "scale(1.05)",
-                        },
-                        "&:active": {
-                          transform: "scale(0.95)",
-                        },
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handlePlatformToggle(item.name);
+                        fontSize: { lg: 14 },
                       }}
                     >
+                      <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>
+                        Orders by Platform
+                      </Box>
+                      <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>
+                        Platform
+                      </Box>
+                    </Typography>
+                    {dashboardData?.orderByUser && (
                       <Box
                         sx={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: "50%",
-                          background: isSelected
-                            ? item.color
-                            : theme.palette.grey[400],
-                          mr: 1,
-                          border: isSelected
-                            ? "2px solid transparent"
-                            : "2px solid #ccc",
-                          transition: "all 0.3s ease",
+                          display: { xs: 'block', xl: 'flex' },
+                          flexDirection: { xl: 'row' },
+                          gap: { xl: 1 },
                         }}
-                      />
-                      <Typography
-                        fontWeight={isSelected ? 400 : 400}
-                        fontSize={14}
-                        color={isSelected ? "text.primary" : "text.disabled"}
-                        sx={{ transition: "all 0.3s ease" }}
                       >
-                        {item.name} ({item.value.toLocaleString()})
-                      </Typography>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            px: 1.5,
+                            py: 0.75,
+                            borderRadius: 1.5,
+                            background: alpha(theme.palette.success.main, 0.1),
+                            border: `1px solid ${theme.palette.success.main}`,
+                            mb: { xs: 0.75, xl: 0 },
+                          }}
+                        >
+                          <Typography fontSize={12} fontWeight={500}>
+                            Sales
+                          </Typography>
+                          <Typography fontSize={13} fontWeight={500} color="success.main">
+                            {dashboardData.orderByUser.sales}
+                          </Typography>
+                        </Box>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            px: 1.5,
+                            py: 0.75,
+                            borderRadius: 1.5,
+                            background: alpha(theme.palette.info.main, 0.1),
+                            border: `1px solid ${theme.palette.info.main}`,
+                          }}
+                        >
+                          <Typography fontSize={12} fontWeight={500}>
+                            Retailer
+                          </Typography>
+                          <Typography fontSize={13} fontWeight={500} color="info.main">
+                            {dashboardData.orderByUser.retailer}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                  <Box sx={{ height: 220, width: "100%", mb: 1.5 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        {allPlatformData.map((entry, index) => {
+                          const total = allPlatformData.reduce((sum, p) => sum + p.value, 0) || 1;
+                          const percent = entry.value / total;
+                          const ringWidth = 8;
+                          const spacing = 3;
+                          const baseInner = 40;
+                          const innerRadius = baseInner + index * (ringWidth + spacing);
+                          const outerRadius = innerRadius + ringWidth;
+                          const startAngle = 90;
+                          const endAngle = 90 - percent * 360;
+                          const isSelected = selectedPlatforms.has(entry.name);
+                          const progressColor = isSelected ? entry.color : theme.palette.grey[400];
+                          const backgroundColor = alpha(theme.palette.divider, 0.2);
+
+                          return (
+                            <React.Fragment key={entry.name}>
+                              <Pie
+                                data={[{ value: 1 }]}
+                                dataKey="value"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={innerRadius}
+                                outerRadius={outerRadius}
+                                startAngle={90}
+                                endAngle={-270}
+                                stroke="none"
+                                isAnimationActive={false}
+                                onClick={() => handlePlatformToggle(entry.name)}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <Cell fill={backgroundColor} />
+                              </Pie>
+                              <Pie
+                                data={[{ value: entry.value }]}
+                                dataKey="value"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={innerRadius}
+                                outerRadius={outerRadius}
+                                startAngle={startAngle}
+                                endAngle={endAngle}
+                                cornerRadius={ringWidth / 2}
+                                stroke="none"
+                                paddingAngle={0}
+                                isAnimationActive
+                                onClick={() => handlePlatformToggle(entry.name)}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <Cell fill={progressColor} />
+                              </Pie>
+                            </React.Fragment>
+                          );
+                        })}
+                        <text
+                          x="50%"
+                          y="50%"
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          style={{
+                            fontSize: "18px",
+                            fontWeight: 500,
+                            fill: theme.palette.text.primary,
+                          }}
+                        >
+                          {platformData.reduce((sum, item) => sum + item.value, 0).toLocaleString()}
+                        </text>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      gap: 1,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {allPlatformData.map((item) => {
+                      const isSelected = selectedPlatforms.has(item.name);
+                      return (
+                        <Box
+                          key={item.name}
+                          onClick={() => handlePlatformToggle(item.name)}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            px: 1.5,
+                            py: 0.75,
+                            borderRadius: 1.5,
+                            background: isSelected ? alpha(item.color, 0.15) : alpha(theme.palette.divider, 0.1),
+                            border: `1px solid ${isSelected ? item.color : theme.palette.divider}`,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            mb: { lg: 0.75 },
+                            '&:hover': {
+                              background: isSelected ? alpha(item.color, 0.2) : alpha(item.color, 0.1),
+                            },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: '50%',
+                              background: isSelected ? item.color : theme.palette.text.disabled,
+                            }}
+                          />
+                          <Typography 
+                            fontSize={12} 
+                            fontWeight={500}
+                            color={isSelected ? item.color : theme.palette.text.secondary}
+                          >
+                            {item.name} ({item.value.toLocaleString()})
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Paper>
+              </Grow>
+            </Grid>
+
+            {/* Sales Performance */}
+            <Grid size={{ xs: 12, md: 8 }}>
+              <Grow in={true} timeout={1000}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    height: '100%',
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      Sales Performance
+                    </Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={() => setSalesPerformanceViewMode("graph")}
+                        variant={salesPerformanceViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setSalesPerformanceViewMode("table")}
+                        variant={salesPerformanceViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {salesPerformanceViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={dashboardData?.salesPersonPerformance || []}
+                      columns={salesPersonColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={dashboardData?.salesPersonPerformance.length || 0}
+                      stickyHeader={true}
+                      pageSize={dashboardData?.salesPersonPerformance.length || 0}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={loading}
+                      containerHeight="260px"
+                      emptyStateComponent={<Typography>No sales data</Typography>}
+                    />
+                  ) : (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={salesPersonData}>
+                        <defs>
+                          <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.3} />
+                            <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid 
+                          strokeDasharray="3 3" 
+                          stroke={alpha(theme.palette.divider, 0.5)}
+                          vertical={false}
+                        />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                          axisLine={false}
+                        />
+                        <YAxis 
+                          tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                          axisLine={false}
+                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area
+                          type="monotone"
+                          dataKey="Sales"
+                          stroke={theme.palette.primary.main}
+                          strokeWidth={2}
+                          fill="url(#salesGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+          </Grid>
+
+
+          {/* High Demand Products */}
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12 }}>
+              <Grow in={true} timeout={1200}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      High Demand Products
+                    </Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={() => setHighDemandViewMode("graph")}
+                        variant={highDemandViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setHighDemandViewMode("table")}
+                        variant={highDemandViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {highDemandViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={dashboardData?.highDemandProducts || []}
+                      columns={highDemandColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={dashboardData?.highDemandProducts.length || 0}
+                      stickyHeader={true}
+                      pageSize={dashboardData?.highDemandProducts.length || 0}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={loading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No products</Typography>}
+                    />
+                  ) : (
+                    <Box sx={{ height: 320, width: "100%" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={highDemandBarData} layout="vertical">
+                          <CartesianGrid 
+                            strokeDasharray="3 3" 
+                            stroke={alpha(theme.palette.divider, 0.5)}
+                          />
+                          <XAxis type="number" tick={{ fill: theme.palette.text.secondary, fontSize: 10 }} />
+                          <YAxis 
+                            type="category" 
+                            dataKey="name" 
+                            width={130}
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <Paper
+                                    elevation={8}
+                                    sx={{
+                                      p: 1.5,
+                                      background: theme.palette.mode === 'dark' 
+                                        ? alpha(theme.palette.background.paper, 0.95)
+                                        : theme.palette.background.paper,
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      borderRadius: 2,
+                                      maxWidth: 280,
+                                    }}
+                                  >
+                                    <Typography fontSize={12} fontWeight={600} mb={1}>
+                                      {data.fullName}
+                                    </Typography>
+                                    <Typography fontSize={11} color="text.secondary" mb={0.5}>
+                                      Item Number: {data.itemNumber}
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Total Quantity: {data.quantity.toLocaleString()}
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Total Orders: {data.orders}
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Pack: {data.pack}
+                                    </Typography>
+                                    <Typography fontSize={11}>
+                                      Case Count: {data.caseCount} {data.uom}
+                                    </Typography>
+                                  </Paper>
+                                );
+                              }
+                              return null;
+                            }}
+                            cursor={{ fill: "rgba(0,0,0,0.1)" }}
+                          />
+                          <Bar 
+                            dataKey="quantity" 
+                            fill={theme.palette.primary.main}
+                            radius={[0, 6, 6, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </Box>
-                  );
-                })}
-              </Stack>
-              <Stack direction="row" spacing={1} mt={0.5}>
-                <Box
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+          </Grid>
+        </Box>
+      </Fade>
+
+      {/* Epick Tab Content */}
+      <Fade in={activeTab === 1} timeout={400} style={{ display: activeTab === 1 ? 'block' : 'none' }}>
+        <Box>
+          {/* Epick Summary Cards */}
+          <Grid container spacing={2} mb={2}>
+            {epickCards.map((card, idx) => (
+              <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
+                <DashboardCard {...card} />
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* Picker Performance */}
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12 }}>
+              <Grow in={true} timeout={800}>
+                <Paper
+                  elevation={0}
                   sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    background: theme.palette.mode === "dark" ? "#232b39" : "#eef1f5",
-                    borderRadius: "8px",
-                    px: 1.5,
-                    py: 0.3,
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
                   }}
                 >
-                  <Typography fontSize={12} fontWeight={500} sx={{ mr: 1 }}>
-                    Sales
-                  </Typography>
-                  <Box
-                    sx={{
-                      // background: theme.palette.success.main,
-                      color: theme.palette.success.main,
-                      borderRadius: "5px",
-                      px: 1,
-                      // py: 0.4,
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Typography fontWeight={700} fontSize={13}>
-                      {dashboardData?.orderByUser?.sales ?? 0}
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      Picker Performance
                     </Typography>
-                  </Box>
-                </Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    background: theme.palette.mode === "dark" ? "#232b39" : "#eef1f5",
-                    borderRadius: "8px",
-                    px: 1.5,
-                    py: 0.3,
-                  }}
-                >
-                  <Typography fontSize={12} fontWeight={500}>
-                    Retailer
-                  </Typography>
-                  <Box
-                    sx={{
-                      // background: theme.palette.info.main,
-                      color: theme.palette.info.main,
-                      borderRadius: "5px",
-                      px: 1,
-                      // py: 0.4,
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Typography fontWeight={700} fontSize={13}>
-                      {dashboardData?.orderByUser?.retailer ?? 0}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Stack>
-            </Box>
-          </Paper>
-        </Grid>
-        <Grid size={{ sm: 12, md: 6, xl: 7 }}>
-          <Paper
-            sx={{
-              borderRadius: 3,
-              boxShadow: "none",
-              border: "1px solid divider",
-              pb: 1,
-              // height: "100%",
-            }}
-          >
-            <Box display="flex" justifyContent="space-between" px={2} pt={2}>
-              <Typography fontSize={16} fontWeight={500}>
-                Sales Person Performance
-              </Typography>
-              {/* <Button size="small" variant="text" onClick={() => {navigate('/admin/sales-person')}}>View All</Button> */}
-            </Box>
-            <Box sx={{ m: 2 }}>
-              <CommonTable
-                padding={0}
-                data={dashboardData?.salesPersonPerformance || []}
-                columns={salesPersonColumns}
-                currentPage={1}
-                totalPages={1}
-                totalItems={dashboardData?.salesPersonPerformance.length || 0}
-                stickyHeader={true}
-                pageSize={5}
-                onPageChange={() => {}}
-                onPageSizeChange={() => {}}
-                showPageSizeSelector={false}
-                showTotalItems={false}
-                showPageNumbers={false}
-                loading={loading}
-                containerHeight="320px"
-                emptyStateComponent={<Typography>No sales data</Typography>}
-              />
-            </Box>
-          </Paper>
-        </Grid>
-        <Grid size={{ sm: 12, md: 6, xl: 5 }}>
-          <Paper
-            sx={{
-              p: 2,
-              borderRadius: 4,
-              boxShadow: "none",
-              border: "1px solid primary.divider",
-                height: "100%",
-            }}
-          >
-            <Box display="flex" justifyContent="space-between" mb={1}>
-              <Typography fontSize={16} fontWeight={500}>
-                Sales Performance
-              </Typography>
-            </Box>
-            <Box sx={{ width: "100%", overflowX: "auto", overflowY: "hidden" }}>
-              <Box sx={{ minWidth: 700 }}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart
-                    data={lineData}
-                    margin={{ left: 10, right: 10, top: 20, bottom: 0 }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id="colorSales"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={() => setPickerViewMode("graph")}
+                        variant={pickerViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
                       >
-                        <stop
-                          offset="0%"
-                          stopColor={theme.palette.primary.main}
-                          stopOpacity={0.18}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor={theme.palette.primary.main}
-                          stopOpacity={0.04}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      interval={0}
-                      tick={{
-                        fontSize: 13,
-                        fontWeight: 400,
-                        fill: theme.palette.text.primary,
-                      }}
-                      tickMargin={12}
-                      axisLine={false}
-                      tickLine={true}
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setPickerViewMode("table")}
+                        variant={pickerViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {pickerViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={epickData?.pickerWiseOrders || []}
+                      columns={pickerColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={epickData?.pickerWiseOrders.length || 0}
+                      stickyHeader={true}
+                      pageSize={epickData?.pickerWiseOrders.length || 0}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={epickLoading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No picker data</Typography>}
                     />
-                    <YAxis
-                      tick={{
-                        fontSize: 13,
-                        fontWeight: 400,
-                        fill: theme.palette.text.secondary,
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(value) =>
-                        `$${(value / 1000).toFixed(0)}k`
-                      }
-                    />
-                    <Tooltip
-                      content={(props) => <CustomLineTooltip {...props} />}
-                      cursor={{
-                        stroke: theme.palette.primary.main,
-                        strokeDasharray: "3 3",
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="Sales"
-                      stroke={theme.palette.primary.main}
-                      strokeWidth={2}
-                      fill="url(#colorSales)"
-                      activeDot={{
-                        r: 10,
-                        fill: theme.palette.primary.main,
-                        stroke: "#fff",
-                        strokeWidth: 3,
-                      }}
-                      isAnimationActive
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </Box>
-            </Box>
-          </Paper>
-        </Grid>
-      </Grid>
+                  ) : (
+                    <Box sx={{ height: 320, width: "100%" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={pickerBarData}>
+                          <CartesianGrid 
+                            strokeDasharray="3 3" 
+                            stroke={alpha(theme.palette.divider, 0.5)}
+                            vertical={false}
+                          />
+                          <XAxis 
+                            dataKey="name" 
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                            axisLine={false}
+                          />
+                          <YAxis 
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                            axisLine={false}
+                            tickFormatter={(value) => value.toLocaleString()}
+                          />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Bar 
+                            dataKey="completedOrders" 
+                            fill={theme.palette.success.main}
+                            radius={[6, 6, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+          </Grid>
+        </Box>
+      </Fade>
     </Box>
   );
 };

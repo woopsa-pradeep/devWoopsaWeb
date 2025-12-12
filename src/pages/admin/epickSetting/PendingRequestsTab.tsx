@@ -34,6 +34,7 @@ interface OverrideRequest {
   status?: string;
   createdAt: string;
   updatedAt: string;
+  qty?: string | number;
 }
 
 const PendingRequestsTab: React.FC = () => {
@@ -247,6 +248,28 @@ const PendingRequestsTab: React.FC = () => {
           {row.itemDescription}
         </Typography>
       ),
+    },
+    {
+      id: 'qty',
+      label: 'Qty',
+      minWidth: 100,
+      align: 'center',
+      render: (row) => {
+        const qtyValue = row.qty;
+        if (qtyValue === undefined || qtyValue === null) {
+          return (
+            <Typography fontSize={14} fontWeight={400}>
+              N/A
+            </Typography>
+          );
+        }
+        const qtyNum = typeof qtyValue === 'string' ? Number(qtyValue) : qtyValue;
+        return (
+          <Typography fontSize={14} fontWeight={400}>
+            {qtyNum === 0 || qtyValue === "0" || qtyValue === 0 ? 'N/A' : String(qtyValue)}
+          </Typography>
+        );
+      },
     },
     {
       id: 'pickerUserNumber',

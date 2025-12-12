@@ -8,7 +8,7 @@ import {
   Tabs, 
   Tab,
 } from '@mui/material';
-import { VpnKey as PinIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon, Assessment as ReportsIcon, Person as CheckerUserIcon } from '@mui/icons-material';
+import { VpnKey as PinIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon, Assessment as ReportsIcon } from '@mui/icons-material';
 import PinSettingsTab from './PinSettingsTab';
 import OngoingOrdersTab from './OngoingOrdersTab';
 import OrderPreferencesTab from './OrderPreferencesTab';
@@ -118,7 +118,7 @@ const EpickSetting = () => {
                 },
               }}
             />
-            <Tab
+            {/* <Tab
               label="Checker User"
               icon={<CheckerUserIcon sx={{ fontSize: 20 }} />}
               iconPosition="start"
@@ -137,7 +137,7 @@ const EpickSetting = () => {
                   borderLeft: `4px solid ${theme.palette.primary.main}`,
                 },
               }}
-            />
+            /> */}
           </Tabs>
         </Paper>
 

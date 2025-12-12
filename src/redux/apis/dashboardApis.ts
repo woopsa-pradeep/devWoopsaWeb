@@ -63,3 +63,8 @@ export const getTopProducts =async () => {
     const response = await axiosInstance.get(`/dashboard/topProductForSales`);
     return response.data;
 }
+
+export const getEpickDashboard = async (params: { fromDate?: string; toDate?: string }) => {
+    const response = await axiosInstance.post('/dashboard/epickDashboard', params);
+    return response.data;
+};

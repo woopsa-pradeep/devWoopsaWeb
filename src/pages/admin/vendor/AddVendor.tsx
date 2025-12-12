@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -25,11 +25,14 @@ import SelectInput from '../../../component/atoms/SelectInput';
 import CheckboxInput from '../../../component/atoms/CheckboxInput';
 import CustomButton from '../../../component/atoms/CustomButton';
 import { vendorSchema, VendorFormData } from './vendor.schema';
-import { createVendor, listOfVendorsCreate } from '../../../redux/apis/distrubutor/VendorsApis';
+import { createVendor, listOfVendorsCreate, getVendorById, updateVendor } from '../../../redux/apis/distrubutor/VendorsApis';
 import toast from 'react-hot-toast';
 
 const AddVendor: React.FC = () => {
+  const { vendorId } = useParams<{ vendorId?: string }>();
+  const isEditMode = !!vendorId;
   const [submitting, setSubmitting] = useState(false);
+  const [originalData, setOriginalData] = useState<any>(null);
   const [termsOptions, setTermsOptions] = useState<Array<{ label: string; value: string }>>([]);
   const [termsData, setTermsData] = useState<Array<{ TermsCode: number; Terms: string; DaysUntilDue: number; TermsType: number }>>([]);
   const [selectedTermsCode, setSelectedTermsCode] = useState<string>('');
@@ -139,7 +142,55 @@ const AddVendor: React.FC = () => {
 
   useEffect(() => {
     fetchVendorCreateLists();
-  }, []);
+    if (isEditMode && vendorId) {
+      fetchVendorData();
+    }
+  }, [isEditMode, vendorId]);
+
+  const fetchVendorData = async () => {
+    try {
+      setLoadingLists(true);
+      const response: any = await getVendorById(vendorId!);
+      const vendorData = response?.data || response;
+      
+      if (vendorData) {
+        setOriginalData(vendorData);
+        
+        // Convert numeric fields to strings where schema expects strings
+        const stringFields = [
+          'Jurisdiction_State', 'Jurisdiction_County', 'Jurisdiction_City',
+          'QB_TaxVendor', 'Buyer_ID', 'V_PO_ReportFormat', 'TermsCode'
+        ];
+        
+        // Pre-fill form with existing data
+        Object.keys(vendorData).forEach((key) => {
+          if (vendorData[key] !== null && vendorData[key] !== undefined) {
+            // Special handling for PrepaidTax_Calculation_Select (convert 0 to '00')
+            if (key === 'PrepaidTax_Calculation_Select') {
+              const value = vendorData[key];
+              setValue(key as any, value === 0 || value === '0' ? '00' : String(value));
+            }
+            // Convert to string if field expects string
+            else if (stringFields.includes(key)) {
+              setValue(key as any, String(vendorData[key]));
+            } else {
+              setValue(key as any, vendorData[key]);
+            }
+          }
+        });
+
+        // Set selected terms code if available
+        if (vendorData.TermsCode) {
+          setSelectedTermsCode(String(vendorData.TermsCode));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching vendor data:', error);
+      toast.error('Failed to load vendor data');
+    } finally {
+      setLoadingLists(false);
+    }
+  };
 
   const fetchVendorCreateLists = async () => {
     setLoadingLists(true);
@@ -193,17 +244,38 @@ const AddVendor: React.FC = () => {
   const onSubmit = async (data: VendorFormData) => {
     setSubmitting(true);
     try {
-      console.log('Submitting vendor data:', data);
-      const response = await createVendor(data) as any;
-      if (response?.success) {
-        toast.success(response?.message || 'Vendor created successfully!');
-        navigate('/admin/vendors');
+      if (isEditMode && vendorId && originalData) {
+        // Only send changed fields
+        const changedFields: any = {};
+        Object.keys(data).forEach((key) => {
+          const currentValue = data[key as keyof VendorFormData];
+          const originalValue = originalData[key];
+          
+          // Deep comparison for objects/arrays
+          if (JSON.stringify(currentValue) !== JSON.stringify(originalValue)) {
+            changedFields[key] = currentValue;
+          }
+        });
+        
+        const response = await updateVendor(vendorId, changedFields) as any;
+        if (response?.success) {
+          toast.success(response?.message || 'Vendor updated successfully!');
+          navigate('/admin/vendors');
+        } else {
+          toast.error(response?.message || 'Failed to update vendor');
+        }
       } else {
-        toast.error(response?.message || 'Failed to create vendor');
+        const response = await createVendor(data) as any;
+        if (response?.success) {
+          toast.success(response?.message || 'Vendor created successfully!');
+          navigate('/admin/vendors');
+        } else {
+          toast.error(response?.message || 'Failed to create vendor');
+        }
       }
     } catch (error: any) {
-      console.error('Error creating vendor:', error);
-      toast.error(error?.response?.data?.message || error?.response?.message || error?.message || 'Failed to create vendor');
+      console.error('Error saving vendor:', error);
+      toast.error(error?.response?.data?.message || error?.response?.message || error?.message || `Failed to ${isEditMode ? 'update' : 'create'} vendor`);
     } finally {
       setSubmitting(false);
     }
@@ -1189,7 +1261,7 @@ const AddVendor: React.FC = () => {
                       render={({ field }) => (
                         <SelectInput
                           {...field}
-                          value={field.value ?? ''}
+                          value={field.value !== null && field.value !== undefined ? String(field.value) : ''}
                           onChange={(e: any) => field.onChange(e.target.value)}
                           label="Buyer ID"
                           options={buyerIDOptions}
@@ -1285,6 +1357,8 @@ const AddVendor: React.FC = () => {
                       render={({ field }) => (
                         <SelectInput
                           {...field}
+                          value={field.value !== null && field.value !== undefined ? String(field.value) : ''}
+                          onChange={(e: any) => field.onChange(e.target.value)}
                           label="PO Report Format"
                           options={documentFormatOptions}
                           disabled={loadingLists}
@@ -1359,7 +1433,7 @@ const AddVendor: React.FC = () => {
                           sx={{ minWidth: 120 }}
                           fullWidth={false}
                         >
-                          {submitting ? 'Creating...' : 'Create Vendor'}
+                          {submitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Vendor' : 'Create Vendor')}
                         </CustomButton>
                       </Box>
                     </Box>

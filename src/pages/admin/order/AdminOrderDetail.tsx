@@ -18,8 +18,6 @@ import jsPDF from 'jspdf';
 const jspdfAutoTable = require('jspdf-autotable');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import rabbitLogo from '../../../assets/Rabbit.svg';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import vectorLogo from '../../../assets/Vector.svg';
 
 const AdminOrderDetail = () => {
   const navigate = useNavigate();
@@ -260,15 +258,14 @@ const AdminOrderDetail = () => {
       const customer = orderHeader.customer || {};
       const distributorLogoUrl = orderHeader.logo;
 
-      // Load logos
-      const [rabbitLogoDataUrl, distributorLogoDataUrl, vectorLogoDataUrl] = await Promise.all([
+      // Load logos - only load distributor logo if URL is provided by API
+      const [rabbitLogoDataUrl, distributorLogoDataUrl] = await Promise.all([
         loadLogoAsDataUrl(),
         distributorLogoUrl ? loadLogoAsDataUrl(distributorLogoUrl) : Promise.resolve(null),
-        loadLogoAsDataUrl(vectorLogo),
       ]);
 
-      // Use Vector.svg as fallback if distributor logo is not available or failed
-      const finalLogoDataUrl = distributorLogoDataUrl || vectorLogoDataUrl;
+      // Only use distributor logo if successfully loaded from API (no fallback to default image)
+      const finalLogoDataUrl = distributorLogoDataUrl;
 
       const doc = new jsPDF('portrait', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -449,16 +446,8 @@ const AdminOrderDetail = () => {
         }
       }
 
-      // Order info - below all sections with divider
+      // Order info - below all sections
       yPosition = Math.max(distributorY, customerY) + 10;
-      
-      // Add a subtle divider line
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.5);
-      doc.line(margin, yPosition - 2, pageWidth - margin, yPosition - 2);
-      
-      // Add spacing after divider before order info
-      yPosition += 5;
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
@@ -494,10 +483,16 @@ const AdminOrderDetail = () => {
       const orderDateText = formatDateToMMDDYYYY(orderHeader.Order_Date || '');
       doc.setFont('helvetica', 'normal');
       doc.text(orderDateText, pageWidth - margin, yPosition, { align: 'right' });
-      yPosition += 10;
+      yPosition += 6;
+      
+      // Add divider line below order number and date
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 8;
 
       // Order Details Table - Modern Design
-      const tableHeaders = ['Qty', 'Shipped', 'Item #', 'Description', 'Pack', 'Size', 'Case', 'Price'];
+      const tableHeaders = ['Qty', 'Shipped', 'Item #', 'Description', 'Pack', 'Size', 'Price', 'Shipped Price'];
       const tableData: any[][] = [];
 
       orderDetails.forEach((item: any) => {
@@ -508,8 +503,8 @@ const AdminOrderDetail = () => {
           item.ItemDescription || item.inventory?.Description || '',
           item.Pack?.toString() || '',
           item.inventory?.UOM || '',
-          item.CaseCount?.toString() || '',
           `$${Number(item.Price || 0).toFixed(2)}`,
+          `$${Number(item.Price * item.Quantity_Shipped || 0).toFixed(2)}`,
         ]);
       });
 
@@ -540,10 +535,10 @@ const AdminOrderDetail = () => {
           1: { cellWidth: 19, halign: 'center' }, // Shipped - Reduced
           2: { cellWidth: 18, halign: 'center' }, // Item # - Reduced
           3: { cellWidth: 70, halign: 'left' }, // Description - Increased to compensate
-          4: { cellWidth: 15, halign: 'center' }, // Pack
-          5: { cellWidth: 18, halign: 'center' }, // Size
-          6: { cellWidth: 15, halign: 'center' }, // Case
-          7: { cellWidth: 20, halign: 'right' }, // Price
+          4: { cellWidth: 13, halign: 'center' }, // Pack
+          5: { cellWidth: 15, halign: 'center' }, // Size
+          6: { cellWidth: 20, halign: 'right' }, // Price
+          7: { cellWidth: 20, halign: 'right' }, // Shipped Price
         },
         didDrawPage: (data: any) => {
           addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
@@ -553,8 +548,8 @@ const AdminOrderDetail = () => {
       yPosition = (doc as any).lastAutoTable.finalY + 10;
 
       // Add divider between the two tables
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.5);
+      doc.setDrawColor(80, 80, 80);
+      doc.setLineWidth(1);
       doc.line(margin, yPosition, pageWidth - margin, yPosition);
       yPosition += 8; // Space after divider
 
@@ -579,7 +574,9 @@ const AdminOrderDetail = () => {
           return sum + Number(item.Quantity_Shipped || 0);
         }, 0);
         const totalPrice = categoryItems.reduce((sum, item) => {
-          return sum + Number(item.Price || 0);
+          const itemPrice = Number(item.Price || 0);
+          const itemShippedQty = Number(item.Quantity_Shipped || 0);
+          return sum + (itemPrice * itemShippedQty);
         }, 0);
         
         categorySummaryData.push([
@@ -653,8 +650,8 @@ const AdminOrderDetail = () => {
       }
 
       // Totals section with modern styling
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.5);
+      doc.setDrawColor(80, 80, 80);
+      doc.setLineWidth(1);
       doc.line(margin, yPosition - 2, pageWidth - margin, yPosition - 2);
       yPosition += 3;
       

@@ -36,8 +36,10 @@ export const approveOverrideRequest = async (requestId: number) => {
     return response.data;
 }
 
-export const cancelOverrideRequest = async (requestId: number) => {
-    const response = await axiosInstance.post(`/distrubutor/cancelOverrideRequest/${requestId}`);
+export const cancelOverrideRequest = async (requestId: number, rejectionReason?: string) => {
+    const response = await axiosInstance.post(`/distrubutor/cancelOverrideRequest/${requestId}`, {
+        rejectionReason: rejectionReason || ''
+    });
     return response.data;
 }
 

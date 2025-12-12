@@ -216,7 +216,7 @@ export const adminNavigationConfig: NavigationItem[] = [
     check: "distributor",
   },
   {
-    name: "E-pick & Checker",
+    name: "E-pick",
     path: "/admin/e-pick-settings",
     icon: "e-pick-settings",
     check: "distributor",

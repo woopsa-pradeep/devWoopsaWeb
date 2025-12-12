@@ -104,6 +104,11 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
+  '/admin/retailer/edit/:customerId': {
+    path: '/admin/retailer/edit/:customerId',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
   '/admin/products': {
     path: '/admin/products',
     allowedRoles: ['distributor'],
@@ -111,6 +116,11 @@ export const routeConfig: { [key: string]: RouteConfig } = {
   },
   '/admin/product/add': {
     path: '/admin/product/add',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
+  '/admin/product/edit/:itemNumber': {
+    path: '/admin/product/edit/:itemNumber',
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
@@ -136,6 +146,11 @@ export const routeConfig: { [key: string]: RouteConfig } = {
   },
   '/admin/vendor/add': {
     path: '/admin/vendor/add',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
+  '/admin/vendor/edit/:vendorId': {
+    path: '/admin/vendor/edit/:vendorId',
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
@@ -416,16 +431,41 @@ export const routeConfig: { [key: string]: RouteConfig } = {
 };
 
 
+// Helper function to match dynamic routes (e.g., /admin/product/edit/:itemNumber)
+const matchDynamicRoute = (actualPath: string, routePattern: string): boolean => {
+  // Convert route pattern to regex
+  const pattern = routePattern.replace(/:[^/]+/g, '[^/]+');
+  const regex = new RegExp(`^${pattern}$`);
+  return regex.test(actualPath);
+};
+
+// Helper function to find matching route config (handles dynamic routes)
+const findRouteConfig = (path: string): RouteConfig | null => {
+  // First try exact match
+  if (routeConfig[path]) {
+    return routeConfig[path];
+  }
+  
+  // Then try to match dynamic routes
+  for (const [routePattern, config] of Object.entries(routeConfig)) {
+    if (matchDynamicRoute(path, routePattern)) {
+      return config;
+    }
+  }
+  
+  return null;
+};
+
 // Helper function to check if a route is accessible for a given role
 export const isRouteAccessible = (path: string, role: string | null): boolean => {
-  const config = routeConfig[path];
+  const config = findRouteConfig(path);
   if (!config) return false;
   return config.allowedRoles.includes(role || '');
 };
 
 // Helper function to get redirect path for a route and role
 export const getRedirectPath = (path: string, role: string | null): string => {
-  const config = routeConfig[path];
+  const config = findRouteConfig(path);
   if (!config) {
     // Default redirects based on role
     if (role === 'distributor') return '/admin/dashboard';

@@ -95,4 +95,14 @@ export const createCustomer = async (params: any) => {
     const response = await axiosInstance.post("/distrubutor/createCustomer", params);
     return response.data;
 };
+
+export const getCustomerById = async (customerId: string) => {
+    const response = await axiosInstance.get(`/distrubutor/customer/${customerId}`);
+    return response.data;
+};
+
+export const updateCustomer = async (customerId: string, params: any) => {
+    const response = await axiosInstance.put(`/distrubutor/updateCustomer/${customerId}`, params);
+    return response.data;
+};
     

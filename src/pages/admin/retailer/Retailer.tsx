@@ -7,6 +7,7 @@ import TextInput from '../../../component/atoms/TextInput';
 import { customerList } from '../../../redux/apis/distrubutor/retailerApis';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SettingsIcon from '@mui/icons-material/Settings';
+import EditIcon from '@mui/icons-material/Edit';
 import { useDebounce } from '../../../hooks/useDebounce';
 import RetailerViewModal from '../../../component/molecules/RetailerViewModal';
 import CustomerLimitModal from '../../../component/molecules/CustomerLimitModal';
@@ -16,7 +17,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import CustomButton from '../../../component/atoms/CustomButton';
 
-function ActionMenu({ row, onView, onSetLimit }: { row: any; onView: (row: any) => void; onSetLimit: (row: any) => void }) {
+function ActionMenu({ row, onView, onSetLimit, onEdit }: { row: any; onView: (row: any) => void; onSetLimit: (row: any) => void; onEdit: (row: any) => void }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const handleClick = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
@@ -32,6 +33,11 @@ function ActionMenu({ row, onView, onSetLimit }: { row: any; onView: (row: any) 
     handleClose();
   };
 
+  const handleEdit = () => {
+    onEdit(row);
+    handleClose();
+  };
+
   return (
     <>
       <IconButton onClick={handleClick}>
@@ -39,6 +45,7 @@ function ActionMenu({ row, onView, onSetLimit }: { row: any; onView: (row: any) 
       </IconButton>
       <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
         <MenuItem onClick={handleView} sx={{ fontSize: 14, gap: 1, color: 'text.primary' }}><VisibilityIcon fontSize="small"/> View</MenuItem>
+        <MenuItem onClick={handleEdit} sx={{ fontSize: 14, gap: 1, color: 'text.primary' }}><EditIcon fontSize="small" sx={{ color: 'primary.main' }}/> Edit</MenuItem>
         {row?.isRegisterCustomer && <MenuItem onClick={handleSetLimit} sx={{ fontSize: 14, gap: 1, color: 'text.primary' }}><SettingsIcon fontSize="small"/> Set Limit</MenuItem>}
       </Menu>
     </>
@@ -101,6 +108,10 @@ const Retailer = () => {
   const onSetLimitRetailer = (retailer: any) => {
     setSelectedLimitRetailer(retailer);
     setLimitModalOpen(true);
+  };
+
+  const onEditRetailer = (retailer: any) => {
+    navigate(`/admin/retailer/edit/${retailer.C_Number}`);
   };
 
   const handleLimitSubmit = async (data: CustomerLimitFormData) => {
@@ -181,7 +192,7 @@ const Retailer = () => {
     {
       id: 'actions',
       label: 'Actions',
-      render: (row) => <ActionMenu row={row} onView={onViewRetailer} onSetLimit={onSetLimitRetailer} />,
+      render: (row) => <ActionMenu row={row} onView={onViewRetailer} onSetLimit={onSetLimitRetailer} onEdit={onEditRetailer} />,
     },
   ];
 

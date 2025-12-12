@@ -303,6 +303,14 @@ export const adminRoutes = [
             ),
           },
           {
+            path: "retailer/edit/:customerId",
+            element: (
+              <RoleBasedRoute path="/admin/retailer/edit/:customerId">
+                <AddRetailer />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "products",
             element: (
               <RoleBasedRoute path="/admin/products">
@@ -314,6 +322,14 @@ export const adminRoutes = [
             path: "product/add",
             element: (
               <RoleBasedRoute path="/admin/product/add">
+                <Inventory />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "product/edit/:itemNumber",
+            element: (
+              <RoleBasedRoute path="/admin/product/edit/:itemNumber">
                 <Inventory />
               </RoleBasedRoute>
             ),
@@ -362,6 +378,14 @@ export const adminRoutes = [
             path: "vendor/add",
             element: (
               <RoleBasedRoute path="/admin/vendor/add">
+                <AddVendor />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "vendor/edit/:vendorId",
+            element: (
+              <RoleBasedRoute path="/admin/vendor/edit/:vendorId">
                 <AddVendor />
               </RoleBasedRoute>
             ),

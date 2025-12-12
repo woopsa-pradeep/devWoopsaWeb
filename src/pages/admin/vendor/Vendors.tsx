@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import { getVendorList } from '../../../redux/apis/distrubutor/VendorsApis';
-import { CircularProgress, Box, Typography, Paper, Grid } from '@mui/material';
+import { CircularProgress, Box, Typography, Paper, Grid, Tooltip } from '@mui/material';
 import TextInput from '../../../component/atoms/TextInput';
 import { useNavigate } from 'react-router-dom';
 import CustomButton from '../../../component/atoms/CustomButton';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 
 interface VendorItem {
   Primary_Vendor: number;
@@ -21,20 +22,6 @@ interface VendorItem {
   V_FEIN: string;
 }
 
-const columns: TableColumn<VendorItem>[] = [
-  { id: 'Primary_Vendor', label: 'Vendor ID', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.Primary_Vendor || "-"}</Typography>) },
-  { id: 'V_Description', label: 'Company Name', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Description || "-"}</Typography>) },
-  { id: 'V_Addr1', label: 'Address Line 1', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Addr1 || "-"}</Typography>) },
-  { id: 'V_Addr2', label: 'Address Line 2', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Addr2 || "-"}</Typography>) },
-  { id: 'V_City', label: 'City', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_City || "-"}</Typography>) },
-  { id: 'V_State', label: 'State', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_State || "-"}</Typography>) },
-  { id: 'V_Zip', label: 'Zip Code', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Zip || "-"}</Typography>) },
-  { id: 'V_Phone', label: 'Phone', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Phone || "-"}</Typography>) },
-  { id: 'V_Terms', label: 'Payment Terms', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Terms || "-"}</Typography>) },
-  { id: 'V_Email', label: 'Email', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Email || "-"}</Typography>) },
-  { id: 'V_FEIN', label: 'Tax ID', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_FEIN || "-"}</Typography>) }
-];
-
 const Vendors = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<VendorItem[]>([]);
@@ -44,6 +31,35 @@ const Vendors = () => {
   const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+
+  const columns: TableColumn<VendorItem>[] = [
+    { id: 'Primary_Vendor', label: 'Vendor ID', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.Primary_Vendor || "-"}</Typography>) },
+    { id: 'V_Description', label: 'Company Name', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Description || "-"}</Typography>) },
+    { id: 'V_Addr1', label: 'Address Line 1', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Addr1 || "-"}</Typography>) },
+    { id: 'V_Addr2', label: 'Address Line 2', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Addr2 || "-"}</Typography>) },
+    { id: 'V_City', label: 'City', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_City || "-"}</Typography>) },
+    { id: 'V_State', label: 'State', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_State || "-"}</Typography>) },
+    { id: 'V_Zip', label: 'Zip Code', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Zip || "-"}</Typography>) },
+    { id: 'V_Phone', label: 'Phone', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Phone || "-"}</Typography>) },
+    { id: 'V_Terms', label: 'Payment Terms', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Terms || "-"}</Typography>) },
+    { id: 'V_Email', label: 'Email', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Email || "-"}</Typography>) },
+    { id: 'V_FEIN', label: 'Tax ID', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_FEIN || "-"}</Typography>) },
+    {
+      id: 'Action',
+      label: 'Action',
+      minWidth: 100,
+      render: (row: VendorItem) => (
+        <Tooltip title="Edit Vendor">
+          <EditIcon 
+            sx={{ fontSize: 20, color: 'primary.main', cursor: 'pointer' }} 
+            onClick={() => {
+              navigate(`/admin/vendor/edit/${row.Primary_Vendor}`);
+            }}
+          />
+        </Tooltip>
+      )
+    }
+  ];
 
   useEffect(() => {
     const fetchData = async () => {

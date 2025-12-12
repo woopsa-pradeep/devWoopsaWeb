@@ -4,6 +4,12 @@ import {
   Typography, 
   Paper,
   Grid,
+  Drawer,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  IconButton,
   } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
@@ -27,6 +33,10 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import DistrubutorProductDetailModal from '../../../component/molecules/DistrubutorProductDetailModal';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AddIcon from '@mui/icons-material/Add';
+import PrintIcon from '@mui/icons-material/Print';
+import CloseIcon from '@mui/icons-material/Close';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const JsBarcode = require('jsbarcode');
 
 interface Product {
   id: string;
@@ -74,6 +84,9 @@ interface LimitModalData {
   QtyLimit: number;
 }
 
+// Barcode cache outside component to persist across renders
+const barcodeCache = new Map<string, string>();
+
 const Product = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -109,6 +122,23 @@ const Product = () => {
     QtyLimit: 0
   });
   const [savingLimit, setSavingLimit] = useState(false);
+
+  // Print Label states
+  const [printLabelDrawerOpen, setPrintLabelDrawerOpen] = useState(false);
+  const [printLabelForm, setPrintLabelForm] = useState({
+    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4",
+    orientation: 'landscape' as "landscape" | "portrait",
+    salesCategory: [] as FilterOption[],
+    priceClass: [] as FilterOption[],
+  });
+  const [printLabelLoading, setPrintLabelLoading] = useState(false);
+  const [individualPrintModalOpen, setIndividualPrintModalOpen] = useState(false);
+  const [individualPrintProduct, setIndividualPrintProduct] = useState<Product | null>(null);
+  const [individualPrintForm, setIndividualPrintForm] = useState({
+    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4",
+    orientation: 'landscape' as "landscape" | "portrait",
+  });
+  const [individualPrintLoading, setIndividualPrintLoading] = useState(false);
 
   useEffect(() => {
     fetchSalesCategories();
@@ -287,6 +317,643 @@ const Product = () => {
     }
   };
 
+  // Generate barcode image data URL - non-blocking with cache
+  const generateBarcodeImage = (upc: string): string | null => {
+    try {
+      if (!upc || upc === 'N/A' || upc.trim() === '') {
+        return null;
+      }
+
+      // Clean UPC value
+      const upcValue = upc.toString().trim().replace(/\D/g, '');
+      if (upcValue.length < 8) {
+        return null;
+      }
+
+      // Check cache first - instant return
+      if (barcodeCache.has(upcValue)) {
+        return barcodeCache.get(upcValue)!;
+      }
+
+      // Generate synchronously but with optimized settings
+      const canvas = document.createElement('canvas');
+      canvas.width = 200;
+      canvas.height = 60;
+      
+      JsBarcode(canvas, upcValue, {
+        format: 'CODE128',
+        width: 1.5,
+        height: 40,
+        displayValue: false,
+        fontSize: 0,
+        margin: 3,
+        background: '#ffffff',
+        lineColor: '#000000'
+      });
+
+      const dataUrl = canvas.toDataURL('image/png');
+      barcodeCache.set(upcValue, dataUrl);
+      return dataUrl;
+    } catch (error) {
+      console.error('Failed to generate barcode:', error);
+      return null;
+    }
+  };
+
+  // Generate label HTML for a product - simple and fast
+  // const generateLabelHTML = (product: Product, _size: string, _orientation: string) => {
+  //   // Get product image - use distributor if showDistributorImage is true, else master, else default
+  //   let productImage = img;
+  //   if (product.showDistributorImage && product.distributorImage) {
+  //     productImage = product.distributorImage;
+  //   } else if (product.masterImage) {
+  //     productImage = product.masterImage;
+  //   } else if (product.Item_Image) {
+  //     productImage = product.Item_Image;
+  //   }
+
+  //   const upc = product.UPCList?.[0]?.UPC_Number || product.Item_Number || '';
+  //   const price = product.Price1 ? Number(product.Price1).toFixed(2) : '0.00';
+  //   const pack = product.Pack || 'N/A';
+  //   const caseCount = product.CaseCount || 'N/A';
+  //   const productName = (product.Description || product.Item_Name || 'N/A').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  //   const itemNumber = product.Item_Number || 'N/A';
+
+  //   // Generate barcode (cached, so fast)
+  //   const barcodeImage = generateBarcodeImage(upc);
+
+  //   return `
+  //     <div class="label-container">
+  //       <div class="label-content">
+  //         <div class="label-image-section">
+  //           <img src="${productImage}" alt="${productName}" class="label-image" onerror="this.onerror=null; this.src='${img}';" />
+  //         </div>
+  //         <div class="label-info-section">
+  //           <div class="label-description">${productName}</div>
+  //           <div class="label-details-grid">
+  //             <div class="label-detail-item">
+  //               <span class="label-detail-value">${itemNumber}</span>
+  //             </div>
+  //             <div class="label-detail-item">
+  //               <span class="label-detail-value">${pack} Pack</span>
+  //             </div>
+  //             <div class="label-detail-item">
+  //               <span class="label-detail-value">${caseCount} Case</span>
+  //             </div>
+  //             <div class="label-detail-item price-item">
+  //               <span class="label-detail-value price-value">$${price}</span>
+  //             </div>
+  //           </div>
+  //           ${barcodeImage ? `
+  //           <div class="label-barcode-section">
+  //             <img src="${barcodeImage}" alt="Barcode" class="label-barcode" />
+  //           </div>
+  //           ` : ''}
+  //         </div>
+  //       </div>
+  //     </div>
+  //   `;
+  // };
+
+  // Generate and print labels - optimized for performance with chunking
+  const generateAndPrintLabels = (products: Product[], size: string, orientation: string) => {
+    // Handle A4 size differently
+    let pageWidth, pageHeight;
+    if (size === 'A4') {
+      pageWidth = '8.27in';
+      pageHeight = '11.69in';
+    } else {
+      const [width, height] = size.split('x').map(Number);
+      const isLandscape = orientation === 'landscape';
+      // Swap dimensions for landscape
+      pageWidth = isLandscape ? `${height}in` : `${width}in`;
+      pageHeight = isLandscape ? `${width}in` : `${height}in`;
+    }
+
+    // Calculate responsive sizes based on label dimensions and orientation
+    const getSize = (base: number) => {
+      if (size === 'A4') return `${base * 1.5}px`;
+      const [w, h] = size.split('x').map(Number);
+      const isLandscape = orientation === 'landscape';
+      const effectiveWidth = isLandscape ? h : w;
+      const effectiveHeight = isLandscape ? w : h;
+      const area = effectiveWidth * effectiveHeight;
+      
+      if (area >= 24) return `${base * 1.1}px`; // 4x6, 3x6
+      if (area >= 12) return `${base}px`; // 4x3
+      return `${base * 0.85}px`; // smaller sizes
+    };
+
+    // Generate CSS styles once
+    const styles = `
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      @page {
+        size: ${pageWidth} ${pageHeight};
+        margin: 0;
+      }
+      @media print {
+        body {
+          margin: 0;
+          padding: 0;
+          background: white;
+        }
+        .label-container {
+          page-break-after: always;
+          page-break-inside: avoid;
+          break-after: page;
+          break-inside: avoid;
+          margin: 0;
+        }
+        .label-container:last-child {
+          page-break-after: auto;
+          break-after: auto;
+        }
+      }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background: white;
+      }
+      .label-container {
+        width: ${pageWidth};
+        height: ${pageHeight};
+        margin: 0;
+        background: white;
+        page-break-after: always;
+        page-break-inside: avoid;
+        overflow: hidden;
+      }
+      .label-content {
+        display: flex;
+        flex-direction: row;
+        height: 100%;
+        width: 100%;
+        padding: ${size === 'A4' ? '0.1in' : '0.08in'};
+        gap: ${size === 'A4' ? '0.12in' : '0.1in'};
+        background: #ffffff;
+      }
+      .label-content.label-small {
+        flex-direction: column;
+        padding: ${size === 'A4' ? '0.08in' : '0.06in'};
+        gap: ${size === 'A4' ? '0.06in' : '0.05in'};
+      }
+      .label-content.label-square {
+        gap: ${size === 'A4' ? '0.1in' : '0.08in'};
+      }
+      .label-image-section {
+        width: ${orientation === 'landscape' ? '40%' : '38%'};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        padding: ${size === 'A4' ? '0.05in' : '0.04in'};
+        flex-shrink: 0;
+      }
+      .label-square .label-image-section {
+        width: 35%;
+        height: 50%;
+      }
+      .label-left-section {
+        width: ${orientation === 'landscape' ? '35%' : '32%'};
+        display: flex;
+        flex-direction: column;
+        gap: ${size === 'A4' ? '0.06in' : '0.05in'};
+        flex-shrink: 0;
+      }
+      .label-image {
+        max-width: 100%;
+        max-height: 100%;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+      .label-info-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: ${size === 'A4' ? '0.08in' : '0.06in'};
+        min-width: 0;
+      }
+      .label-small .label-info-section {
+        gap: ${size === 'A4' ? '0.05in' : '0.04in'};
+      }
+      .label-description {
+        font-size: ${getSize(20)};
+        font-weight: 900;
+        color: #000000;
+        line-height: 1.2;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: ${size === 'A4' ? '0.06in' : '0.05in'};
+      }
+      .label-small .label-description {
+        font-size: ${getSize(12)};
+        margin-bottom: ${size === 'A4' ? '0.04in' : '0.03in'};
+      }
+      .label-details-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: ${size === 'A4' ? '0.06in' : '0.05in'};
+        flex: 1;
+      }
+      .label-small .label-details-grid {
+        grid-template-columns: 1fr;
+        gap: ${size === 'A4' ? '0.03in' : '0.02in'};
+      }
+      .label-detail-item {
+        display: flex;
+        flex-direction: column;
+        gap: ${size === 'A4' ? '0.02in' : '0.015in'};
+        padding: ${size === 'A4' ? '0.04in' : '0.03in'};
+        background: #ffffff;
+      }
+      .label-small .label-detail-item {
+        flex-direction: row;
+        justify-content: space-between;
+        padding: ${size === 'A4' ? '0.02in' : '0.015in'};
+        gap: ${size === 'A4' ? '0.05in' : '0.04in'};
+      }
+      .label-detail-item.price-item {
+        grid-column: 1 / -1;
+        background: #ffffff;
+        justify-content: flex-start;
+      }
+      .label-detail-label {
+        font-size: ${getSize(9)};
+        font-weight: 700;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      .label-detail-value {
+        font-size: ${getSize(12)};
+        font-weight: 700;
+        color: #000000;
+        word-break: break-word;
+      }
+      .label-small .label-detail-value {
+        font-size: ${getSize(8)};
+      }
+      .label-detail-value.price-value {
+        font-size: ${getSize(24)};
+        color: #dc2626;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+      }
+      .label-small .label-detail-value.price-value {
+        font-size: ${getSize(14)};
+      }
+      .label-barcode-section {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        padding: ${size === 'A4' ? '0.05in' : '0.04in'};
+        margin-top: auto;
+      }
+      .label-square .label-barcode-section {
+        flex: 1;
+        margin-top: 0;
+      }
+      .label-small .label-barcode-section {
+        padding: ${size === 'A4' ? '0.03in' : '0.02in'};
+      }
+      .label-barcode {
+        max-width: 100%;
+        width: 100%;
+        height: auto;
+        display: block;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+      }
+    `;
+
+    // Open window first
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups to print labels');
+      return;
+    }
+
+    // Write document structure immediately
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Product Labels</title>
+        <style>${styles}</style>
+      </head>
+      <body>
+    `);
+    printWindow.document.close();
+
+    // Defer barcode generation to prevent blocking - generate labels first, then add barcodes
+    const generateLabelWithoutBarcode = (product: Product) => {
+      let productImage = img;
+      if (product.showDistributorImage && product.distributorImage) {
+        productImage = product.distributorImage;
+      } else if (product.masterImage) {
+        productImage = product.masterImage;
+      } else if (product.Item_Image) {
+        productImage = product.Item_Image;
+      }
+
+      const upc = product.UPCList?.[0]?.UPC_Number || product.Item_Number || '';
+      const price = product.Price1 ? Number(product.Price1).toFixed(2) : '0.00';
+      const pack = product.Pack || 'N/A';
+      const caseCount = product.CaseCount || 'N/A';
+      const productName = (product.Description || product.Item_Name || 'N/A').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const itemNumber = product.Item_Number || 'N/A';
+
+      // Check if it's a small size (2x2, 2x3, 3x2)
+      const isSmallSize = size === '2x2' || size === '2x3' || size === '3x2';
+      // Check if it's a square size (4x4, 3x3)
+      const isSquareSize = size === '4x4' || size === '3x3';
+
+      if (isSmallSize) {
+        // Small sizes: No image, no labels, small font
+        return `
+          <div class="label-container" data-upc="${upc}">
+            <div class="label-content label-small">
+              <div class="label-info-section">
+                <div class="label-description">${productName}</div>
+                <div class="label-details-grid">
+                  <div class="label-detail-item">
+                    <span class="label-detail-value">${itemNumber}</span>
+                  </div>
+                  <div class="label-detail-item">
+                    <span class="label-detail-value">${pack}</span>
+                  </div>
+                  <div class="label-detail-item">
+                    <span class="label-detail-value">${caseCount}</span>
+                  </div>
+                  <div class="label-detail-item price-item">
+                    <span class="label-detail-value price-value">$${price}</span>
+                  </div>
+                </div>
+                <div class="label-barcode-section" data-barcode-placeholder="${upc}"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (isSquareSize) {
+        // Square sizes: Image on left (smaller height), barcode beside image, info on right
+        return `
+          <div class="label-container" data-upc="${upc}">
+            <div class="label-content label-square">
+              <div class="label-left-section">
+                <div class="label-image-section">
+                  <img src="${productImage}" alt="${productName}" class="label-image" onerror="this.onerror=null; this.src='${img}';" />
+                </div>
+                <div class="label-barcode-section" data-barcode-placeholder="${upc}"></div>
+              </div>
+              <div class="label-info-section">
+                <div class="label-description">${productName}</div>
+                <div class="label-details-grid">
+                  <div class="label-detail-item">
+                    <span class="label-detail-label">ITEM NUMBER:</span>
+                    <span class="label-detail-value">${itemNumber}</span>
+                  </div>
+                  <div class="label-detail-item">
+                    <span class="label-detail-label">PACK:</span>
+                    <span class="label-detail-value">${pack}</span>
+                  </div>
+                  <div class="label-detail-item">
+                    <span class="label-detail-label">CASE:</span>
+                    <span class="label-detail-value">${caseCount}</span>
+                  </div>
+                  <div class="label-detail-item price-item">
+                    <span class="label-detail-value price-value">$${price}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Normal sizes: Full layout with image and barcode
+        return `
+          <div class="label-container" data-upc="${upc}">
+            <div class="label-content">
+              <div class="label-image-section">
+                <img src="${productImage}" alt="${productName}" class="label-image" onerror="this.onerror=null; this.src='${img}';" />
+              </div>
+              <div class="label-info-section">
+                <div class="label-description">${productName}</div>
+                <div class="label-details-grid">
+                  <div class="label-detail-item">
+                    <span class="label-detail-label">ITEM NUMBER:</span>
+                    <span class="label-detail-value">${itemNumber}</span>
+                  </div>
+                  <div class="label-detail-item">
+                    <span class="label-detail-label">PACK:</span>
+                    <span class="label-detail-value">${pack}</span>
+                  </div>
+                  <div class="label-detail-item">
+                    <span class="label-detail-label">CASE:</span>
+                    <span class="label-detail-value">${caseCount}</span>
+                  </div>
+                  <div class="label-detail-item price-item">
+                    <span class="label-detail-value price-value">$${price}</span>
+                  </div>
+                </div>
+                <div class="label-barcode-section" data-barcode-placeholder="${upc}"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    };
+
+    // Process in tiny chunks - generate HTML first (fast), barcodes later (slow)
+    const CHUNK_SIZE = 3; // Very small chunks
+    let currentIndex = 0;
+    const totalProducts = products.length;
+
+    const processChunk = () => {
+      const endIndex = Math.min(currentIndex + CHUNK_SIZE, totalProducts);
+      const chunk = products.slice(currentIndex, endIndex);
+      
+      // Generate HTML without barcodes (fast)
+      let chunkHTML = '';
+      for (let i = 0; i < chunk.length; i++) {
+        chunkHTML += generateLabelWithoutBarcode(chunk[i]);
+      }
+      
+      // Append to document immediately
+      if (printWindow && printWindow.document && printWindow.document.body) {
+        printWindow.document.body.insertAdjacentHTML('beforeend', chunkHTML);
+      }
+      
+      currentIndex = endIndex;
+      
+      // Continue processing if more chunks remain
+      if (currentIndex < totalProducts) {
+        // Yield immediately
+        setTimeout(processChunk, 0);
+      } else {
+        // All labels generated, now add barcodes asynchronously
+        const addBarcodes = () => {
+          const containers = printWindow?.document?.querySelectorAll('.label-container[data-upc]');
+          if (!containers || containers.length === 0) {
+            setTimeout(() => {
+              if (printWindow) {
+                printWindow.print();
+              }
+            }, 300);
+            return;
+          }
+
+          let barcodeIndex = 0;
+          const addBarcode = () => {
+            if (barcodeIndex >= containers.length) {
+              setTimeout(() => {
+                if (printWindow) {
+                  printWindow.print();
+                }
+              }, 300);
+              return;
+            }
+
+             const container = containers[barcodeIndex] as HTMLElement;
+             const upc = container.getAttribute('data-upc') || '';
+             const barcodePlaceholder = container.querySelector('.label-barcode-section[data-barcode-placeholder]');
+             const barcodePlaceholderSquare = container.querySelector('.label-left-section .label-barcode-section[data-barcode-placeholder]');
+             
+             if ((barcodePlaceholder || barcodePlaceholderSquare) && upc) {
+               const barcodeImage = generateBarcodeImage(upc);
+               if (barcodeImage) {
+                 const target = barcodePlaceholder || barcodePlaceholderSquare;
+                 if (target) {
+                   target.innerHTML = `<img src="${barcodeImage}" alt="Barcode" class="label-barcode" />`;
+                   target.removeAttribute('data-barcode-placeholder');
+                 }
+               }
+             }
+
+            barcodeIndex++;
+            setTimeout(addBarcode, 0);
+          };
+
+          setTimeout(addBarcode, 0);
+        };
+
+        // Start adding barcodes after a short delay
+        setTimeout(addBarcodes, 50);
+      }
+    };
+
+    // Start processing - yield immediately
+    setTimeout(processChunk, 0);
+  };
+
+  // Handle print labels (bulk) - optimized for performance
+  const handlePrintLabels = async () => {
+    try {
+      setPrintLabelLoading(true);
+      toast.loading('Fetching products...', { id: 'fetch-products' });
+      
+      // Fetch all products using productList with high limit
+      const params = {
+        search: '',
+        page: 1,
+        limit: 100000, // Very high limit to get all products
+        salesCategoryId: printLabelForm.salesCategory.length > 0 
+          ? printLabelForm.salesCategory.map(cat => Number(cat.value))
+          : [],
+        priceClassId: printLabelForm.priceClass.length > 0
+          ? printLabelForm.priceClass.map(pc => Number(pc.value))
+          : [],
+      };
+      
+      const res: any = await productList(params);
+      const allProducts: Product[] = res?.data?.data?.finalProductList || [];
+      
+      if (!Array.isArray(allProducts) || allProducts.length === 0) {
+        toast.error('No products found', { id: 'fetch-products' });
+        return;
+      }
+
+      // Products are already filtered by the API based on salesCategoryId and priceClassId
+      if (allProducts.length === 0) {
+        toast.error('No products match the selected filters', { id: 'fetch-products' });
+        return;
+      }
+
+      toast.success(`Generating ${allProducts.length} labels...`, { id: 'fetch-products' });
+      
+      // Close drawer immediately to free UI
+      setPrintLabelDrawerOpen(false);
+      setPrintLabelLoading(false);
+      
+      // Dismiss toast immediately
+      toast.dismiss('fetch-products');
+      
+      // Multiple yields to ensure UI is completely free before starting
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            requestAnimationFrame(() => {
+              generateAndPrintLabels(
+                allProducts,
+                printLabelForm.size,
+                printLabelForm.orientation
+              );
+            });
+          }, 0);
+        });
+      }, 100);
+    } catch (error: any) {
+      console.error('Failed to generate labels:', error);
+      toast.error(error?.response?.data?.message || 'Failed to generate labels', { id: 'fetch-products' });
+      setPrintLabelLoading(false);
+    }
+  };
+
+  // Handle individual product print
+  const handleIndividualPrint = () => {
+    if (!individualPrintProduct) return;
+    try {
+      setIndividualPrintLoading(true);
+      
+      // Close modal immediately to free UI
+      setIndividualPrintModalOpen(false);
+      setIndividualPrintLoading(false);
+      
+      // Multiple yields before starting generation
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            requestAnimationFrame(() => {
+              generateAndPrintLabels(
+                [individualPrintProduct],
+                individualPrintForm.size,
+                individualPrintForm.orientation
+              );
+              toast.success('Label generated successfully');
+            });
+          }, 0);
+        });
+      }, 100);
+    } catch (error: any) {
+      console.error('Failed to generate label:', error);
+      toast.error('Failed to generate label');
+      setIndividualPrintLoading(false);
+    }
+  };
+
   const columns: TableColumn<Product>[] = [
     {
       id: 'Item_Number',
@@ -458,17 +1125,36 @@ const Product = () => {
       render: (row: any) => {
         return (
           <Box display="flex" gap={1}>
-            <VisibilityOutlinedIcon 
-              sx={{ fontSize: 20, color: 'primary.main', cursor: 'pointer' }} 
-              onClick={() => {
-                setDetailProductId(row.Item_Number);
-                setDetailModalOpen(true);
-              }}
-            />
+            <Tooltip title="View Details">
+              <VisibilityOutlinedIcon 
+                sx={{ fontSize: 20, color: 'primary.main', cursor: 'pointer' }} 
+                onClick={() => {
+                  setDetailProductId(row.Item_Number);
+                  setDetailModalOpen(true);
+                }}
+              />
+            </Tooltip>
+            <Tooltip title="Edit Product">
+              <EditIcon 
+                sx={{ fontSize: 20, color: 'primary.main', cursor: 'pointer' }} 
+                onClick={() => {
+                  navigate(`/admin/product/edit/${row.Item_Number}`);
+                }}
+              />
+            </Tooltip>
             <Tooltip title="Set Product Limit">
               <SettingsIcon 
                 sx={{ fontSize: 20, color: 'secondary.main', cursor: 'pointer' }} 
                 onClick={() => handleLimitClick(row)}
+              />
+            </Tooltip>
+            <Tooltip title="Print Label">
+              <PrintIcon 
+                sx={{ fontSize: 20, color: 'info.main', cursor: 'pointer' }} 
+                onClick={() => {
+                  setIndividualPrintProduct(row);
+                  setIndividualPrintModalOpen(true);
+                }}
               />
             </Tooltip>
           </Box>
@@ -481,15 +1167,26 @@ const Product = () => {
     <Box sx={{ p: { xs: 0, md: 3 }, pt: { xs: 0, md: 0 } }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Typography fontSize={18} fontWeight={400} color="text.primary">Products Management</Typography>
-          <CustomButton 
-            fullWidth={false}
-            onClick={() => navigate('/admin/product/add')}
-            icon={<AddIcon sx={{ fontSize: 20 }} />}
-            iconPosition="left"
-            sx={{ mt: 0 }} 
-          >
-            Add Product
-          </CustomButton>  
+          <Box display="flex" gap={2}>
+            <CustomButton 
+              fullWidth={false}
+              onClick={() => setPrintLabelDrawerOpen(true)}
+              icon={<PrintIcon sx={{ fontSize: 20 }} />}
+              iconPosition="left"
+              sx={{ mt: 0 }} 
+            >
+              Print Label
+            </CustomButton>
+            <CustomButton 
+              fullWidth={false}
+              onClick={() => navigate('/admin/product/add')}
+              icon={<AddIcon sx={{ fontSize: 20 }} />}
+              iconPosition="left"
+              sx={{ mt: 0 }} 
+            >
+              Add Product
+            </CustomButton>  
+          </Box>
       </Box>
       <Paper sx={{ boxShadow: 'none', borderRadius: '0px' }}>
       <Box px={2} pt={2}>
@@ -813,6 +1510,210 @@ const Product = () => {
         onClose={() => setDetailModalOpen(false)} 
         productId={detailProductId || ''} 
       />
+
+      {/* Print Label Drawer */}
+      <Drawer
+        anchor="right"
+        open={printLabelDrawerOpen}
+        onClose={() => {
+          if (!printLabelLoading) {
+            setPrintLabelDrawerOpen(false);
+          }
+        }}
+        PaperProps={{
+          sx: { width: { xs: '100%', sm: 400 }, p: 3 }
+        }}
+      >
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+          <Typography fontSize={18} fontWeight={500}>Print Labels</Typography>
+          <IconButton
+            onClick={() => {
+              if (!printLabelLoading) {
+                setPrintLabelDrawerOpen(false);
+              }
+            }}
+            disabled={printLabelLoading}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+
+        <Box display="flex" flexDirection="column" gap={3}>
+          <FormControl fullWidth>
+            <InputLabel>Label Size</InputLabel>
+            <Select
+              value={printLabelForm.size}
+              onChange={(e) =>
+                setPrintLabelForm({
+                  ...printLabelForm,
+                  size: e.target.value as any,
+                })
+              }
+              label="Label Size"
+            >
+              <MenuItem value="4x3">4x3</MenuItem>
+              <MenuItem value="4x6">4x6</MenuItem>
+              <MenuItem value="3x6">3x6</MenuItem>
+              <MenuItem value="3x2">3x2</MenuItem>
+              <MenuItem value="4x4">4x4</MenuItem>
+              <MenuItem value="2x2">2x2</MenuItem>
+              <MenuItem value="2x3">2x3</MenuItem>
+              <MenuItem value="3x3">3x3</MenuItem>
+              <MenuItem value="5x3">5x3</MenuItem>
+              <MenuItem value="6x4">6x4</MenuItem>
+              <MenuItem value="A4">A4</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth>
+            <InputLabel>Display Orientation</InputLabel>
+            <Select
+              value={printLabelForm.orientation}
+              onChange={(e) =>
+                setPrintLabelForm({
+                  ...printLabelForm,
+                  orientation: e.target.value as any,
+                })
+              }
+              label="Display Orientation"
+            >
+              <MenuItem value="portrait">Portrait</MenuItem>
+              <MenuItem value="landscape">Landscape</MenuItem>
+            </Select>
+          </FormControl>
+
+          <MultiSearchableDropdown
+            options={salesCategoryOptions}
+            value={printLabelForm.salesCategory}
+            onChange={(options) => {
+              setPrintLabelForm({
+                ...printLabelForm,
+                salesCategory: options
+              });
+            }}
+            loading={loadingSalesCategory}
+            placeholder="Select sales categories (All if empty)"
+            sx={{ mb: 0, width: '100%', fontSize: "14px" }}
+          />
+
+          <MultiSearchableDropdown
+            options={priceClassOptions}
+            value={printLabelForm.priceClass}
+            onChange={(options) => {
+              setPrintLabelForm({
+                ...printLabelForm,
+                priceClass: options
+              });
+            }}
+            loading={loadingPriceClass}
+            placeholder="Select sub category (All if empty)"
+            sx={{ mb: 0, width: '100%', fontSize: "14px" }}
+          />
+
+          <Box display="flex" justifyContent="flex-end" gap={2} mt={2}>
+            <CustomButton
+              appearance="outlined"
+              onClick={() => {
+                setPrintLabelDrawerOpen(false);
+              }}
+              fullWidth={false}
+              disabled={printLabelLoading}
+              sx={{ mt: 0 }}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              onClick={handlePrintLabels}
+              fullWidth={false}
+              loading={printLabelLoading}
+              disabled={printLabelLoading}
+              sx={{ mt: 0 }}
+            >
+              Generate Labels
+            </CustomButton>
+          </Box>
+        </Box>
+      </Drawer>
+
+      {/* Individual Product Print Modal */}
+      <CommonModal
+        open={individualPrintModalOpen}
+        onClose={() => {
+          if (!individualPrintLoading) {
+            setIndividualPrintModalOpen(false);
+          }
+        }}
+        title="Print Product Label"
+        size="sm"
+      >
+        <Box display="flex" flexDirection="column" gap={2}>
+          <FormControl fullWidth>
+            <InputLabel>Label Size</InputLabel>
+            <Select
+              value={individualPrintForm.size}
+              onChange={(e) =>
+                setIndividualPrintForm({
+                  ...individualPrintForm,
+                  size: e.target.value as any,
+                })
+              }
+              label="Label Size"
+            >
+              <MenuItem value="4x3">4x3</MenuItem>
+              <MenuItem value="4x6">4x6</MenuItem>
+              <MenuItem value="3x6">3x6</MenuItem>
+              <MenuItem value="3x2">3x2</MenuItem>
+              <MenuItem value="4x4">4x4</MenuItem>
+              <MenuItem value="2x2">2x2</MenuItem>
+              <MenuItem value="2x3">2x3</MenuItem>
+              <MenuItem value="3x3">3x3</MenuItem>
+              <MenuItem value="5x3">5x3</MenuItem>
+              <MenuItem value="6x4">6x4</MenuItem>
+              <MenuItem value="A4">A4</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth>
+            <InputLabel>Display Orientation</InputLabel>
+            <Select
+              value={individualPrintForm.orientation}
+              onChange={(e) =>
+                setIndividualPrintForm({
+                  ...individualPrintForm,
+                  orientation: e.target.value as any,
+                })
+              }
+              label="Display Orientation"
+            >
+              <MenuItem value="portrait">Portrait</MenuItem>
+              <MenuItem value="landscape">Landscape</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Box display="flex" justifyContent="flex-end" gap={2} mt={2}>
+            <CustomButton
+              appearance="outlined"
+              onClick={() => {
+                setIndividualPrintModalOpen(false);
+              }}
+              fullWidth={false}
+              disabled={individualPrintLoading}
+              sx={{ mt: 0 }}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              onClick={handleIndividualPrint}
+              fullWidth={false}
+              loading={individualPrintLoading}
+              disabled={individualPrintLoading}
+              sx={{ mt: 0 }}
+            >
+              Generate Label
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
     </Box>
   );
 };

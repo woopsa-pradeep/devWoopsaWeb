@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -29,11 +29,14 @@ import SelectInput from '../../../component/atoms/SelectInput';
 import CheckboxInput from '../../../component/atoms/CheckboxInput';
 import CustomButton from '../../../component/atoms/CustomButton';
 import { retailerSchema, RetailerFormData } from './retailer.schema';
-import { createCustomer, listOfCustomersCreate } from '../../../redux/apis/distrubutor/retailerApis';
+import { createCustomer, listOfCustomersCreate, getCustomerById, updateCustomer } from '../../../redux/apis/distrubutor/retailerApis';
 import toast from 'react-hot-toast';
 
 const AddRetailer: React.FC = () => {
+  const { customerId } = useParams<{ customerId?: string }>();
+  const isEditMode = !!customerId;
   const [submitting, setSubmitting] = useState(false);
+  const [originalData, setOriginalData] = useState<any>(null);
   const [salesRepOptions, setSalesRepOptions] = useState<Array<{ label: string; value: string }>>([]);
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
   const [classOfTradeOptions, setClassOfTradeOptions] = useState<Array<{ label: string; value: string }>>([]);
@@ -79,6 +82,7 @@ const AddRetailer: React.FC = () => {
     reset,
     trigger,
     watch,
+    setValue,
   } = useForm<RetailerFormData>({
     resolver: zodResolver(retailerSchema),
     defaultValues: {
@@ -94,9 +98,9 @@ const AddRetailer: React.FC = () => {
       C_Zip: '',
       C_Phone: '',
       C_Email: '',
-      Jurisdiction_State: 0,
-      Jurisdiction_County: 0,
-      Jurisdiction_City: 0,
+      Jurisdiction_State: '0',
+      Jurisdiction_County: '0',
+      Jurisdiction_City: '0',
       C_Fax: ' ',
       C_SalesTaxNumber: '',
       C_CigtLicenseNumber: '',
@@ -162,7 +166,42 @@ const AddRetailer: React.FC = () => {
 
   useEffect(() => {
     fetchDropdownData();
-  }, []);
+    if (isEditMode && customerId) {
+      fetchCustomerData();
+    }
+  }, [isEditMode, customerId]);
+
+  const fetchCustomerData = async () => {
+    try {
+      setLoadingDropdowns(true);
+      const response: any = await getCustomerById(customerId!);
+      const customerData = response?.data || response;
+      
+      if (customerData) {
+        setOriginalData(customerData);
+        
+        // Convert numeric fields to strings where schema expects strings
+        const stringFields = ['Jurisdiction_State', 'Jurisdiction_County', 'Jurisdiction_City'];
+        
+        // Pre-fill form with existing data
+        Object.keys(customerData).forEach((key) => {
+          if (customerData[key] !== null && customerData[key] !== undefined) {
+            // Convert to string if field expects string
+            if (stringFields.includes(key)) {
+              setValue(key as any, String(customerData[key]));
+            } else {
+              setValue(key as any, customerData[key]);
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+      toast.error('Failed to load customer data');
+    } finally {
+      setLoadingDropdowns(false);
+    }
+  };
 
   const fetchDropdownData = async () => {
     setLoadingDropdowns(true);
@@ -274,16 +313,38 @@ const AddRetailer: React.FC = () => {
   const onSubmit = async (data: RetailerFormData) => {
     setSubmitting(true);
     try {
-      const response = await createCustomer(data) as any;
-      if (response?.success) {
-        toast.success(response?.message || 'Retailer created successfully!');
-        navigate('/admin/retailers');
+      if (isEditMode && customerId && originalData) {
+        // Only send changed fields
+        const changedFields: any = {};
+        Object.keys(data).forEach((key) => {
+          const currentValue = data[key as keyof RetailerFormData];
+          const originalValue = originalData[key];
+          
+          // Deep comparison for objects/arrays
+          if (JSON.stringify(currentValue) !== JSON.stringify(originalValue)) {
+            changedFields[key] = currentValue;
+          }
+        });
+        
+        const response = await updateCustomer(customerId, changedFields) as any;
+        if (response?.success) {
+          toast.success(response?.message || 'Retailer updated successfully!');
+          navigate('/admin/retailers');
+        } else {
+          toast.error(response?.message || 'Failed to update retailer');
+        }
       } else {
-        toast.error(response?.message || 'Failed to create retailer');
+        const response = await createCustomer(data) as any;
+        if (response?.success) {
+          toast.success(response?.message || 'Retailer created successfully!');
+          navigate('/admin/retailers');
+        } else {
+          toast.error(response?.message || 'Failed to create retailer');
+        }
       }
     } catch (error: any) {
-      console.error('Error creating retailer:', error);
-      toast.error(error?.response?.data?.message || 'Failed to create retailer');
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} retailer:`, error);
+      toast.error(error?.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} retailer`);
     } finally {
       setSubmitting(false);
     }
@@ -1074,7 +1135,7 @@ const AddRetailer: React.FC = () => {
                             <SelectInput
                               {...field}
                               value={field.value !== null && field.value !== undefined ? String(field.value) : '0'}
-                              onChange={(e: any) => field.onChange(Number(e.target.value) || 0)}
+                              onChange={(e: any) => field.onChange(e.target.value || '0')}
                               label="Jurisdiction State"
                               options={jurisdictionStateOptions}
                               disabled={loadingDropdowns}
@@ -1092,7 +1153,7 @@ const AddRetailer: React.FC = () => {
                             <SelectInput
                               {...field}
                               value={field.value !== null && field.value !== undefined ? String(field.value) : '0'}
-                              onChange={(e: any) => field.onChange(Number(e.target.value) || 0)}
+                              onChange={(e: any) => field.onChange(e.target.value || '0')}
                               label="Jurisdiction County"
                               options={jurisdictionCountyOptions}
                               disabled={loadingDropdowns}
@@ -1110,7 +1171,7 @@ const AddRetailer: React.FC = () => {
                             <SelectInput
                               {...field}
                               value={field.value !== null && field.value !== undefined ? String(field.value) : '0'}
-                              onChange={(e: any) => field.onChange(Number(e.target.value) || 0)}
+                              onChange={(e: any) => field.onChange(e.target.value || '0')}
                               label="Jurisdiction City"
                               options={jurisdictionCityOptions}
                               disabled={loadingDropdowns}
@@ -1580,7 +1641,7 @@ const AddRetailer: React.FC = () => {
                           sx={{ minWidth: 120 }}
                           fullWidth={false}
                         >
-                          {submitting ? 'Creating...' : 'Create Retailer'}
+                          {submitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Retailer' : 'Create Retailer')}
                         </CustomButton>
                       </Box>
                     </Box>

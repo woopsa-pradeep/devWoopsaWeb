@@ -80,11 +80,28 @@ export interface PrintLabelsRequest {
   boxIds?: number[];
 }
 
+// Photo-related types
+export interface OrderPhotosResponse {
+  success: boolean;
+  orderNumber: number;
+  photos: string[];
+  totalPhotos: number;
+}
+
+export interface DeleteBoxPhotoRequest {
+  photoUrl: string;
+}
+
 // API Functions
 
-// 1. Get Order - Get Completed Orders
+// 1. Get Order - Get Pending Orders
 export const getOrder = async (): Promise<{ data: Order[] }> => {
   return axiosInstance.get('/checker/getOrder');
+};
+
+// 1a. Get Completed Orders
+export const getCompleteCheckerOrder = async (): Promise<{ data: Order[] }> => {
+  return axiosInstance.get('/checker/getCompleteCheckerOrder');
 };
 
 // 2. Get Box Item - Get Items in a Box
@@ -135,5 +152,24 @@ export const printLabels = async (data: PrintLabelsRequest) => {
 export const testLabels = async (size?: string) => {
   const url = size ? `/checker/testLabels?size=${size}` : '/checker/testLabels';
   return axiosInstance.get(url);
+};
+
+// 10. Get Order Photos
+export const getOrderPhotos = async (orderNumber: number): Promise<{ data: OrderPhotosResponse }> => {
+  return axiosInstance.get(`/checker/getOrderPhotos/${orderNumber}`);
+};
+
+// 11. Update Box Photos
+export const updateBoxPhotos = async (orderNumber: number, formData: FormData) => {
+  return axiosInstance.post(`/checker/updateBoxPhotos/${orderNumber}`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
+// 12. Delete Box Photo
+export const deleteBoxPhoto = async (orderNumber: number, data: DeleteBoxPhotoRequest) => {
+  return axiosInstance.post(`/checker/deleteBoxPhoto/${orderNumber}`, data);
 };
 

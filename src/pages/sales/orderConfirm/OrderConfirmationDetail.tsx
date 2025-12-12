@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Typography, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, useTheme, List, ListItem, ListItemText, Divider } from '@mui/material';
+import { Box, Typography, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, useTheme, List, ListItem, ListItemText, Divider, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { KeyboardBackspaceOutlined, CheckCircle } from '@mui/icons-material';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import CustomButton from '../../../component/atoms/CustomButton';
+import CommonModal from '../../../component/atoms/CommonModal';
 import { useAppDispatch, useAppSelector } from '../../../redux/store';
 import {
   fetchOrderConfirmationList,
@@ -21,6 +22,8 @@ import {
 import toast from 'react-hot-toast';
 import image from '../../../assets/Default-Product-Image.jpg';
 import dayjs from 'dayjs';
+import type { LabelSize } from '../../../utils/labelGenerator';
+import { generateBarcode } from '../../../utils/labelGenerator';
 
 const OrderConfirmationDetail = () => {
   const navigate = useNavigate();
@@ -57,6 +60,15 @@ const OrderConfirmationDetail = () => {
   const [noUPCLineNumber, setNoUPCLineNumber] = useState<number | null>(null);
   const [bundlesModalOpen, setBundlesModalOpen] = useState(false);
   const [bundlesValue, setBundlesValue] = useState<string>('');
+  const [bundleSizeModalOpen, setBundleSizeModalOpen] = useState(false);
+  const [selectedBundleSize, setSelectedBundleSize] = useState<LabelSize>('4x6');
+  const [pendingBundlesCount, setPendingBundlesCount] = useState<number | null>(null);
+  const [bundlePrintConfirmationModalOpen, setBundlePrintConfirmationModalOpen] = useState(false);
+  const [bundlePrintConfirmationData, setBundlePrintConfirmationData] = useState<{
+    bundlesCount: number;
+    size: LabelSize;
+    isReviewMode: boolean;
+  } | null>(null);
   const [currentTime, setCurrentTime] = useState(dayjs()); // For real-time clock updates
   const [pageOpenTime, setPageOpenTime] = useState<dayjs.Dayjs | null>(null); // Track when page opened for not confirmed orders
   const location = useLocation();
@@ -1188,8 +1200,287 @@ const OrderConfirmationDetail = () => {
     }
   }, [confirmedLines, orderDetails, mode, currentOrderline, isOrderCompleted, completionModalOpen, modalManuallyClosed, areAllProductsScanned]);
 
-  // Print labels in 4x3 format
-  const printLabels = useCallback((bundlesCount: number) => {
+  // Helper function to get page size CSS based on label size
+  // const getPageSizeCSS = (size: LabelSize): string => {
+  //   switch (size) {
+  //     case '4x3':
+  //       return 'size: 4in 3in landscape;';
+  //     case '4x6':
+  //       return 'size: 6in 4in landscape;';
+  //     case '3x6':
+  //       return 'size: 6in 3in landscape;';
+  //     case '3x2':
+  //       return 'size: 3in 2in landscape;';
+  //     case '4x4':
+  //       return 'size: 4in 4in;';
+  //     case '2x2':
+  //       return 'size: 2in 2in;';
+  //     case '2x3':
+  //       return 'size: 3in 2in landscape;';
+  //     case 'A4':
+  //       return 'size: A4 portrait;';
+  //     default:
+  //       return 'size: 6in 4in landscape;';
+  //   }
+  // };
+
+  // Helper functions removed - using bundle label structure from labelGenerator.ts instead
+
+  // Print barcode labels with customer name in top left and barcodes in middle
+  // const printBarcodeLabels = useCallback((barcodes: string[], customerName: string, size: LabelSize = '4x6') => {
+  //   if (!barcodes || barcodes.length === 0) {
+  //     toast.error('No barcodes available to print');
+  //     return;
+  //   }
+
+  //   // Create print window
+  //   const printWindow = window.open('', '_blank');
+  //   if (!printWindow) {
+  //     toast.error('Please allow popups to print labels');
+  //     return;
+  //   }
+
+  //   // Get dimensions and font sizes for the selected size
+  //   const pageSizeCSS = getPageSizeCSS(size);
+  //   const bodyDims = getBodyDimensions(size);
+  //   const fontSizes = getFontSizes(size);
+
+  //   // Generate barcode images
+  //   const barcodeImages = barcodes.map(barcode => generateBarcode(barcode));
+
+  //   let html = `
+  //     <!DOCTYPE html>
+  //     <html>
+  //     <head>
+  //       <meta charset="UTF-8">
+  //       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  //       <title></title>
+  //       <style>
+  //         * {
+  //           box-sizing: border-box;
+  //           margin: 0;
+  //           padding: 0;
+  //         }
+  //         @media print {
+  //           @page {
+  //             ${pageSizeCSS}
+  //             margin: 0 !important;
+  //             padding: 0 !important;
+  //           }
+  //           @page :first {
+  //             margin: 0 !important;
+  //           }
+  //           @page :left {
+  //             margin: 0 !important;
+  //           }
+  //           @page :right {
+  //             margin: 0 !important;
+  //           }
+  //           body {
+  //             margin: 0 !important;
+  //             padding: 0 !important;
+  //             width: 100%;
+  //             height: 100%;
+  //           }
+  //           .labels-container {
+  //             display: flex;
+  //             justify-content: center;
+  //             align-items: center;
+  //             width: 100% !important;
+  //             height: 100% !important;
+  //             min-width: 100% !important;
+  //             min-height: 100% !important;
+  //             padding: 0;
+  //             margin: 0;
+  //             page-break-after: always !important;
+  //             page-break-inside: avoid !important;
+  //             break-after: page !important;
+  //             break-inside: avoid !important;
+  //             overflow: hidden;
+  //             position: relative;
+  //             orphans: 1 !important;
+  //             widows: 1 !important;
+  //           }
+  //           .labels-container:first-child {
+  //             page-break-before: auto !important;
+  //             break-before: auto !important;
+  //           }
+  //           .labels-container + .labels-container {
+  //             page-break-before: always !important;
+  //             break-before: page !important;
+  //           }
+  //           .labels-container:last-child {
+  //             page-break-after: auto !important;
+  //             break-after: auto !important;
+  //           }
+  //           .label {
+  //             -webkit-print-color-adjust: exact;
+  //             print-color-adjust: exact;
+  //             width: 100% !important;
+  //             height: 100% !important;
+  //             max-width: 100% !important;
+  //             max-height: 100% !important;
+  //             min-width: 100% !important;
+  //             min-height: 100% !important;
+  //             transform: none !important;
+  //             box-sizing: border-box !important;
+  //             flex-shrink: 0 !important;
+  //             page-break-inside: avoid;
+  //             break-inside: avoid;
+  //             padding: 1em !important;
+  //             display: flex;
+  //             flex-direction: column;
+  //             position: relative;
+  //           }
+  //           .customer-name {
+  //             position: absolute;
+  //             top: 0.5em;
+  //             left: 0.5em;
+  //             font-size: ${fontSizes.customerName};
+  //             font-weight: 500;
+  //             color: #000000;
+  //             max-width: 40%;
+  //             word-break: break-word;
+  //           }
+  //           .barcode-section {
+  //             display: flex;
+  //             flex-direction: column;
+  //             align-items: center;
+  //             justify-content: center;
+  //             flex: 1;
+  //             width: 100%;
+  //           }
+  //           .barcode-section img {
+  //             max-width: 80%;
+  //             height: auto;
+  //             max-height: 50%;
+  //             margin-bottom: 0.5em;
+  //           }
+  //           .barcode-text {
+  //             font-size: ${fontSizes.orderNumber};
+  //             font-weight: 500;
+  //             color: #000000;
+  //             text-align: center;
+  //             word-break: break-all;
+  //           }
+  //           header, footer {
+  //             display: none !important;
+  //           }
+  //           @page {
+  //             marks: none;
+  //           }
+  //         }
+  //         body {
+  //           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  //           margin: 0;
+  //           padding: 0;
+  //           background: #ffffff;
+  //           width: ${bodyDims.width};
+  //           height: ${bodyDims.height};
+  //         }
+  //         .labels-container {
+  //           display: flex;
+  //           justify-content: center;
+  //           align-items: center;
+  //           width: ${bodyDims.width};
+  //           height: ${bodyDims.height};
+  //           min-width: ${bodyDims.width};
+  //           min-height: ${bodyDims.height};
+  //           padding: 0;
+  //           margin: 0;
+  //           page-break-after: always;
+  //           page-break-inside: avoid;
+  //           break-after: page;
+  //           break-inside: avoid;
+  //         }
+  //         .label {
+  //           width: ${bodyDims.width};
+  //           height: ${bodyDims.height};
+  //           padding: 1em;
+  //           display: flex;
+  //           flex-direction: column;
+  //           justify-content: center;
+  //           background: #ffffff;
+  //           break-inside: avoid;
+  //           box-sizing: border-box;
+  //           flex-shrink: 0;
+  //           position: relative;
+  //         }
+  //         .customer-name {
+  //           position: absolute;
+  //           top: 0.5em;
+  //           left: 0.5em;
+  //           font-size: ${fontSizes.customerName};
+  //           font-weight: 500;
+  //           color: #000000;
+  //           max-width: 40%;
+  //           word-break: break-word;
+  //         }
+  //         .barcode-section {
+  //           display: flex;
+  //           flex-direction: column;
+  //           align-items: center;
+  //           justify-content: center;
+  //           flex: 1;
+  //           width: 100%;
+  //         }
+  //         .barcode-section img {
+  //           max-width: 80%;
+  //           height: auto;
+  //           max-height: 50%;
+  //           margin-bottom: 0.5em;
+  //         }
+  //         .barcode-text {
+  //           font-size: ${fontSizes.orderNumber};
+  //           font-weight: 500;
+  //           color: #000000;
+  //           text-align: center;
+  //           word-break: break-all;
+  //         }
+  //       </style>
+  //     </head>
+  //     <body>
+  //   `;
+
+  //   // Generate one label per barcode
+  //   barcodes.forEach((barcode, index) => {
+  //     const barcodeImage = barcodeImages[index];
+  //     html += '<div class="labels-container">';
+  //     html += `
+  //       <div class="label">
+  //         <div class="customer-name">${customerName}</div>
+  //         <div class="barcode-section">
+  //           <img src="${barcodeImage}" alt="Barcode ${barcode}" />
+  //           <div class="barcode-text">${barcode}</div>
+  //         </div>
+  //       </div>
+  //     `;
+  //     html += '</div>';
+  //   });
+
+  //   html += `
+  //       <script>
+  //         window.onbeforeprint = function() {};
+  //         window.onafterprint = function() {};
+  //       </script>
+  //     </body>
+  //     </html>
+  //   `;
+
+  //   printWindow.document.write(html);
+  //   printWindow.document.close();
+
+  //   // Wait for content to load, then print
+  //   setTimeout(() => {
+  //     printWindow.print();
+  //     setTimeout(() => {
+  //       printWindow.close();
+  //     }, 1000);
+  //   }, 250);
+  // }, []);
+
+  // Print labels with size selection
+  const printLabels = useCallback((bundlesCount: number, barcodes: string[], size: LabelSize = '4x6') => {
     if (!orderHeader || !currentOrderNumber) return;
 
     const date = orderHeader.Order_Date ? dayjs(orderHeader.Order_Date).format('MM-DD-YYYY') : '';
@@ -1206,9 +1497,11 @@ const OrderConfirmationDetail = () => {
       return;
     }
 
-    // Generate labels HTML
+    // Generate labels HTML with barcodes
     const labels = [];
     for (let i = 1; i <= bundlesCount; i++) {
+      const barcode = barcodes && barcodes.length >= i ? barcodes[i - 1] : null;
+      const barcodeImage = barcode ? generateBarcode(barcode) : null;
       labels.push({
         number: i,
         total: bundlesCount,
@@ -1218,28 +1511,367 @@ const OrderConfirmationDetail = () => {
         customerName,
         route,
         stop,
+        barcodeImage,
       });
     }
 
-    // Calculate how many pages needed (1 label per page, each label is 4x3 inches)
-    const pages = bundlesCount;
+    // Get page size and dimensions based on label size (matching labelGenerator.ts exactly)
+    const getPageSizeAndDimensions = () => {
+      switch (size) {
+        case '4x3':
+          return {
+            pageSize: 'size: 4in 3in landscape;',
+            bodyWidth: '4in',
+            bodyHeight: '3in',
+            bodyPadding: '0.1in',
+            containerPadding: '0.08in',
+            headerMarginBottom: '0.06in',
+            routeStopPadding: '0.03in 0.1in',
+            routeStopFontSize: '16pt',
+            barcodeMargin: '0.06in 0',
+            barcodeMaxWidth: '85%',
+            barcodeMaxHeight: '0.5in',
+            customerPadding: '0.05in',
+            customerMarginBottom: '0.05in',
+            customerFontSize: '9pt',
+            customerNameFontSize: '11pt',
+            customerNameMarginBottom: '0.03in',
+            addressFontSize: '8pt',
+            addressMarginBottom: '0.01in',
+            custNumberFontSize: '8pt',
+            custNumberMarginTop: '0.03in',
+            bottomPaddingTop: '0.05in',
+            infoFontSize: '8pt',
+            infoMarginBottom: '0.02in',
+            deliveryDateFontSize: '9pt',
+            deliveryDateMarginBottom: '0.02in',
+            boxIndicatorFontSize: '14pt',
+            boxIndicatorMarginTop: '0.05in',
+          };
+        case '4x6':
+          return {
+            pageSize: 'size: 6in 4in landscape;',
+            bodyWidth: '6in',
+            bodyHeight: '4in',
+            bodyPadding: '0.12in',
+            containerPadding: '0.1in',
+            headerMarginBottom: '0.08in',
+            routeStopPadding: '0.04in 0.12in',
+            routeStopFontSize: '20pt',
+            barcodeMargin: '0.08in 0',
+            barcodeMaxWidth: '88%',
+            barcodeMaxHeight: '0.55in',
+            customerPadding: '0.06in',
+            customerMarginBottom: '0.06in',
+            customerFontSize: '10pt',
+            customerNameFontSize: '13pt',
+            customerNameMarginBottom: '0.04in',
+            addressFontSize: '9pt',
+            addressMarginBottom: '0.02in',
+            custNumberFontSize: '9pt',
+            custNumberMarginTop: '0.04in',
+            bottomPaddingTop: '0.06in',
+            infoFontSize: '9pt',
+            infoMarginBottom: '0.03in',
+            deliveryDateFontSize: '10pt',
+            deliveryDateMarginBottom: '0.03in',
+            boxIndicatorFontSize: '16pt',
+            boxIndicatorMarginTop: '0.06in',
+          };
+        case '3x6':
+          return {
+            pageSize: 'size: 6in 3in landscape;',
+            bodyWidth: '6in',
+            bodyHeight: '3in',
+            bodyPadding: '0.1in',
+            containerPadding: '0.08in',
+            headerMarginBottom: '0.1in',
+            routeStopPadding: '0.04in 0.12in',
+            routeStopFontSize: '18pt',
+            barcodeMargin: '0.1in 0',
+            barcodeMaxWidth: '90%',
+            barcodeMaxHeight: '0.6in',
+            customerPadding: '0.05in',
+            customerMarginBottom: '0.05in',
+            customerFontSize: '9pt',
+            customerNameFontSize: '12pt',
+            customerNameMarginBottom: '0.03in',
+            addressFontSize: '9pt',
+            addressMarginBottom: '0.01in',
+            custNumberFontSize: '9pt',
+            custNumberMarginTop: '0.03in',
+            bottomPaddingTop: '0.05in',
+            infoFontSize: '9pt',
+            infoMarginBottom: '0.02in',
+            deliveryDateFontSize: '10pt',
+            deliveryDateMarginBottom: '0.02in',
+            boxIndicatorFontSize: '15pt',
+            boxIndicatorMarginTop: '0.05in',
+          };
+        case '3x2':
+          return {
+            pageSize: 'size: 3in 2in landscape;',
+            bodyWidth: '3in',
+            bodyHeight: '2in',
+            bodyPadding: '0.06in',
+            containerPadding: '0.05in',
+            headerMarginBottom: '0.04in',
+            routeStopPadding: '0.02in 0.08in',
+            routeStopFontSize: '11pt',
+            barcodeMargin: '0.03in 0',
+            barcodeMaxWidth: '80%',
+            barcodeMaxHeight: '0.35in',
+            customerPadding: '0.03in',
+            customerMarginBottom: '0.03in',
+            customerFontSize: '7pt',
+            customerNameFontSize: '9pt',
+            customerNameMarginBottom: '0.02in',
+            addressFontSize: '7pt',
+            addressMarginBottom: '0.01in',
+            custNumberFontSize: '7pt',
+            custNumberMarginTop: '0.02in',
+            bottomPaddingTop: '0.03in',
+            infoFontSize: '7pt',
+            infoMarginBottom: '0.01in',
+            deliveryDateFontSize: '7pt',
+            deliveryDateMarginBottom: '0.01in',
+            boxIndicatorFontSize: '14pt',
+            boxIndicatorMarginTop: '0.03in',
+          };
+        case '4x4':
+          return {
+            pageSize: 'size: 4in 4in landscape;',
+            bodyWidth: '4in',
+            bodyHeight: '4in',
+            bodyPadding: '0.12in',
+            containerPadding: '0.1in',
+            headerMarginBottom: '0.08in',
+            routeStopPadding: '0.04in 0.12in',
+            routeStopFontSize: '20pt',
+            barcodeMargin: '0.08in 0',
+            barcodeMaxWidth: '88%',
+            barcodeMaxHeight: '0.55in',
+            customerPadding: '0.06in',
+            customerMarginBottom: '0.06in',
+            customerFontSize: '10pt',
+            customerNameFontSize: '13pt',
+            customerNameMarginBottom: '0.04in',
+            addressFontSize: '9pt',
+            addressMarginBottom: '0.02in',
+            custNumberFontSize: '9pt',
+            custNumberMarginTop: '0.04in',
+            bottomPaddingTop: '0.06in',
+            infoFontSize: '9pt',
+            infoMarginBottom: '0.03in',
+            deliveryDateFontSize: '10pt',
+            deliveryDateMarginBottom: '0.03in',
+            boxIndicatorFontSize: '16pt',
+            boxIndicatorMarginTop: '0.06in',
+          };
+        case '2x2':
+          return {
+            pageSize: 'size: 2in 2in landscape;',
+            bodyWidth: '2in',
+            bodyHeight: '2in',
+            bodyPadding: '0.05in',
+            containerPadding: '0.04in',
+            headerMarginBottom: '0.03in',
+            routeStopPadding: '0.02in 0.06in',
+            routeStopFontSize: '10pt',
+            barcodeMargin: '0.02in 0',
+            barcodeMaxWidth: '75%',
+            barcodeMaxHeight: '0.3in',
+            customerPadding: '0.02in',
+            customerMarginBottom: '0.02in',
+            customerFontSize: '6pt',
+            customerNameFontSize: '8pt',
+            customerNameMarginBottom: '0.01in',
+            addressFontSize: '6pt',
+            addressMarginBottom: '0.005in',
+            custNumberFontSize: '6pt',
+            custNumberMarginTop: '0.01in',
+            bottomPaddingTop: '0.02in',
+            infoFontSize: '6pt',
+            infoMarginBottom: '0.01in',
+            deliveryDateFontSize: '7pt',
+            deliveryDateMarginBottom: '0.01in',
+            boxIndicatorFontSize: '12pt',
+            boxIndicatorMarginTop: '0.02in',
+          };
+        case '2x3':
+          return {
+            pageSize: 'size: 3in 2in landscape;',
+            bodyWidth: '3in',
+            bodyHeight: '2in',
+            bodyPadding: '0.06in',
+            containerPadding: '0.05in',
+            headerMarginBottom: '0.05in',
+            routeStopPadding: '0.025in 0.08in',
+            routeStopFontSize: '10pt',
+            barcodeMargin: '0.05in 0',
+            barcodeMaxWidth: '85%',
+            barcodeMaxHeight: '0.4in',
+            customerPadding: '0.04in',
+            customerMarginBottom: '0.05in',
+            customerFontSize: '7pt',
+            customerNameFontSize: '9pt',
+            customerNameMarginBottom: '0.025in',
+            addressFontSize: '7pt',
+            addressMarginBottom: '0.015in',
+            custNumberFontSize: '7pt',
+            custNumberMarginTop: '0.025in',
+            bottomPaddingTop: '0.05in',
+            infoFontSize: '7pt',
+            infoMarginBottom: '0.02in',
+            deliveryDateFontSize: '8pt',
+            deliveryDateMarginBottom: '0.02in',
+            boxIndicatorFontSize: '13pt',
+            boxIndicatorMarginTop: '0.05in',
+          };
+        default:
+          return {
+            pageSize: 'size: 6in 4in landscape;',
+            bodyWidth: '6in',
+            bodyHeight: '4in',
+            bodyPadding: '0.12in',
+            containerPadding: '0.1in',
+            headerMarginBottom: '0.08in',
+            routeStopPadding: '0.04in 0.12in',
+            routeStopFontSize: '20pt',
+            barcodeMargin: '0.08in 0',
+            barcodeMaxWidth: '88%',
+            barcodeMaxHeight: '0.55in',
+            customerPadding: '0.06in',
+            customerMarginBottom: '0.06in',
+            customerFontSize: '10pt',
+            customerNameFontSize: '13pt',
+            customerNameMarginBottom: '0.04in',
+            addressFontSize: '9pt',
+            addressMarginBottom: '0.02in',
+            custNumberFontSize: '9pt',
+            custNumberMarginTop: '0.04in',
+            bottomPaddingTop: '0.06in',
+            infoFontSize: '9pt',
+            infoMarginBottom: '0.03in',
+            deliveryDateFontSize: '10pt',
+            deliveryDateMarginBottom: '0.03in',
+            boxIndicatorFontSize: '16pt',
+            boxIndicatorMarginTop: '0.06in',
+          };
+      }
+    };
+
+    const dims = getPageSizeAndDimensions();
+    const customerAddress = orderHeader.customer?.C_Address;
+    const city = orderHeader.customer?.C_City;
+    const state = orderHeader.customer?.C_State;
+    const accountNumber = orderNumber.toString();
+    const deliveryDate = date;
 
     let html = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title></title>
         <style>
+          @page {
+            ${dims.pageSize}
+            margin: 0;
+          }
           * {
+            margin: 0;
+            padding: 0;
             box-sizing: border-box;
+          }
+          body {
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
           }
+          .label-page {
+            width: ${dims.bodyWidth};
+            height: ${dims.bodyHeight};
+            padding: ${dims.bodyPadding};
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .label-container {
+            width: 100%;
+            height: 100%;
+            border: 2px solid black;
+            padding: ${dims.containerPadding};
+            display: flex;
+            flex-direction: column;
+          }
+          .header-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: ${dims.headerMarginBottom};
+          }
+          .route-box, .stop-box {
+            border: 2px solid black;
+            padding: ${dims.routeStopPadding};
+            font-size: ${dims.routeStopFontSize};
+            font-weight: bold;
+          }
+          .barcode-section {
+            text-align: center;
+            margin: ${dims.barcodeMargin};
+          }
+          .barcode-section img {
+            max-width: ${dims.barcodeMaxWidth};
+            height: auto;
+            max-height: ${dims.barcodeMaxHeight};
+          }
+          .customer-section {
+            border: 2px solid black;
+            padding: ${dims.customerPadding};
+            margin-bottom: ${dims.customerMarginBottom};
+            font-size: ${dims.customerFontSize};
+          }
+          .customer-name {
+            font-size: ${dims.customerNameFontSize};
+            font-weight: bold;
+            margin-bottom: ${dims.customerNameMarginBottom};
+          }
+          .address-line {
+            font-size: ${dims.addressFontSize};
+            margin-bottom: ${dims.addressMarginBottom};
+            line-height: 1.2;
+          }
+          .cust-number {
+            text-align: right;
+            font-size: ${dims.custNumberFontSize};
+            margin-top: ${dims.custNumberMarginTop};
+          }
+          .bottom-section {
+            margin-top: auto;
+            padding-top: ${dims.bottomPaddingTop};
+          }
+          .info-row {
+            font-size: ${dims.infoFontSize};
+            margin-bottom: ${dims.infoMarginBottom};
+          }
+          .delivery-date {
+            font-size: ${dims.deliveryDateFontSize};
+            font-weight: bold;
+            margin-bottom: ${dims.deliveryDateMarginBottom};
+          }
+          .item-count {
+            font-size: ${dims.infoFontSize};
+            margin-bottom: 0.05in;
+          }
+          .box-indicator {
+            text-align: center;
+            font-size: ${dims.boxIndicatorFontSize};
+            font-weight: bold;
+            margin-top: ${dims.boxIndicatorMarginTop};
+          }
           @media print {
             @page {
-              size: auto;
+              ${dims.pageSize}
               margin: 0 !important;
               padding: 0 !important;
             }
@@ -1255,343 +1887,66 @@ const OrderConfirmationDetail = () => {
             body {
               margin: 0 !important;
               padding: 0 !important;
-              width: 100%;
-              height: 100%;
             }
-            .labels-container {
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              width: 100% !important;
-              height: 100% !important;
-              min-width: 100% !important;
-              min-height: 100% !important;
-              padding: 0;
-              margin: 0;
+            .label-page {
               page-break-after: always !important;
-              page-break-inside: avoid !important;
               break-after: page !important;
+              page-break-inside: avoid !important;
               break-inside: avoid !important;
-              overflow: hidden;
-              position: relative;
-              orphans: 1 !important;
-              widows: 1 !important;
+              width: ${dims.bodyWidth} !important;
+              height: ${dims.bodyHeight} !important;
+              padding: ${dims.bodyPadding} !important;
             }
-            .labels-container:first-child {
-              page-break-before: auto !important;
-              break-before: auto !important;
-            }
-            .labels-container + .labels-container {
-              page-break-before: always !important;
-              break-before: page !important;
-            }
-            .labels-container:last-child {
+            .label-page:last-child {
               page-break-after: auto !important;
               break-after: auto !important;
             }
-            .label {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-              width: 100% !important;
-              height: 100% !important;
-              max-width: 100% !important;
-              max-height: 100% !important;
-              min-width: 100% !important;
-              min-height: 100% !important;
-              transform: none !important;
-              box-sizing: border-box !important;
-              flex-shrink: 0 !important;
-              page-break-inside: avoid;
-              break-inside: avoid;
-              font-size: min(4vw, 4vh) !important;
-              padding: 2em !important;
-            }
-            .label-header {
-              display: flex !important;
-              justify-content: space-between !important;
-              align-items: flex-start !important;
-              width: 100% !important;
-              gap: 1.5em !important;
-              margin-bottom: 1em !important;
-            }
-            .label-customer-number {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-              color: #000000 !important;
-              visibility: visible !important;
-              display: block !important;
-              flex-shrink: 0 !important;
-              white-space: nowrap !important;
-              font-size: 0.65em !important;
-              font-weight: 600 !important;
-            }
-            .label-order-section {
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: flex-end !important;
-              flex-shrink: 0 !important;
-              text-align: right !important;
-            }
-            .label-order-number {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-              color: #000000 !important;
-              visibility: visible !important;
-              display: block !important;
-              text-align: right !important;
-              white-space: nowrap !important;
-              margin-bottom: 0.2em !important;
-              font-size: 0.8em !important;
-              font-weight: 700 !important;
-            }
-            .label-date {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-              color: #333333 !important;
-              visibility: visible !important;
-              display: block !important;
-              text-align: right !important;
-              white-space: nowrap !important;
-              font-size: 0.5em !important;
-              font-weight: 500 !important;
-            }
-            .label-customer {
-              text-align: center !important;
-              margin: 1.5em 0 !important;
-            }
-            .label-customer-name {
-              font-size: 0.9em !important;
-              font-weight: 600 !important;
-              color: #111827 !important;
-              line-height: 1.4 !important;
-              word-break: break-word !important;
-            }
-            .label-route-info {
-              display: flex !important;
-              justify-content: space-between !important;
-              align-items: center !important;
-              margin: 1.5em 0 !important;
-              padding: 0 !important;
-            }
-            .label-route-item {
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: center !important;
-              flex: 1 !important;
-            }
-            .label-route-label {
-              font-size: 0.45em !important;
-              font-weight: 500 !important;
-              color: #9ca3af !important;
-              text-transform: uppercase !important;
-              letter-spacing: 0.5px !important;
-              margin-bottom: 0.3em !important;
-            }
-            .label-route-value {
-              font-size: 0.7em !important;
-              font-weight: 600 !important;
-              color: #111827 !important;
-            }
-            .label-divider {
-              width: 1px !important;
-              height: 2em !important;
-              background: #e5e7eb !important;
-              margin: 0 1em !important;
-            }
-            .label-footer {
-              margin-top: auto !important;
-              padding-top: 1.5em !important;
-              text-align: center !important;
-            }
-            .label-bundle-number {
-              font-size: 1.2em !important;
-              font-weight: 700 !important;
-              color: #6b7280 !important;
-              letter-spacing: 0.3px !important;
-            }
-            /* Hide any potential header/footer elements */
             header, footer {
               display: none !important;
             }
-            /* Remove any browser print headers/footers space */
             @page {
               marks: none;
             }
-          }
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: #ffffff;
-            width: 100%;
-            height: 100%;
-          }
-          .labels-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            height: 100vh;
-            min-height: 100vh;
-            padding: 0;
-            margin: 0;
-            page-break-after: always;
-            page-break-inside: avoid;
-            break-after: page;
-            break-inside: avoid;
-          }
-          .label {
-            width: 100%;
-            height: 100%;
-            padding: 2em;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            background: #ffffff;
-            break-inside: avoid;
-            box-sizing: border-box;
-            flex-shrink: 0;
-            font-size: min(4vw, 4vh);
-          }
-          .label-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 1em;
-            visibility: visible;
-            width: 100%;
-            gap: 1.5em;
-          }
-          .label-customer-number {
-            font-size: 0.65em;
-            font-weight: 600;
-            color: #000000;
-            letter-spacing: 0.2px;
-            visibility: visible;
-            display: block;
-            flex-shrink: 0;
-            white-space: nowrap;
-          }
-          .label-order-section {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            visibility: visible;
-            flex-shrink: 0;
-            text-align: right;
-          }
-          .label-order-number {
-            font-size: 0.8em;
-            font-weight: 700;
-            color: #000000;
-            letter-spacing: 0.3px;
-            margin-bottom: 0.2em;
-            visibility: visible;
-            display: block;
-            text-align: right;
-            white-space: nowrap;
-          }
-          .label-date {
-            font-size: 0.5em;
-            font-weight: 500;
-            color: #333333;
-            letter-spacing: 0.2px;
-            visibility: visible;
-            display: block;
-            text-align: right;
-            white-space: nowrap;
-          }
-          .label-customer {
-            text-align: center;
-            margin: 1.5em 0;
-          }
-          .label-customer-name {
-            font-size: 0.9em;
-            font-weight: 600;
-            color: #111827;
-            line-height: 1.4;
-            word-break: break-word;
-          }
-          .label-route-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 1.5em 0;
-            padding: 0;
-          }
-          .label-route-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            flex: 1;
-          }
-          .label-route-label {
-            font-size: 0.45em;
-            font-weight: 500;
-            color: #9ca3af;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.3em;
-          }
-          .label-route-value {
-            font-size: 0.7em;
-            font-weight: 600;
-            color: #111827;
-          }
-          .label-divider {
-            width: 1px;
-            height: 2em;
-            background: #e5e7eb;
-            margin: 0 1em;
-          }
-          .label-footer {
-            margin-top: auto;
-            padding-top: 1.5em;
-            text-align: center;
-          }
-          .label-bundle-number {
-            font-size: 1.2em;
-            font-weight: 700;
-            color: #6b7280;
-            letter-spacing: 0.3px;
-          }
-          .label-empty {
-            background: transparent;
           }
         </style>
       </head>
       <body>
     `;
 
-    // Generate pages - one label per page
-    for (let page = 0; page < pages; page++) {
-      const label = labels[page];
-      html += '<div class="labels-container">';
+    // Generate one label per bundle (using bundle label structure from labelGenerator.ts)
+    for (let i = 1; i <= bundlesCount; i++) {
+      const label = labels[i - 1];
+      const xOfY = `${i} of ${bundlesCount}`;
+      
+      // Wrap each label in a page-break container (like printAllLabels does)
+      html += `<div class="label-page" style="page-break-after: always; page-break-inside: avoid;">`;
       html += `
-        <div class="label">
-          <div class="label-header">
-            <div class="label-customer-number">C#: ${label.customerNumber}</div>
-            <div class="label-order-section">
-              <div class="label-order-number">#${label.orderNumber}</div>
-              <div class="label-date">${label.date}</div>
-            </div>
+        <div class="label-container">
+          <div class="header-section">
+            <div class="route-box">ROUTE: ${label.route}</div>
+            <div class="stop-box">STOP: ${label.stop}</div>
           </div>
-          <div class="label-customer">
-            <div class="label-customer-name">${label.customerName}</div>
+          ${label.barcodeImage ? `
+          <div class="barcode-section">
+            <img src="${label.barcodeImage}" alt="Barcode" />
           </div>
-          <div class="label-route-info">
-            <div class="label-route-item">
-              <div class="label-route-label">Route</div>
-              <div class="label-route-value">${label.route}</div>
-            </div>
-            <div class="label-divider"></div>
-            <div class="label-route-item">
-              <div class="label-route-label">Stop</div>
-              <div class="label-route-value">${label.stop}</div>
-            </div>
+          ` : ''}
+          <div class="customer-section">
+            <div class="customer-name">${label.customerName}</div>
+            ${customerAddress ? `<div class="address-line">${customerAddress}</div>` : ''}
+            ${city || state ? `
+              <div class="address-line">
+                ${city || ''}${city && state ? ', ' : ''}${state || ''}
+              </div>
+            ` : ''}
+            ${customerNumber !== 'N/A' ? `<div class="cust-number">Cust #${customerNumber}</div>` : ''}
           </div>
-          <div class="label-footer">
-            <div class="label-bundle-number">${label.number} of ${label.total}</div>
+          <div class="bottom-section">
+            <div class="info-row">${accountNumber}</div>
+            ${deliveryDate ? `<div class="delivery-date">Delivery Date: ${deliveryDate}</div>` : ''}
+          </div>
+          <div class="box-indicator">
+            ${xOfY}
           </div>
         </div>
       `;
@@ -1625,7 +1980,7 @@ const OrderConfirmationDetail = () => {
     }, 250);
   }, [orderHeader, currentOrderNumber]);
 
-  // Handle complete order with print
+  // Handle complete order with print - opens size selection modal first
   const handleCompleteOrderWithPrint = async () => {
     if (!currentOrderNumber) return;
 
@@ -1641,54 +1996,122 @@ const OrderConfirmationDetail = () => {
       return;
     }
 
-    // Build order detail array from all order lines
-    // Include all lines even if not fully scanned - use scanned quantity or 0
-    const orderDetailArray = buildOrderDetailArray(
-      orderDetails,
-      currentOrderNumber,
-      confirmedLines,
-      'completed'
-    );
+    // Store bundles count, close completion modal, and open size selection modal
+    setPendingBundlesCount(bundlesNumber);
+    setCompletionModalOpen(false);
+    setBundleSizeModalOpen(true);
+  };
 
-    const currentOrderline = Math.max(...orderDetails.map((item: OrderDetailItem) => item.Line_Number), 0);
+  // Handle confirm print labels (shows confirmation modal)
+  const handleConfirmPrintLabels = () => {
+    if (pendingBundlesCount === null) return;
+    
+    setBundlePrintConfirmationData({
+      bundlesCount: pendingBundlesCount,
+      size: selectedBundleSize,
+      isReviewMode: isReviewMode,
+    });
+    setBundleSizeModalOpen(false);
+    setBundlePrintConfirmationModalOpen(true);
+  };
 
-    // Prepare payload with bundles
-    const payload: any = {
-      orderNumber: currentOrderNumber,
-      status: 'completed',
-      current_orderline: currentOrderline,
-      orderDetail: orderDetailArray,
-      Bundles: bundlesNumber,
-    };
+  // Handle actual print execution (from confirmation modal)
+  const handleExecutePrintLabels = async () => {
+    if (!bundlePrintConfirmationData) return;
 
-    try {
-      await dispatch(
-        updateOrderConfirmationThunk(payload)
-      ).unwrap();
+    const { bundlesCount, size, isReviewMode: isReview } = bundlePrintConfirmationData;
 
-      // Mark order as completed to prevent automatic save
-      setIsOrderCompleted(true);
-      hasSavedRef.current = true; // Prevent any pending saves
-      
-      // Print labels
-      printLabels(bundlesNumber);
-      
-      // Close modals
-      setCompletionModalOpen(false);
-      setBundlesModalOpen(false);
-      setBundlesValue('');
-      
-      // Clear Redux data after successful completion
-      dispatch(clearOrderDetails());
-      dispatch(clearScannedItems());
-      dispatch(resetConfirmedLines());
-      dispatch(setCurrentOrderNumber(null));
-      dispatch(setIsScanning(false));
-      
-      toast.success('Order confirmed and labels printed successfully');
-      navigate('/sales/order-confirmation');
-    } catch (error: any) {
-      toast.error(error || 'Failed to confirm order');
+    if (!isReview) {
+      // Normal mode: complete order and print
+      if (!currentOrderNumber) return;
+
+      // Build order detail array from all order lines
+      const orderDetailArray = buildOrderDetailArray(
+        orderDetails,
+        currentOrderNumber,
+        confirmedLines,
+        'completed'
+      );
+
+      const currentOrderline = Math.max(...orderDetails.map((item: OrderDetailItem) => item.Line_Number), 0);
+
+      // Prepare payload with bundles
+      const payload: any = {
+        orderNumber: currentOrderNumber,
+        status: 'completed',
+        current_orderline: currentOrderline,
+        orderDetail: orderDetailArray,
+        Bundles: bundlesCount,
+      };
+
+      try {
+        const response = await dispatch(
+          updateOrderConfirmationThunk(payload)
+        ).unwrap();
+
+        // Mark order as completed to prevent automatic save
+        setIsOrderCompleted(true);
+        hasSavedRef.current = true;
+        
+        // Extract barcodes from API response
+        const barcodes = response?.data?.barcodes || response?.barcodes || [];
+        
+        if (barcodes.length > 0) {
+          // Print labels with barcodes
+          printLabels(bundlesCount, barcodes, size);
+        } else {
+          toast.error('No barcodes received from server');
+        }
+        
+        // Close modals
+        setCompletionModalOpen(false);
+        setBundlesModalOpen(false);
+        setBundlePrintConfirmationModalOpen(false);
+        setBundlesValue('');
+        setPendingBundlesCount(null);
+        setBundlePrintConfirmationData(null);
+        
+        // Clear Redux data after successful completion
+        dispatch(clearOrderDetails());
+        dispatch(clearScannedItems());
+        dispatch(resetConfirmedLines());
+        dispatch(setCurrentOrderNumber(null));
+        dispatch(setIsScanning(false));
+        
+        toast.success('Order confirmed and labels printed successfully');
+        navigate('/sales/order-confirmation');
+      } catch (error: any) {
+        toast.error(error || 'Failed to confirm order');
+      }
+    } else {
+      // Review mode: fetch order details to get barcodes
+      if (!currentOrderNumber) {
+        toast.error('No order number available');
+        return;
+      }
+
+      try {
+        // Fetch order details which contains barcodes
+        const detailsResponse = await dispatch(
+          fetchOrderConfirmationDetails(currentOrderNumber)
+        ).unwrap();
+
+        // Extract barcodes from response
+        const barcodes = detailsResponse?.barcodes || [];
+
+        if (barcodes.length > 0) {
+          // Print labels with barcodes
+          printLabels(bundlesCount, barcodes, size);
+          setBundlePrintConfirmationModalOpen(false);
+          setPendingBundlesCount(null);
+          setBundlePrintConfirmationData(null);
+          toast.success('Labels printed successfully');
+        } else {
+          toast.error('No barcodes found for this order');
+        }
+      } catch (error: any) {
+        toast.error(error || 'Failed to fetch order details');
+      }
     }
   };
 
@@ -2113,7 +2536,9 @@ const OrderConfirmationDetail = () => {
                   onClick={() => {
                     const bundles = getBundlesFromOrderList();
                     if (bundles > 0) {
-                      printLabels(bundles);
+                      setPendingBundlesCount(bundles);
+                      setSelectedBundleSize('4x6'); // Default to 4x6 for review mode
+                      setBundleSizeModalOpen(true);
                     } else {
                       toast.error('No bundles found for this order');
                     }
@@ -2861,6 +3286,115 @@ const OrderConfirmationDetail = () => {
           </CustomButton>
         </DialogActions>
       </Dialog>
+
+      {/* Bundle Size Selection Modal - Using CommonModal like OrderChecker */}
+      <CommonModal
+        open={bundleSizeModalOpen}
+        onClose={() => {
+          if (!updateLoading) {
+            setBundleSizeModalOpen(false);
+            setPendingBundlesCount(null);
+          }
+        }}
+        title="Print Bundles"
+        size="md"
+        isCloseIcon={false}
+      >
+        <Box display="flex" flexDirection="column" gap={2}>
+          <FormControl fullWidth>
+            <InputLabel>Label Size</InputLabel>
+            <Select
+              value={selectedBundleSize}
+              onChange={(e) => setSelectedBundleSize(e.target.value as LabelSize)}
+              label="Label Size"
+            >
+              <MenuItem value="4x3">4x3</MenuItem>
+              <MenuItem value="4x6">4x6</MenuItem>
+              <MenuItem value="3x6">3x6</MenuItem>
+              <MenuItem value="3x2">3x2</MenuItem>
+              <MenuItem value="4x4">4x4</MenuItem>
+              <MenuItem value="2x2">2x2</MenuItem>
+              <MenuItem value="2x3">2x3</MenuItem>
+              <MenuItem value="A4">A4</MenuItem>
+            </Select>
+          </FormControl>
+          
+          <Box display="flex" justifyContent="flex-end" gap={2} mt={2}>
+            <CustomButton
+              buttonType="cancel"
+              appearance="outlined"
+              onClick={() => {
+                setBundleSizeModalOpen(false);
+                setPendingBundlesCount(null);
+              }}
+              fullWidth={false}
+              disabled={updateLoading}
+              sx={{ mt: 0 }}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              buttonType="primary"
+              onClick={handleConfirmPrintLabels}
+              fullWidth={false}
+              loading={updateLoading}
+              disabled={updateLoading || pendingBundlesCount === null}
+              sx={{ mt: 0 }}
+            >
+              {isReviewMode ? 'Print Labels' : 'Print Labels'}
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
+
+      {/* Bundle Print Confirmation Modal - Like OrderChecker */}
+      <CommonModal
+        open={bundlePrintConfirmationModalOpen}
+        onClose={() => {
+          if (!updateLoading) {
+            setBundlePrintConfirmationModalOpen(false);
+            setBundlePrintConfirmationData(null);
+          }
+        }}
+        title={bundlePrintConfirmationData?.isReviewMode ? 'Confirm Print Labels' : 'Confirm Print & Complete'}
+        size="sm"
+        isCloseIcon={false}
+      >
+        <Box>
+          <Typography variant="body2" fontSize={12} color="text.primary" mb={1.5}>
+            {bundlePrintConfirmationData
+              ? `Are you sure you want to print ${bundlePrintConfirmationData.bundlesCount} bundle${bundlePrintConfirmationData.bundlesCount !== 1 ? 's' : ''} with size ${bundlePrintConfirmationData.size}?${bundlePrintConfirmationData.isReviewMode ? '' : ' This will complete the order.'}`
+              : 'Are you sure you want to proceed?'}
+          </Typography>
+          <Box display="flex" justifyContent="flex-end" gap={1} mt={1.5}>
+            <CustomButton
+              buttonType="cancel"
+              appearance="outlined"
+              onClick={() => {
+                if (!updateLoading) {
+                  setBundlePrintConfirmationModalOpen(false);
+                  setBundlePrintConfirmationData(null);
+                }
+              }}
+              size="small"
+              fullWidth={false}
+              disabled={updateLoading}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              buttonType="primary"
+              onClick={handleExecutePrintLabels}
+              size="small"
+              fullWidth={false}
+              loading={updateLoading}
+              disabled={updateLoading}
+            >
+              Confirm
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
 
       {/* No UPC Modal */}
       <Dialog

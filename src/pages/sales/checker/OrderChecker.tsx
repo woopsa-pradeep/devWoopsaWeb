@@ -23,6 +23,8 @@ import {
   useMediaQuery,
   Checkbox,
   FormControlLabel,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Close,
@@ -50,18 +52,28 @@ import EditBlue from '../../../assets/editblue.svg';
 import MoveIcon from '../../../assets/move.svg';
 import {
   getOrder,
+  getCompleteCheckerOrder,
   getBoxItem,
   getOrderItems,
   moveItemsToBox,
   updateItemQty,
   readyForDelivery,
   capturePhotos,
-  printLabels,
   createContainerAndMoveItems,
+  getOrderPhotos,
+  deleteBoxPhoto,
   type Order,
   type BoxItem,
   type OrderItemWithContainer,
+  type OrderPhotosResponse,
 } from '../../../redux/apis/sales/orderCheckerApis';
+import { printAllLabels, printLabels as generateLabels, type LabelSize } from '../../../utils/labelGenerator';
+import dayjs from 'dayjs';
+import jsPDF from 'jspdf';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const jspdfAutoTable = require('jspdf-autotable');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import rabbitLogo from '../../../assets/Rabbit.svg';
 
 const OrderChecker = () => {
   const theme = useTheme();
@@ -70,6 +82,7 @@ const OrderChecker = () => {
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // State
+  const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
@@ -89,6 +102,10 @@ const OrderChecker = () => {
   const [printLabelsModalOpen, setPrintLabelsModalOpen] = useState(false);
   const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
   const [addContainerModalOpen, setAddContainerModalOpen] = useState(false);
+  const [individualPrintModalOpen, setIndividualPrintModalOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportType, setReportType] = useState<'summary' | 'detail' | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
   const [confirmationData, setConfirmationData] = useState<{
     title: string;
     message: string;
@@ -96,6 +113,10 @@ const OrderChecker = () => {
   } | null>(null);
   // const [selectedContainer, setSelectedContainer] = useState<{ id: number; type: 'box' | 'tote' | 'drink' } | null>(null);
   const [orderImages, setOrderImages] = useState<string[]>([]);
+  const [orderPhotosData, setOrderPhotosData] = useState<OrderPhotosResponse | null>(null);
+  const [orderPhotosLoading, setOrderPhotosLoading] = useState(false);
+  const [completedOrderImages, setCompletedOrderImages] = useState<string[]>([]);
+  const [newCapturedImages, setNewCapturedImages] = useState<string[]>([]); // Only newly captured photos for completed tab
 
   // Form states
   const [editItemForm, setEditItemForm] = useState<{
@@ -115,6 +136,11 @@ const OrderChecker = () => {
     size: '4x6' as '4x3' | '4x6' | '3x6' | '3x2' | '4x4' | '2x2' | '2x3' | 'A4',
     boxIds: [] as number[],
   });
+  const [individualPrintData, setIndividualPrintData] = useState<{
+    containerId: number;
+    containerType: 'box' | 'tote' | 'drink';
+    size: '4x3' | '4x6' | '3x6' | '3x2' | '4x4' | '2x2' | '2x3' | 'A4';
+  } | null>(null);
   const [cameraNotes, setCameraNotes] = useState('');
 
   // Webcam states
@@ -128,6 +154,8 @@ const OrderChecker = () => {
   const [printLabelsLoading, setPrintLabelsLoading] = useState(false);
   const [readyForDeliveryLoading, setReadyForDeliveryLoading] = useState(false);
   const [addContainerLoading, setAddContainerLoading] = useState(false);
+  const [deletePhotoLoading, setDeletePhotoLoading] = useState(false);
+  const [capturePhotosLoading, setCapturePhotosLoading] = useState(false);
   
   // Add container form state
   const [addContainerForm, setAddContainerForm] = useState<{
@@ -157,8 +185,38 @@ const OrderChecker = () => {
   const checkOrderImagesValid = useMemo(() => {
     if (!selectedOrder || allContainers.length === 0) return false;
     const totalContainers = allContainers.length;
+    
+    // For completed tab, check completedOrderImages
+    if (activeTab === 'completed') {
+      const totalPhotos = completedOrderImages.length;
+      return totalPhotos >= totalContainers && totalPhotos <= totalContainers * 2;
+    }
+    
+    // For pending tab, check orderImages
     return orderImages.length >= totalContainers && orderImages.length <= totalContainers * 2;
-  }, [selectedOrder, allContainers, orderImages]);
+  }, [selectedOrder, allContainers, orderImages, activeTab, completedOrderImages]);
+
+  // Check if editing is allowed
+  // In pending tab: allow all access even if invoiced (only hide qty edit icon)
+  // In completed tab: disallow editing if invoiced
+  const isEditingAllowed = useMemo(() => {
+    if (!selectedOrder) return true;
+    if (activeTab === 'pending') {
+      // In pending tab, allow all access even if invoiced
+      return true;
+    }
+    // In completed tab, disallow if invoiced
+    return !selectedOrder.invoiced;
+  }, [selectedOrder, activeTab]);
+
+  // Check if qty edit icon should be hidden (only hide in pending tab when invoiced)
+  const isQtyEditDisabled = useMemo(() => {
+    if (!selectedOrder) return false;
+    if (activeTab === 'pending' && selectedOrder.invoiced) {
+      return true; // Hide qty edit icon in pending tab when invoiced
+    }
+    return false;
+  }, [selectedOrder, activeTab]);
 
   // Get all items from all containers (items already have boxId and boxType)
   const getAllItemsFromOrder = useMemo(() => {
@@ -169,19 +227,47 @@ const OrderChecker = () => {
     }));
   }, [allOrderItems]);
 
-  // Fetch orders on mount
+  // Fetch orders on mount and when tab changes
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [activeTab]);
 
 
-  // Auto-select first order when orders are loaded
+  // Auto-select first order when orders are loaded or tab changes
   useEffect(() => {
-    if (orders.length > 0 && !selectedOrder) {
-      const firstOrder = orders[0];
-      handleOrderSelect(firstOrder);
+    if (orders.length > 0) {
+      // Reset selection when tab changes or selected order not in new list
+      const currentOrderExists = selectedOrder && orders.find(o => o.orderNumber === selectedOrder.orderNumber);
+      if (!currentOrderExists) {
+        setSelectedOrder(null);
+        setSelectedBoxId(null);
+        setSelectedContainerType(null);
+        setShowAllItems(true);
+        setBoxItems([]);
+        setAllOrderItems([]);
+        setExpandedOrders(new Set());
+        setOrderImages([]);
+        // Auto-select first order
+        const firstOrder = orders[0];
+        setSelectedOrder(firstOrder);
+        setExpandedOrders(new Set([firstOrder.orderNumber]));
+        setSelectedBoxId(null);
+        setSelectedContainerType(null);
+        setShowAllItems(true);
+        setBoxItems([]);
+      }
+    } else {
+      // Reset when no orders
+      setSelectedOrder(null);
+      setSelectedBoxId(null);
+      setSelectedContainerType(null);
+      setShowAllItems(true);
+      setBoxItems([]);
+      setAllOrderItems([]);
+      setExpandedOrders(new Set());
+      setOrderImages([]);
     }
-  }, [orders]);
+  }, [orders, selectedOrder]);
 
   // Fetch box items when box is selected (and showAllItems is false)
   useEffect(() => {
@@ -196,13 +282,21 @@ const OrderChecker = () => {
       fetchOrderItems(selectedOrder.orderNumber);
       // Reset order images when order changes
       setOrderImages([]);
+      // Fetch order photos if in completed tab
+      if (activeTab === 'completed') {
+        fetchOrderPhotos(selectedOrder.orderNumber);
+      } else {
+        setOrderPhotosData(null);
+      }
     }
-  }, [selectedOrder]);
+  }, [selectedOrder, activeTab]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response: any = await getOrder();
+      const response: any = activeTab === 'pending' 
+        ? await getOrder()
+        : await getCompleteCheckerOrder();
       setOrders(response?.data?.data || []);
       return response;
     } catch (error: any) {
@@ -234,6 +328,97 @@ const OrderChecker = () => {
       toast.error(error?.response?.data?.message || 'Failed to fetch order items');
     } finally {
       setOrderItemsLoading(false);
+    }
+  };
+
+  const fetchOrderPhotos = async (orderNumber: number) => {
+    try {
+      setOrderPhotosLoading(true);
+      const response: any = await getOrderPhotos(orderNumber);
+      const photosData = response?.data?.data || null;
+      setOrderPhotosData(photosData);
+      // Set completed order images from flat array
+      if (photosData && photosData.photos) {
+        setCompletedOrderImages(photosData.photos);
+      } else {
+        setCompletedOrderImages([]);
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to fetch order photos');
+      setOrderPhotosData(null);
+      setCompletedOrderImages([]);
+    } finally {
+      setOrderPhotosLoading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoUrl: string) => {
+    if (!selectedOrder) return;
+    try {
+      setDeletePhotoLoading(true);
+      await deleteBoxPhoto(selectedOrder.orderNumber, { photoUrl });
+      toast.success('Photo deleted successfully');
+      // Refresh photos
+      await fetchOrderPhotos(selectedOrder.orderNumber);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to delete photo');
+    } finally {
+      setDeletePhotoLoading(false);
+    }
+  };
+
+  const handleUpdateCompletedPhotos = async (imageDataUrls: string[], notes?: string) => {
+    if (!selectedOrder || imageDataUrls.length === 0) return;
+    
+    const totalContainers = allContainers.length;
+    const currentTotalPhotos = completedOrderImages.length;
+    const photosToAdd = imageDataUrls.length;
+    const newTotalPhotos = currentTotalPhotos + photosToAdd;
+    
+    // Calculate max photos that can be added based on total containers
+    const maxTotalPhotos = totalContainers * 2;
+    const maxCanAdd = maxTotalPhotos - currentTotalPhotos; // Based on containers, not static
+    
+    if (photosToAdd < 1) {
+      toast.error('At least 1 photo is required');
+      return;
+    }
+    
+    // Check: cannot add more than maximum allowed based on containers
+    if (photosToAdd > maxCanAdd) {
+      if (maxCanAdd === 0) {
+        toast.error(`Maximum ${maxTotalPhotos} photos allowed (2 per container). You already have ${currentTotalPhotos} photos.`);
+      } else {
+        toast.error(`You can add maximum ${maxCanAdd} photo${maxCanAdd !== 1 ? 's' : ''} (${currentTotalPhotos} + ${maxCanAdd} = ${currentTotalPhotos + maxCanAdd} out of ${maxTotalPhotos} maximum)`);
+      }
+      return;
+    }
+    
+    // Check: overall maximum (2 per container)
+    if (newTotalPhotos > maxTotalPhotos) {
+      const excess = newTotalPhotos - maxTotalPhotos;
+      toast.error(`Maximum ${maxTotalPhotos} photos allowed (2 per container). You are adding ${excess} too many photo${excess !== 1 ? 's' : ''}.`);
+      return;
+    }
+    
+    try {
+      setCapturePhotosLoading(true);
+      const formData = new FormData();
+      imageDataUrls.forEach((imageData, index) => {
+        const blob = dataURLtoBlob(imageData);
+        formData.append('images', blob, `photo-${Date.now()}-${index}.jpg`);
+      });
+      if (notes) {
+        formData.append('notes', notes);
+      }
+      await capturePhotos(selectedOrder.orderNumber, formData);
+      toast.success('Photos uploaded successfully');
+      // Refresh photos
+      await fetchOrderPhotos(selectedOrder.orderNumber);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update photos');
+    } finally {
+      setCapturePhotosLoading(false);
     }
   };
 
@@ -281,6 +466,15 @@ const OrderChecker = () => {
     try {
       setEditItemLoading(true);
       if (editItemForm.mode === 'move') {
+        // Parse source container from editItemForm.source
+        const sourceMatch = editItemForm.source.match(/(Box|Tote|Drink)-(\d+)/i);
+        if (!sourceMatch) {
+          toast.error('Invalid source container format');
+          setEditItemLoading(false);
+          return;
+        }
+        const sourceBoxId = Number(sourceMatch[2]);
+        
         // Parse destination
         const destMatch = editItemForm.destination.match(/(Box|Tote|Drink)-(\d+)/i);
         if (!destMatch) {
@@ -295,15 +489,19 @@ const OrderChecker = () => {
         }
         const destId = Number(destMatch[2]);
         await moveItemsToBox({
-          sourceBoxId: selectedBoxId!,
+          sourceBoxId: sourceBoxId,
           destinationBoxId: destId,
           itemNumber: editItemForm.item.itemNumber,
           qty: editItemForm.item.qty, // Use original quantity for move
         });
         toast.success('Item moved successfully');
+        // Refresh all order items after move to update in real-time
+        if (selectedOrder) {
+          await fetchOrderItems(selectedOrder.orderNumber);
+        }
       } else {
-        if (editItemForm.qty <= 0) {
-          toast.error('Quantity must be greater than 0');
+        if (editItemForm.qty < 0) {
+          toast.error('Quantity cannot be negative');
           setEditItemLoading(false);
           return;
         }
@@ -321,9 +519,14 @@ const OrderChecker = () => {
           qty: editItemForm.qty,
         });
         toast.success('Quantity updated successfully');
+        // Refresh all order items after qty update to update in real-time
+        if (selectedOrder) {
+          await fetchOrderItems(selectedOrder.orderNumber);
+        }
       }
       setEditItemModalOpen(false);
       setConfirmationModalOpen(false);
+      // Also refresh box items if a specific box is selected
       if (selectedBoxId) {
         fetchBoxItems(selectedBoxId);
       }
@@ -348,8 +551,8 @@ const OrderChecker = () => {
         onConfirm: handleSaveEditItem,
       });
     } else {
-      if (editItemForm.qty <= 0) {
-        toast.error('Quantity must be greater than 0');
+      if (editItemForm.qty < 0) {
+        toast.error('Quantity cannot be negative');
         return;
       }
       setConfirmationData({
@@ -434,53 +637,134 @@ const OrderChecker = () => {
     if (!selectedOrder) return;
     try {
       setPrintLabelsLoading(true);
-      const payload: any = {
-        orderNumber: selectedOrder.orderNumber,
-        size: printLabelsForm.size,
-      };
-      if (printLabelsForm.boxIds.length > 0) {
-        payload.boxIds = printLabelsForm.boxIds;
+      
+      // Determine which containers to print
+      const allContainersList = getAllContainers();
+      const containersToPrint = printLabelsForm.boxIds.length > 0
+        ? allContainersList.filter(c => printLabelsForm.boxIds.includes(c.id))
+        : allContainersList;
+
+      if (containersToPrint.length === 0) {
+        toast.error('No containers selected');
+        setPrintLabelsLoading(false);
+        return;
       }
-      const response: any = await printLabels(payload);
-      const pdfUrls = response?.data?.data?.pdfUrls || [];
-      if (pdfUrls.length > 0) {
-        pdfUrls.forEach((url: string) => {
-          window.open(url, '_blank');
-        });
-        toast.success('Labels generated successfully');
-      }
+
+      // Format delivery date
+      const deliveryDate = selectedOrder.completedAt 
+        ? dayjs(selectedOrder.completedAt).format('MM/DD/YYYY')
+        : dayjs().format('MM/DD/YYYY');
+
+      // Use order number as account number if not available
+      const accountNumber = String(selectedOrder.orderNumber);
+
+      // Print all labels in a single print window
+      printAllLabels(
+        selectedOrder,
+        printLabelsForm.size as LabelSize,
+        containersToPrint,
+        allOrderItems,
+        accountNumber,
+        undefined, // customerAddress
+        undefined, // city
+        undefined, // state
+        undefined, // zip
+        undefined, // custNumber
+        deliveryDate
+      );
+
+      toast.success('Labels generated successfully');
       setPrintLabelsModalOpen(false);
       setConfirmationModalOpen(false);
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to print labels');
+      toast.error(error?.message || 'Failed to print labels');
     } finally {
       setPrintLabelsLoading(false);
     }
   };
 
-  const handlePrintIndividualContainer = async (containerId: number, containerType: 'box' | 'tote' | 'drink') => {
+  const handlePrintPackingList = async () => {
     if (!selectedOrder) return;
     try {
       setPrintLabelsLoading(true);
-      const payload: any = {
-        orderNumber: selectedOrder.orderNumber,
-        size: '4x6', // Default size for individual prints
-        boxIds: [containerId], // Pass the specific container ID
-      };
-      const response: any = await printLabels(payload);
-      const pdfUrls = response?.data?.data?.pdfUrls || [];
-      if (pdfUrls.length > 0) {
-        pdfUrls.forEach((url: string) => {
-          window.open(url, '_blank');
-        });
-        const containerName = containerType === 'box' ? `Box ${containerId}` :
-          containerType === 'tote' ? `Tote ${containerId}` :
-            `Drink ${containerId}`;
-        toast.success(`Label generated for ${containerName}`);
+      
+      // Get all containers
+      const allContainersList = getAllContainers();
+
+      if (allContainersList.length === 0) {
+        toast.error('No containers available');
+        setPrintLabelsLoading(false);
+        return;
       }
+
+      // Format delivery date
+      const deliveryDate = selectedOrder.completedAt 
+        ? dayjs(selectedOrder.completedAt).format('MM/DD/YYYY')
+        : dayjs().format('MM/DD/YYYY');
+
+      // Use order number as account number if not available
+      const accountNumber = String(selectedOrder.orderNumber);
+
+      // Print packing list with A4 size directly (allContainersList is already in the correct format)
+      printAllLabels(
+        selectedOrder,
+        'A4',
+        allContainersList,
+        allOrderItems,
+        accountNumber,
+        undefined, // customerAddress
+        undefined, // city
+        undefined, // state
+        undefined, // zip
+        undefined, // custNumber
+        deliveryDate
+      );
+
+      toast.success('Packing list generated successfully');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to print packing list');
+    } finally {
+      setPrintLabelsLoading(false);
+    }
+  };
+
+  const handlePrintIndividualContainer = async (containerId: number, containerType: 'box' | 'tote' | 'drink', size: LabelSize = '4x6') => {
+    if (!selectedOrder) return;
+    try {
+      setPrintLabelsLoading(true);
+      
+      // Format delivery date
+      const deliveryDate = selectedOrder.completedAt 
+        ? dayjs(selectedOrder.completedAt).format('MM/DD/YYYY')
+        : dayjs().format('MM/DD/YYYY');
+
+      // Use order number as account number if not available
+      const accountNumber = String(selectedOrder.orderNumber);
+
+      // Generate label for the specific container
+      generateLabels(
+        selectedOrder,
+        size,
+        [containerId],
+        containerType,
+        allOrderItems,
+        accountNumber,
+        undefined, // customerAddress
+        undefined, // city
+        undefined, // state
+        undefined, // zip
+        undefined, // custNumber
+        deliveryDate
+      );
+
+      const containerName = containerType === 'box' ? `Box ${containerId}` :
+        containerType === 'tote' ? `Tote ${containerId}` :
+          `Drink ${containerId}`;
+      toast.success(`Label generated for ${containerName}`);
+      setIndividualPrintModalOpen(false);
       setConfirmationModalOpen(false);
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to print label');
+      toast.error(error?.message || 'Failed to print label');
     } finally {
       setPrintLabelsLoading(false);
     }
@@ -488,15 +772,12 @@ const OrderChecker = () => {
 
   const handleConfirmPrintIndividualContainer = (containerId: number, containerType: 'box' | 'tote' | 'drink') => {
     if (!selectedOrder) return;
-    const containerName = containerType === 'box' ? `Box ${containerId}` :
-      containerType === 'tote' ? `Tote ${containerId}` :
-        `Drink ${containerId}`;
-    setConfirmationData({
-      title: 'Confirm Print Label',
-      message: `Are you sure you want to print label for ${containerName}?`,
-      onConfirm: () => handlePrintIndividualContainer(containerId, containerType),
+    setIndividualPrintData({
+      containerId,
+      containerType,
+      size: '4x6', // Default size
     });
-    setConfirmationModalOpen(true);
+    setIndividualPrintModalOpen(true);
   };
 
   const handleConfirmPrintLabels = () => {
@@ -558,18 +839,24 @@ const OrderChecker = () => {
       });
       
       // Refresh orders to get updated container list
-      await fetchOrders();
+      const ordersResponse = await fetchOrders();
       
       // Update selected order and select the newly created container
-      if (selectedOrder) {
-        const response: any = await getOrder();
-        const updatedOrders = response?.data?.data || [];
+      if (selectedOrder && ordersResponse?.data?.data) {
+        const updatedOrders = ordersResponse.data.data;
         const updatedOrder = updatedOrders.find((o: Order) => o.orderNumber === selectedOrder.orderNumber);
         if (updatedOrder) {
           setSelectedOrder(updatedOrder);
+          // Refresh order items to show new container items
+          await fetchOrderItems(updatedOrder.orderNumber);
+          // Refresh order photos if in completed tab
+          if (activeTab === 'completed') {
+            await fetchOrderPhotos(updatedOrder.orderNumber);
+          }
           // Select the newly created container
           setSelectedBoxId(newContainerId);
           setSelectedContainerType(containerType);
+          setShowAllItems(false);
         }
       }
     } catch (error: any) {
@@ -621,27 +908,69 @@ const OrderChecker = () => {
         ctx.drawImage(video, 0, 0);
         const imageData = canvas.toDataURL('image/jpeg');
         const totalContainers = allContainers.length;
-        const maxImages = totalContainers * 2;
-        if (orderImages.length < maxImages) {
-          setOrderImages([...orderImages, imageData]);
-          setCapturedImages([...orderImages, imageData]);
+        const maxTotalPhotos = totalContainers * 2;
+        
+        if (activeTab === 'completed') {
+          // For completed tab: check against existing photos + new captured photos
+          const currentTotalPhotos = completedOrderImages.length;
+          const maxCanAdd = maxTotalPhotos - currentTotalPhotos;
+          const currentNewPhotos = newCapturedImages.length;
+          
+          if (currentNewPhotos >= maxCanAdd) {
+            toast.error(`You can add maximum ${maxCanAdd} photo${maxCanAdd !== 1 ? 's' : ''} (${currentTotalPhotos} existing + ${maxCanAdd} new = ${maxTotalPhotos} maximum)`);
+            return;
+          }
+          
+          setNewCapturedImages([...newCapturedImages, imageData]);
+          // Update capturedImages to show existing + new
+          setCapturedImages([...completedOrderImages, ...newCapturedImages, imageData]);
           toast.success('Photo captured');
         } else {
-          toast.error(`Maximum ${maxImages} photos allowed (2x total containers)`);
+          // For pending tab: use existing logic
+          if (orderImages.length < maxTotalPhotos) {
+            setOrderImages([...orderImages, imageData]);
+            setCapturedImages([...orderImages, imageData]);
+            toast.success('Photo captured');
+          } else {
+            toast.error(`Maximum ${maxTotalPhotos} photos allowed (2x total containers)`);
+          }
         }
       }
     }
   };
 
   const removeCapturedImage = (index: number) => {
-    const newImages = orderImages.filter((_, i) => i !== index);
-    setOrderImages(newImages);
-    setCapturedImages(newImages);
+    if (activeTab === 'completed') {
+      // For completed tab: only remove from new captured images
+      const existingCount = completedOrderImages.length;
+      if (index < existingCount) {
+        // Trying to remove existing photo - not allowed in camera modal
+        toast.error('Cannot remove existing photos. Delete them from the main view.');
+        return;
+      }
+      // Remove from new captured images
+      const newIndex = index - existingCount;
+      const updatedNewImages = newCapturedImages.filter((_, i) => i !== newIndex);
+      setNewCapturedImages(updatedNewImages);
+      setCapturedImages([...completedOrderImages, ...updatedNewImages]);
+    } else {
+      // For pending tab: use existing logic
+      const newImages = orderImages.filter((_, i) => i !== index);
+      setOrderImages(newImages);
+      setCapturedImages(newImages);
+    }
   };
 
   const handleOpenCamera = () => {
     setCameraModalOpen(true);
-    setCapturedImages(orderImages);
+    if (activeTab === 'completed') {
+      // For completed tab: show existing photos + reset new captured photos
+      setNewCapturedImages([]);
+      setCapturedImages([...completedOrderImages]);
+    } else {
+      // For pending tab: use orderImages
+      setCapturedImages([...orderImages]);
+    }
     setCameraNotes('');
     setTimeout(() => {
       startCamera();
@@ -651,12 +980,17 @@ const OrderChecker = () => {
   const handleCloseCamera = () => {
     stopCamera();
     setCameraModalOpen(false);
-    setCapturedImages(orderImages);
+    if (activeTab === 'completed') {
+      setNewCapturedImages([]);
+      setCapturedImages([...completedOrderImages]);
+    } else {
+      setCapturedImages([...orderImages]);
+    }
     setCameraNotes('');
   };
 
-  // Save photos locally without uploading (upload happens on Ready For Delivery)
-  const handleSavePhotos = () => {
+  // Save photos - for completed tab, upload immediately; for pending, save locally
+  const handleSavePhotos = async () => {
     if (!selectedOrder) {
       toast.error('Please select an order');
       return;
@@ -668,10 +1002,22 @@ const OrderChecker = () => {
       return;
     }
 
-    // Save photos locally to orderImages state
-    setOrderImages(capturedImages);
-    toast.success('Photos saved locally');
-    handleCloseCamera();
+    if (activeTab === 'completed') {
+      // For completed tab, upload photos immediately
+      // Use newCapturedImages (only newly captured photos)
+      if (newCapturedImages.length > 0) {
+        // Upload all photos at once
+        await handleUpdateCompletedPhotos(newCapturedImages, cameraNotes);
+      } else {
+        toast.success('No new photos to upload');
+      }
+      handleCloseCamera();
+    } else {
+      // For pending tab, save photos locally (upload happens on Ready For Delivery)
+      setOrderImages(capturedImages);
+      toast.success('Photos saved locally');
+      handleCloseCamera();
+    }
   };
 
   const dataURLtoBlob = (dataURL: string): Blob => {
@@ -692,7 +1038,8 @@ const OrderChecker = () => {
     const diff = end.getTime() - start.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${hours} h ${minutes} m`;
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    return `${hours} h ${minutes} m ${seconds} s`;
   };
 
   const getContainerIcon = (type: 'box' | 'tote' | 'drink') => {
@@ -717,6 +1064,608 @@ const OrderChecker = () => {
     }
   };
 
+  // Helper function to load image as data URL
+  const loadImageAsDataUrl = async (imageUrl: string): Promise<string | null> => {
+    try {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              resolve(canvas.toDataURL('image/jpeg', 0.8));
+            } else {
+              resolve(null);
+            }
+          } catch (error) {
+            console.error('Error converting image to data URL:', error);
+            resolve(null);
+          }
+        };
+        img.onerror = () => {
+          resolve(null);
+        };
+        img.src = imageUrl;
+      });
+    } catch (error) {
+      console.error('Error loading image:', error);
+      return null;
+    }
+  };
+
+  // Helper to load logo as data URL
+  const loadLogoAsDataUrl = async (): Promise<string | null> => {
+    try {
+      return new Promise<string | null>((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              const dataUrl = canvas.toDataURL('image/png');
+              resolve(dataUrl);
+            } else {
+              resolve(null);
+            }
+          } catch (error) {
+            console.error('Error converting logo to data URL:', error);
+            resolve(null);
+          }
+        };
+        img.onerror = () => resolve(null);
+        if (typeof rabbitLogo === 'string') {
+          img.src = rabbitLogo;
+        } else {
+          img.src = rabbitLogo as string;
+        }
+      });
+    } catch (error) {
+      console.error('Error loading logo:', error);
+      return null;
+    }
+  };
+
+  // Helper function to add footer with logo and "Report Generated by Woopsa" to each page
+  const addFooterToPage = (doc: jsPDF, logoDataUrl?: string, pageNum?: number, totalPages?: number) => {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const footerY = pageHeight - 8;
+    const margin = 10;
+    
+    // Left side: "Report Generated by Woopsa" + logo
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 120, 120);
+    const text = 'Report Generated by Woopsa';
+    doc.text(text, margin, footerY);
+    
+    if (logoDataUrl) {
+      try {
+        const logoWidth = 4;
+        const logoHeight = 4;
+        const textWidth = doc.getTextWidth(text);
+        const logoX = margin + textWidth + 1.5;
+        const logoY = footerY - 3;
+        
+        try {
+          doc.addImage(logoDataUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
+        } catch {
+          try {
+            doc.addImage(logoDataUrl, 'JPEG', logoX, logoY, logoWidth, logoHeight);
+          } catch {
+            try {
+              doc.addImage(logoDataUrl, 'SVG', logoX, logoY, logoWidth, logoHeight);
+            } catch {
+              doc.addImage(logoDataUrl, logoX, logoY, logoWidth, logoHeight);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error adding logo to PDF:', error);
+      }
+    }
+    
+    // Right side: Page number
+    if (pageNum !== undefined && totalPages !== undefined) {
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      const pageText = `Page ${pageNum} of ${totalPages}`;
+      doc.text(pageText, pageWidth - margin, footerY, { align: 'right' });
+    }
+  };
+
+  // Generate Summary Report
+  const generateSummaryReport = async () => {
+    if (orders.length === 0) {
+      toast.error('No completed orders available');
+      return;
+    }
+
+    try {
+      setReportLoading(true);
+      
+      // Load rabbit logo for footer
+      const rabbitLogoDataUrl = await loadLogoAsDataUrl();
+
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 10;
+      let yPosition = margin;
+
+      // Header Section - Only on first page
+      // Title
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 60);
+      doc.text('Completed Orders Summary Report', margin, yPosition);
+      yPosition += 8;
+
+      // Date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const now = new Date();
+      const date = dayjs(now).format('MM/DD/YYYY HH:mm');
+      doc.text(`Generated on: ${date}`, pageWidth - margin, yPosition, { align: 'right' });
+      yPosition += 10;
+
+      // Divider
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 8;
+
+      // Prepare table data
+      const tableData = orders.map((order) => {
+        const route = order.route != null ? order.route.toString() : '-';
+        const stop = order.stop != null ? order.stop.toString() : '-';
+        const routeStop = route !== '-' && stop !== '-' ? `${route}/${stop}` : '-';
+        
+        return [
+          order.orderNumber.toString(),
+          order.customerName || '-',
+          routeStop,
+          order.pickerName || '-',
+          formatTime(order.startedAt, order.completedAt),
+          `${order.box.length + order.tote.length + order.drink.length}`,
+          order.invoiced ? 'Yes' : 'No',
+          dayjs(order.completedAt).format('MM/DD/YYYY HH:mm'),
+        ];
+      });
+
+      const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
+      
+      const tableWidth = pageWidth - (margin * 2);
+      
+      autoTableFn(doc, {
+        head: [['Order #', 'Customer', 'Route/Stop', 'Picker', 'Time', 'Bundles', 'Invoice Printed', 'Completed At']],
+        body: tableData,
+        startY: yPosition,
+        margin: { left: margin, right: margin },
+        tableWidth: tableWidth,
+        styles: { 
+          fontSize: 8, 
+          cellPadding: 2, 
+          lineWidth: 0.1,
+          lineColor: [220, 220, 220],
+          textColor: [50, 50, 50]
+        },
+        headStyles: { 
+          fillColor: [60, 60, 60], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'normal', 
+          lineWidth: 0.1,
+          fontSize: 8
+        },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        columnStyles: {
+          0: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Order #
+          1: { cellWidth: tableWidth * 0.20, halign: 'left' }, // Customer
+          2: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Route/Stop
+          3: { cellWidth: tableWidth * 0.15, halign: 'left' }, // Picker
+          4: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Time
+          5: { cellWidth: tableWidth * 0.08, halign: 'center' }, // Bundles
+          6: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Invoice Printed
+          7: { cellWidth: tableWidth * 0.15, halign: 'left' }, // Completed At
+        },
+        didDrawPage: (data: any) => {
+          addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
+        },
+      });
+
+      // Add footer to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        addFooterToPage(doc, rabbitLogoDataUrl || undefined, i, totalPages);
+      }
+
+      doc.save(`Completed_Orders_Summary_${dayjs().format('YYYY-MM-DD_HH-mm')}.pdf`);
+      toast.success('Summary report generated successfully');
+    } catch (error: any) {
+      console.error('Error generating summary report:', error);
+      toast.error(error?.message || 'Failed to generate summary report');
+    } finally {
+      setReportLoading(false);
+      setReportModalOpen(false);
+    }
+  };
+
+  // Generate Detail Report for ALL completed orders
+  const generateDetailReport = async (includePhotos: boolean = false) => {
+    if (orders.length === 0) {
+      toast.error('No completed orders available');
+      return;
+    }
+
+    try {
+      setReportLoading(true);
+
+      // Load rabbit logo for footer
+      const rabbitLogoDataUrl = await loadLogoAsDataUrl();
+
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      let yPosition = margin;
+
+      // Header Section - Only on first page of document
+      // Title
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 60);
+      doc.text('Completed Orders Detail Report', margin, yPosition);
+      yPosition += 8;
+
+      // Date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const now = new Date();
+      const date = dayjs(now).format('MM/DD/YYYY HH:mm');
+      doc.text(`Generated on: ${date}`, pageWidth - margin, yPosition, { align: 'right' });
+      yPosition += 10;
+
+      // Divider
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 8;
+
+      const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
+
+      // Process each order
+      for (let orderIndex = 0; orderIndex < orders.length; orderIndex++) {
+        const order = orders[orderIndex];
+
+        // Check if we need a new page (only if not enough space for order header)
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        // Order Header Section: Three-column layout (Left: Order Info, Center: Time, Right: Customer & Picker)
+        const orderLeftY = yPosition;
+        const orderRightY = yPosition;
+        const centerX = pageWidth / 2;
+
+        // Left side: Order number and details
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Order #${order.orderNumber}`, margin, orderLeftY);
+        let leftY = orderLeftY + 6;
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        const route = order.route != null ? order.route.toString() : '-';
+        const stop = order.stop != null ? order.stop.toString() : '-';
+        const routeStop = route !== '-' && stop !== '-' ? `${route}/${stop}` : '-';
+        
+        const orderLeftInfo = [
+          `Total Bundles: ${order.box.length + order.tote.length + order.drink.length}`,
+          `Boxes: ${order.box.length}`,
+          `Totes: ${order.tote.length}`,
+          `Drinks: ${order.drink.length}`,
+          `Invoice Printed: ${order.invoiced ? 'Yes' : 'No'}`,
+        ];
+
+        orderLeftInfo.forEach((text) => {
+          doc.text(text, margin, leftY);
+          leftY += 4;
+        });
+
+        // Center: Time Taken
+        const timeTaken = formatTime(order.startedAt, order.completedAt);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(60, 60, 60);
+        doc.text(timeTaken, centerX, orderLeftY + 8, { align: 'center' });
+
+        // Right side: Customer and Picker details
+        const customerName = order.customerName || 'N/A';
+        const pickerName = order.pickerName || 'N/A';
+        const completedAt = dayjs(order.completedAt).format('MM/DD/YYYY HH:mm');
+
+        const orderRightX = pageWidth - margin;
+        let rightY = orderRightY;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Customer:', orderRightX, rightY, { align: 'right' });
+        rightY += 5;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(customerName, orderRightX, rightY, { align: 'right' });
+        rightY += 6;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Picker:', orderRightX, rightY, { align: 'right' });
+        rightY += 5;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(pickerName, orderRightX, rightY, { align: 'right' });
+        rightY += 4;
+        if (routeStop !== '-') {
+          doc.text(`Route/Stop: ${routeStop}`, orderRightX, rightY, { align: 'right' });
+        } else {
+          doc.text('Route/Stop: -', orderRightX, rightY, { align: 'right' });
+        }
+        rightY += 4;
+        doc.text(`Completed: ${completedAt}`, orderRightX, rightY, { align: 'right' });
+
+        yPosition = Math.max(leftY, rightY) + 8;
+
+        // Fetch order items for this order
+        let orderItems: OrderItemWithContainer[] = [];
+        try {
+          const itemsResponse: any = await getOrderItems(order.orderNumber);
+          orderItems = itemsResponse?.data?.data || [];
+        } catch (error) {
+          console.error(`Error fetching items for order ${order.orderNumber}:`, error);
+        }
+
+        // Group items by container
+        const containerItems: Record<string, OrderItemWithContainer[]> = {};
+        orderItems.forEach((item) => {
+          const containerKey = `${item.boxType}-${item.boxId}`;
+          if (!containerItems[containerKey]) {
+            containerItems[containerKey] = [];
+          }
+          containerItems[containerKey].push(item);
+        });
+
+        // Sort containers: boxes first, then totes, then drinks
+        const sortedContainers = Object.keys(containerItems).sort((a, b) => {
+          const [typeA, idA] = a.split('-');
+          const [typeB, idB] = b.split('-');
+          const typeOrder = { box: 1, tote: 2, drink: 3 };
+          if (typeOrder[typeA as keyof typeof typeOrder] !== typeOrder[typeB as keyof typeof typeOrder]) {
+            return typeOrder[typeA as keyof typeof typeOrder] - typeOrder[typeB as keyof typeof typeOrder];
+          }
+          return parseInt(idA) - parseInt(idB);
+        });
+
+        // Items by Container Section
+        if (sortedContainers.length > 0) {
+          sortedContainers.forEach((containerKey) => {
+            const [containerType, containerId] = containerKey.split('-');
+            const items = containerItems[containerKey];
+            const containerName = `${containerType.toUpperCase()} ${containerId}`;
+
+            // Check if we need a new page
+            if (yPosition > pageHeight - 50) {
+              doc.addPage();
+              yPosition = margin;
+            }
+
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(60, 60, 60);
+            doc.text(containerName, margin, yPosition);
+            yPosition += 5;
+
+            // Table for items in this container
+            const tableData = items.map((item) => [
+              item.itemNumber.toString(),
+              item.description || '-',
+              item.qty.toString(),
+            ]);
+
+            const tableWidth = pageWidth - (margin * 2);
+            
+            autoTableFn(doc, {
+              head: [['Item #', 'Description', 'Qty']],
+              body: tableData,
+              startY: yPosition,
+              margin: { left: margin, right: margin },
+              tableWidth: tableWidth,
+              styles: { 
+                fontSize: 8, 
+                cellPadding: 2, 
+                lineWidth: 0.1,
+                lineColor: [220, 220, 220],
+                textColor: [50, 50, 50]
+              },
+              headStyles: { 
+                fillColor: [60, 60, 60], 
+                textColor: [255, 255, 255], 
+                fontStyle: 'bold', 
+                lineWidth: 0.1,
+                fontSize: 8
+              },
+              alternateRowStyles: { fillColor: [250, 250, 250] },
+              columnStyles: {
+                0: { cellWidth: tableWidth * 0.15, halign: 'center' },
+                1: { cellWidth: tableWidth * 0.70, halign: 'left' },
+                2: { cellWidth: tableWidth * 0.15, halign: 'center' },
+              },
+              didDrawPage: (data: any) => {
+                addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
+              },
+            });
+
+            // Get the final Y position after the table
+            const finalY = (doc as any).lastAutoTable.finalY || yPosition + items.length * 5;
+            yPosition = finalY + 5;
+          });
+        } else {
+          // Check if we need a new page
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = margin;
+          }
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'normal');
+          doc.text('Items by Container', margin, yPosition);
+          yPosition += 6;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.text('No items found for this order', margin, yPosition);
+          yPosition += 5;
+        }
+
+        // Photos Section (if included)
+        if (includePhotos) {
+          let photos: string[] = [];
+          try {
+            const photosResponse: any = await getOrderPhotos(order.orderNumber);
+            const photosData = photosResponse?.data?.data;
+            if (photosData && photosData.photos) {
+              photos = photosData.photos;
+            }
+          } catch (error) {
+            console.error(`Error fetching photos for order ${order.orderNumber}:`, error);
+          }
+
+          if (photos.length > 0) {
+            // Check if we need a new page
+            if (yPosition > pageHeight - 60) {
+              doc.addPage();
+              yPosition = margin;
+            }
+
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(60, 60, 60);
+            doc.text('Photos', margin, yPosition);
+            yPosition += 6;
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Total Photos: ${photos.length}`, margin, yPosition);
+            yPosition += 8;
+
+            // Display photos in a grid (3 per row, smaller size for better fit)
+            const photoSize = 45; // mm (smaller size)
+            const spacing = 5;
+            const photosPerRow = 3;
+            let currentRow = 0;
+            let currentCol = 0;
+            let startY = yPosition;
+
+            for (let i = 0; i < photos.length; i++) {
+              // Check if we need a new page
+              if (startY + (currentRow + 1) * (photoSize + spacing) > pageHeight - margin - 10) {
+                doc.addPage();
+                startY = margin;
+                currentRow = 0;
+                currentCol = 0;
+              }
+
+              const photo = photos[i];
+              const xPos = margin + currentCol * (photoSize + spacing);
+              const yPos = startY + currentRow * (photoSize + spacing);
+
+              try {
+                const imageDataUrl = await loadImageAsDataUrl(photo);
+                if (imageDataUrl) {
+                  doc.addImage(imageDataUrl, 'JPEG', xPos, yPos, photoSize, photoSize);
+                } else {
+                  // Placeholder if image fails to load
+                  doc.setFillColor(200, 200, 200);
+                  doc.rect(xPos, yPos, photoSize, photoSize, 'F');
+                  doc.setFontSize(8);
+                  doc.text('Image', xPos + photoSize / 2 - 5, yPos + photoSize / 2);
+                }
+              } catch (error) {
+                console.error('Error loading photo:', error);
+                doc.setFillColor(200, 200, 200);
+                doc.rect(xPos, yPos, photoSize, photoSize, 'F');
+                doc.setFontSize(8);
+                doc.text('Error', xPos + photoSize / 2 - 5, yPos + photoSize / 2);
+              }
+
+              currentCol++;
+              if (currentCol >= photosPerRow) {
+                currentCol = 0;
+                currentRow++;
+              }
+            }
+            yPosition = startY + (currentRow + 1) * (photoSize + spacing);
+          } else {
+            // Check if we need a new page
+            if (yPosition > pageHeight - 30) {
+              doc.addPage();
+              yPosition = margin;
+            }
+
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Photos', margin, yPosition);
+            yPosition += 6;
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text('No photos available for this order', margin, yPosition);
+            yPosition += 5;
+          }
+        }
+
+        // Dark divider between orders (except last order)
+        if (orderIndex < orders.length - 1) {
+          // Check if we need a new page for divider
+          if (yPosition > pageHeight - 20) {
+            doc.addPage();
+            yPosition = margin;
+          }
+          
+          doc.setDrawColor(80, 80, 80);
+          doc.setLineWidth(1);
+          doc.line(margin, yPosition, pageWidth - margin, yPosition);
+          yPosition += 8;
+        }
+      }
+
+      // Add footer to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        addFooterToPage(doc, rabbitLogoDataUrl || undefined, i, totalPages);
+      }
+
+      const fileName = `All_Orders_Detail_${dayjs().format('YYYY-MM-DD_HH-mm')}.pdf`;
+      doc.save(fileName);
+      toast.success(`Detail report generated successfully for ${orders.length} order(s)`);
+    } catch (error: any) {
+      console.error('Error generating detail report:', error);
+      toast.error(error?.message || 'Failed to generate detail report');
+    } finally {
+      setReportLoading(false);
+      setReportModalOpen(false);
+    }
+  };
+
   return (
     <Box sx={{
       p: 1.5,
@@ -737,20 +1686,84 @@ const OrderChecker = () => {
         mb={1.5} 
         sx={{ flexShrink: 0 }}
       >
-        <Typography variant="h6" fontWeight={500} fontSize={{ xs: 16, sm: 18 }} color="text.primary">
-          E-Checker
-        </Typography>
-        <CustomButton
-          buttonType="primary"
-          onClick={fetchOrders}
-          icon={<Refresh />}
-          iconPosition="left"
-          size="small"
-          fullWidth={isSmallMobile}
-          sx={{ mt: 0, width: { xs: '100%', sm: 'auto' } }}
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => {
+            setActiveTab(newValue);
+            setSelectedOrder(null);
+            setSelectedBoxId(null);
+            setSelectedContainerType(null);
+            setShowAllItems(true);
+            setBoxItems([]);
+            setAllOrderItems([]);
+            setExpandedOrders(new Set());
+            setOrderImages([]);
+            setOrderPhotosData(null);
+          }}
+          sx={{
+            minHeight: 'auto',
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontSize: { xs: 14, sm: 16 },
+              fontWeight: 500,
+              minHeight: 40,
+              px: { xs: 2, sm: 3 },
+              color: 'text.secondary',
+              '&.Mui-selected': {
+                color: 'primary.main',
+                fontWeight: 500,
+              },
+            },
+            '& .MuiTabs-indicator': {
+              height: 3,
+              borderRadius: '3px 3px 0 0',
+            },
+          }}
         >
-          Refresh
-        </CustomButton>
+          <Tab label="Pending" value="pending" />
+          <Tab label="Completed" value="completed" />
+        </Tabs>
+        <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
+          {activeTab === 'completed' && (
+            <>
+              <CustomButton
+                buttonType="primary"
+                onClick={() => {
+                  setReportType('summary');
+                  setReportModalOpen(true);
+                }}
+                size="small"
+                fullWidth={isSmallMobile}
+                sx={{ mt: 0, width: { xs: '100%', sm: 'auto' } }}
+              >
+                Summary Report
+              </CustomButton>
+              <CustomButton
+                buttonType="primary"
+                onClick={() => {
+                  setReportType('detail');
+                  setReportModalOpen(true);
+                }}
+                size="small"
+                fullWidth={isSmallMobile}
+                sx={{ mt: 0, width: { xs: '100%', sm: 'auto' } }}
+              >
+                Detail Report
+              </CustomButton>
+            </>
+          )}
+          <CustomButton
+            buttonType="primary"
+            onClick={fetchOrders}
+            icon={<Refresh />}
+            iconPosition="left"
+            size="small"
+            fullWidth={isSmallMobile}
+            sx={{ mt: 0, width: { xs: '100%', sm: 'auto' } }}
+          >
+            Refresh
+          </CustomButton>
+        </Box>
       </Box>
 
       <Grid container spacing={1.5} sx={{
@@ -815,17 +1828,21 @@ const OrderChecker = () => {
                         mx: 0.5,
                         cursor: 'pointer',
                         border: '1px solid',
-                        borderColor: isSelected ? 'primary.main' : 'divider',
+                        borderColor: isSelected ? 'primary.main' : order.invoiced ? (isDark ? 'rgba(46, 125, 50, 0.5)' : 'rgba(46, 125, 50, 0.6)') : 'divider',
                         borderRadius: 1.5,
                         transition: 'all 0.2s ease',
                         overflow: 'hidden',
                         boxShadow: isSelected ? 4 : 2,
                         bgcolor: isSelected 
                           ? (isDark ? 'rgba(60, 119, 149, 0.1)' : 'rgba(60, 119, 149, 0.05)')
-                          : 'background.paper',
+                          : order.invoiced
+                            ? (isDark ? 'rgba(46, 125, 50, 0.2)' : 'rgba(46, 125, 50, 0.15)')
+                            : activeTab === 'completed'
+                              ? (isDark ? 'rgba(76, 175, 80, 0.15)' : 'rgba(76, 175, 80, 0.1)')
+                              : 'background.paper',
                         '&:hover': {
                           boxShadow: 4,
-                          borderColor: 'primary.main',
+                          borderColor: order.invoiced ? (isDark ? 'rgba(46, 125, 50, 0.7)' : 'rgba(46, 125, 50, 0.8)') : 'primary.main',
                           transform: 'translateY(-2px)',
                         },
                       }}
@@ -849,9 +1866,27 @@ const OrderChecker = () => {
                               <Box component="img" src={BoxIcon} alt="Box" sx={{ width: 18, height: 18, filter: 'brightness(0) invert(1)', opacity: 1 }} />
                             </Box>
                             <Box>
-                              <Typography variant="body2" fontWeight={500} fontSize={12} color="text.primary">
-                                Order #{order.orderNumber}
-                              </Typography>
+                              <Box display="flex" alignItems="center" gap={0.5} flexWrap="wrap">
+                                <Typography variant="body2" fontWeight={500} fontSize={12} color="text.primary">
+                                  Order #{order.orderNumber}
+                                </Typography>
+                                {order.invoiced && (
+                                  <Box
+                                    sx={{
+                                      px: 0.75,
+                                      py: 0.25,
+                                      borderRadius: 1,
+                                      bgcolor: isDark ? 'rgba(76, 175, 80, 0.2)' : 'rgba(76, 175, 80, 0.15)',
+                                      border: '1px solid',
+                                      borderColor: isDark ? 'rgba(76, 175, 80, 0.4)' : 'rgba(76, 175, 80, 0.3)',
+                                    }}
+                                  >
+                                    <Typography variant="caption" fontSize={9} fontWeight={500} color="success.main" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                      Invoice Printed
+                                    </Typography>
+                                  </Box>
+                                )}
+                              </Box>
                               <Typography variant="caption" fontSize={10} color="text.secondary">
                                 {order.box.length + order.tote.length + order.drink.length} bundles • Route {order.route} - Stop {order.stop}
                               </Typography>
@@ -1068,7 +2103,7 @@ const OrderChecker = () => {
                               </Box>
                             </Box>
 
-                            {isSelected && (
+                            {isSelected && (isEditingAllowed || (activeTab === 'completed' && order.invoiced)) && (
                               <CustomButton
                                 buttonType="primary"
                                 fullWidth
@@ -1080,7 +2115,7 @@ const OrderChecker = () => {
                                 iconPosition="left"
                                 sx={{ mt: 1 }}
                               >
-                               Bundle Creation
+                               {activeTab === 'completed' && order.invoiced ? 'Bundle Print' : 'Bundle Creation'}
                               </CustomButton>
                             )}
                           </Box>
@@ -1204,27 +2239,29 @@ const OrderChecker = () => {
                                 color: isSelected ? 'white' : 'text.primary',
                               }}
                             />
-                            <IconButton 
-                              size="small" 
-                              sx={{ 
-                                p: 0.5,
-                                bgcolor: isSelected ? containerColor : 'transparent',
-                                minWidth: 32,
-                                '&:hover': {
-                                  bgcolor: isSelected ? containerColor : 'rgba(0,0,0,0.04)',
-                                }
-                              }} 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Handle edit container
-                              }}
-                            >
-                              {isSelected ? (
-                                <Box component="img" src={BoxEditWhite} alt="Edit" sx={{ width: 16, height: 16 }} />
-                              ) : (
-                                <Box component="img" src={BoxEditBlue} alt="Edit" sx={{ width: 16, height: 16 }} />
-                              )}
-                            </IconButton>
+                            {isEditingAllowed && (
+                              <IconButton 
+                                size="small" 
+                                sx={{ 
+                                  p: 0.5,
+                                  bgcolor: isSelected ? containerColor : 'transparent',
+                                  minWidth: 32,
+                                  '&:hover': {
+                                    bgcolor: isSelected ? containerColor : 'rgba(0,0,0,0.04)',
+                                  }
+                                }} 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Handle edit container
+                                }}
+                              >
+                                {isSelected ? (
+                                  <Box component="img" src={BoxEditWhite} alt="Edit" sx={{ width: 16, height: 16 }} />
+                                ) : (
+                                  <Box component="img" src={BoxEditBlue} alt="Edit" sx={{ width: 16, height: 16 }} />
+                                )}
+                              </IconButton>
+                            )}
                           </ListItemButton>
                         );
                       })}
@@ -1235,7 +2272,7 @@ const OrderChecker = () => {
                     </Typography>
                   )}
                 </Box>
-                {selectedOrder && !selectedOrder.invoiced && (
+                {selectedOrder && isEditingAllowed && (
                   <Box sx={{ flexShrink: 0, mt: 1 }}>
                     <CustomButton
                       buttonType="primary"
@@ -1400,7 +2437,7 @@ const OrderChecker = () => {
                                         <Typography 
                                           variant="caption" 
                                           fontSize={11} 
-                                          fontWeight={700} 
+                                          fontWeight={500} 
                                           color="primary.main"
                                           sx={{
                                             letterSpacing: 0.5,
@@ -1409,42 +2446,48 @@ const OrderChecker = () => {
                                           QTY: {item.qty}
                                         </Typography>
                                       </Box>
-                                      <IconButton
-                                        size="small"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleEditItem(item, 'qty');
-                                        }}
-                                        sx={{ 
-                                          p: 0.5,
-                                          transition: 'all 0.2s ease',
-                                          '&:hover': {
-                                            transform: 'scale(1.1)',
-                                            bgcolor: 'primary.light',
-                                          },
-                                        }}
-                                        title="Edit Quantity"
-                                      >
-                                        <Box component="img" src={EditBlue} alt="Edit" sx={{ width: 16, height: 16 }} />
-                                      </IconButton>
-                                      <IconButton
-                                        size="small"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleEditItem(item, 'move');
-                                        }}
-                                        sx={{ 
-                                          p: 0.5,
-                                          transition: 'all 0.2s ease',
-                                          '&:hover': {
-                                            transform: 'scale(1.1)',
-                                            bgcolor: 'primary.light',
-                                          },
-                                        }}
-                                        title="Move Item"
-                                      >
-                                        <Box component="img" src={MoveIcon} alt="Move" sx={{ width: 15, height: 15 }} />
-                                      </IconButton>
+                                      {isEditingAllowed && (
+                                        <>
+                                          {!isQtyEditDisabled && (
+                                            <IconButton
+                                              size="small"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEditItem(item, 'qty');
+                                              }}
+                                              sx={{ 
+                                                p: 0.5,
+                                                transition: 'all 0.2s ease',
+                                                '&:hover': {
+                                                  transform: 'scale(1.1)',
+                                                  bgcolor: 'primary.light',
+                                                },
+                                              }}
+                                              title="Edit Quantity"
+                                            >
+                                              <Box component="img" src={EditBlue} alt="Edit" sx={{ width: 16, height: 16 }} />
+                                            </IconButton>
+                                          )}
+                                          <IconButton
+                                            size="small"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleEditItem(item, 'move');
+                                            }}
+                                            sx={{ 
+                                              p: 0.5,
+                                              transition: 'all 0.2s ease',
+                                              '&:hover': {
+                                                transform: 'scale(1.1)',
+                                                bgcolor: 'primary.light',
+                                              },
+                                            }}
+                                            title="Move Item"
+                                          >
+                                            <Box component="img" src={MoveIcon} alt="Move" sx={{ width: 15, height: 15 }} />
+                                          </IconButton>
+                                        </>
+                                      )}
                                     </Box>
                                   </Box>
                                 </CardContent>
@@ -1545,42 +2588,48 @@ const OrderChecker = () => {
                                         QTY: {item.qty}
                                       </Typography>
                                     </Box>
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleEditItem(item, 'qty');
-                                      }}
-                                      sx={{ 
-                                        p: 0.5,
-                                        transition: 'all 0.2s ease',
-                                        '&:hover': {
-                                          transform: 'scale(1.1)',
-                                          bgcolor: 'primary.light',
-                                        },
-                                      }}
-                                      title="Edit Quantity"
-                                    >
-                                      <Box component="img" src={EditBlue} alt="Edit" sx={{ width: 16, height: 16 }} />
-                                    </IconButton>
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleEditItem(item, 'move');
-                                      }}
-                                      sx={{ 
-                                        p: 0.5,
-                                        transition: 'all 0.2s ease',
-                                        '&:hover': {
-                                          transform: 'scale(1.1)',
-                                          bgcolor: 'primary.light',
-                                        },
-                                      }}
-                                      title="Move Item"
-                                    >
-                                      <Box component="img" src={MoveIcon} alt="Move" sx={{ width: 15, height: 15 }} />
-                                    </IconButton>
+                                    {isEditingAllowed && (
+                                      <>
+                                        {!isQtyEditDisabled && (
+                                          <IconButton
+                                            size="small"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleEditItem(item, 'qty');
+                                            }}
+                                            sx={{ 
+                                              p: 0.5,
+                                              transition: 'all 0.2s ease',
+                                              '&:hover': {
+                                                transform: 'scale(1.1)',
+                                                bgcolor: 'primary.light',
+                                              },
+                                            }}
+                                            title="Edit Quantity"
+                                          >
+                                            <Box component="img" src={EditBlue} alt="Edit" sx={{ width: 16, height: 16 }} />
+                                          </IconButton>
+                                        )}
+                                        <IconButton
+                                          size="small"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleEditItem(item, 'move');
+                                          }}
+                                          sx={{ 
+                                            p: 0.5,
+                                            transition: 'all 0.2s ease',
+                                            '&:hover': {
+                                              transform: 'scale(1.1)',
+                                              bgcolor: 'primary.light',
+                                            },
+                                          }}
+                                          title="Move Item"
+                                        >
+                                          <Box component="img" src={MoveIcon} alt="Move" sx={{ width: 15, height: 15 }} />
+                                        </IconButton>
+                                      </>
+                                    )}
                                   </Box>
                                 </Box>
                               </CardContent>
@@ -1960,7 +3009,7 @@ const OrderChecker = () => {
         onClose={() => {
           setBundleCreationModalOpen(false);
         }}
-        title="Bundle Creation"
+        title={selectedOrder && activeTab === 'completed' && selectedOrder.invoiced ? "Bundle Print" : "Bundle Creation"}
         size="xl"
       >
         {selectedOrder && (
@@ -2240,7 +3289,7 @@ const OrderChecker = () => {
                 </Box>
               </Box>
 
-              {/* Order Level Photo Section - Right Side */}
+              {/* Photo Section - Right Side */}
               <Box sx={{ 
                 flex: 1,
                 height: { xs: 'auto', lg: '100%' },
@@ -2253,152 +3302,291 @@ const OrderChecker = () => {
                 flexDirection: 'column',
                 overflow: 'hidden',
               }}>
-                <Typography variant="subtitle2" fontWeight={500} fontSize={14} mb={1}>
-                  Order Photos
-                </Typography>
-                <Typography variant="caption" fontSize={11} color="text.secondary" mb={1.5} display="block">
-                  Minimum {allContainers.length} photos required, Maximum {allContainers.length * 2} photos allowed
-                </Typography>
-                
-                {/* Photo Grid - 3 images per row */}
-                <Box sx={{ flex: 1, overflow: 'auto' }}>
-                  <Grid container spacing={1} mb={1.5}>
-                    {Array.from({ length: allContainers.length * 2 }).map((_, index) => {
-                      const photo = orderImages[index];
-                      return (
-                        <Grid size={{ xs: 4 }} key={index}>
-                          {photo ? (
-                        <Box
-                          sx={{
-                            width: '100%',
-                            height: { xs: 100, sm: 120 },
-                            position: 'relative',
-                            borderRadius: 0.75,
-                            overflow: 'hidden',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                          }}
-                        >
-                          <Box
-                            component="img"
-                            src={photo}
-                            alt={`Order Photo ${index + 1}`}
-                            sx={{
-                              width: '100%',
-                              height: { xs: 100, sm: 120 },
-                              objectFit: 'contain',
-                              bgcolor: 'divider',
-                              p: 0.5,
-                            }}
-                          />
-                          <IconButton
-                            size="small"
-                            sx={{
-                              position: 'absolute',
-                              top: 4,
-                              right: 4,
-                              bgcolor: 'rgba(0,0,0,0.5)',
-                              color: 'white',
-                              p: 0.25,
-                              width: 20,
-                              height: 20,
-                            }}
-                            onClick={() => removeCapturedImage(index)}
-                          >
-                            <Close fontSize="small" sx={{ fontSize: 12 }} />
-                          </IconButton>
+                {activeTab === 'completed' && orderPhotosData ? (
+                  <>
+                    <Typography variant="subtitle2" fontWeight={500} fontSize={14} mb={1}>
+                      Order Photos
+                    </Typography>
+                    <Typography variant="caption" fontSize={11} color="text.secondary" mb={1.5} display="block">
+                      Minimum {allContainers.length} photos required, Maximum {allContainers.length * 2} photos allowed
+                    </Typography>
+                    
+                    {/* Photo Grid - Same as pending */}
+                    <Box sx={{ flex: 1, overflow: 'auto' }}>
+                      {orderPhotosLoading ? (
+                        <Box display="flex" justifyContent="center" p={3}>
+                          <CircularProgress />
                         </Box>
                       ) : (
-                        <Box
+                        <Grid container spacing={1} mb={1.5}>
+                          {Array.from({ length: allContainers.length * 2 }).map((_, index) => {
+                            const photo = completedOrderImages[index];
+                            return (
+                              <Grid size={{ xs: 4 }} key={index}>
+                                {photo ? (
+                                  <Box
+                                    sx={{
+                                      width: '100%',
+                                      height: { xs: 100, sm: 120 },
+                                      position: 'relative',
+                                      borderRadius: 0.75,
+                                      overflow: 'hidden',
+                                      border: '1px solid',
+                                      borderColor: 'divider',
+                                    }}
+                                  >
+                                    <Box
+                                      component="img"
+                                      src={photo}
+                                      alt={`Order Photo ${index + 1}`}
+                                      sx={{
+                                        width: '100%',
+                                        height: { xs: 100, sm: 120 },
+                                        objectFit: 'contain',
+                                        bgcolor: 'divider',
+                                        p: 0.5,
+                                      }}
+                                      onError={(e) => {
+                                        e.currentTarget.src = '/src/assets/Default-Product-Image.jpg';
+                                      }}
+                                    />
+                                    {!selectedOrder?.invoiced && (
+                                      <IconButton
+                                        size="small"
+                                        sx={{
+                                          position: 'absolute',
+                                          top: 4,
+                                          right: 4,
+                                          bgcolor: 'rgba(244, 67, 54, 0.9)',
+                                          color: 'white',
+                                          p: 0.25,
+                                          width: 24,
+                                          height: 24,
+                                          '&:hover': {
+                                            bgcolor: 'rgba(244, 67, 54, 1)',
+                                          },
+                                        }}
+                                        onClick={() => handleDeletePhoto(photo)}
+                                        disabled={deletePhotoLoading}
+                                      >
+                                        {deletePhotoLoading ? (
+                                          <CircularProgress size={14} sx={{ color: 'white' }} />
+                                        ) : (
+                                          <Close fontSize="small" sx={{ fontSize: 14 }} />
+                                        )}
+                                      </IconButton>
+                                    )}
+                                  </Box>
+                                ) : (
+                                  <Box
+                                    sx={{
+                                      width: '100%',
+                                      height: { xs: 100, sm: 120 },
+                                      border: '2px dashed',
+                                      borderColor: 'divider',
+                                      borderRadius: 0.75,
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: !selectedOrder?.invoiced ? 'pointer' : 'default',
+                                      bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                                      opacity: !selectedOrder?.invoiced ? 1 : 0.5,
+                                      '&:hover': !selectedOrder?.invoiced ? {
+                                        borderColor: 'primary.main',
+                                        bgcolor: isDark ? 'rgba(60, 119, 149, 0.1)' : 'rgba(60, 119, 149, 0.05)',
+                                      } : {},
+                                    }}
+                                    onClick={!selectedOrder?.invoiced ? handleOpenCamera : undefined}
+                                  >
+                                    <Box component="img" src={CameraIcon} alt="Camera" sx={{ width: 18, height: 18, mb: 0.5, opacity: 0.6 }} />
+                                    <Typography variant="caption" fontSize={9} color="text.secondary">
+                                      {!selectedOrder?.invoiced ? 'Tap to capture' : 'No photos'}
+                                    </Typography>
+                                  </Box>
+                                )}
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      )}
+                    </Box>
+                    
+                    {/* Progress Bar */}
+                    <Box mb={1} sx={{ flexShrink: 0 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={(completedOrderImages.length / (allContainers.length * 2)) * 100}
+                        sx={{
+                          height: 4,
+                          borderRadius: 2,
+                          bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                          '& .MuiLinearProgress-bar': {
+                            borderRadius: 2,
+                          },
+                        }}
+                      />
+                      <Typography variant="caption" fontSize={10} color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'right' }}>
+                        {completedOrderImages.length} / {allContainers.length * 2} photos
+                      </Typography>
+                    </Box>
+                  </>
+                ) : (
+                  <>
+                    <Typography variant="subtitle2" fontWeight={500} fontSize={14} mb={1}>
+                      Order Photos
+                    </Typography>
+                    <Typography variant="caption" fontSize={11} color="text.secondary" mb={1.5} display="block">
+                      Minimum {allContainers.length} photos required, Maximum {allContainers.length * 2} photos allowed
+                    </Typography>
+                    
+                    {/* Photo Grid - 3 images per row */}
+                    <Box sx={{ flex: 1, overflow: 'auto' }}>
+                      <Grid container spacing={1} mb={1.5}>
+                        {Array.from({ length: allContainers.length * 2 }).map((_, index) => {
+                          const photo = orderImages[index];
+                          return (
+                            <Grid size={{ xs: 4 }} key={index}>
+                              {photo ? (
+                            <Box
+                              sx={{
+                                width: '100%',
+                                height: { xs: 100, sm: 120 },
+                                position: 'relative',
+                                borderRadius: 0.75,
+                                overflow: 'hidden',
+                                border: '1px solid',
+                                borderColor: 'divider',
+                              }}
+                            >
+                              <Box
+                                component="img"
+                                src={photo}
+                                alt={`Order Photo ${index + 1}`}
+                                sx={{
+                                  width: '100%',
+                                  height: { xs: 100, sm: 120 },
+                                  objectFit: 'contain',
+                                  bgcolor: 'divider',
+                                  p: 0.5,
+                                }}
+                              />
+                              {isEditingAllowed && (
+                                <IconButton
+                                  size="small"
+                                  sx={{
+                                    position: 'absolute',
+                                    top: 4,
+                                    right: 4,
+                                    bgcolor: 'rgba(0,0,0,0.5)',
+                                    color: 'white',
+                                    p: 0.25,
+                                    width: 20,
+                                    height: 20,
+                                  }}
+                                  onClick={() => removeCapturedImage(index)}
+                                >
+                                  <Close fontSize="small" sx={{ fontSize: 12 }} />
+                                </IconButton>
+                              )}
+                            </Box>
+                          ) : (
+                            <Box
+                              sx={{
+                                width: '100%',
+                                height: { xs: 100, sm: 120 },
+                                border: '2px dashed',
+                                borderColor: 'divider',
+                                borderRadius: 0.75,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: isEditingAllowed ? 'pointer' : 'default',
+                                bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                                opacity: isEditingAllowed ? 1 : 0.5,
+                                '&:hover': isEditingAllowed ? {
+                                  borderColor: 'primary.main',
+                                  bgcolor: isDark ? 'rgba(60, 119, 149, 0.1)' : 'rgba(60, 119, 149, 0.05)',
+                                } : {},
+                              }}
+                              onClick={isEditingAllowed ? handleOpenCamera : undefined}
+                            >
+                              <Box component="img" src={CameraIcon} alt="Camera" sx={{ width: 18, height: 18, mb: 0.5, opacity: 0.6 }} />
+                              <Typography variant="caption" fontSize={9} color="text.secondary">
+                                {isEditingAllowed ? 'Tap to capture' : 'No photos'}
+                              </Typography>
+                            </Box>
+                              )}
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      </Box>
+                      
+                      {/* Progress Bar */}
+                      <Box mb={1} sx={{ flexShrink: 0 }}>
+                        <LinearProgress
+                          variant="determinate"
+                          value={(orderImages.length / (allContainers.length * 2)) * 100}
                           sx={{
-                            width: '100%',
-                            height: { xs: 100, sm: 120 },
-                            border: '2px dashed',
-                            borderColor: 'divider',
-                            borderRadius: 0.75,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
-                            '&:hover': {
-                              borderColor: 'primary.main',
-                              bgcolor: isDark ? 'rgba(60, 119, 149, 0.1)' : 'rgba(60, 119, 149, 0.05)',
+                            height: 4,
+                            borderRadius: 2,
+                            bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                            '& .MuiLinearProgress-bar': {
+                              borderRadius: 2,
                             },
                           }}
-                          onClick={handleOpenCamera}
-                        >
-                          <Box component="img" src={CameraIcon} alt="Camera" sx={{ width: 18, height: 18, mb: 0.5, opacity: 0.6 }} />
-                          <Typography variant="caption" fontSize={9} color="text.secondary">
-                            Tap to capture
-                          </Typography>
-                        </Box>
-                          )}
-                        </Grid>
-                      );
-                    })}
-                  </Grid>
-                </Box>
-                
-                {/* Progress Bar */}
-                <Box mb={1} sx={{ flexShrink: 0 }}>
-                  <LinearProgress
-                    variant="determinate"
-                    value={(orderImages.length / (allContainers.length * 2)) * 100}
-                    sx={{
-                      height: 4,
-                      borderRadius: 2,
-                      bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                      '& .MuiLinearProgress-bar': {
-                        borderRadius: 2,
-                      },
-                    }}
-                  />
-                  <Typography variant="caption" fontSize={10} color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'right' }}>
-                    {orderImages.length} / {allContainers.length * 2} photos
-                  </Typography>
-                </Box>
-
-                {/* <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                  <CustomButton
-                    buttonType="primary"
-                    onClick={handleOpenCamera}
-                    icon={<Box component="img" src={CameraIcon} alt="Camera" sx={{ width: 16, height: 16 }} />}
-                    iconPosition="left"
-                    size="small"
-                    fullWidth
-                    disabled={orderImages.length >= allContainers.length * 2}
-                  >
-                    {orderImages.length === 0 ? 'Open Camera' : 'Add More Photos'}
-                  </CustomButton>
-                </Box> */}
+                        />
+                        <Typography variant="caption" fontSize={10} color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'right' }}>
+                          {orderImages.length} / {allContainers.length * 2} photos
+                        </Typography>
+                      </Box>
+                    </>
+                  )}
               </Box>
             </Box>
 
             <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} justifyContent="space-between" gap={1.5} mt={2}>
-              <CustomButton
-                buttonType="primary"
-                onClick={() => setPrintLabelsModalOpen(true)}
-                icon={<Box component="img" src={PrintIcon} alt="Print" sx={{ width: 18, height: 18, filter: 'brightness(0) invert(1)', opacity: 1 }} />}
-                iconPosition="left"
-                size="small"
-                fullWidth={isMobile}
-                sx={{ mt: 0, width: { xs: '100%', lg: 'auto' } }}
-              >
-                Print All Labels
-              </CustomButton>
-              <CustomButton
-                buttonType="cancel"
-                appearance="outlined"
-                onClick={handleConfirmReadyForDelivery}
-                size="small"
-                fullWidth={isMobile}
-                disabled={!checkOrderImagesValid}
-                sx={{ mt: 0, width: { xs: '100%', lg: 'auto' } }}
-              >
-                Ready For Delivery
-              </CustomButton>
+              <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={1.5} sx={{ width: { xs: '100%', lg: 'auto' } }}>
+                <CustomButton
+                  buttonType="primary"
+                  onClick={() => setPrintLabelsModalOpen(true)}
+                  icon={<Box component="img" src={PrintIcon} alt="Print" sx={{ width: 18, height: 18, filter: 'brightness(0) invert(1)', opacity: 1 }} />}
+                  iconPosition="left"
+                  size="small"
+                  fullWidth={isMobile}
+                  sx={{ mt: 0, width: { xs: '100%', sm: 'auto' } }}
+                >
+                  Print All Labels
+                </CustomButton>
+                <CustomButton
+                  buttonType="primary"
+                  onClick={handlePrintPackingList}
+                  icon={<Box component="img" src={PrintIcon} alt="Print" sx={{ width: 18, height: 18, filter: 'brightness(0) invert(1)', opacity: 1 }} />}
+                  iconPosition="left"
+                  size="small"
+                  fullWidth={isMobile}
+                  loading={printLabelsLoading}
+                  disabled={printLabelsLoading}
+                  sx={{ mt: 0, width: { xs: '100%', sm: 'auto' } }}
+                >
+                  Print Packing List
+                </CustomButton>
+              </Box>
+              {isEditingAllowed && !(activeTab === 'completed') && (
+                <CustomButton
+                  buttonType="cancel"
+                  appearance="outlined"
+                  onClick={handleConfirmReadyForDelivery}
+                  size="small"
+                  fullWidth={isMobile}
+                  disabled={!checkOrderImagesValid}
+                  sx={{ mt: 0, width: { xs: '100%', lg: 'auto' } }}
+                >
+                  Ready For Delivery
+                </CustomButton>
+              )}
             </Box>
           </Box>
         )}
@@ -2484,11 +3672,30 @@ const OrderChecker = () => {
               bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
             }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                <Typography variant="subtitle2" fontWeight={500} fontSize={14}>
-                  Captured Photos
-                </Typography>
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={500} fontSize={14}>
+                    {activeTab === 'completed' ? 'Photos' : 'Captured Photos'}
+                  </Typography>
+                  {activeTab === 'completed' && selectedOrder && (
+                    <Typography variant="caption" fontSize={10} color="text.secondary" display="block" mt={0.25}>
+                      {(() => {
+                        const totalContainers = allContainers.length;
+                        const currentTotalPhotos = completedOrderImages.length;
+                        const maxTotalPhotos = totalContainers * 2;
+                        const minTotalPhotos = totalContainers;
+                        const maxCanAdd = maxTotalPhotos - currentTotalPhotos;
+                        const minNeeded = Math.max(0, minTotalPhotos - currentTotalPhotos);
+                        return minNeeded > 0 
+                          ? `Min ${minNeeded} required, Max ${maxCanAdd} can add`
+                          : `Max ${maxCanAdd} can add`;
+                      })()}
+                    </Typography>
+                  )}
+                </Box>
                 <Typography variant="caption" fontSize={11} color="text.secondary">
-                  {capturedImages.length} / {allContainers.length * 2} photos
+                  {activeTab === 'completed' 
+                    ? `${completedOrderImages.length} existing + ${newCapturedImages.length} new = ${capturedImages.length} / ${allContainers.length * 2}`
+                    : `${capturedImages.length} / ${allContainers.length * 2} photos`}
                 </Typography>
               </Box>
               <Box sx={{ 
@@ -2498,46 +3705,70 @@ const OrderChecker = () => {
               }}>
                 {capturedImages.length > 0 ? (
                   <Grid container spacing={1}>
-                    {capturedImages.map((image, index) => (
-                      <Grid size={{ xs: 6, sm: 4 }} key={index}>
-                        <Box sx={{ position: 'relative' }}>
-                          <Box
-                            component="img"
-                            src={image}
-                            alt={`Captured ${index + 1}`}
-                            sx={{ 
-                              width: '100%', 
-                              height: { xs: 100, sm: 120 },
-                              objectFit: 'contain', 
-                              borderRadius: 1, 
-                              bgcolor: 'divider', 
-                              p: 0.5,
-                              border: '1px solid',
-                              borderColor: 'divider',
-                            }}
-                          />
-                          <IconButton
-                            sx={{
-                              position: 'absolute',
-                              top: 4,
-                              right: 4,
-                              bgcolor: 'rgba(244, 67, 54, 0.9)',
-                              color: 'white',
-                              p: 0.5,
-                              width: 24,
-                              height: 24,
-                              '&:hover': {
-                                bgcolor: 'rgba(244, 67, 54, 1)',
-                              },
-                            }}
-                            size="small"
-                            onClick={() => removeCapturedImage(index)}
-                          >
-                            <Close fontSize="small" sx={{ fontSize: 14 }} />
-                          </IconButton>
-                        </Box>
-                      </Grid>
-                    ))}
+                    {capturedImages.map((image, index) => {
+                      const isExistingPhoto = activeTab === 'completed' && index < completedOrderImages.length;
+                      return (
+                        <Grid size={{ xs: 6, sm: 4 }} key={index}>
+                          <Box sx={{ position: 'relative' }}>
+                            <Box
+                              component="img"
+                              src={image}
+                              alt={isExistingPhoto ? `Existing Photo ${index + 1}` : `New Photo ${index + 1}`}
+                              sx={{ 
+                                width: '100%', 
+                                height: { xs: 100, sm: 120 },
+                                objectFit: 'contain', 
+                                borderRadius: 1, 
+                                bgcolor: 'divider', 
+                                p: 0.5,
+                                border: '1px solid',
+                                borderColor: isExistingPhoto ? 'success.main' : 'divider',
+                                opacity: isExistingPhoto ? 0.8 : 1,
+                              }}
+                            />
+                            {isExistingPhoto && (
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  top: 4,
+                                  left: 4,
+                                  px: 0.5,
+                                  py: 0.25,
+                                  borderRadius: 0.5,
+                                  bgcolor: 'success.main',
+                                  color: 'white',
+                                }}
+                              >
+                                <Typography variant="caption" fontSize={8} fontWeight={500}>
+                                  Existing
+                                </Typography>
+                              </Box>
+                            )}
+                            {!isExistingPhoto && (
+                              <IconButton
+                                sx={{
+                                  position: 'absolute',
+                                  top: 4,
+                                  right: 4,
+                                  bgcolor: 'rgba(244, 67, 54, 0.9)',
+                                  color: 'white',
+                                  p: 0.5,
+                                  width: 24,
+                                  height: 24,
+                                  '&:hover': {
+                                    bgcolor: 'rgba(244, 67, 54, 1)',
+                                  },
+                                }}
+                                size="small"
+                                onClick={() => removeCapturedImage(index)}
+                              >
+                                <Close fontSize="small" sx={{ fontSize: 14 }} />
+                              </IconButton>
+                            )}
+                          </Box>
+                        </Grid>
+                      );
+                    })}
                   </Grid>
                 ) : (
                   <Box sx={{ 
@@ -2574,7 +3805,9 @@ const OrderChecker = () => {
             />
             <Box display="flex" justifyContent="space-between" alignItems="center">
               <Typography variant="caption" fontSize={11} color="text.secondary">
-                Photos will be uploaded when you click "Ready For Delivery"
+                {activeTab === 'completed' 
+                  ? 'Photos will be uploaded immediately' 
+                  : 'Photos will be uploaded when you click "Ready For Delivery"'}
               </Typography>
               <Box display="flex" gap={1.5}>
                 <CustomButton
@@ -2589,11 +3822,30 @@ const OrderChecker = () => {
                 <CustomButton
                   buttonType="primary"
                   onClick={handleSavePhotos}
-                  disabled={capturedImages.length === 0 || (selectedOrder ? capturedImages.length > allContainers.length * 2 : false)}
+                  disabled={
+                    capturePhotosLoading ||
+                    (activeTab === 'completed'
+                      ? newCapturedImages.length === 0
+                      : capturedImages.length === 0) || 
+                    (activeTab === 'completed' && selectedOrder
+                      ? (() => {
+                          const totalContainers = allContainers.length;
+                          const currentTotalPhotos = completedOrderImages.length;
+                          const maxTotalPhotos = totalContainers * 2;
+                          const maxCanAdd = maxTotalPhotos - currentTotalPhotos; // Based on containers
+                          // Disable if no new photos, trying to add more than allowed, or at maximum
+                          // Validation is based on container limit only
+                          return newCapturedImages.length === 0 || newCapturedImages.length > maxCanAdd || maxCanAdd === 0;
+                        })()
+                      : selectedOrder 
+                        ? capturedImages.length > allContainers.length * 2 
+                        : false)
+                  }
+                  loading={capturePhotosLoading}
                   size="small"
                   fullWidth={false}
                 >
-                  Save Photos
+                  {activeTab === 'completed' ? 'Upload Photos' : 'Save Photos'}
                 </CustomButton>
               </Box>
             </Box>
@@ -2634,25 +3886,9 @@ const OrderChecker = () => {
               <MenuItem value="4x4">4x4</MenuItem>
               <MenuItem value="2x2">2x2</MenuItem>
               <MenuItem value="2x3">2x3</MenuItem>
-              <MenuItem value="A4">A4</MenuItem>
             </Select>
           </FormControl>
-          <Typography variant="caption" fontSize={10} color="text.secondary">
-            Leave box IDs empty to print all boxes in the order
-          </Typography>
-          <TextField
-            label="Box IDs (comma-separated, optional)"
-            value={printLabelsForm.boxIds.join(', ')}
-            onChange={(e) => {
-              const boxIds = e.target.value
-                .split(',')
-                .map((id) => parseInt(id.trim()))
-                .filter((id) => !isNaN(id));
-              setPrintLabelsForm({ ...printLabelsForm, boxIds });
-            }}
-            fullWidth
-            placeholder="e.g., 1, 2, 3"
-          />
+         
           <Box display="flex" justifyContent="flex-end" gap={2} mt={2}>
             <CustomButton
               buttonType="cancel"
@@ -2920,6 +4156,79 @@ const OrderChecker = () => {
         )}
       </CommonModal>
 
+      {/* Individual Container Print Modal */}
+      <CommonModal
+        open={individualPrintModalOpen}
+        onClose={() => {
+          if (!printLabelsLoading) {
+            setIndividualPrintModalOpen(false);
+            setIndividualPrintData(null);
+          }
+        }}
+        title={individualPrintData ? `Print Label - ${individualPrintData.containerType === 'box' ? 'Box' : individualPrintData.containerType === 'tote' ? 'Tote' : 'Drink'} ${individualPrintData.containerId}` : 'Print Label'}
+        size="sm"
+      >
+        {individualPrintData && (
+          <Box display="flex" flexDirection="column" gap={2}>
+            <FormControl fullWidth>
+              <InputLabel>Label Size</InputLabel>
+              <Select
+                value={individualPrintData.size}
+                onChange={(e) =>
+                  setIndividualPrintData({
+                    ...individualPrintData,
+                    size: e.target.value as '4x3' | '4x6' | '3x6' | '3x2' | '4x4' | '2x2' | '2x3' | 'A4',
+                  })
+                }
+                label="Label Size"
+              >
+                <MenuItem value="4x3">4x3</MenuItem>
+                <MenuItem value="4x6">4x6</MenuItem>
+                <MenuItem value="3x6">3x6</MenuItem>
+                <MenuItem value="3x2">3x2</MenuItem>
+                <MenuItem value="4x4">4x4</MenuItem>
+                <MenuItem value="2x2">2x2</MenuItem>
+                <MenuItem value="2x3">2x3</MenuItem>
+                <MenuItem value="A4">A4</MenuItem>
+              </Select>
+            </FormControl>
+            <Box display="flex" justifyContent="flex-end" gap={1} mt={1}>
+              <CustomButton
+                buttonType="cancel"
+                appearance="outlined"
+                onClick={() => {
+                  setIndividualPrintModalOpen(false);
+                  setIndividualPrintData(null);
+                }}
+                fullWidth={false}
+                disabled={printLabelsLoading}
+                sx={{ mt: 0 }}
+              >
+                Cancel
+              </CustomButton>
+              <CustomButton
+                buttonType="primary"
+                onClick={() => {
+                  if (individualPrintData) {
+                    handlePrintIndividualContainer(
+                      individualPrintData.containerId,
+                      individualPrintData.containerType,
+                      individualPrintData.size as LabelSize
+                    );
+                  }
+                }}
+                fullWidth={false}
+                loading={printLabelsLoading}
+                disabled={printLabelsLoading}
+                sx={{ mt: 0 }}
+              >
+                Print Label
+              </CustomButton>
+            </Box>
+          </Box>
+        )}
+      </CommonModal>
+
       {/* Confirmation Modal */}
       <CommonModal
         open={confirmationModalOpen}
@@ -2968,6 +4277,97 @@ const OrderChecker = () => {
               Confirm
             </CustomButton>
           </Box>
+        </Box>
+      </CommonModal>
+
+      {/* Report Options Modal */}
+      <CommonModal
+        open={reportModalOpen}
+        onClose={() => {
+          if (!reportLoading) {
+            setReportModalOpen(false);
+            setReportType(null);
+          }
+        }}
+        title={reportType === 'summary' ? 'Generate Summary Report' : 'Generate Detail Report'}
+        size="sm"
+      >
+        <Box>
+          {reportType === 'summary' ? (
+            <>
+              <Typography variant="body2" fontSize={12} color="text.primary" mb={2}>
+                This will generate a summary report of all completed orders with order details, picker information, and invoice status.
+              </Typography>
+              <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+                <CustomButton
+                  buttonType="cancel"
+                  appearance="outlined"
+                  onClick={() => {
+                    setReportModalOpen(false);
+                    setReportType(null);
+                  }}
+                  size="small"
+                  fullWidth={false}
+                  disabled={reportLoading}
+                >
+                  Cancel
+                </CustomButton>
+                <CustomButton
+                  buttonType="primary"
+                  onClick={generateSummaryReport}
+                  size="small"
+                  fullWidth={false}
+                  loading={reportLoading}
+                  disabled={reportLoading}
+                >
+                  Generate Report
+                </CustomButton>
+              </Box>
+            </>
+          ) : (
+            <>
+              <Typography variant="body2" fontSize={12} color="text.primary" mb={2}>
+                This will generate a detail report for all completed orders ({orders.length} order{orders.length !== 1 ? 's' : ''}) with box-wise items and invoice status.
+              </Typography>
+              <Box display="flex" flexDirection={{ md: 'column', lg: 'row' }} justifyContent={{ md: 'center', lg: 'flex-start' }} gap={1.5} my={2}>
+                <CustomButton
+                  buttonType="primary"
+                  onClick={() => generateDetailReport(false)}
+                  size="small"
+                  fullWidth={false}
+                  loading={reportLoading}
+                  disabled={reportLoading}
+                >
+                  Generate Report (Without Photos)
+                </CustomButton>
+                <CustomButton
+                  buttonType="primary"
+                  onClick={() => generateDetailReport(true)}
+                  size="small"
+                  fullWidth={false}
+                  loading={reportLoading}
+                  disabled={reportLoading}
+                >
+                  Generate Report (With Photos)
+                </CustomButton>
+              </Box>
+              <Box display="flex" justifyContent="flex-end" gap={1}>
+                <CustomButton
+                  buttonType="cancel"
+                  appearance="outlined"
+                  onClick={() => {
+                    setReportModalOpen(false);
+                    setReportType(null);
+                  }}
+                  size="small"
+                  fullWidth={false}
+                  disabled={reportLoading}
+                >
+                  Cancel
+                </CustomButton>
+              </Box>
+            </>
+          )}
         </Box>
       </CommonModal>
     </Box>

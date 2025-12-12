@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -51,7 +51,7 @@ import SearchableSelectInput from '../../../component/atoms/SearchableSelectInpu
 import CheckboxInput from '../../../component/atoms/CheckboxInput';
 import CustomButton from '../../../component/atoms/CustomButton';
 import { inventorySchema, InventoryFormData } from './inventory.schema';
-import { getListForInventory, createInventory, checkUPC } from '../../../redux/apis/distrubutor/inventoryApis';
+import { getListForInventory, createInventory, checkUPC, getInventoryById, updateInventory, updateUPC } from '../../../redux/apis/distrubutor/inventoryApis';
 import toast from 'react-hot-toast';
 
 interface UPCData {
@@ -60,12 +60,16 @@ interface UPCData {
   Status: number;
   Priority: number;
   Qty: number;
+  myKey?: number; // ID for existing UPCs in edit mode
 }
 
 const Inventory: React.FC = () => {
+  const { itemNumber } = useParams<{ itemNumber?: string }>();
+  const isEditMode = !!itemNumber;
   const [loading, setLoading] = useState(true);
   const [apiData, setApiData] = useState<any>(null);
-  const [showInitialPopup, setShowInitialPopup] = useState(true);
+  const [showInitialPopup, setShowInitialPopup] = useState(!isEditMode);
+  const [originalData, setOriginalData] = useState<any>(null);
   const [showUPCPopup, setShowUPCPopup] = useState(false);
   const [upcData, setUpcData] = useState<UPCData[]>([]);
   const [primaryUPC, setPrimaryUPC] = useState('');
@@ -209,21 +213,116 @@ const Inventory: React.FC = () => {
         const response: any = await getListForInventory();
         setApiData(response.data);
 
-        // Set Project Identifier to '--' (N/A) if available, otherwise first option
-        if (response.data?.projectIdentifier && response.data.projectIdentifier.length > 0) {
-          const defaultOption = response.data.projectIdentifier.find(
-            (item: any) => item.Project_Identifier === '--'
-          );
-          if (defaultOption) {
-            setValue('Project_Identifier', '--');
-          } else {
-            setValue('Project_Identifier', response.data.projectIdentifier[0].Project_Identifier);
-          }
-        }
+        // If edit mode, fetch existing inventory data
+        if (isEditMode && itemNumber) {
+          try {
+            const inventoryResponse: any = await getInventoryById(itemNumber);
+            const inventoryData = inventoryResponse?.data || inventoryResponse;
+            
+            if (inventoryData) {
+              setOriginalData(inventoryData);
+              
+              // Pre-fill form with existing data
+              // Convert numeric fields to strings where schema expects strings
+              const stringFields = [
+                'Sales_Category', 'Price_Class', 'Price_Subclass', 
+                'UOM', 'Section', 'PickArea', 'Project_Identifier',
+                'Primary_Vendor', 'Cig_Pack', 'Cig_PremDisc_Code',
+                'MSA_Category_Code', 'NACS', 'NACS_Unit', 'Brand_ID',
+                'I_SalesTaxSelect', 'I_ReturnStatus', 'Item_GroupID',
+                'Cig_Promo_Code', 'MSA_Promotion', 'MSA_Promotion_Code',
+                'StandardUnitDescription', 'ExclusionGroup_ID',
+                'Manufacturer', 'Jurisdiction_State', 'Jurisdiction_County', 'Jurisdiction_City'
+              ];
+              
+              Object.keys(inventoryData).forEach((key) => {
+                if (inventoryData[key] !== null && inventoryData[key] !== undefined) {
+                  let value = inventoryData[key];
+                  
+                  // Convert to string if it's a string field and value is a number
+                  if (stringFields.includes(key) && typeof value === 'number') {
+                    value = String(value);
+                  }
+                  
+                  // Handle boolean fields
+                  if (typeof value === 'boolean') {
+                    setValue(key as any, value);
+                  } else if (value !== null && value !== undefined) {
+                    setValue(key as any, value);
+                  }
+                }
+              });
 
-        // Set NACS to first option if available
-        if (response.data?.nacsCategory && response.data.nacsCategory.length > 0) {
-          setValue('NACS', response.data.nacsCategory[0].NACS_Category_Code);
+              // Handle UPC data
+              if (inventoryData.upcData && Array.isArray(inventoryData.upcData)) {
+                // Ensure myKey is preserved if it exists
+                const upcsWithKey = inventoryData.upcData.map((u: any) => ({
+                  ...u,
+                  myKey: u.myKey,
+                }));
+                setUpcData(upcsWithKey);
+                const primary = upcsWithKey.find((u: UPCData) => u.UPC_Type === 'Primary');
+                const caseU = upcsWithKey.find((u: UPCData) => u.UPC_Type === 'Case');
+                const retail = upcsWithKey.find((u: UPCData) => u.UPC_Type === 'Retail');
+                if (primary) setPrimaryUPC(primary.UPC_Number);
+                if (caseU) setCaseUPC(caseU.UPC_Number);
+                if (retail) setRetailUPC(retail.UPC_Number);
+              } else if (inventoryData.UPCList && Array.isArray(inventoryData.UPCList)) {
+                // Handle alternative UPC format - preserve myKey for edit mode
+                const upcs: UPCData[] = inventoryData.UPCList.map((upc: any, index: number) => {
+                  // Determine UPC type based on Status or index
+                  let upcType: 'Primary' | 'Case' | 'Retail' = 'Primary';
+                  if (upc.Status === 1 || upc.Status === '1') {
+                    upcType = 'Case';
+                  } else if (upc.Status === 2 || upc.Status === '2') {
+                    upcType = 'Retail';
+                  } else if (upc.UPC_Type) {
+                    upcType = upc.UPC_Type;
+                  } else if (index === 1) {
+                    upcType = 'Case';
+                  } else if (index === 2) {
+                    upcType = 'Retail';
+                  }
+                  
+                  return {
+                    UPC_Number: upc.UPC_Number || upc,
+                    UPC_Type: upcType,
+                    Status: upc.Status !== undefined ? upc.Status : (upcType === 'Primary' ? 0 : upcType === 'Case' ? 1 : 2),
+                    Priority: upc.Priority || 1,
+                    Qty: upc.Qty || 0,
+                    myKey: upc.myKey, // Preserve myKey for edit mode
+                  };
+                });
+                setUpcData(upcs);
+                const primary = upcs.find((u) => u.UPC_Type === 'Primary');
+                const caseU = upcs.find((u) => u.UPC_Type === 'Case');
+                const retail = upcs.find((u) => u.UPC_Type === 'Retail');
+                if (primary) setPrimaryUPC(primary.UPC_Number);
+                if (caseU) setCaseUPC(caseU.UPC_Number);
+                if (retail) setRetailUPC(retail.UPC_Number);
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching inventory by ID:', error);
+            toast.error('Failed to load inventory data');
+          }
+        } else {
+          // Set Project Identifier to '--' (N/A) if available, otherwise first option
+          if (response.data?.projectIdentifier && response.data.projectIdentifier.length > 0) {
+            const defaultOption = response.data.projectIdentifier.find(
+              (item: any) => item.Project_Identifier === '--'
+            );
+            if (defaultOption) {
+              setValue('Project_Identifier', '--');
+            } else {
+              setValue('Project_Identifier', response.data.projectIdentifier[0].Project_Identifier);
+            }
+          }
+
+          // Set NACS to first option if available
+          if (response.data?.nacsCategory && response.data.nacsCategory.length > 0) {
+            setValue('NACS', response.data.nacsCategory[0].NACS_Category_Code);
+          }
         }
       } catch (error) {
         console.error('Error fetching inventory data:', error);
@@ -233,7 +332,7 @@ const Inventory: React.FC = () => {
     };
 
     fetchData();
-  }, [setValue]);
+  }, [setValue, isEditMode, itemNumber]);
 
   // Watch MSA_Promotion and reset related fields to defaults when "00" is selected
   const msaPromotion = watch('MSA_Promotion');
@@ -308,17 +407,61 @@ const Inventory: React.FC = () => {
 
   // Helper functions to transform API data to SelectInput format
   const transformToOptions = (data: any[], valueKey: string, labelKey: string) => {
-    return data?.map(item => ({
-      value: item[valueKey]?.toString() || '',
-      label: item[labelKey] || ''
-    })) || [];
+    if (!data || !Array.isArray(data)) return [];
+    
+    // Create a map to deduplicate by value, and track by both value and label to ensure uniqueness
+    const optionsMap = new Map<string, { value: string; label: string; id: string }>();
+    const seenLabels = new Set<string>();
+    
+    data.forEach((item, index) => {
+      const value = item[valueKey]?.toString() || '';
+      const label = item[labelKey]?.toString() || '';
+      
+      // Only add if value is not empty
+      if (value) {
+        // If we haven't seen this exact value-label combination, add it
+        if (!optionsMap.has(value)) {
+          // If label is duplicate but value is unique, make label unique
+          let finalLabel = label;
+          if (seenLabels.has(label)) {
+            finalLabel = `${label} (${value})`;
+          } else {
+            seenLabels.add(label);
+          }
+          
+          optionsMap.set(value, { 
+            value, 
+            label: finalLabel,
+            id: `${value}_${index}` // Add unique ID for React keys
+          });
+        }
+      }
+    });
+    
+    return Array.from(optionsMap.values());
   };
 
   const transformToOptionsWithConcat = (data: any[], valueKey: string, labelKey1: string, labelKey2: string) => {
-    return data?.map(item => ({
-      value: item[valueKey]?.toString() || '',
-      label: `${item[labelKey1] || ''} - ${item[labelKey2] || ''}`
-    })) || [];
+    if (!data || !Array.isArray(data)) return [];
+    
+    // Create a map to deduplicate by value
+    const optionsMap = new Map<string, { value: string; label: string; id: string }>();
+    
+    data.forEach((item, index) => {
+      const value = item[valueKey]?.toString() || '';
+      const label = `${item[labelKey1]?.toString() || ''} - ${item[labelKey2]?.toString() || ''}`;
+      
+      // Only add if value is not empty and not already in map
+      if (value && !optionsMap.has(value)) {
+        optionsMap.set(value, { 
+          value, 
+          label,
+          id: `${value}_${index}` // Add unique ID for React keys
+        });
+      }
+    });
+    
+    return Array.from(optionsMap.values());
   };
 
   const handleInitialPopupResponse = (addWithUPC: boolean) => {
@@ -347,36 +490,68 @@ const Inventory: React.FC = () => {
     setUpcValidationErrors(prev => ({ ...prev, primary: undefined }));
 
     try {
-      const response: any = await checkUPC(primaryUPC.trim());
-      if (!response?.success) {
-        const errorMsg = response?.message || 'Invalid Primary UPC';
-        setUpcValidationErrors(prev => ({ ...prev, primary: errorMsg }));
-        setPrimaryUPC(''); // Clear the input field
-        setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Primary')); // Remove from saved UPCs
-        toast.error(errorMsg);
-      } else if (response?.data === true) {
-        // UPC already exists and is assigned to a product
-        const errorMsg = 'This UPC is already assigned to a product. Please change the UPC.';
-        setUpcValidationErrors(prev => ({ ...prev, primary: errorMsg }));
-        setPrimaryUPC(''); // Clear the input field
-        setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Primary')); // Remove from saved UPCs
-        toast.error(errorMsg);
-      } else {
-        // UPC is available (data === false), save it
-        let newUPCs = [...upcData];
-        newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Primary');
-        newUPCs.push({
-          UPC_Number: primaryUPC.trim(),
-          UPC_Type: 'Primary',
-          Status: 0,
-          Priority: 1,
-          Qty: 0,
+      // Check if we're in edit mode and if this UPC already has a myKey
+      const existingPrimary = upcData.find(upc => upc.UPC_Type === 'Primary');
+      
+      if (isEditMode && existingPrimary?.myKey) {
+        // In edit mode with existing UPC - call edit API
+        const editResponse: any = await updateUPC(existingPrimary.myKey, {
+          upcNumber: primaryUPC.trim()
         });
-        setUpcData(newUPCs);
-        toast.success('Primary UPC validated and saved');
+        
+        if (editResponse?.success) {
+          // Update the UPC in upcData
+          let newUPCs = [...upcData];
+          newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Primary');
+          newUPCs.push({
+            UPC_Number: primaryUPC.trim(),
+            UPC_Type: 'Primary',
+            Status: 0,
+            Priority: 1,
+            Qty: 0,
+            myKey: existingPrimary.myKey, // Preserve myKey
+          });
+          setUpcData(newUPCs);
+          toast.success('Primary UPC updated successfully');
+        } else {
+          const errorMsg = editResponse?.message || 'Failed to update Primary UPC';
+          setUpcValidationErrors(prev => ({ ...prev, primary: errorMsg }));
+          toast.error(errorMsg);
+        }
+      } else {
+        // New UPC or create mode - validate first
+        const response: any = await checkUPC(primaryUPC.trim());
+        if (!response?.success) {
+          const errorMsg = response?.message || 'Invalid Primary UPC';
+          setUpcValidationErrors(prev => ({ ...prev, primary: errorMsg }));
+          setPrimaryUPC(''); // Clear the input field
+          setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Primary')); // Remove from saved UPCs
+          toast.error(errorMsg);
+        } else if (response?.data === true) {
+          // UPC already exists and is assigned to a product
+          const errorMsg = 'This UPC is already assigned to a product. Please change the UPC.';
+          setUpcValidationErrors(prev => ({ ...prev, primary: errorMsg }));
+          setPrimaryUPC(''); // Clear the input field
+          setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Primary')); // Remove from saved UPCs
+          toast.error(errorMsg);
+        } else {
+          // UPC is available (data === false), save it
+          let newUPCs = [...upcData];
+          newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Primary');
+          newUPCs.push({
+            UPC_Number: primaryUPC.trim(),
+            UPC_Type: 'Primary',
+            Status: 0,
+            Priority: 1,
+            Qty: 0,
+            myKey: existingPrimary?.myKey, // Preserve myKey if exists
+          });
+          setUpcData(newUPCs);
+          toast.success('Primary UPC validated and saved');
+        }
       }
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.message || 'Invalid Primary UPC';
+      const errorMsg = error?.response?.data?.message || 'Failed to process Primary UPC';
       setUpcValidationErrors(prev => ({ ...prev, primary: errorMsg }));
       setPrimaryUPC(''); // Clear the input field
       setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Primary')); // Remove from saved UPCs
@@ -396,36 +571,68 @@ const Inventory: React.FC = () => {
     setUpcValidationErrors(prev => ({ ...prev, case: undefined }));
 
     try {
-      const response: any = await checkUPC(caseUPC.trim());
-      if (!response?.success) {
-        const errorMsg = response?.message || 'Invalid Case UPC';
-        setUpcValidationErrors(prev => ({ ...prev, case: errorMsg }));
-        setCaseUPC(''); // Clear the input field
-        setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Case')); // Remove from saved UPCs
-        toast.error(errorMsg);
-      } else if (response?.data === true) {
-        // UPC already exists and is assigned to a product
-        const errorMsg = 'This UPC is already assigned to a product. Please change the UPC.';
-        setUpcValidationErrors(prev => ({ ...prev, case: errorMsg }));
-        setCaseUPC(''); // Clear the input field
-        setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Case')); // Remove from saved UPCs
-        toast.error(errorMsg);
-      } else {
-        // UPC is available (data === false), save it
-        let newUPCs = [...upcData];
-        newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Case');
-        newUPCs.push({
-          UPC_Number: caseUPC.trim(),
-          UPC_Type: 'Case',
-          Status: 1,
-          Priority: 1,
-          Qty: 0,
+      // Check if we're in edit mode and if this UPC already has a myKey
+      const existingCase = upcData.find(upc => upc.UPC_Type === 'Case');
+      
+      if (isEditMode && existingCase?.myKey) {
+        // In edit mode with existing UPC - call edit API
+        const editResponse: any = await updateUPC(existingCase.myKey, {
+          upcNumber: caseUPC.trim()
         });
-        setUpcData(newUPCs);
-        toast.success('Case UPC validated and saved');
+        
+        if (editResponse?.success) {
+          // Update the UPC in upcData
+          let newUPCs = [...upcData];
+          newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Case');
+          newUPCs.push({
+            UPC_Number: caseUPC.trim(),
+            UPC_Type: 'Case',
+            Status: 1,
+            Priority: 1,
+            Qty: 0,
+            myKey: existingCase.myKey, // Preserve myKey
+          });
+          setUpcData(newUPCs);
+          toast.success('Case UPC updated successfully');
+        } else {
+          const errorMsg = editResponse?.message || 'Failed to update Case UPC';
+          setUpcValidationErrors(prev => ({ ...prev, case: errorMsg }));
+          toast.error(errorMsg);
+        }
+      } else {
+        // New UPC or create mode - validate first
+        const response: any = await checkUPC(caseUPC.trim());
+        if (!response?.success) {
+          const errorMsg = response?.message || 'Invalid Case UPC';
+          setUpcValidationErrors(prev => ({ ...prev, case: errorMsg }));
+          setCaseUPC(''); // Clear the input field
+          setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Case')); // Remove from saved UPCs
+          toast.error(errorMsg);
+        } else if (response?.data === true) {
+          // UPC already exists and is assigned to a product
+          const errorMsg = 'This UPC is already assigned to a product. Please change the UPC.';
+          setUpcValidationErrors(prev => ({ ...prev, case: errorMsg }));
+          setCaseUPC(''); // Clear the input field
+          setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Case')); // Remove from saved UPCs
+          toast.error(errorMsg);
+        } else {
+          // UPC is available (data === false), save it
+          let newUPCs = [...upcData];
+          newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Case');
+          newUPCs.push({
+            UPC_Number: caseUPC.trim(),
+            UPC_Type: 'Case',
+            Status: 1,
+            Priority: 1,
+            Qty: 0,
+            myKey: existingCase?.myKey, // Preserve myKey if exists
+          });
+          setUpcData(newUPCs);
+          toast.success('Case UPC validated and saved');
+        }
       }
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.message || 'Invalid Case UPC';
+      const errorMsg = error?.response?.data?.message || 'Failed to process Case UPC';
       setUpcValidationErrors(prev => ({ ...prev, case: errorMsg }));
       setCaseUPC(''); // Clear the input field
       setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Case')); // Remove from saved UPCs
@@ -445,36 +652,68 @@ const Inventory: React.FC = () => {
     setUpcValidationErrors(prev => ({ ...prev, retail: undefined }));
 
     try {
-      const response: any = await checkUPC(retailUPC.trim());
-      if (!response?.success) {
-        const errorMsg = response?.message || 'Invalid Retail UPC';
-        setUpcValidationErrors(prev => ({ ...prev, retail: errorMsg }));
-        setRetailUPC(''); // Clear the input field
-        setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Retail')); // Remove from saved UPCs
-        toast.error(errorMsg);
-      } else if (response?.data === true) {
-        // UPC already exists and is assigned to a product
-        const errorMsg = 'This UPC is already assigned to a product. Please change the UPC.';
-        setUpcValidationErrors(prev => ({ ...prev, retail: errorMsg }));
-        setRetailUPC(''); // Clear the input field
-        setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Retail')); // Remove from saved UPCs
-        toast.error(errorMsg);
-      } else {
-        // UPC is available (data === false), save it
-        let newUPCs = [...upcData];
-        newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Retail');
-        newUPCs.push({
-          UPC_Number: retailUPC.trim(),
-          UPC_Type: 'Retail',
-          Status: 2,
-          Priority: 1,
-          Qty: 0,
+      // Check if we're in edit mode and if this UPC already has a myKey
+      const existingRetail = upcData.find(upc => upc.UPC_Type === 'Retail');
+      
+      if (isEditMode && existingRetail?.myKey) {
+        // In edit mode with existing UPC - call edit API
+        const editResponse: any = await updateUPC(existingRetail.myKey, {
+          upcNumber: retailUPC.trim()
         });
-        setUpcData(newUPCs);
-        toast.success('Retail UPC validated and saved');
+        
+        if (editResponse?.success) {
+          // Update the UPC in upcData
+          let newUPCs = [...upcData];
+          newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Retail');
+          newUPCs.push({
+            UPC_Number: retailUPC.trim(),
+            UPC_Type: 'Retail',
+            Status: 2,
+            Priority: 1,
+            Qty: 0,
+            myKey: existingRetail.myKey, // Preserve myKey
+          });
+          setUpcData(newUPCs);
+          toast.success('Retail UPC updated successfully');
+        } else {
+          const errorMsg = editResponse?.message || 'Failed to update Retail UPC';
+          setUpcValidationErrors(prev => ({ ...prev, retail: errorMsg }));
+          toast.error(errorMsg);
+        }
+      } else {
+        // New UPC or create mode - validate first
+        const response: any = await checkUPC(retailUPC.trim());
+        if (!response?.success) {
+          const errorMsg = response?.message || 'Invalid Retail UPC';
+          setUpcValidationErrors(prev => ({ ...prev, retail: errorMsg }));
+          setRetailUPC(''); // Clear the input field
+          setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Retail')); // Remove from saved UPCs
+          toast.error(errorMsg);
+        } else if (response?.data === true) {
+          // UPC already exists and is assigned to a product
+          const errorMsg = 'This UPC is already assigned to a product. Please change the UPC.';
+          setUpcValidationErrors(prev => ({ ...prev, retail: errorMsg }));
+          setRetailUPC(''); // Clear the input field
+          setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Retail')); // Remove from saved UPCs
+          toast.error(errorMsg);
+        } else {
+          // UPC is available (data === false), save it
+          let newUPCs = [...upcData];
+          newUPCs = newUPCs.filter(upc => upc.UPC_Type !== 'Retail');
+          newUPCs.push({
+            UPC_Number: retailUPC.trim(),
+            UPC_Type: 'Retail',
+            Status: 2,
+            Priority: 1,
+            Qty: 0,
+            myKey: existingRetail?.myKey, // Preserve myKey if exists
+          });
+          setUpcData(newUPCs);
+          toast.success('Retail UPC validated and saved');
+        }
       }
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.message || 'Invalid Retail UPC';
+      const errorMsg = error?.response?.data?.message || 'Failed to process Retail UPC';
       setUpcValidationErrors(prev => ({ ...prev, retail: errorMsg }));
       setRetailUPC(''); // Clear the input field
       setUpcData(prev => prev.filter(upc => upc.UPC_Type !== 'Retail')); // Remove from saved UPCs
@@ -608,7 +847,11 @@ const Inventory: React.FC = () => {
 
   const onSubmit = async (data: InventoryFormData) => {
     try {
-      console.log('Form submitted:', data);
+      // Check if there are validation errors
+      if (Object.keys(errors).length > 0) {
+        toast.error('Please fix all validation errors before submitting');
+        return;
+      }
       
       // Collect UPCs from both popup and direct input in Basic Information section
       const allUPCs: UPCData[] = [...upcData];
@@ -655,18 +898,110 @@ const Inventory: React.FC = () => {
       
       const hasAnyUPC = allUPCs.length > 0;
       
-      const submitData = {
+      const submitData: any = {
         ...data,
         hasAddUpc: hasAnyUPC,
         upcData: hasAnyUPC ? allUPCs : [],
       };
-      const response = await createInventory(submitData);
-      console.log('Inventory created successfully:', response);
-      // Redirect to admin/products page after successful creation
-      navigate('/admin/products');
-    } catch (error) {
-      console.error('Error creating inventory:', error);
-      // You can add error notification here
+
+      if (isEditMode && itemNumber && originalData) {
+        // Only send changed fields
+        const changedFields: any = {};
+        
+        // Fields to exclude from comparison (handled separately)
+        const excludeFields = ['upcData', 'hasAddUpc', 'UPCList', 'Date_Created', 'Date_CreatedUser', 'Date_LastChange', 'Date_LastChangeUser', 'Item_Number_Verify'];
+        
+        Object.keys(submitData).forEach((key) => {
+          // Skip excluded fields
+          if (excludeFields.includes(key)) {
+            return;
+          }
+          
+          const currentValue = submitData[key];
+          const originalValue = originalData[key];
+          
+          // Handle null/undefined comparisons
+          if (currentValue === null || currentValue === undefined) {
+            if (originalValue !== null && originalValue !== undefined) {
+              changedFields[key] = currentValue;
+            }
+            return;
+          }
+          
+          if (originalValue === null || originalValue === undefined) {
+            if (currentValue !== null && currentValue !== undefined) {
+              changedFields[key] = currentValue;
+            }
+            return;
+          }
+          
+          // Convert both to strings for comparison if they're numbers/strings
+          const currentStr = typeof currentValue === 'number' || typeof currentValue === 'string' ? String(currentValue) : currentValue;
+          const originalStr = typeof originalValue === 'number' || typeof originalValue === 'string' ? String(originalValue) : originalValue;
+          
+          // Deep comparison for objects/arrays, string comparison for primitives
+          if (typeof currentValue === 'object' || Array.isArray(currentValue)) {
+            if (JSON.stringify(currentValue) !== JSON.stringify(originalValue)) {
+              changedFields[key] = currentValue;
+            }
+          } else if (currentStr !== originalStr) {
+            changedFields[key] = currentValue;
+          }
+        });
+        
+        // Always include UPC data if it changed
+        if (hasAnyUPC) {
+          // Check both upcData and UPCList from original data
+          const originalUPCs = originalData.upcData || originalData.UPCList || [];
+          
+          // Normalize original UPCs to match our format for comparison
+          const normalizedOriginalUPCs = originalUPCs.map((upc: any) => ({
+            UPC_Number: upc.UPC_Number || upc,
+            UPC_Type: upc.UPC_Type || (upc.Status === 1 ? 'Case' : upc.Status === 2 ? 'Retail' : 'Primary'),
+            Status: upc.Status !== undefined ? upc.Status : (upc.UPC_Type === 'Primary' ? 0 : upc.UPC_Type === 'Case' ? 1 : 2),
+            Priority: upc.Priority || 1,
+            Qty: upc.Qty || 0,
+            myKey: upc.myKey,
+          }));
+          
+          // Compare normalized arrays
+          const upcChanged = JSON.stringify(allUPCs) !== JSON.stringify(normalizedOriginalUPCs);
+          if (upcChanged) {
+            changedFields.hasAddUpc = hasAnyUPC;
+            changedFields.upcData = allUPCs;
+          }
+        } else {
+          // If no UPCs in form but there were UPCs originally, that's also a change
+          const originalUPCs = originalData.upcData || originalData.UPCList || [];
+          if (originalUPCs.length > 0) {
+            changedFields.hasAddUpc = false;
+            changedFields.upcData = [];
+          }
+        }
+        
+        // Check if there are any changes
+        if (Object.keys(changedFields).length === 0) {
+          toast('No changes detected', { icon: 'ℹ️' });
+          return;
+        }
+        
+        await updateInventory(itemNumber, changedFields);
+        toast.success('Inventory updated successfully!');
+        navigate('/admin/products');
+      } else {
+        await createInventory(submitData);
+        toast.success('Inventory created successfully!');
+        navigate('/admin/products');
+      }
+    } catch (error: any) {
+      console.error('Error saving inventory:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to save inventory';
+      toast.error(errorMessage);
     }
   };
 
@@ -747,6 +1082,7 @@ const Inventory: React.FC = () => {
               appearance="filled"
               fullWidth={false}
               onClick={handleOpenUPCPopup}
+              disabled={isEditMode}
               icon={<AddIcon />}
               iconPosition="left"
               sx={{
@@ -955,6 +1291,7 @@ const Inventory: React.FC = () => {
                         placeholder="Enter Primary UPC Number"
                         error={!!upcValidationErrors.primary}
                         helperText={upcValidationErrors.primary}
+                        disabled={isEditMode}
                       />
                     </Box>
                     <CustomButton
@@ -962,7 +1299,7 @@ const Inventory: React.FC = () => {
                       buttonType="primary"
                       appearance="filled"
                       onClick={handleValidatePrimaryUPC}
-                      disabled={!primaryUPC.trim() || upcValidating}
+                      disabled={isEditMode || !primaryUPC.trim() || upcValidating}
                       fullWidth={false}
                       sx={{ 
                         mt: 3.5,
@@ -1032,6 +1369,7 @@ const Inventory: React.FC = () => {
                       placeholder="Enter Case UPC Number"
                       error={!!upcValidationErrors.case}
                       helperText={upcValidationErrors.case}
+                      disabled={isEditMode}
                     />
                   </Box>
                   <CustomButton
@@ -1039,7 +1377,7 @@ const Inventory: React.FC = () => {
                     buttonType="primary"
                     appearance="filled"
                     onClick={handleValidateCaseUPC}
-                    disabled={!caseUPC.trim() || upcValidating}
+                    disabled={isEditMode || !caseUPC.trim() || upcValidating}
                     fullWidth={false}
                     sx={{ 
                       mt: 3.5,
@@ -1067,6 +1405,7 @@ const Inventory: React.FC = () => {
                       placeholder="Enter Retail UPC Number"
                       error={!!upcValidationErrors.retail}
                       helperText={upcValidationErrors.retail}
+                      disabled={isEditMode}
                     />
                   </Box>
                   <CustomButton
@@ -1074,7 +1413,7 @@ const Inventory: React.FC = () => {
                     buttonType="primary"
                     appearance="filled"
                     onClick={handleValidateRetailUPC}
-                    disabled={!retailUPC.trim() || upcValidating}
+                    disabled={isEditMode || !retailUPC.trim() || upcValidating}
                     fullWidth={false}
                     sx={{ 
                       mt: 3.5,
@@ -1222,6 +1561,7 @@ const Inventory: React.FC = () => {
                       onClick={() => handleRemoveUPC(index)}
                       color="error"
                       size="small"
+                      disabled={isEditMode}
                       sx={{
                         '&:hover': {
                           backgroundColor: 'error.light',
@@ -1593,6 +1933,7 @@ const Inventory: React.FC = () => {
                               placeholder="Enter Primary UPC Number"
                               error={!!upcValidationErrors.primary}
                               helperText={upcValidationErrors.primary}
+                              disabled={isEditMode}
                             />
                           </Box>
                           <CustomButton
@@ -1600,7 +1941,7 @@ const Inventory: React.FC = () => {
                             buttonType="primary"
                             appearance="filled"
                             onClick={handleValidatePrimaryUPC}
-                            disabled={!primaryUPC.trim() || upcValidating}
+                            disabled={isEditMode || !primaryUPC.trim() || upcValidating}
                             fullWidth={false}
                             sx={{ 
                               mt: 3.5,
@@ -1628,6 +1969,7 @@ const Inventory: React.FC = () => {
                               placeholder="Enter Case UPC Number"
                               error={!!upcValidationErrors.case}
                               helperText={upcValidationErrors.case}
+                              disabled={isEditMode}
                             />
                           </Box>
                           <CustomButton
@@ -1635,7 +1977,7 @@ const Inventory: React.FC = () => {
                             buttonType="primary"
                             appearance="filled"
                             onClick={handleValidateCaseUPC}
-                            disabled={!caseUPC.trim() || upcValidating}
+                            disabled={isEditMode || !caseUPC.trim() || upcValidating}
                             fullWidth={false}
                             sx={{ 
                               mt: 3.5,
@@ -1663,6 +2005,7 @@ const Inventory: React.FC = () => {
                               placeholder="Enter Retail UPC Number"
                               error={!!upcValidationErrors.retail}
                               helperText={upcValidationErrors.retail}
+                              disabled={isEditMode}
                             />
                           </Box>
                           <CustomButton
@@ -1670,7 +2013,7 @@ const Inventory: React.FC = () => {
                             buttonType="primary"
                             appearance="filled"
                             onClick={handleValidateRetailUPC}
-                            disabled={!retailUPC.trim() || upcValidating}
+                            disabled={isEditMode || !retailUPC.trim() || upcValidating}
                             fullWidth={false}
                             sx={{ 
                               mt: 3.5,
@@ -2944,8 +3287,25 @@ const Inventory: React.FC = () => {
                           appearance="filled"
                           sx={{ minWidth: 120 }}
                           fullWidth={false}
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            
+                            // Use handleSubmit which properly validates and calls onSubmit
+                            // handleSubmit will only call onSubmit if validation passes
+                            handleSubmit(
+                              (data) => {
+                                onSubmit(data);
+                              },
+                              (errors) => {
+                                // Find the first error field
+                                const firstError = Object.keys(errors)[0];
+                                const firstErrorMsg = errors[firstError as keyof typeof errors]?.message;
+                                toast.error(firstErrorMsg || 'Please fix all validation errors before submitting');
+                              }
+                            )();
+                          }}
                         >
-                          Submit
+                          {isEditMode ? 'Update' : 'Submit'}
                         </CustomButton>
                       </Box>
                     </Box>
