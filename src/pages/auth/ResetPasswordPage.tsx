@@ -65,10 +65,10 @@ const ResetPasswordPage = () => {
             toast.success(response.message);
             navigate("/login");
           } else {
-            toast.error(response.message);
+            toast.error(response.response.data.message);
           }
         } catch (error: any) {
-          toast.error(error.message);
+          toast.error(error.response?.data?.message || "Something went wrong");
         }
   };
 
