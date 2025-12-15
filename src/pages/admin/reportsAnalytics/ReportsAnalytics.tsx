@@ -12,11 +12,13 @@ import {
 import {
   Inventory as InventoryIcon,
   People as PeopleIcon,
+  Label as LabelIcon,
   ChevronLeft,
   ChevronRight,
 } from '@mui/icons-material';
 import InventoryReportTab from './InventoryReportTab';
 import CustomerReportTab from './CustomerReportTab';
+import InventoryLabelTab from './InventoryLabelTab';
 
 const ReportsAnalytics: React.FC = () => {
   const theme = useTheme();
@@ -34,6 +36,8 @@ const ReportsAnalytics: React.FC = () => {
         return <InventoryReportTab />;
       case 1:
         return <CustomerReportTab />;
+      case 2:
+        return <InventoryLabelTab />;
       default:
         return <InventoryReportTab />;
     }
@@ -194,6 +198,49 @@ const ReportsAnalytics: React.FC = () => {
               height: 48,
               width: sidebarOpen ? 'auto' : '100%',
               fontWeight: tab === 1 ? 500 : 400,
+              gap: sidebarOpen ? 1.5 : 0,
+              px: sidebarOpen ? 2 : 0,
+              mx: sidebarOpen ? 0.5 : 0,
+              borderRadius: 1.5,
+              color: theme.palette.text.secondary,
+              transition: 'all 0.2s ease-in-out',
+              '& .MuiTab-iconWrapper': {
+                margin: sidebarOpen ? '0' : '0 auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+              '&:hover': {
+                backgroundColor: theme.palette.action.hover,
+                color: theme.palette.text.primary,
+              },
+              "&.Mui-selected": {
+                color: theme.palette.primary.main,
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(25, 118, 210, 0.16)'
+                  : 'rgba(25, 118, 210, 0.08)',
+                fontWeight: 600,
+                borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(25, 118, 210, 0.2)'
+                    : 'rgba(25, 118, 210, 0.12)',
+                },
+              },
+            }}
+          />
+          <Tab
+            label={sidebarOpen ? "Inventory Label" : ""}
+            icon={<LabelIcon sx={{ fontSize: 20 }} />}
+            iconPosition="start"
+            sx={{
+              alignItems: "center",
+              justifyContent: sidebarOpen ? "flex-start" : "center",
+              textTransform: "none",
+              minHeight: 48,
+              height: 48,
+              width: sidebarOpen ? 'auto' : '100%',
+              fontWeight: tab === 2 ? 500 : 400,
               gap: sidebarOpen ? 1.5 : 0,
               px: sidebarOpen ? 2 : 0,
               mx: sidebarOpen ? 0.5 : 0,

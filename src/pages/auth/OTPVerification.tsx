@@ -154,9 +154,9 @@ const OTPVerification = () => {
     }
   };
 
-  const handleSignInWithPassword = () => {
-    navigate("/loginPassword");
-  };
+  // const handleSignInWithPassword = () => {
+  //   navigate("/loginPassword");
+  // };
 
   return (
     <Box
@@ -267,7 +267,7 @@ const OTPVerification = () => {
                   )}
                 </Typography>
 
-                <Typography fontSize="12px" color="#4f4f4f">
+                {/* <Typography fontSize="12px" color="#4f4f4f">
                   Sign In with{" "}
                   <MuiLink
                     component="button"
@@ -283,7 +283,7 @@ const OTPVerification = () => {
                   >
                     Password
                   </MuiLink>
-                </Typography>
+                </Typography> */}
               </Box>
             </form>
           </Box>

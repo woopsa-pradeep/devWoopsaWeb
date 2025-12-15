@@ -32,6 +32,7 @@ import jsPDF from 'jspdf';
 const jspdfAutoTable = require('jspdf-autotable');
 import { customerForReport } from '../../../redux/apis/distrubutor/reportsApis';
 import { getSalesRepList, getListOfRoutes } from '../../../redux/apis/distrubutor/listApis';
+import { listOfCustomersCreate } from '../../../redux/apis/distrubutor/retailerApis';
 import CustomButton from '../../../component/atoms/CustomButton';
 import toast from 'react-hot-toast';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -121,7 +122,7 @@ interface Customer {
 }
 
 // Fields to exclude from checkboxes (C_Number and C_Name are always included)
-const EXCLUDED_FIELDS = ['C_Number', 'C_Name', 'salesRep', 'terms', 'classOfTrade', 'SalesRep_Number', 'TermsCode', 'Trade_Code'];
+const EXCLUDED_FIELDS = ['C_Number', 'C_Name', 'salesRep', 'terms', 'classOfTrade', 'SalesRep_Number', 'TermsCode', 'Trade_Code', 'C_RetailRounding', 'C_Memo'];
 
 // Field display sequence (order matters)
 const FIELD_SEQUENCE: string[] = [
@@ -143,7 +144,6 @@ const FIELD_SEQUENCE: string[] = [
   'C_OtherLicenseNumber2',
   'C_OtherLicenseNumber3',
   'C_FEIN',
-  'C_Memo',
   'C_PricingAccount',
   'Credit_Limit',
   'LastBalance',
@@ -156,7 +156,6 @@ const FIELD_SEQUENCE: string[] = [
   'Delivery_ID',
   'C_OrderDay',
   'C_OrderDaySequence',
-  'C_RetailRounding',
   'C_OperationHours1',
   'C_OperationHours2',
   'Jurisdiction_State',
@@ -188,7 +187,7 @@ const sortFieldsBySequence = (fields: string[]): string[] => {
 const FIELD_LABELS: { [key: string]: string } = {
   C_Number: 'Customer Number',
   C_Name: 'Customer Name',
-  C_CoName: 'Company Name',
+  C_CoName: 'C/O Name',
   C_Address: 'Address',
   C_City: 'City',
   C_State: 'State',
@@ -204,7 +203,6 @@ const FIELD_LABELS: { [key: string]: string } = {
   C_OtherLicenseNumber2: 'Other License Number 2',
   C_OtherLicenseNumber3: 'Other License Number 3',
   C_FEIN: 'FEIN',
-  C_Memo: 'Memo',
   C_PricingAccount: 'Pricing Account',
   Credit_Limit: 'Credit Limit',
   LastBalance: 'Last Balance',
@@ -217,9 +215,8 @@ const FIELD_LABELS: { [key: string]: string } = {
   Delivery_ID: 'Delivery ID',
   C_OrderDay: 'Order Day',
   C_OrderDaySequence: 'Order Day Sequence',
-  C_RetailRounding: 'Retail Rounding',
-  C_OperationHours1: 'Operation Hours 1',
-  C_OperationHours2: 'Operation Hours 2',
+  C_OperationHours1: 'Opening Hours',
+  C_OperationHours2: 'Closing Hours',
   Jurisdiction_State: 'Jurisdiction State',
   Jurisdiction_City: 'Jurisdiction City',
   Jurisdiction_County: 'Jurisdiction County',
@@ -247,6 +244,17 @@ const CustomerReportTab: React.FC = () => {
   const [loadingSalesReps, setLoadingSalesReps] = useState(false);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
 
+  // New filters: Class of Trade, Jurisdiction State, County, City
+  const [selectedClassOfTrade, setSelectedClassOfTrade] = useState<string[]>([]);
+  const [selectedJurisdictionState, setSelectedJurisdictionState] = useState<string[]>([]);
+  const [selectedJurisdictionCounty, setSelectedJurisdictionCounty] = useState<string[]>([]);
+  const [selectedJurisdictionCity, setSelectedJurisdictionCity] = useState<string[]>([]);
+  const [classOfTradeOptions, setClassOfTradeOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [jurisdictionStateOptions, setJurisdictionStateOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [jurisdictionCountyOptions, setJurisdictionCountyOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [jurisdictionCityOptions, setJurisdictionCityOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
+
   // Toggle states for report fields
   const [selectedFields, setSelectedFields] = useState<{ [key: string]: boolean }>({});
 
@@ -270,6 +278,7 @@ const CustomerReportTab: React.FC = () => {
   useEffect(() => {
     fetchSalesReps();
     fetchRoutes();
+    fetchDropdownData();
   }, []);
 
   const fetchSalesReps = async () => {
@@ -319,6 +328,51 @@ const CustomerReportTab: React.FC = () => {
       setRouteOptions([]); // Set empty array on error to prevent map errors
     } finally {
       setLoadingRoutes(false);
+    }
+  };
+
+  const fetchDropdownData = async () => {
+    setLoadingDropdowns(true);
+    try {
+      const response = await listOfCustomersCreate() as any;
+      const data = response?.data || {};
+      
+      // Set Class of Trade options
+      if (data.classOfTrade) {
+        setClassOfTradeOptions(data.classOfTrade.map((item: any) => ({
+          label: item.Trade_Desc || '',
+          value: item.Trade_Code || '',
+        })));
+      }
+      
+      // Set Jurisdiction State options (from taxRate)
+      if (data.taxRate) {
+        setJurisdictionStateOptions(data.taxRate.map((item: any) => ({
+          label: item.TaxDescription || '',
+          value: String(item.Jurisdiction_State ?? 0),
+        })));
+      }
+      
+      // Set Jurisdiction County options (from taxRateCounty)
+      if (data.taxRateCounty) {
+        setJurisdictionCountyOptions(data.taxRateCounty.map((item: any) => ({
+          label: item.TaxDescription || '',
+          value: String(item.Jurisdiction_County ?? 0),
+        })));
+      }
+      
+      // Set Jurisdiction City options (from taxRateCity)
+      if (data.taxRateCity) {
+        setJurisdictionCityOptions(data.taxRateCity.map((item: any) => ({
+          label: item.TaxDescription || '',
+          value: String(item.Jurisdiction_City ?? 0),
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching dropdown data:', error);
+      toast.error('Failed to load filter options');
+    } finally {
+      setLoadingDropdowns(false);
     }
   };
 
@@ -1603,6 +1657,44 @@ const CustomerReportTab: React.FC = () => {
           }
         }
         
+        // Class of Trade filter
+        if (selectedClassOfTrade.length > 0) {
+          const customerTradeCode = c.classOfTrade?.Trade_Code;
+          if (!customerTradeCode || !selectedClassOfTrade.includes(customerTradeCode)) {
+            return false;
+          }
+        }
+        
+        // Jurisdiction State filter
+        if (selectedJurisdictionState.length > 0) {
+          const customerJurisdictionState = c.taxRate?.Jurisdiction_State !== undefined 
+            ? String(c.taxRate.Jurisdiction_State) 
+            : (c.Jurisdiction_State !== undefined ? String(c.Jurisdiction_State) : '0');
+          if (!selectedJurisdictionState.includes(customerJurisdictionState)) {
+            return false;
+          }
+        }
+        
+        // Jurisdiction County filter
+        if (selectedJurisdictionCounty.length > 0) {
+          const customerJurisdictionCounty = c.taxRateCounty?.Jurisdiction_County !== undefined 
+            ? String(c.taxRateCounty.Jurisdiction_County) 
+            : (c.Jurisdiction_County !== undefined ? String(c.Jurisdiction_County) : '0');
+          if (!selectedJurisdictionCounty.includes(customerJurisdictionCounty)) {
+            return false;
+          }
+        }
+        
+        // Jurisdiction City filter
+        if (selectedJurisdictionCity.length > 0) {
+          const customerJurisdictionCity = c.taxRateCity?.Jurisdiction_City !== undefined 
+            ? String(c.taxRateCity.Jurisdiction_City) 
+            : (c.Jurisdiction_City !== undefined ? String(c.Jurisdiction_City) : '0');
+          if (!selectedJurisdictionCity.includes(customerJurisdictionCity)) {
+            return false;
+          }
+        }
+        
         return true;
       });
 
@@ -1910,6 +2002,274 @@ const CustomerReportTab: React.FC = () => {
                             }}
                           />
                           {route.Route_Desc || `Route ${route.Route_Number}`}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                {/* Class of Trade Filter */}
+                <Box sx={{ mb: 1.25 }}>
+                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Class of Trade
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <Select
+                      multiple
+                      value={selectedClassOfTrade}
+                      onChange={(e) => {
+                        const values = e.target.value as string[];
+                        setSelectedClassOfTrade(values);
+                      }}
+                      disabled={previewLoading || loadingDropdowns}
+                      displayEmpty
+                      renderValue={(selected) => {
+                        if (selected.length === 0) {
+                          return <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>All Class of Trade</Typography>;
+                        }
+                        return (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {selected.slice(0, 2).map((value) => {
+                              const classOfTrade = classOfTradeOptions.find(ct => ct.value === value);
+                              return (
+                                <Typography key={value} sx={{ fontSize: '0.7rem' }}>
+                                  {classOfTrade?.label || value}
+                                  {selected.length > 2 && value === selected[1] ? ` +${selected.length - 2}` : ''}
+                                </Typography>
+                              );
+                            })}
+                          </Box>
+                        );
+                      }}
+                      sx={{
+                        fontSize: '0.75rem',
+                        '& .MuiSelect-select': {
+                          minHeight: 'auto',
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderWidth: '1px',
+                        },
+                        '& .MuiSelect-icon': {
+                          color: 'primary.main',
+                        },
+                      }}
+                    >
+                      {classOfTradeOptions.map((classOfTrade) => (
+                        <MenuItem 
+                          key={classOfTrade.value} 
+                          value={classOfTrade.value}
+                          sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
+                        >
+                          <Checkbox
+                            checked={selectedClassOfTrade.includes(classOfTrade.value)}
+                            size="small"
+                            sx={{ 
+                              py: 0,
+                              '& .MuiSvgIcon-root': { fontSize: '1rem' }
+                            }}
+                          />
+                          {classOfTrade.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                {/* Jurisdiction State Filter */}
+                <Box sx={{ mb: 1.25 }}>
+                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Jurisdiction State
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <Select
+                      multiple
+                      value={selectedJurisdictionState}
+                      onChange={(e) => {
+                        const values = e.target.value as string[];
+                        setSelectedJurisdictionState(values);
+                      }}
+                      disabled={previewLoading || loadingDropdowns}
+                      displayEmpty
+                      renderValue={(selected) => {
+                        if (selected.length === 0) {
+                          return <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>All Jurisdiction States</Typography>;
+                        }
+                        return (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {selected.slice(0, 2).map((value) => {
+                              const jurisdiction = jurisdictionStateOptions.find(j => j.value === value);
+                              return (
+                                <Typography key={value} sx={{ fontSize: '0.7rem' }}>
+                                  {jurisdiction?.label || value}
+                                  {selected.length > 2 && value === selected[1] ? ` +${selected.length - 2}` : ''}
+                                </Typography>
+                              );
+                            })}
+                          </Box>
+                        );
+                      }}
+                      sx={{
+                        fontSize: '0.75rem',
+                        '& .MuiSelect-select': {
+                          minHeight: 'auto',
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderWidth: '1px',
+                        },
+                        '& .MuiSelect-icon': {
+                          color: 'primary.main',
+                        },
+                      }}
+                    >
+                      {jurisdictionStateOptions.map((jurisdiction) => (
+                        <MenuItem 
+                          key={jurisdiction.value} 
+                          value={jurisdiction.value}
+                          sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
+                        >
+                          <Checkbox
+                            checked={selectedJurisdictionState.includes(jurisdiction.value)}
+                            size="small"
+                            sx={{ 
+                              py: 0,
+                              '& .MuiSvgIcon-root': { fontSize: '1rem' }
+                            }}
+                          />
+                          {jurisdiction.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                {/* Jurisdiction County Filter */}
+                <Box sx={{ mb: 1.25 }}>
+                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Jurisdiction County
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <Select
+                      multiple
+                      value={selectedJurisdictionCounty}
+                      onChange={(e) => {
+                        const values = e.target.value as string[];
+                        setSelectedJurisdictionCounty(values);
+                      }}
+                      disabled={previewLoading || loadingDropdowns}
+                      displayEmpty
+                      renderValue={(selected) => {
+                        if (selected.length === 0) {
+                          return <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>All Jurisdiction Counties</Typography>;
+                        }
+                        return (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {selected.slice(0, 2).map((value) => {
+                              const jurisdiction = jurisdictionCountyOptions.find(j => j.value === value);
+                              return (
+                                <Typography key={value} sx={{ fontSize: '0.7rem' }}>
+                                  {jurisdiction?.label || value}
+                                  {selected.length > 2 && value === selected[1] ? ` +${selected.length - 2}` : ''}
+                                </Typography>
+                              );
+                            })}
+                          </Box>
+                        );
+                      }}
+                      sx={{
+                        fontSize: '0.75rem',
+                        '& .MuiSelect-select': {
+                          minHeight: 'auto',
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderWidth: '1px',
+                        },
+                        '& .MuiSelect-icon': {
+                          color: 'primary.main',
+                        },
+                      }}
+                    >
+                      {jurisdictionCountyOptions.map((jurisdiction) => (
+                        <MenuItem 
+                          key={jurisdiction.value} 
+                          value={jurisdiction.value}
+                          sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
+                        >
+                          <Checkbox
+                            checked={selectedJurisdictionCounty.includes(jurisdiction.value)}
+                            size="small"
+                            sx={{ 
+                              py: 0,
+                              '& .MuiSvgIcon-root': { fontSize: '1rem' }
+                            }}
+                          />
+                          {jurisdiction.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                {/* Jurisdiction City Filter */}
+                <Box sx={{ mb: 1.25 }}>
+                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Jurisdiction City
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <Select
+                      multiple
+                      value={selectedJurisdictionCity}
+                      onChange={(e) => {
+                        const values = e.target.value as string[];
+                        setSelectedJurisdictionCity(values);
+                      }}
+                      disabled={previewLoading || loadingDropdowns}
+                      displayEmpty
+                      renderValue={(selected) => {
+                        if (selected.length === 0) {
+                          return <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>All Jurisdiction Cities</Typography>;
+                        }
+                        return (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {selected.slice(0, 2).map((value) => {
+                              const jurisdiction = jurisdictionCityOptions.find(j => j.value === value);
+                              return (
+                                <Typography key={value} sx={{ fontSize: '0.7rem' }}>
+                                  {jurisdiction?.label || value}
+                                  {selected.length > 2 && value === selected[1] ? ` +${selected.length - 2}` : ''}
+                                </Typography>
+                              );
+                            })}
+                          </Box>
+                        );
+                      }}
+                      sx={{
+                        fontSize: '0.75rem',
+                        '& .MuiSelect-select': {
+                          minHeight: 'auto',
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderWidth: '1px',
+                        },
+                        '& .MuiSelect-icon': {
+                          color: 'primary.main',
+                        },
+                      }}
+                    >
+                      {jurisdictionCityOptions.map((jurisdiction) => (
+                        <MenuItem 
+                          key={jurisdiction.value} 
+                          value={jurisdiction.value}
+                          sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
+                        >
+                          <Checkbox
+                            checked={selectedJurisdictionCity.includes(jurisdiction.value)}
+                            size="small"
+                            sx={{ 
+                              py: 0,
+                              '& .MuiSvgIcon-root': { fontSize: '1rem' }
+                            }}
+                          />
+                          {jurisdiction.label}
                         </MenuItem>
                       ))}
                     </Select>

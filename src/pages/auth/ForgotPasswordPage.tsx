@@ -69,13 +69,13 @@ const ForgotPasswordPage = () => {
       setIsLoading(true);
       const response = await forgotPassword(data) as any;
       if(response.success) {
-        toast.success(response.message);
+        toast.success(response.message || "Reset link sent successfully");
         // navigate("/reset-password");
       } else {
-        toast.error(response.message);
+        toast.error(response.response.data.message || "Something went wrong");
       }
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(error.response?.data?.message || "Something went wrong");
     } finally {
       setIsLoading(false);
     }
