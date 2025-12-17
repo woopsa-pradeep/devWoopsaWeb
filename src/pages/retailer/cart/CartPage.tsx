@@ -680,8 +680,10 @@ const CartPage: React.FC = () => {
         const totalPriceWithTax = Number(item.Product.TotalPriceWithTax || 0);
         const taxRate = Number(item.Product.Tax_Rate || 0);
         const qty = Number(item.Product.Qty || 1);
-        // Use TotalprepaidTaxRate directly from cart (already calculated correctly)
-        const prepaidTaxRateValue = Number(item.Product.TotalprepaidTaxRate || 0);
+        // Calculate prepaid tax amount for 1 unit: (price + taxRate) * prepaidTaxRate
+        const prepaidTaxRatePercent = Number(item.prepaidTaxRate || 0);
+        const basePriceWithTax = price + taxRate;
+        const prepaidTaxAmount = basePriceWithTax * prepaidTaxRatePercent;
         
         return {
           Customer_Number: item.Product.Customer_Number,
@@ -692,7 +694,7 @@ const CartPage: React.FC = () => {
           Tax_Rate: Number(taxRate.toFixed(2)),
           TotalPrice: Number(totalPrice.toFixed(2)),
           TotalPriceWithTax: Number(totalPriceWithTax.toFixed(2)),
-          prepaidTaxRate: Number(prepaidTaxRateValue.toFixed(2)), // Use TotalprepaidTaxRate from cart
+          prepaidTaxRate: roundPrepaidTax(prepaidTaxAmount), // Calculated prepaid tax amount for item
           id: item.Product.id
         };
       });
