@@ -25,6 +25,7 @@ import { useAppDispatch,RootState } from '../../../redux/store';
 import { useSelector } from 'react-redux';
 import { fetchSalesCartItems } from '../../../redux/slices/salesCartSlice';
 import { validateAddToCart, validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
+import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
 import scanIcon from '../../../assets/elements.svg';
 import ViewModeToggleSales from '../../../component/atoms/ViewModeToggleSales';
 import QuantityDiscountModal from '../../../component/molecules/QuantityDiscountModal';
@@ -395,7 +396,7 @@ const Order = () => {
       TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
       originalPrice: Number(Number(basePrice).toFixed(2)),
       prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: Number(Number(totalPrepaidTax).toFixed(2))
+      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
     };
   };
 

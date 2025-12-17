@@ -22,6 +22,7 @@ import { RootState, useAppDispatch } from '../../../redux/store';
 import {  clearSalesCart, fetchSalesReturnCartItems } from '../../../redux/slices/salesCartSlice';
 import toast from 'react-hot-toast';
 import { validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
+import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
 import { returnPlaceOrder } from "../../../redux/apis/sales/salesReturnOrderApis";
 
 // Interface for cart item from API
@@ -252,7 +253,7 @@ const ReturnOrderCartPage: React.FC = () => {
       TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
       originalPrice: Number(Number(basePrice).toFixed(2)),
       prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: Number(Number(totalPrepaidTax).toFixed(2))
+      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
     };
   };
 

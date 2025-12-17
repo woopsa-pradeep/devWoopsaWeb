@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { validateAddToCart, validateUpdateQuantity } from "../../../utils/cartValidationUtils";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { showErrorToast } from "../../../utils/toastUtils";
+import { roundPrepaidTax } from "../../../utils/prepaidTaxUtils";
 
 interface SalesProductListProps {
   title: string;
@@ -142,7 +143,7 @@ const SalesProductList: React.FC<SalesProductListProps> = ({ title, type, onDisc
       TotalPriceWithTax: Number(totalPriceWithTax.toFixed(2)),
       originalPrice: Number(basePrice.toFixed(2)),
       prepaidTaxRate: Number(prepaidTaxRate.toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
+      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
     };
   };
 

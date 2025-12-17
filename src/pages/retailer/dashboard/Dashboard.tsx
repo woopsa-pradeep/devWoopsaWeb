@@ -17,6 +17,7 @@ import { initializeFCMAndSendToken, isFCMSupported } from "../../../utils/fcmUti
 import { useSelector } from "react-redux";
 import { RootState } from "../../../redux/store";
 import { addToCart } from "../../../redux/apis/retailer/orderApis";
+import { roundPrepaidTax } from "../../../utils/prepaidTaxUtils";
 
 // Simple toast function for now
 const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -207,7 +208,7 @@ const Dashboard = () => {
       TotalPriceWithTax: Number(totalPriceWithTax.toFixed(2)),
       originalPrice: Number(basePrice.toFixed(2)),
       prepaidTaxRate: Number(prepaidTaxRate.toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
+      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
     };
   };
 

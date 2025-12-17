@@ -22,6 +22,7 @@ import {
   Tooltip,
 } from "recharts";
 import CommonTable, { TableColumn } from "../../../component/atoms/Table/CommonTable";
+import { roundPrepaidTax } from "../../../utils/prepaidTaxUtils";
 
 const SalesDashboard = () => {
   const theme = useTheme();
@@ -208,7 +209,7 @@ const SalesDashboard = () => {
       TotalPriceWithTax: Number(totalPriceWithTax.toFixed(2)),
       originalPrice: Number(basePrice.toFixed(2)),
       prepaidTaxRate: Number(prepaidTaxRate.toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
+      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
     };
   };
 

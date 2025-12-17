@@ -11,6 +11,7 @@ import image from '../../../assets/Default-Product-Image.jpg';
 import { useAppDispatch } from '../../../redux/store';
 import { addToCart, updateCartItem } from '../../../redux/apis/sales/salesOrderApis';
 import QuantityDiscountModal from '../../../component/molecules/QuantityDiscountModal';
+import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
 
 // Interface for the ordered item data
 interface OrderedItem {
@@ -239,7 +240,7 @@ const OrderedItems = () => {
       TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
       originalPrice: Number(Number(basePrice).toFixed(2)),
       prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: Number(Number(totalPrepaidTax).toFixed(2))
+      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
     };
   };
 

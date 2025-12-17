@@ -598,6 +598,119 @@ const AdminDashboard = () => {
           {/* Charts Section */}
           <Grid container spacing={2} mb={2}>
             {/* Platform Orders */}
+            
+
+            {/* Sales Performance */}
+            <Grid size={{ xs: 12, md: 8 }}>
+              <Grow in={true} timeout={1000}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    height: '100%',
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      Sales Performance
+                    </Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={() => setSalesPerformanceViewMode("graph")}
+                        variant={salesPerformanceViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setSalesPerformanceViewMode("table")}
+                        variant={salesPerformanceViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {salesPerformanceViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={dashboardData?.salesPersonPerformance || []}
+                      columns={salesPersonColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={dashboardData?.salesPersonPerformance.length || 0}
+                      stickyHeader={true}
+                      pageSize={dashboardData?.salesPersonPerformance.length || 0}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={loading}
+                      containerHeight="260px"
+                      emptyStateComponent={<Typography>No sales data</Typography>}
+                    />
+                  ) : (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={salesPersonData}>
+                        <defs>
+                          <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.3} />
+                            <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid 
+                          strokeDasharray="3 3" 
+                          stroke={alpha(theme.palette.divider, 0.5)}
+                          vertical={false}
+                        />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                          axisLine={false}
+                        />
+                        <YAxis 
+                          tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                          axisLine={false}
+                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area
+                          type="monotone"
+                          dataKey="Sales"
+                          stroke={theme.palette.primary.main}
+                          strokeWidth={2}
+                          fill="url(#salesGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <Grow in={true} timeout={800}>
                 <Paper
@@ -808,118 +921,6 @@ const AdminDashboard = () => {
                       );
                     })}
                   </Box>
-                </Paper>
-              </Grow>
-            </Grid>
-
-            {/* Sales Performance */}
-            <Grid size={{ xs: 12, md: 8 }}>
-              <Grow in={true} timeout={1000}>
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    height: '100%',
-                    background: theme.palette.mode === 'dark'
-                      ? alpha(theme.palette.background.paper, 0.8)
-                      : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                  }}
-                >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
-                      Sales Performance
-                    </Typography>
-                    <Stack direction="row" spacing={0.5}>
-                      <Button
-                        size="small"
-                        onClick={() => setSalesPerformanceViewMode("graph")}
-                        variant={salesPerformanceViewMode === "graph" ? "contained" : "outlined"}
-                        sx={{
-                          textTransform: 'none',
-                          minWidth: 65,
-                          fontSize: 11,
-                          py: 0.5,
-                          '&.MuiButton-contained': {
-                            color: '#fff',
-                          },
-                        }}
-                      >
-                        Chart
-                      </Button>
-                      <Button
-                        size="small"
-                        onClick={() => setSalesPerformanceViewMode("table")}
-                        variant={salesPerformanceViewMode === "table" ? "contained" : "outlined"}
-                        sx={{
-                          textTransform: 'none',
-                          minWidth: 65,
-                          fontSize: 11,
-                          py: 0.5,
-                          '&.MuiButton-contained': {
-                            color: '#fff',
-                          },
-                        }}
-                      >
-                        Table
-                      </Button>
-                    </Stack>
-                  </Box>
-                  {salesPerformanceViewMode === "table" ? (
-                    <CommonTable
-                      padding={0}
-                      data={dashboardData?.salesPersonPerformance || []}
-                      columns={salesPersonColumns}
-                      currentPage={1}
-                      totalPages={1}
-                      totalItems={dashboardData?.salesPersonPerformance.length || 0}
-                      stickyHeader={true}
-                      pageSize={dashboardData?.salesPersonPerformance.length || 0}
-                      onPageChange={() => {}}
-                      onPageSizeChange={() => {}}
-                      showPageSizeSelector={false}
-                      showTotalItems={false}
-                      showPageNumbers={false}
-                      loading={loading}
-                      containerHeight="260px"
-                      emptyStateComponent={<Typography>No sales data</Typography>}
-                    />
-                  ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <AreaChart data={salesPersonData}>
-                        <defs>
-                          <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.3} />
-                            <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.05} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid 
-                          strokeDasharray="3 3" 
-                          stroke={alpha(theme.palette.divider, 0.5)}
-                          vertical={false}
-                        />
-                        <XAxis 
-                          dataKey="name" 
-                          tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
-                          axisLine={false}
-                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                        />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Area
-                          type="monotone"
-                          dataKey="Sales"
-                          stroke={theme.palette.primary.main}
-                          strokeWidth={2}
-                          fill="url(#salesGradient)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  )}
                 </Paper>
               </Grow>
             </Grid>
