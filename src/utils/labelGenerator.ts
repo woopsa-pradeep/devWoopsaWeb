@@ -1069,7 +1069,7 @@ const generateA4LabelHTML = (data: LabelData): string => {
       <tr>
         <td style="text-align: center; padding: 8px;">${item.itemNumber || 'N/A'}</td>
         <td style="padding: 8px;">${item.description || 'N/A'}</td>
-        <td style="text-align: center; padding: 8px;">${item.qty || 0}</td>
+        <td style="text-align: center; padding: 8px;">${item.qtyShipped || 0}</td>
       </tr>
     `).join('')
     : '';
