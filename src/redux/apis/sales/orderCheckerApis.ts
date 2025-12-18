@@ -19,7 +19,8 @@ export interface Order {
 export interface BoxItem {
   orderNumber: number;
   itemNumber: number;
-  qty: number;
+  qtyOrdered: number;
+  qtyShipped: number;
   isSubsitute: boolean;
   description: string;
   location: string;

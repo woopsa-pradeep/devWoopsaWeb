@@ -459,7 +459,7 @@ const OrderChecker = () => {
       item,
       source: sourceContainer,
       destination: '',
-      qty: item.qty,
+      qty: item.qtyShipped,
       mode,
     });
     setEditItemModalOpen(true);
@@ -497,7 +497,7 @@ const OrderChecker = () => {
           sourceBoxId: sourceBoxId,
           destinationBoxId: destId,
           itemNumber: editItemForm.item.itemNumber,
-          qty: editItemForm.item.qty, // Use original quantity for move
+          qty: editItemForm.item.qtyShipped, // Use original quantity for move
         });
         toast.success('Item moved successfully');
         // Refresh all order items after move to update in real-time
@@ -562,7 +562,7 @@ const OrderChecker = () => {
       }
       setConfirmationData({
         title: 'Confirm Update Quantity',
-        message: `Are you sure you want to update quantity from ${editItemForm.item.qty} to ${editItemForm.qty}?`,
+        message: `Are you sure you want to update quantity from ${editItemForm.item.qtyShipped} to ${editItemForm.qty}?`,
         onConfirm: handleSaveEditItem,
       });
     }
@@ -1484,13 +1484,14 @@ const OrderChecker = () => {
             const tableData = items.map((item) => [
               item.itemNumber.toString(),
               item.description || '-',
-              item.qty.toString(),
+              item.qtyOrdered.toString(),
+              item.qtyShipped.toString(),
             ]);
 
             const tableWidth = pageWidth - (margin * 2);
             
             autoTableFn(doc, {
-              head: [['Item #', 'Description', 'Qty']],
+              head: [['Item #', 'Description', 'Qty Ordered', 'Qty Shipped']],
               body: tableData,
               startY: yPosition,
               margin: { left: margin, right: margin },
@@ -1512,8 +1513,9 @@ const OrderChecker = () => {
               alternateRowStyles: { fillColor: [250, 250, 250] },
               columnStyles: {
                 0: { cellWidth: tableWidth * 0.15, halign: 'center' },
-                1: { cellWidth: tableWidth * 0.70, halign: 'left' },
+                1: { cellWidth: tableWidth * 0.55, halign: 'left' },
                 2: { cellWidth: tableWidth * 0.15, halign: 'center' },
+                3: { cellWidth: tableWidth * 0.15, halign: 'center' },
               },
               didDrawPage: (data: any) => {
                 addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
@@ -2465,17 +2467,24 @@ const OrderChecker = () => {
                                           boxShadow: '0 2px 4px rgba(60, 119, 149, 0.2)',
                                         }}
                                       >
+                                      <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
                                         <Typography 
                                           variant="caption" 
-                                          fontSize={11} 
+                                          fontSize={10} 
                                           fontWeight={500} 
                                           color="primary.main"
-                                          sx={{
-                                            letterSpacing: 0.5,
-                                          }}
                                         >
-                                          QTY: {item.qty}
+                                          Ordered: {item.qtyOrdered}
                                         </Typography>
+                                        <Typography 
+                                          variant="caption" 
+                                          fontSize={10} 
+                                          fontWeight={500} 
+                                          color="primary.main"
+                                        >
+                                          Shipped: {item.qtyShipped}
+                                        </Typography>
+                                      </Box>
                                       </Box>
                                       {isEditingAllowed && (
                                         <>
@@ -2607,17 +2616,24 @@ const OrderChecker = () => {
                                         boxShadow: '0 2px 4px rgba(60, 119, 149, 0.2)',
                                       }}
                                     >
-                                      <Typography 
-                                        variant="caption" 
-                                        fontSize={11} 
-                                        fontWeight={700} 
-                                        color="primary.main"
-                                        sx={{
-                                          letterSpacing: 0.5,
-                                        }}
-                                      >
-                                        QTY: {item.qty}
-                                      </Typography>
+                                      <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
+                                        <Typography 
+                                          variant="caption" 
+                                          fontSize={10} 
+                                          fontWeight={500} 
+                                          color="primary.main"
+                                        >
+                                          Ordered: {item.qtyOrdered}
+                                        </Typography>
+                                        <Typography 
+                                          variant="caption" 
+                                          fontSize={10} 
+                                          fontWeight={500} 
+                                          color="primary.main"
+                                        >
+                                          Shipped: {item.qtyShipped}
+                                        </Typography>
+                                      </Box>
                                     </Box>
                                     {isEditingAllowed && (
                                       <>
@@ -3007,7 +3023,7 @@ const OrderChecker = () => {
                 </IconButton>
               </Box>
               <Typography variant="caption" fontSize={10} color="success.main" mt={0.75} textAlign="center" display="block">
-                Current Qty : {editItemForm.item.qty}
+                Current Qty : {editItemForm.item.qtyShipped}
               </Typography>
             </Box>
 
@@ -4050,7 +4066,7 @@ const OrderChecker = () => {
                               {item.description}
                             </Typography>
                             <Typography variant="caption" fontSize={11} color="text.secondary">
-                              Available: {item.qty}
+                              Available: {item.qtyShipped ?? (item as any).qty ?? 0}
                             </Typography>
                           </Box>
                           <Box display="flex" alignItems="center" gap={1}>
@@ -4085,7 +4101,8 @@ const OrderChecker = () => {
                               type="number"
                               value={selectedQty}
                               onChange={(e) => {
-                                const qty = Math.max(0, Math.min(item.qty, Number(e.target.value)));
+                                const maxQty = item.qtyShipped ?? (item as any).qty ?? 0;
+                                const qty = Math.max(0, Math.min(maxQty, Number(e.target.value)));
                                 if (qty === 0) {
                                   const newItems = addContainerForm.items.filter(i => i.itemNumber !== item.itemNumber);
                                   setAddContainerForm({
@@ -4109,13 +4126,13 @@ const OrderChecker = () => {
                               inputProps={{
                                 style: { textAlign: 'center', fontSize: 12 },
                                 min: 0,
-                                max: item.qty,
+                                max: item.qtyShipped ?? (item as any).qty ?? 0,
                               }}
                             />
                             <IconButton
                               size="small"
                               onClick={() => {
-                                if (selectedQty < item.qty) {
+                                if (selectedQty < (item.qtyShipped ?? (item as any).qty ?? 0)) {
                                   const existingItem = addContainerForm.items.find(i => i.itemNumber === item.itemNumber);
                                   const newItems = existingItem
                                     ? addContainerForm.items.map(i =>
@@ -4128,7 +4145,7 @@ const OrderChecker = () => {
                                   });
                                 }
                               }}
-                              disabled={selectedQty >= item.qty}
+                              disabled={selectedQty >= (item.qtyShipped ?? (item as any).qty ?? 0)}
                               sx={{
                                 bgcolor: 'primary.main',
                                 color: 'white',
