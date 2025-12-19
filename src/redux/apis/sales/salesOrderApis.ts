@@ -148,3 +148,12 @@ export const getDeliveryCharge = async (customerId: string) => {
     });
     return response.data;
 }
+
+export const getInventoryShowPrepaidTax = async (customerId: string) => {
+    const response = await axiosInstance.get('/sales/getInventoryShowPrepaidTax',{
+        headers: {
+            'customer': customerId
+        }
+    });
+    return response.data;
+}

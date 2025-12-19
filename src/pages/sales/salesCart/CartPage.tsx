@@ -24,6 +24,7 @@ import { fetchSalesCartItems, clearSalesCart } from '../../../redux/slices/sales
 import toast from 'react-hot-toast';
 import { validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
 import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
+import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
 
 // Interface for cart item from API
 interface CartItem {
@@ -132,6 +133,9 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
 
   // State for discount amounts per item
   const [itemDiscounts, setItemDiscounts] = useState<{ [key: number]: number }>({});
+
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
 
   const loadWarehouseProfile = async () => {
     setWarehouseProfileLoading(true);
@@ -874,17 +878,48 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
   // Calculate price details
   const calculatePriceDetails = () => {
     // Calculate subtotal with discounts applied per item
-    const subtotal = Number(cartItems.reduce((sum: any, item: any) => {
-      const discountPerUnit = itemDiscounts[item.Product.id] || 0;
-      const qty = item.Product.Qty || 1;
-      const totalDiscount = discountPerUnit * qty;
-      const itemTotal = item.showWithOutPrice ? 0 : (Number(item.Product.TotalPriceWithTax) - totalDiscount);
-      return sum + itemTotal;
-    }, 0).toFixed(2));
+    let subtotal: number;
+    let totalPrepaidTax = 0;
+    
+    if (showWithPerpaidTax) {
+      // Current behavior: include prepaid tax in subtotal
+      subtotal = Number(cartItems.reduce((sum: any, item: any) => {
+        const discountPerUnit = itemDiscounts[item.Product.id] || 0;
+        const qty = item.Product.Qty || 1;
+        const totalDiscount = discountPerUnit * qty;
+        const itemTotal = item.showWithOutPrice ? 0 : (Number(item.Product.TotalPriceWithTax) - totalDiscount);
+        return sum + itemTotal;
+      }, 0).toFixed(2));
+    } else {
+      // New behavior: exclude prepaid tax from subtotal, calculate it separately
+      subtotal = Number(cartItems.reduce((sum: any, item: any) => {
+        if (item.showWithOutPrice) return sum;
+        const discountPerUnit = itemDiscounts[item.Product.id] || 0;
+        const basePrice = Number(item.Product.Price || 0);
+        const taxRate = Number(item.Product.Tax_Rate || 0);
+        const qty = item.Product.Qty || 1;
+        const priceWithoutPrepaidTax = basePrice + taxRate;
+        const itemTotal = (priceWithoutPrepaidTax * qty) - (discountPerUnit * qty);
+        return sum + itemTotal;
+      }, 0).toFixed(2));
+      
+      // Calculate total prepaid tax separately
+      totalPrepaidTax = Number(cartItems.reduce((sum: any, item: any) => {
+        if (item.showWithOutPrice) return sum;
+        const basePrice = Number(item.Product.Price || 0);
+        const taxRate = Number(item.Product.Tax_Rate || 0);
+        const prepaidTaxRate = Number(item.prepaidTaxRate || 0);
+        const qty = Number(item.Product.Qty || 0);
+        const basePriceWithTax = basePrice + taxRate;
+        const prepaidTaxAmount = basePriceWithTax * prepaidTaxRate;
+        return sum + (prepaidTaxAmount * qty);
+      }, 0).toFixed(2));
+    }
+    
     const discount = calculateTotalDiscount();
     const crv = Number(0).toFixed(2); // No CRV for now
     const deliveryCharges = Number(deliveryCharge).toFixed(2); // No delivery charges for now
-    const estimatedTotal = Number((subtotal + Number(crv) + Number(deliveryCharges)).toFixed(2));
+    const estimatedTotal = Number((subtotal + Number(crv) + Number(deliveryCharges) + (showWithPerpaidTax ? 0 : totalPrepaidTax)).toFixed(2));
 
     return {
       subtotal,
@@ -892,6 +927,8 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       crv,
       deliveryCharges,
       estimatedTotal,
+      prepaidTax: totalPrepaidTax,
+      showPrepaidTax: !showWithPerpaidTax && totalPrepaidTax > 0,
     };
   };
 
@@ -1011,13 +1048,30 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
     {
       id: "price",
       label: "Price",
-      render: (row) => (
-        <Box display="flex" alignItems="center" gap={1}>
-          <Typography fontSize={12} fontWeight={400} color="text.secondary">
-            {row.showWithOutPrice ? '-' : `$${Number(Number(row.Product.Price_With_Tax || 0).toFixed(2))}`} 
-          </Typography>
-        </Box>
-      ),
+      render: (row) => {
+        if (row.showWithOutPrice) {
+          return (
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography fontSize={12} fontWeight={400} color="text.secondary">
+                -
+              </Typography>
+            </Box>
+          );
+        }
+        
+        const basePrice = Number(row.Product.Price || 0);
+        const taxRate = Number(row.Product.Tax_Rate || 0);
+        const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
+        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+        
+        return (
+          <Box display="flex" alignItems="center" gap={1}>
+            <Typography fontSize={12} fontWeight={400} color="text.secondary">
+              ${displayPrice}
+            </Typography>
+          </Box>
+        );
+      },
     },
     ...(allowDiscount ? [{
       id: "discount",
@@ -1107,14 +1161,30 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       id: "totalPrice",
       label: "Total Price",
       render: (row) => {
+        if (row.showWithOutPrice) {
+          return (
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography fontSize={12} fontWeight={400} color="text.secondary">
+                -
+              </Typography>
+            </Box>
+          );
+        }
+        
         const discountPerUnit = itemDiscounts[row.Product.id] || 0;
-        const qty = row.Product.Qty || 1;
+        const basePrice = Number(row.Product.Price || 0);
+        const taxRate = Number(row.Product.Tax_Rate || 0);
+        const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
+        const qty = Number(row.Product.Qty || 1);
+        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+        const totalPrice = displayPrice * qty;
         const totalDiscount = discountPerUnit * qty;
-        const discountedTotal = row.showWithOutPrice ? 0 : Math.max(0, Number(row.Product.TotalPriceWithTax) - totalDiscount);
+        const discountedTotal = Math.max(0, totalPrice - totalDiscount);
+        
         return (
           <Box display="flex" alignItems="center" gap={1}>
             <Typography fontSize={12} fontWeight={400} color="text.secondary">
-              {row.showWithOutPrice ? '-' : `$${discountedTotal.toFixed(2)}`}
+              ${discountedTotal.toFixed(2)}
             </Typography>
           </Box>
         );
@@ -1417,6 +1487,8 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
                 deliveryCharge={deliveryCharge}
                 onDeliveryChargeChange={allowDeliveryCharge ? setDeliveryCharge : undefined}
                 allowEditDeliveryCharge={allowDeliveryCharge || false}
+                prepaidTax={priceDetails.prepaidTax}
+                showPrepaidTax={priceDetails.showPrepaidTax}
               />
             </Grid>
             )}

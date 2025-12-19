@@ -14,6 +14,7 @@ import { validateAddToCart, validateUpdateQuantity } from "../../../utils/cartVa
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { showErrorToast } from "../../../utils/toastUtils";
 import { roundPrepaidTax } from "../../../utils/prepaidTaxUtils";
+import { useShowPrepaidTax, calculateDisplayPrice } from "../../../utils/prepaidTaxDisplayUtils";
 
 interface SalesProductListProps {
   title: string;
@@ -36,6 +37,9 @@ const SalesProductList: React.FC<SalesProductListProps> = ({ title, type, onDisc
   const cartItems = useAppSelector((state: any) => state.salesCart.items);
   const auth = useAppSelector((state: any) => state.auth);
   const { selectedCustomer } = useAppSelector((state: any) => state.auth);
+  
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
   
   // Get products based on type
   const getProducts = () => {
@@ -504,12 +508,11 @@ const SalesProductList: React.FC<SalesProductListProps> = ({ title, type, onDisc
                     </Box>
                     <Typography fontSize={13} fontWeight={500} color="text.primary">
                       {product.showWithOutPrice ? '-' : (() => {
-                        // Calculate display price: (price + Tax_Rate) * (1 + prepaidTaxRate)
+                        // Calculate display price based on showWithPerpaidTax setting
                         const basePrice = product.price || 0;
                         const prepaidTaxRate = product.prepaidTaxRate || 0;
                         const taxRate = product.Tax_Rate || 0;
-                        const basePriceWithTax = basePrice + taxRate;
-                        const displayPrice = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+                        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
                         return `$${displayPrice}`;
                       })()}
                     </Typography>

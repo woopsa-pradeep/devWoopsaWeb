@@ -8,6 +8,7 @@ import CustomButton from '../atoms/CustomButton';
 import DeleteConfirmationModal from '../atoms/DeleteConfirmationModal';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
+import { useShowPrepaidTax, calculateDisplayPrice } from '../../utils/prepaidTaxDisplayUtils';
 
 interface OrderItem {
   id: string;
@@ -21,6 +22,10 @@ interface OrderItem {
   // Quantity discount fields
   hasQtyDiscount?: boolean;
   qtyDiscount?: any;
+  // For display price calculation
+  basePrice?: number;
+  taxRate?: number;
+  prepaidTaxRate?: number;
 }
 
 interface OrderDetailsProps {
@@ -41,8 +46,39 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({
   onContinue,
   onDiscountModalOpen
 }) => {
-  const total = items.reduce((sum, item) => sum + (item.priceWithTax * item.quantity), 0);
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
   const auth = useSelector((state: RootState) => state.auth);
+  
+  // Calculate total using display price
+  const total = items.reduce((sum, item) => {
+    if (item.showWithOutPrice) return sum;
+    
+    const quantity = Number(item.quantity) || 0;
+    
+    // If we have base price components, calculate display price
+    if (item.basePrice !== undefined && item.taxRate !== undefined && item.prepaidTaxRate !== undefined) {
+      const basePrice = Number(item.basePrice) || 0;
+      const taxRate = Number(item.taxRate) || 0;
+      const prepaidTaxRate = Number(item.prepaidTaxRate) || 0;
+      const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+      const itemTotal = displayPrice * quantity;
+      if (isNaN(itemTotal) || !isFinite(itemTotal)) {
+        // Fallback if calculation results in NaN
+        const priceWithTax = Number(item.priceWithTax) || 0;
+        return sum + (priceWithTax * quantity);
+      }
+      return sum + itemTotal;
+    }
+    
+    // Fallback to priceWithTax if base components not available
+    const priceWithTax = Number(item.priceWithTax) || 0;
+    const itemTotal = priceWithTax * quantity;
+    if (isNaN(itemTotal) || !isFinite(itemTotal)) {
+      return sum;
+    }
+    return sum + itemTotal;
+  }, 0);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<OrderItem | null>(null);
   const [editingQuantities, setEditingQuantities] = useState<{ [key: string]: string }>({});
@@ -395,7 +431,31 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({
                           wordBreak: 'break-all',
                         }}
                       >
-                        {item.showWithOutPrice ? '-' : `$${Number(Number(item.priceWithTax * item.quantity).toFixed(2))}`}
+                        {item.showWithOutPrice ? '-' : (() => {
+                          // If we have base price components, calculate display price
+                          if (item.basePrice !== undefined && item.taxRate !== undefined && item.prepaidTaxRate !== undefined) {
+                            const basePrice = Number(item.basePrice) || 0;
+                            const taxRate = Number(item.taxRate) || 0;
+                            const prepaidTaxRate = Number(item.prepaidTaxRate) || 0;
+                            const quantity = Number(item.quantity) || 0;
+                            const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+                            const totalPrice = displayPrice * quantity;
+                            if (isNaN(totalPrice) || !isFinite(totalPrice)) {
+                              // Fallback if calculation results in NaN
+                              const priceWithTax = Number(item.priceWithTax) || 0;
+                              return `$${Number(Number(priceWithTax * quantity).toFixed(2))}`;
+                            }
+                            return `$${Number(Number(totalPrice).toFixed(2))}`;
+                          }
+                          // Fallback to priceWithTax if base components not available
+                          const priceWithTax = Number(item.priceWithTax) || 0;
+                          const quantity = Number(item.quantity) || 0;
+                          const totalPrice = priceWithTax * quantity;
+                          if (isNaN(totalPrice) || !isFinite(totalPrice)) {
+                            return '$0.00';
+                          }
+                          return `$${Number(Number(totalPrice).toFixed(2))}`;
+                        })()}
                       </Typography>
                     </Box>
                   </Box>

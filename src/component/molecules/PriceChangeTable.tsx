@@ -1,4 +1,5 @@
 import React from 'react';
+import { useShowPrepaidTax, calculateDisplayPrice } from '../../utils/prepaidTaxDisplayUtils';
 import {
   Table,
   TableBody,
@@ -44,6 +45,9 @@ const PriceChangeTable: React.FC<PriceChangeTableProps> = ({
   items,
   getProductImage
 }) => {
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
+  
   const getPriceChangeColor = (oldPrice: number, newPrice: number) => {
     return newPrice > oldPrice ? 'error.main' : 'success.main';
   };
@@ -66,16 +70,12 @@ const PriceChangeTable: React.FC<PriceChangeTableProps> = ({
         </TableHead>
         <TableBody>
           {items.map((item) => {
-            // Calculate prices with prepaid tax: (price + Tax_Rate) * (1 + prepaidTaxRate)
-            const calculatePriceWithPrepaidTax = (basePrice: number) => {
-              const prepaidTaxRate = item.prepaidTaxRate || 0;
-              const taxRate = Number(item.Product.Tax_Rate || 0);
-              const basePriceWithTax = basePrice + taxRate;
-              return basePriceWithTax * (1 + prepaidTaxRate);
-            };
+            // Calculate display prices based on showWithPerpaidTax setting
+            const prepaidTaxRate = item.prepaidTaxRate || 0;
+            const taxRate = Number(item.Product.Tax_Rate || 0);
             
-            const oldPriceWithTax = calculatePriceWithPrepaidTax(item.oldPrice);
-            const newPriceWithTax = calculatePriceWithPrepaidTax(item.newPrice);
+            const oldPriceWithTax = calculateDisplayPrice(item.oldPrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+            const newPriceWithTax = calculateDisplayPrice(item.newPrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
             
             const priceChangeColor = getPriceChangeColor(oldPriceWithTax, newPriceWithTax);
             const priceChangeIcon = getPriceChangeIcon(oldPriceWithTax, newPriceWithTax);

@@ -29,6 +29,7 @@ import { fetchCartItems } from '../../../redux/slices/cartSlice';
 import { useSelector } from 'react-redux';
 import { validateAddToCart, validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
 import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
+import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
 import scanIcon from '../../../assets/elements.svg';
 
 // API Response Interface
@@ -251,6 +252,10 @@ const Order = () => {
   const cartValidationData = useAppSelector((state: any) => state.cart);
   // Get auth data from Redux store
   const auth = useSelector((state: any) => state.auth);
+  
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [masterSearchTerm, setMasterSearchTerm] = useState('');
@@ -2371,16 +2376,23 @@ const Order = () => {
       minWidth: 100,
       align: 'right',
       render: (row) => {
-        // Calculate display price: (price * prepaidTaxRate) + price + Tax_Rate
+        if (row.showWithOutPrice) {
+          return (
+            <Typography fontSize={"14px"} color="textSecondary">
+              -
+            </Typography>
+          );
+        }
+        
+        // Calculate display price based on showWithPerpaidTax setting
         const basePrice = Number(row.price || 0);
         const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
         const taxRate = Number(row.Tax_Rate || 0);
-        const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
-        const displayPrice = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
         
         return (
           <Typography fontSize={"14px"} color="textSecondary">
-            {row.showWithOutPrice ? '-' : `$${displayPrice}` || '$0.00'}
+            ${displayPrice}
           </Typography>
         );
       },
@@ -2597,12 +2609,11 @@ const Order = () => {
     stockCount: item.stockCount,
     stock: item.stock,
     price: item.showWithOutPrice ? undefined : (() => {
-      // Calculate display price: (price + Tax_Rate) * (1 + prepaidTaxRate)
+      // Calculate display price based on showWithPerpaidTax setting
       const basePrice = Number(item.price || 0);
       const prepaidTaxRate = Number(item.prepaidTaxRate || 0);
       const taxRate = Number(item.Tax_Rate || 0);
-      const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
-      return Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+      return calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
     })() as number | undefined, 
     discount: item.crvPrice,
     isDiscounted: item.isDiscounted || false,
@@ -3131,19 +3142,32 @@ const Order = () => {
         </Grid>
         <Grid size={{ xs: 12, md: 3 }}>
           <OrderDetails
-            items={Object.entries(orderItems).map(([id, item]) => ({
-              id,
-              name: item.Description,
-              quantity: item.quantity,
-              price: item.price,
-              priceWithTax: item.price, // Use the price as priceWithTax since it's already the main price
-              placedBySalesPerson: item?.placedBySalesPerson,
-              showWithOutPrice: cartItemsData[id]?.showWithOutPrice,
-              // Add quantity discount fields
-              hasQtyDiscount: cartItemsData[id]?.hasQtyDiscount,
-              qtyDiscount: cartItemsData[id]?.qtyDiscount,
-              originalPrice: cartItemsData[id]?.price || 0
-            }))}
+            items={Object.entries(orderItems).map(([id, item]) => {
+              // Try to get product data from cartItemsData first, then from data array
+              const productData = cartItemsData[id] || data.find((p: any) => p.id === id);
+              // Get base price components for display price calculation
+              const basePrice = Number(productData?.price) || 0;
+              const taxRate = Number(productData?.Tax_Rate) || 0;
+              const prepaidTaxRate = Number(productData?.prepaidTaxRate) || 0;
+              
+              return {
+                id,
+                name: item.Description,
+                quantity: item.quantity,
+                price: item.price,
+                priceWithTax: item.price, // Use the price as priceWithTax since it's already the main price
+                placedBySalesPerson: item?.placedBySalesPerson,
+                showWithOutPrice: productData?.showWithOutPrice,
+                // Add quantity discount fields
+                hasQtyDiscount: productData?.hasQtyDiscount,
+                qtyDiscount: productData?.qtyDiscount,
+                originalPrice: Number(productData?.price) || 0,
+                // Base price components for display price calculation
+                basePrice,
+                taxRate,
+                prepaidTaxRate
+              };
+            })}
             onQuantityChange={handleOrderDetailsQuantityChange}
             onRemoveItem={handleRemoveItem}
             onClear={handleClearOrder}

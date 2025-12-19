@@ -15,6 +15,7 @@ import { validateAddToCart, validateUpdateQuantity } from "../../../utils/cartVa
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { showErrorToast } from "../../../utils/toastUtils";
 import { roundPrepaidTax } from "../../../utils/prepaidTaxUtils";
+import { useShowPrepaidTax, calculateDisplayPrice } from "../../../utils/prepaidTaxDisplayUtils";
 
 interface ProductListProps {
   title: string;
@@ -31,6 +32,9 @@ const ProductList: React.FC<ProductListProps> = ({ title, type, onDiscountModalO
   // Get data from Redux store
   const { newItems, discountedItems, popularItems, loading } = useAppSelector((state: any) => state.dashboard);
   const cartItems = useAppSelector((state: any) => state.cart.items);
+  
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
   
   // Debouncing refs
   const inputDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -481,12 +485,11 @@ const ProductList: React.FC<ProductListProps> = ({ title, type, onDiscountModalO
                     </Box>
                     <Typography fontSize={13} fontWeight={500} color="text.primary">
                       {product.showWithOutPrice ? '-' : (() => {
-                        // Calculate display price: (price + Tax_Rate) * (1 + prepaidTaxRate)
+                        // Calculate display price based on showWithPerpaidTax setting
                         const basePrice = product.price || 0;
                         const prepaidTaxRate = product.prepaidTaxRate || 0;
                         const taxRate = product.Tax_Rate || 0;
-                        const basePriceWithTax = basePrice + taxRate;
-                        const displayPrice = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+                        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
                         return `$${displayPrice}`;
                       })()}
                       {/* {type === "discounted" && product.crvPrice && product.crvPrice !== product.priceWithTax && (

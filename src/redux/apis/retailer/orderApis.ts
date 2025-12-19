@@ -127,6 +127,11 @@ export const getOrderPdf = async (id: any, hasPrice: boolean = true) => {
     return response.data;
 }
 
+export const getInventoryShowPrepaidTax = async () => {
+    const response = await axiosInstance.get('/retailer/getInventoryShowPrepaidTax');
+    return response.data;
+}
+
 
 
 

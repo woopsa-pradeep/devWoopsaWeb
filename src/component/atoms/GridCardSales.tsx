@@ -21,6 +21,7 @@ import GridCard from './GridCard';
 import CommonTable, { TableColumn } from './Table/CommonTable';
 import cart from '../../assets/icons/cart.svg';
 import TextInput from './TextInput';
+import { useShowPrepaidTax, calculateDisplayPrice } from '../../utils/prepaidTaxDisplayUtils';
 
 // ProductImage component with error handling
 const ProductImage: React.FC<{ src: string; alt: string; style?: React.CSSProperties }> = ({ src, alt, style }) => {
@@ -187,6 +188,9 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
   const productListRef = useRef<HTMLDivElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const [isSubmittingQuantity, setIsSubmittingQuantity] = useState(false);
+
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
 
   // Reset selected index when items change
   useEffect(() => {
@@ -610,12 +614,11 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
       stockCount: item.stockCount,
       stock: item.stock,
       price: item.showWithOutPrice ? undefined : (() => {
-        // Calculate display price: (price + Tax_Rate) * (1 + prepaidTaxRate)
+        // Calculate display price based on showWithPerpaidTax setting
         const basePrice = item.price || 0;
         const prepaidTaxRate = item.prepaidTaxRate || 0;
         const taxRate = item.Tax_Rate || 0;
-        const basePriceWithTax = basePrice + taxRate;
-        return basePriceWithTax * (1 + prepaidTaxRate);
+        return calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
       })(),
       discount: item.crvPrice,
       productDetails: item.productDetails,
@@ -989,12 +992,11 @@ const GridCardSales: React.FC<GridCardSalesProps> = ({
                       }}
                     >
                       {product.showWithOutPrice ? '-' : (() => {
-                        // Calculate display price: (price + Tax_Rate) * (1 + prepaidTaxRate)
+                        // Calculate display price based on showWithPerpaidTax setting
                         const basePrice = product.price || 0;
                         const prepaidTaxRate = product.prepaidTaxRate || 0;
                         const taxRate = product.Tax_Rate || 0;
-                        const basePriceWithTax = basePrice + taxRate;
-                        const displayPrice = basePriceWithTax * (1 + prepaidTaxRate);
+                        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
                         return `$${displayPrice.toFixed(2)}`;
                       })()}
                     </Typography>

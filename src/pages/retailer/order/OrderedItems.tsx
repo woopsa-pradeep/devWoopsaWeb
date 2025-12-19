@@ -10,6 +10,7 @@ import image from '../../../assets/Default-Product-Image.jpg';
 import { useAppDispatch } from '../../../redux/store';
 import QuantityDiscountModal from '../../../component/molecules/QuantityDiscountModal';
 import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
+import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
 
 // Interface for the ordered item data
 interface OrderedItem {
@@ -63,6 +64,10 @@ interface OrderedItem {
 
 const OrderedItems = () => {
   const dispatch = useAppDispatch();
+  
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
+  
   const [data, setData] = useState<OrderedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1112,17 +1117,15 @@ const OrderedItems = () => {
       minWidth: 100,
       align: 'right',
       render: (row) => {
-        // Calculate price with prepaid tax: (price + Tax_Rate) * (1 + prepaidTaxRate)
-        // Convert all values to numbers to prevent string operations
+        // Calculate display price based on showWithPerpaidTax setting
         const basePrice = Number(row.price || row.Price || 0);
         const taxRate = Number(row.Tax_Rate || 0);
         const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
-        const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
-        const finalPriceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
         
         return (
           <Typography fontSize="14px" color="textSecondary">
-            ${finalPriceWithTax}
+            ${displayPrice}
           </Typography>
         );
       },

@@ -12,6 +12,8 @@ interface PriceDetailsProps {
   deliveryCharge?: number;
   onDeliveryChargeChange?: (value: number) => void;
   allowEditDeliveryCharge?: boolean;
+  prepaidTax?: number;
+  showPrepaidTax?: boolean;
 }
 
 const PriceDetails: React.FC<PriceDetailsProps> = ({
@@ -23,6 +25,8 @@ const PriceDetails: React.FC<PriceDetailsProps> = ({
   deliveryCharge,
   onDeliveryChargeChange,
   allowEditDeliveryCharge = false,
+  prepaidTax = 0,
+  showPrepaidTax = false,
 }) => {
   console.log(crv);
   const [isEditingDeliveryCharge, setIsEditingDeliveryCharge] = useState(false);
@@ -153,6 +157,9 @@ const PriceDetails: React.FC<PriceDetailsProps> = ({
           </Box>
         ) : (
           <PriceRow label="Delivery Charges" value={typeof deliveryCharges === 'string' ? parseFloat(deliveryCharges) : deliveryCharges} />
+        )}
+        {showPrepaidTax && prepaidTax > 0 && (
+          <PriceRow label="Prepaid Tax" value={prepaidTax} />
         )}
       </Box>
       <Divider sx={{ my: 1, mx: 2 }} />

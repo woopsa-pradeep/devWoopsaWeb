@@ -75,6 +75,7 @@ interface SettingsData {
     InventoryThreshold: number;
     MiniMumOrderAmount: number;
   };
+  showWithPerpaidTax: boolean;
   retailer: {
     showStock: boolean;
     allowOrderInventoryUnAvaible: boolean;
@@ -151,6 +152,7 @@ interface FormData {
     InventoryThreshold: number;
     MiniMumOrderAmount: number;
   };
+  showWithPerpaidTax: boolean;
   retailer: {
     showStock: boolean;
     allowOrderInventoryUnAvaible: boolean;
@@ -428,6 +430,7 @@ const SettingsTabs = () => {
               InventoryThreshold: data.itemGlobal?.InventoryThreshold ?? 10,
               MiniMumOrderAmount: data.itemGlobal?.MiniMumOrderAmount ?? 1,
             },
+            showWithPerpaidTax: data.showWithPerpaidTax ?? true,
             retailer: {
               showStock: data.retailer?.showStock ?? true,
               allowOrderInventoryUnAvaible: data.retailer?.allowOrderInventoryUnAvaible ?? true,
@@ -460,8 +463,20 @@ const SettingsTabs = () => {
   }, []);
 
   // Handle field changes
-  const handleFieldChange = (section: keyof FormData, field: string, value: any) => {
+  const handleFieldChange = (section: keyof FormData | '', field: string, value: any) => {
     if (!formData) return;
+
+    // Handle showWithPerpaidTax as a top-level field
+    if (field === 'showWithPerpaidTax') {
+      setFormData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          showWithPerpaidTax: value
+        };
+      });
+      return;
+    }
 
     // Special validation for warehouse profile
     if (section === 'warehouseProfile') {
@@ -477,13 +492,21 @@ const SettingsTabs = () => {
       }
     }
 
+    if (!section || section === 'showWithPerpaidTax') return; // Return early if no section provided or if it's showWithPerpaidTax
+
     setFormData(prev => {
       if (!prev) return prev;
+
+      // Type guard: ensure section is a key that points to an object
+      const sectionValue = prev[section];
+      if (typeof sectionValue !== 'object' || sectionValue === null || Array.isArray(sectionValue)) {
+        return prev;
+      }
 
       return {
         ...prev,
         [section]: {
-          ...prev[section],
+          ...sectionValue,
           [field]: value
         }
       };
@@ -890,7 +913,10 @@ const SettingsTabs = () => {
           showSuccessToast('Sales Rep settings updated successfully!');
           break;
         case 'itemGlobal':
-          await updateItemGlobalSetting({ itemGlobal: formData.itemGlobal });
+          await updateItemGlobalSetting({ 
+            itemGlobal: formData.itemGlobal,
+            showWithPerpaidTax: formData.showWithPerpaidTax
+          });
           showSuccessToast('Item Global settings updated successfully!');
           break;
         case 'retailer':
@@ -1069,6 +1095,15 @@ const SettingsTabs = () => {
                   min: 0,
                   step: 1
                 }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography sx={{ fontSize: 14 }}>Show Price With Prepaid Tax</Typography>
+              <SwitchInput
+                checked={formData.showWithPerpaidTax ?? true}
+                onChange={(checked) => handleFieldChange('', 'showWithPerpaidTax', checked)}
+                sx={{ mb: 0 }}
+                isShowLabel={false}
               />
             </Box>
           </Box>

@@ -24,6 +24,7 @@ import { fetchCartItems, clearCart } from '../../../redux/slices/cartSlice';
 import toast from 'react-hot-toast';
 import { validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
 import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
+import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
 
 // Interface for cart item from API
 interface CartItem {
@@ -118,6 +119,9 @@ const CartPage: React.FC = () => {
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
   const [selectedDiscountProduct, setSelectedDiscountProduct] = useState<CartItem | null>(null);
   const [selectedDiscountData, setSelectedDiscountData] = useState<any>(null);
+
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
 
   // Debounced input state
   const [inputValues, setInputValues] = useState<{ [key: number]: number }>({});
@@ -744,11 +748,39 @@ const CartPage: React.FC = () => {
 
   // Calculate price details
   const calculatePriceDetails = () => {
-    const subtotal = Number(Number(cartItems.reduce((sum: any, item: any) => sum + (Number(item.Product.Price_With_Tax || 0) * Number(item.Product.Qty || 0)), 0)).toFixed(2));  
+    // Calculate subtotal based on showWithPerpaidTax setting
+    let subtotal: number;
+    let totalPrepaidTax = 0;
+    
+    if (showWithPerpaidTax) {
+      // Current behavior: include prepaid tax in subtotal
+      subtotal = Number(Number(cartItems.reduce((sum: any, item: any) => sum + (Number(item.Product.Price_With_Tax || 0) * Number(item.Product.Qty || 0)), 0)).toFixed(2));
+    } else {
+      // New behavior: exclude prepaid tax from subtotal, calculate it separately
+      subtotal = Number(Number(cartItems.reduce((sum: any, item: any) => {
+        const basePrice = Number(item.Product.Price || 0);
+        const taxRate = Number(item.Product.Tax_Rate || 0);
+        const qty = Number(item.Product.Qty || 0);
+        const priceWithoutPrepaidTax = basePrice + taxRate;
+        return sum + (priceWithoutPrepaidTax * qty);
+      }, 0)).toFixed(2));
+      
+      // Calculate total prepaid tax separately
+      totalPrepaidTax = Number(Number(cartItems.reduce((sum: any, item: any) => {
+        const basePrice = Number(item.Product.Price || 0);
+        const taxRate = Number(item.Product.Tax_Rate || 0);
+        const prepaidTaxRate = Number(item.prepaidTaxRate || 0);
+        const qty = Number(item.Product.Qty || 0);
+        const basePriceWithTax = basePrice + taxRate;
+        const prepaidTaxAmount = basePriceWithTax * prepaidTaxRate;
+        return sum + (prepaidTaxAmount * qty);
+      }, 0)).toFixed(2));
+    }
+    
     // const discount = 0; // No discount for now
     const crv = Number(Number(0).toFixed(2)); // No CRV for now
     const deliveryCharges = Number(Number(deliveryCharge || 0).toFixed(2)); // No delivery charges for now
-    const estimatedTotal = Number(Number(subtotal + crv + deliveryCharges).toFixed(2));
+    const estimatedTotal = Number(Number(subtotal + crv + deliveryCharges + (showWithPerpaidTax ? 0 : totalPrepaidTax)).toFixed(2));
 
     return {
       subtotal,
@@ -756,6 +788,8 @@ const CartPage: React.FC = () => {
       crv,
       deliveryCharges,
       estimatedTotal,
+      prepaidTax: totalPrepaidTax,
+      showPrepaidTax: !showWithPerpaidTax && totalPrepaidTax > 0,
     };
   };
 
@@ -878,25 +912,61 @@ const CartPage: React.FC = () => {
 {
   id: "price",
   label: "Price",
-  render: (row) => (
-    <Box display="flex" alignItems="center" gap={1}>
-      <Typography fontSize={12} fontWeight={400} color="text.secondary">
-        {row.showWithOutPrice ? '-' : `$${Number(Number(row.Product.Price_With_Tax || 0).toFixed(2))}`}
-      </Typography>
-    </Box>
-  ),
+  render: (row) => {
+    if (row.showWithOutPrice) {
+      return (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">
+            -
+          </Typography>
+        </Box>
+      );
+    }
+    
+    const basePrice = Number(row.Product.Price || 0);
+    const taxRate = Number(row.Product.Tax_Rate || 0);
+    const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
+    const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+    
+    return (
+      <Box display="flex" alignItems="center" gap={1}>
+        <Typography fontSize={12} fontWeight={400} color="text.secondary">
+          ${displayPrice}
+        </Typography>
+      </Box>
+    );
+  },
 },
 
     {
       id: "totalPrice",
       label: "Total Price",
-      render: (row) => (
-        <Box display="flex" alignItems="center" gap={1}>
-          <Typography fontSize={12} fontWeight={400} color="text.secondary">
-            {row.showWithOutPrice ? '-' : `$${Number(Number(row.Product.TotalPriceWithTax || 0).toFixed(2))}`}
-          </Typography>
-        </Box>
-      ),
+      render: (row) => {
+        if (row.showWithOutPrice) {
+          return (
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography fontSize={12} fontWeight={400} color="text.secondary">
+                -
+              </Typography>
+            </Box>
+          );
+        }
+        
+        const basePrice = Number(row.Product.Price || 0);
+        const taxRate = Number(row.Product.Tax_Rate || 0);
+        const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
+        const qty = Number(row.Product.Qty || 0);
+        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+        const totalPrice = displayPrice * qty;
+        
+        return (
+          <Box display="flex" alignItems="center" gap={1}>
+            <Typography fontSize={12} fontWeight={400} color="text.secondary">
+              ${Number(Number(totalPrice).toFixed(2))}
+            </Typography>
+          </Box>
+        );
+      },
     },
     // {
     //   id: "discount",
