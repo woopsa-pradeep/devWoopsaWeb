@@ -1,0 +1,183 @@
+name: Dev Auto Deploy
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 🚀 TEAMS - DEPLOY START (Adaptive Card)
+      - name: Teams - Deploy Started
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          method: POST
+          customHeaders: '{"Content-Type":"application/json"}'
+          data: |
+            {
+              "type": "message",
+              "attachments": [
+                {
+                  "contentType": "application/vnd.microsoft.card.adaptive",
+                  "content": {
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": "🚀 QA FRONTEND DEPLOY STARTED",
+                        "weight": "Bolder",
+                        "size": "Medium"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Project: Woopsa Web Application\nStage: QA Frontend Live\nBranch: dev\nTriggered by: ${{ github.actor }}"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+
+      # 🔹 DEPLOY STEP
+      - name: Deploy to Ubuntu server
+        id: deploy
+        uses: appleboy/ssh-action@v1.0.3
+        continue-on-error: true
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -e
+            echo "🚀 QA FRONTEND DEPLOY STARTED"
+
+            cd /var/www/myapp/devWoopsaWeb
+
+            echo "📥 Pulling latest code"
+            git pull origin dev
+
+            echo "📦 Installing dependencies"
+            npm i -f
+
+            echo "🔨 Building React application"
+            npm run build
+
+            echo "🔄 Restarting application"
+            
+
+            echo "✅ QA FRONTEND LIVE - DEPLOY COMPLETED"
+
+      # ✅ TEAMS - DEPLOY SUCCESS (Adaptive Card)
+      - name: Teams - Deploy Success
+        if: steps.deploy.outcome == 'success'
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          method: POST
+          customHeaders: '{"Content-Type":"application/json"}'
+          data: |
+            {
+              "type": "message",
+              "attachments": [
+                {
+                  "contentType": "application/vnd.microsoft.card.adaptive",
+                  "content": {
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": "✅ QA FRONTEND LIVE - DEPLOY SUCCESS",
+                        "weight": "Bolder",
+                        "size": "Medium"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Project: Woopsa Web Application\nStage: QA Frontend Live\nBranch: dev\nCommit: ${{ github.sha }}"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+
+      # ❌ TEAMS - DEPLOY FAILURE (Adaptive Card)
+      - name: Teams - Deploy Failed
+        if: steps.deploy.outcome == 'failure'
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          method: POST
+          customHeaders: '{"Content-Type":"application/json"}'
+          data: |
+            {
+              "type": "message",
+              "attachments": [
+                {
+                  "contentType": "application/vnd.microsoft.card.adaptive",
+                  "content": {
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": "❌ QA FRONTEND DEPLOY FAILED",
+                        "weight": "Bolder",
+                        "size": "Medium"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Project: Woopsa Web Application\nStage: QA Frontend Live\nBranch: dev\nCheck GitHub Actions logs"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+
+      # ✅ SUCCESS MAIL
+      - name: Send success email
+        if: steps.deploy.outcome == 'success'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "✅ QA FRONTEND LIVE - DEPLOY SUCCESS (DEV)"
+          to: ${{ secrets.EMAIL_TO }}
+          from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>
+          body: |
+            Deployment SUCCESSFUL 🚀
+
+            Project: Woopsa Web Application
+            Stage: QA Frontend Live
+            Branch: dev
+            Commit: ${{ github.sha }}
+
+      # ❌ FAILURE MAIL
+      - name: Send failure email
+        if: steps.deploy.outcome == 'failure'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "❌ QA FRONTEND DEPLOY FAILED (DEV)"
+          to: ${{ secrets.EMAIL_TO }}
+          from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>
+          body: |
+            Deployment FAILED ❌
+
+            Project: Woopsa Web Application
+            Stage: QA Frontend Live
+            Branch: dev
+            Commit: ${{ github.sha }}
+
+            Please check GitHub Actions logs.
