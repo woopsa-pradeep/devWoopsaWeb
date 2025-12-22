@@ -43,7 +43,7 @@ const ContactUs = () => {
               <Box
                 component="img"
                 src={wareHouseDetail[0].D_Logo}
-                alt="CDT Logo"
+                alt="Woopsa Logo"
                 sx={{
                   width: 50,
                   height: 50,

@@ -267,7 +267,7 @@ const SalesLogin = () => {
           <Box
             component="img"
             src={logo}
-            alt="CDT Logo"
+            alt="Woopsa Logo"
             sx={{
               width: { xs: 120, sm: 150 },
               height: "auto",

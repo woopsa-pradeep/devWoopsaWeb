@@ -160,7 +160,7 @@ const WarehouseSelection = () => {
           <Box
             component="img"
             src={CDTLogo}
-            alt="CDT Logo"
+            alt="Woopsa Logo"
             sx={{
               width: { xs: 140, sm: 150 }, // ✅ Bigger logo on all screens
               height: "auto",

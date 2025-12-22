@@ -149,11 +149,7 @@ export const getDeliveryCharge = async (customerId: string) => {
     return response.data;
 }
 
-export const getInventoryShowPrepaidTax = async (customerId: string) => {
-    const response = await axiosInstance.get('/sales/getInventoryShowPrepaidTax',{
-        headers: {
-            'customer': customerId
-        }
-    });
+export const getInventoryShowPrepaidTax = async () => {
+    const response = await axiosInstance.get('/sales/getInventoryShowPrepaidTax');
     return response.data;
 }

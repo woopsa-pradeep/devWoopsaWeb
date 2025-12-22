@@ -267,7 +267,7 @@ const OtpLoginPage = () => {
           <Box
             component="img"
             src={logo} // or CDTLogo if you use another logo
-            alt="CDT Logo"
+            alt="Woopsa Logo"
             sx={{
               width: { xs: 140, sm: 150 },
               height: "auto",

@@ -312,7 +312,7 @@ const Dashboard = () => {
           flexDirection: "column",
         }}>
           <Typography fontSize={"20px"} fontWeight={500}>
-            Welcome CDT Wholesalers
+            Welcome to Dashboard
           </Typography>
               <Typography fontSize={"13px"} fontWeight={400} mb={2} color={theme.palette.text.secondary}>
                 Supplying Trust. Delivering Value.

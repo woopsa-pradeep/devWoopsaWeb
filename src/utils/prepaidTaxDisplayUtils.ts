@@ -13,7 +13,6 @@ export const useShowPrepaidTax = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const auth = useSelector((state: any) => state.auth);
   const role = auth?.role;
-  const selectedCustomer = auth?.selectedCustomer;
 
   useEffect(() => {
     const fetchSetting = async () => {
@@ -21,8 +20,8 @@ export const useShowPrepaidTax = () => {
         setLoading(true);
         let response: any;
         
-        if (role === 'sales' && selectedCustomer?.C_Number) {
-          response = await getSalesInventoryShowPrepaidTax(selectedCustomer.C_Number.toString());
+        if (role === 'sales') {
+          response = await getSalesInventoryShowPrepaidTax();
         } else {
           response = await getInventoryShowPrepaidTax();
         }
@@ -43,7 +42,7 @@ export const useShowPrepaidTax = () => {
     };
 
     fetchSetting();
-  }, [role, selectedCustomer?.C_Number]);
+  }, [role]);
 
   return { showWithPerpaidTax, loading };
 };
