@@ -12,6 +12,7 @@ import {
   getOrderHistoryByOrderNumber,
   getOrderDetailByOrderNumberForInvoice,
 } from "../../../redux/apis/distrubutor/orderDistrubutorApis";
+import { getWarehouseSetting } from "../../../redux/apis/distrubutor/settingApis";
 import image from "../../../assets/Default-Product-Image.jpg";
 import jsPDF from 'jspdf';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -26,6 +27,7 @@ const AdminOrderDetail = () => {
   const [orderHeader, setOrderHeader] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [showWithPerpaidTax, setShowWithPerpaidTax] = useState<boolean>(true);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -81,6 +83,24 @@ const AdminOrderDetail = () => {
       getOrderDeliveryStatusApi();
     }
   }, [orderId]);
+
+  // Fetch warehouse setting to get showWithPerpaidTax
+  useEffect(() => {
+    const fetchWarehouseSetting = async () => {
+      try {
+        const response: any = await getWarehouseSetting();
+        console.log(response);
+        if (response?.data?.success && response?.data?.data) {
+          setShowWithPerpaidTax(response.data.data.showWithPerpaidTax ?? true);
+        }
+      } catch (error) {
+        console.error('Failed to fetch warehouse setting:', error);
+        // Default to true if API fails
+        setShowWithPerpaidTax(true);
+      }
+    };
+    fetchWarehouseSetting();
+  }, []);
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -719,14 +739,22 @@ const AdminOrderDetail = () => {
       id: "Price",
       label: "Price",
       align: "right",
-      render: (row) => `$${Number(row.Price).toFixed(2)}`, // TODO: add tax
+      render: (row) => {
+        const price = Number(row.Price) || 0;
+        if (!showWithPerpaidTax && row.PrepaidTax_Amount !== undefined) {
+          const prepaidTaxAmount = Number(row.PrepaidTax_Amount) || 0;
+          const displayPrice = price - prepaidTaxAmount;
+          return `$${displayPrice.toFixed(2)}`;
+        }
+        return `$${price.toFixed(2)}`;
+      },
     },
-    {
-      id: "subtotal",
-      label: "Subtotal",
-      align: "right",
-      render: (row) => `$${Number(row.Price * row.Quantity_Ordered).toFixed(2)}`,
-    },
+    // {
+    //   id: "subtotal",
+    //   label: "Subtotal",
+    //   align: "right",
+    //   render: (row) => `$${Number(row.Price * row.Quantity_Ordered).toFixed(2)}`,
+    // },
     // {
     //   id: "discount",
     //   label: "Discount",
@@ -737,17 +765,38 @@ const AdminOrderDetail = () => {
       id: "totalPrice",
       label: "Total Price",
       align: "right",
-      render: (row) =>
-        `$${Number(row.Price * row.Quantity_Ordered - (row.OffInvoice_Amount || 0)).toFixed(2)}`,
+      render: (row) => {
+        const price = Number(row.Price) || 0;
+        const quantity = Number(row.Quantity_Ordered) || 0;
+        const discount = Number(row.OffInvoice_Amount || 0);
+        let totalPrice = (price * quantity) - discount;
+        
+        // If showWithPerpaidTax is false, subtract prepaid tax from total
+        if (!showWithPerpaidTax && row.PrepaidTax_Amount !== undefined) {
+          const prepaidTaxAmount = Number(row.PrepaidTax_Amount) || 0;
+          totalPrice = totalPrice - (prepaidTaxAmount * quantity);
+        }
+        
+        return `$${totalPrice.toFixed(2)}`;
+      },
     },
   ];
 
   // Calculate totals
-  const subtotal = Number(orderHeader?.Total_Price) || 0;
+  const originalSubtotal = Number(orderHeader?.Total_Price) || 0;
   const discount = Number(orderHeader?.Total_Discount) || 0;
   const crv = Number(orderHeader?.Total_Deposit) || 0;
   const deliveryCharges = Number(orderHeader?.Delivery_Charge) || 0;
-  const estimatedTotal = subtotal - discount + deliveryCharges;
+  const totalPrepaidTax = Number(orderHeader?.Total_PrepaidTax) || 0;
+  
+  // Calculate subtotal: when showWithPerpaidTax is false, subtract prepaid tax from subtotal
+  let subtotal = originalSubtotal;
+  if (!showWithPerpaidTax && totalPrepaidTax > 0) {
+    subtotal = subtotal - totalPrepaidTax;
+  }
+  
+  // Grand total should always show with prepaid tax (original total)
+  const estimatedTotal = originalSubtotal - discount + deliveryCharges; // Grand total = original - discount + delivery charge (includes prepaid tax)
   // const subtotal =  orderHeader?.Total_Price || 0;
   //   ? (orderHistory.map((item: any) => item.Price * item.Quantity_Ordered).reduce((acc: any, curr: any) => acc + curr, 0) - (orderHistory.map((item: any) => item.OffInvoice_Amount || 0).reduce((acc: any, curr: any) => acc + curr, 0)))
   //   : 0;
@@ -842,6 +891,8 @@ const AdminOrderDetail = () => {
             crv={crv}
             deliveryCharges={deliveryCharges}
             estimatedTotal={estimatedTotal}
+            prepaidTax={totalPrepaidTax}
+            showPrepaidTax={!showWithPerpaidTax && totalPrepaidTax > 0}
           />
         </Grid>
 

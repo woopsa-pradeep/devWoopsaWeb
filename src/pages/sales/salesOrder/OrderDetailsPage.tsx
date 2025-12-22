@@ -11,6 +11,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../../redux/store';
 import toast from 'react-hot-toast';
 import CustomButton from '../../../component/atoms/CustomButton';
+import { useShowPrepaidTax } from '../../../utils/prepaidTaxDisplayUtils';
 
 const OrderDetailsPage = () => {
   const navigate = useNavigate();
@@ -29,6 +30,8 @@ const OrderDetailsPage = () => {
   // Separate loading states for each button
   const [pdfLoadingWithPrice, setPdfLoadingWithPrice] = useState(false);
   const [pdfLoadingWithoutPrice, setPdfLoadingWithoutPrice] = useState(false);
+  // Get showWithPerpaidTax setting
+  const { showWithPerpaidTax } = useShowPrepaidTax();
   // Sort it safely
   const sortedSteps = stepData.sort((a: any, b: any) => a.no - b.no);
   
@@ -110,7 +113,21 @@ const OrderDetailsPage = () => {
     },
     { id: 'Item_Number', label: 'Item Number' },
     { id: 'Quantity_Ordered', label: 'Qty', render: (row) => `${Number(row.Quantity_Ordered).toFixed(0)}` },
-    { id: 'Price', label: 'Price', render: (row) => row.showWithOutPrice ? '-' : `$${Number(row.Price).toFixed(2)}`, align: 'right' },  
+    { 
+      id: 'Price', 
+      label: 'Price', 
+      render: (row) => {
+        if (row.showWithOutPrice) return '-';
+        const price = Number(row.Price) || 0;
+        if (!showWithPerpaidTax && row.PrepaidTax_Amount !== undefined) {
+          const prepaidTaxAmount = Number(row.PrepaidTax_Amount) || 0;
+          const displayPrice = price - prepaidTaxAmount;
+          return `$${displayPrice.toFixed(2)}`;
+        }
+        return `$${price.toFixed(2)}`;
+      }, 
+      align: 'right' 
+    },  
     // { 
     //   id: 'subtotal', 
     //   label: 'Subtotal', 
@@ -124,7 +141,22 @@ const OrderDetailsPage = () => {
     { 
       id: 'totalPrice', 
       label: 'Total Price', 
-      render: (row) => row.showWithOutPrice ? '-' : `$${Number((row.Price * row.Quantity_Ordered) - (row.OffInvoice_Amount || 0)).toFixed(2)}`, align: 'right'
+      render: (row) => {
+        if (row.showWithOutPrice) return '-';
+        const price = Number(row.Price) || 0;
+        const quantity = Number(row.Quantity_Ordered) || 0;
+        const discount = Number(row.OffInvoice_Amount || 0);
+        let totalPrice = (price * quantity) - discount;
+        
+        // If showWithPerpaidTax is false, subtract prepaid tax from total
+        if (!showWithPerpaidTax && row.PrepaidTax_Amount !== undefined) {
+          const prepaidTaxAmount = Number(row.PrepaidTax_Amount) || 0;
+          totalPrice = totalPrice - (prepaidTaxAmount * quantity);
+        }
+        
+        return `$${totalPrice.toFixed(2)}`;
+      }, 
+      align: 'right'
     },
   ];
 
@@ -132,8 +164,16 @@ const OrderDetailsPage = () => {
   const discount = Number(orderHeader?.Total_Discount) || 0;
   const crv = Number(orderHeader?.Total_Deposit) || 0;
   const deliveryCharges = Number(orderHeader?.Delivery_Charge) || 0;
-  const subtotal = originalSubtotal + discount; // Subtotal = original + discount
-  const estimatedTotal = subtotal - discount + deliveryCharges; // Grand total = subtotal - discount + delivery charge    
+  const totalPrepaidTax = Number(orderHeader?.Total_PrepaidTax) || 0;
+  
+  // Calculate subtotal: when showWithPerpaidTax is false, subtract prepaid tax from subtotal
+  let subtotal = originalSubtotal + discount; // Subtotal = original + discount
+  if (!showWithPerpaidTax && totalPrepaidTax > 0) {
+    subtotal = subtotal - totalPrepaidTax;
+  }
+  
+  // Grand total should always show with prepaid tax (original total)
+  const estimatedTotal = originalSubtotal - discount + deliveryCharges; // Grand total = original - discount + delivery charge (includes prepaid tax)    
 
   // Separate handlers for each button to manage their own loading state
   const handlePrintOrderWithPrice = async () => {
@@ -256,6 +296,8 @@ const OrderDetailsPage = () => {
             crv={crv}
             deliveryCharges={deliveryCharges}
             estimatedTotal={estimatedTotal}
+            prepaidTax={totalPrepaidTax}
+            showPrepaidTax={!showWithPerpaidTax && totalPrepaidTax > 0}
           />
         </Grid>
 
