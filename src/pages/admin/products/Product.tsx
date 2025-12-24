@@ -69,8 +69,9 @@ interface Product {
   imageId: any;
   PriceClass: string;
   SalesCategory: string;
-  QtyLimit?: { id: string; QtyLimit: number };
+  QtyLimit?: { id: string; QtyLimit: number; markAsBundle?: boolean };
   UPCList?: Array<{ UPC_Number: string }>;
+  markAsBundle?: boolean;
 }
 
 interface FilterOption {
@@ -83,6 +84,7 @@ interface LimitModalData {
   id?: string;
   Item_Number: string;
   QtyLimit: number;
+  markAsBundle?: boolean;
 }
 
 // Barcode cache outside component to persist across renders
@@ -120,7 +122,8 @@ const Product = () => {
   const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [limitModalData, setLimitModalData] = useState<LimitModalData>({
     Item_Number: '',
-    QtyLimit: 0
+    QtyLimit: 0,
+    markAsBundle: false
   });
   const [savingLimit, setSavingLimit] = useState(false);
 
@@ -310,12 +313,14 @@ const Product = () => {
       setLimitModalData({
         id: product.QtyLimit.id,
         Item_Number: product.Item_Number,
-        QtyLimit: product.QtyLimit.QtyLimit
+        QtyLimit: product.QtyLimit.QtyLimit,
+        markAsBundle: product.QtyLimit.markAsBundle ?? product.markAsBundle ?? false
       });
     } else {
       setLimitModalData({
         Item_Number: product.Item_Number,
-        QtyLimit: 0
+        QtyLimit: 0,
+        markAsBundle: product.markAsBundle ?? false
       });
     }
     setLimitModalOpen(true);
@@ -1895,21 +1900,21 @@ const Product = () => {
               />
             </Grid>
             
-            {/* Use Default Switch */}
-            {/* <Grid size={{ xs: 12 }}>
+            {/* Mark As Bundle Switch */}
+            <Grid size={{ xs: 12 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: 14 }}>Use Default</Typography>
+                <Typography sx={{ fontSize: 14 }}>Mark As Bundle</Typography>
                 <SwitchInput
-                  checked={limitModalData.useDefault}
+                  checked={limitModalData.markAsBundle ?? false}
                   onChange={(checked) => setLimitModalData(prev => ({
                     ...prev,
-                    useDefault: checked
+                    markAsBundle: checked
                   }))}
                   sx={{ mb: 0 }}
                   isShowLabel={false}
                 />
               </Box>
-            </Grid> */}
+            </Grid>
           </Grid>
 
           {/* Action Buttons */}

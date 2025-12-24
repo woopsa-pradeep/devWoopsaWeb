@@ -120,6 +120,7 @@ const OrderChecker = () => {
   const [imageCarouselModalOpen, setImageCarouselModalOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [priceClassSummaryModalOpen, setPriceClassSummaryModalOpen] = useState(false);
+  const [outOfStockModalOpen, setOutOfStockModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState<{
     title: string;
     message: string;
@@ -233,13 +234,20 @@ const OrderChecker = () => {
   }, [selectedOrder, activeTab]);
 
   // Get all items from all containers (items already have boxId and boxType)
-  const getAllItemsFromOrder = useMemo(() => {
+  // This includes ALL items (even without container info) - used for out of stock modal
+  const getAllItemsIncludingNoContainer = useMemo(() => {
     return allOrderItems.map((item) => ({
       ...item,
       containerId: item.boxId,
       containerType: item.boxType,
     }));
   }, [allOrderItems]);
+
+  // Get all items from all containers (items already have boxId and boxType)
+  // Filter out items where containerId or containerType is null - used for listing display
+  const getAllItemsFromOrder = useMemo(() => {
+    return getAllItemsIncludingNoContainer.filter((item) => item.containerId != null && item.containerType != null);
+  }, [getAllItemsIncludingNoContainer]);
 
   // Get price classes with totals from current items (for filter dropdown)
   const getPriceClassesWithTotals = useMemo(() => {
@@ -280,13 +288,32 @@ console.log(getPriceClassesWithTotals);
     }));
   }, [getAllItemsFromOrder]);
 
+  // Get out of stock items (items where qtyShipped is 0 or less than qtyOrdered)
+  // Include ALL items (even without container info) for the out of stock modal
+  const getOutOfStockItems = useMemo(() => {
+    return getAllItemsIncludingNoContainer.filter((item) => {
+      const qtyOrdered = item.qtyOrdered || 0;
+      const qtyShipped = item.qtyShipped || 0;
+      // Out of stock: either not shipped at all, or shipped less than ordered
+      return qtyShipped === 0 || qtyShipped < qtyOrdered;
+    });
+  }, [getAllItemsIncludingNoContainer]);
+
   // Filter items based on selected price class
+  // Also filter out items where containerId or containerType is null
   const getFilteredItems = useMemo(() => {
     const itemsToFilter = showAllItems ? getAllItemsFromOrder : boxItems;
+    // Filter out items without container info
+    const filteredByContainer = itemsToFilter.filter((item: any) => {
+      const containerId = item.containerId ?? item.boxId;
+      const containerType = item.containerType ?? item.boxType;
+      return containerId != null && containerType != null;
+    });
+    
     if (selectedPriceClass === 'all') {
-      return itemsToFilter;
+      return filteredByContainer;
     }
-    return itemsToFilter.filter((item) => (item as any).priceClassDescription === selectedPriceClass);
+    return filteredByContainer.filter((item) => (item as any).priceClassDescription === selectedPriceClass);
   }, [getAllItemsFromOrder, boxItems, showAllItems, selectedPriceClass]);
 
   // Fetch orders on mount and when tab changes
@@ -2249,39 +2276,41 @@ console.log(getPriceClassesWithTotals);
               <Typography variant="subtitle1" fontWeight={500} fontSize={14} color="text.primary">
                 Order Details
               </Typography>
-              {selectedOrder && getAllPriceClassesWithTotals.length > 0 && (
+              {selectedOrder && (
                 <Box display="flex" alignItems="center" gap={1}>
-                  {/* <FormControl size="small" sx={{ minWidth: 200 }}>
-                    <Select
-                      value={selectedPriceClass}
-                      onChange={(e) => setSelectedPriceClass(e.target.value)}
-                      displayEmpty
-                      sx={{ fontSize: 12 }}
+                  {getOutOfStockItems.length > 0 && (
+                    <CustomButton
+                      buttonType="primary"
+                      onClick={() => setOutOfStockModalOpen(true)}
+                      size="small"
+                      sx={{ 
+                        mt: 0,
+                        fontSize: 10,
+                        px: 1,
+                        py: 0.25,
+                        minHeight: 'auto',
+                        height: '28px',
+                      }}
                     >
-                      <MenuItem value="all" sx={{ fontSize: 12 }}>
-                        All Price Classes
-                      </MenuItem>
-                      {getPriceClassesWithTotals.map((priceClass) => (
-                        <MenuItem key={priceClass.description} value={priceClass.description} sx={{ fontSize: 12 }}>
-                          {priceClass.description} (Ordered: {priceClass.qtyOrdered}, Scanned: {priceClass.qtyShipped})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl> */}
-                  <IconButton
-                    size="small"
-                    onClick={() => setPriceClassSummaryModalOpen(true)}
-                    sx={{
-                      bgcolor: 'primary.main',
-                      color: 'white',
-                      '&:hover': {
-                        bgcolor: 'primary.dark',
-                      },
-                    }}
-                    title="View Price Class Summary"
-                  >
-                    <TableChart fontSize="small" />
-                  </IconButton>
+                      View Out of Stock Item
+                    </CustomButton>
+                  )}
+                  {getAllPriceClassesWithTotals.length > 0 && (
+                    <IconButton
+                      size="small"
+                      onClick={() => setPriceClassSummaryModalOpen(true)}
+                      sx={{
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        '&:hover': {
+                          bgcolor: 'primary.dark',
+                        },
+                      }}
+                      title="View Price Class Summary"
+                    >
+                      <TableChart fontSize="small" />
+                    </IconButton>
+                  )}
                 </Box>
               )}
             </Box>
@@ -2505,41 +2534,43 @@ console.log(getPriceClassesWithTotals);
                                   <Box display="flex" gap={1.5} alignItems="center" justifyContent="space-between">
                                     {/* Left Side: Container - Item Number - Description */}
                                     <Box flex={1} minWidth={0}>
-                                      <Box display="flex" gap={0.5} alignItems="center" mb={0.5}>
-                                        <Box
-                                          sx={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            px: 1,
-                                            py: 0.25,
-                                            borderRadius: 1,
-                                            bgcolor: item.containerType === 'box'
-                                              ? (isDark ? 'rgba(60, 119, 149, 0.3)' : 'rgba(60, 119, 149, 0.15)')
-                                              : item.containerType === 'tote'
-                                                ? (isDark ? 'rgba(76, 175, 80, 0.3)' : 'rgba(76, 175, 80, 0.15)')
-                                                : (isDark ? 'rgba(244, 67, 54, 0.3)' : 'rgba(244, 67, 54, 0.15)'),
-                                            border: '1px solid',
-                                            borderColor: item.containerType === 'box'
-                                              ? 'primary.main'
-                                              : item.containerType === 'tote'
-                                                ? 'success.main'
-                                                : 'error.main',
-                                          }}
-                                        >
-                                          <Typography 
-                                            variant="caption" 
-                                            fontSize={10} 
-                                            fontWeight={600}
-                                            color={item.containerType === 'box'
-                                              ? 'primary.main'
-                                              : item.containerType === 'tote'
-                                                ? 'success.main'
-                                                : 'error.main'}
+                                      {item.containerId && item.containerType && (
+                                        <Box display="flex" gap={0.5} alignItems="center" mb={0.5}>
+                                          <Box
+                                            sx={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              px: 1,
+                                              py: 0.25,
+                                              borderRadius: 1,
+                                              bgcolor: item.containerType === 'box'
+                                                ? (isDark ? 'rgba(60, 119, 149, 0.3)' : 'rgba(60, 119, 149, 0.15)')
+                                                : item.containerType === 'tote'
+                                                  ? (isDark ? 'rgba(76, 175, 80, 0.3)' : 'rgba(76, 175, 80, 0.15)')
+                                                  : (isDark ? 'rgba(244, 67, 54, 0.3)' : 'rgba(244, 67, 54, 0.15)'),
+                                              border: '1px solid',
+                                              borderColor: item.containerType === 'box'
+                                                ? 'primary.main'
+                                                : item.containerType === 'tote'
+                                                  ? 'success.main'
+                                                  : 'error.main',
+                                            }}
                                           >
-                                            {item.containerType === 'box' ? 'BOX' : item.containerType === 'tote' ? 'TOTE' : 'DRINK'} {item.containerId}
-                                          </Typography>
+                                            <Typography 
+                                              variant="caption" 
+                                              fontSize={10} 
+                                              fontWeight={600}
+                                              color={item.containerType === 'box'
+                                                ? 'primary.main'
+                                                : item.containerType === 'tote'
+                                                  ? 'success.main'
+                                                  : 'error.main'}
+                                            >
+                                              {item.containerType === 'box' ? 'BOX' : item.containerType === 'tote' ? 'TOTE' : 'DRINK'} {item.containerId}
+                                            </Typography>
+                                          </Box>
                                         </Box>
-                                      </Box>
+                                      )}
                                       <Box display="flex" gap={1} alignItems="center">
                                         <Typography 
                                           variant="body2"
@@ -4661,6 +4692,147 @@ console.log(getPriceClassesWithTotals);
           <Box sx={{ textAlign: 'center', py: 3 }}>
             <Typography variant="body2" color="text.secondary">
               No price class data available
+            </Typography>
+          </Box>
+        )}
+      </CommonModal>
+
+      {/* Out of Stock Items Modal */}
+      <CommonModal
+        open={outOfStockModalOpen}
+        onClose={() => {
+          setOutOfStockModalOpen(false);
+        }}
+        title={selectedOrder ? `Out of Stock Items - Order #${selectedOrder.orderNumber}` : 'Out of Stock Items'}
+        size="lg"
+      >
+        {selectedOrder && getOutOfStockItems.length > 0 ? (
+          <Box>
+            <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
+              <Table stickyHeader size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Item Number
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Description
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Container
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Ordered Qty
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Scanned Qty
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Missing Qty
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {getOutOfStockItems.map((item: any, index: number) => {
+                    const qtyOrdered = item.qtyOrdered || 0;
+                    const qtyShipped = item.qtyShipped || 0;
+                    const missingQty = qtyOrdered - qtyShipped;
+                    const containerName = item.containerId && item.containerType
+                      ? `${item.containerType === 'box' ? 'BOX' : item.containerType === 'tote' ? 'TOTE' : 'DRINK'} ${item.containerId}`
+                      : '-';
+                    
+                    return (
+                      <TableRow
+                        key={`${item.itemNumber}-${item.containerId || 'no-container'}-${index}`}
+                        sx={{
+                          '&:nth-of-type(odd)': {
+                            bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                          },
+                          '&:hover': {
+                            bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                          },
+                        }}
+                      >
+                        <TableCell sx={{ fontSize: 12, color: 'primary.main', fontWeight: 500 }}>
+                          {item.itemNumber}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: 12, maxWidth: 300 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontSize: 12,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={item.description}
+                          >
+                            {item.description || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ fontSize: 12 }}>
+                          {containerName}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontSize: 12, color: 'info.main', fontWeight: 500 }}>
+                          {qtyOrdered}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontSize: 12, color: 'success.main', fontWeight: 500 }}>
+                          {qtyShipped}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontSize: 12, color: 'error.main', fontWeight: 600 }}>
+                          {missingQty}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {/* Total Row */}
+                  <TableRow
+                    sx={{
+                      bgcolor: isDark ? 'rgba(244, 67, 54, 0.2)' : 'rgba(244, 67, 54, 0.1)',
+                      '& td': {
+                        fontWeight: 600,
+                        fontSize: 13,
+                        borderTop: '2px solid',
+                        borderColor: 'divider',
+                      },
+                    }}
+                  >
+                    <TableCell colSpan={3} sx={{ fontSize: 13, fontWeight: 600 }}>
+                      Total
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontSize: 13, fontWeight: 600, color: 'info.main' }}>
+                      {getOutOfStockItems.reduce((sum, item) => sum + (item.qtyOrdered || 0), 0)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontSize: 13, fontWeight: 600, color: 'success.main' }}>
+                      {getOutOfStockItems.reduce((sum, item) => sum + (item.qtyShipped || 0), 0)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontSize: 13, fontWeight: 600, color: 'error.main' }}>
+                      {getOutOfStockItems.reduce((sum, item) => {
+                        const qtyOrdered = item.qtyOrdered || 0;
+                        const qtyShipped = item.qtyShipped || 0;
+                        return sum + (qtyOrdered - qtyShipped);
+                      }, 0)}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Box display="flex" justifyContent="flex-end" mt={2}>
+              <CustomButton
+                buttonType="primary"
+                onClick={() => setOutOfStockModalOpen(false)}
+                size="small"
+                fullWidth={false}
+                sx={{ mt: 0 }}
+              >
+                Close
+              </CustomButton>
+            </Box>
+          </Box>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 3 }}>
+            <Typography variant="body2" color="text.secondary">
+              No out of stock items found
             </Typography>
           </Box>
         )}
