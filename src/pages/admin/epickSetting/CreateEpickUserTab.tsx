@@ -5,7 +5,7 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material';
-import { Edit as EditIcon, Add as AddIcon, Visibility as ViewIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Add as AddIcon, Visibility as ViewIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -22,6 +22,7 @@ import {
   getEpickUsers,
   createEpickUser,
   updateEpickUser,
+  deleteEpickUser,
 } from '../../../redux/apis/distrubutor/epickApis';
 import { getSalesCategoryList, getUserList } from '../../../redux/apis/distrubutor/listApis';
 
@@ -65,6 +66,10 @@ const updateEpickUserSchema = z.object({
   email: z.string().email('Invalid email address').optional(),
   firstName: z.string().min(1, 'First name is required').optional(),
   lastName: z.string().min(1, 'Last name is required').optional(),
+  password: z.union([
+    z.string().min(3, 'Password must be at least 3 characters'),
+    z.literal(''),
+  ]).optional(),
   userNumber: z.string().optional(),
   category: z.array(z.number()).optional(),
   order_type: z.enum(['order_number', 'qty_number']).optional(),
@@ -84,8 +89,10 @@ const CreateEpickUserTab: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<EpickUser | null>(null);
   const [selectedUserForView, setSelectedUserForView] = useState<EpickUser | null>(null);
+  const [selectedUserForDelete, setSelectedUserForDelete] = useState<EpickUser | null>(null);
   const [processing, setProcessing] = useState(false);
 
   // Create form
@@ -96,7 +103,7 @@ const CreateEpickUserTab: React.FC = () => {
       firstName: '',
       lastName: '',
       password: '',
-      userNumber: '',
+      userNumber: '0',
       category: [],
       order_type: 'order_number',
       shortby: 'Des',
@@ -112,6 +119,7 @@ const CreateEpickUserTab: React.FC = () => {
       email: '',
       firstName: '',
       lastName: '',
+      password: '',
       userNumber: '',
       category: [],
       order_type: 'order_number',
@@ -162,13 +170,18 @@ const CreateEpickUserTab: React.FC = () => {
   const fetchUserList = async () => {
     try {
       const response: any = await getUserList();
+      // Handle new response structure: { success, message, data: [...] }
       const userList = response?.data?.data || response?.data || [];
       setUserNumberOptions(userList
         .filter((u: any) => u && u.UserNumber != null)
-        .map((u: any) => ({
-          label: `${u?.UserName || 'User'} (${u?.UserNumber || ''})`,
-          value: String(u?.UserNumber || ''),
-        })));
+        .map((u: any) => {
+          // Explicitly handle UserNumber, including 0
+          const userNumber = u?.UserNumber != null ? String(u.UserNumber) : '';
+          return {
+            label: `${u?.UserName || 'User'} (${userNumber})`,
+            value: userNumber,
+          };
+        }));
     } catch (error) {
       console.error('Failed to fetch user list:', error);
       showErrorToast('Failed to fetch user list');
@@ -182,7 +195,7 @@ const CreateEpickUserTab: React.FC = () => {
       firstName: '',
       lastName: '',
       password: '',
-      userNumber: '',
+      userNumber: '0',
       category: [],
       order_type: 'order_number',
       shortby: 'Des',
@@ -243,16 +256,45 @@ const CreateEpickUserTab: React.FC = () => {
     setSelectedUserForView(null);
   };
 
+  // Handle open delete modal
+  const handleOpenDeleteModal = (user: EpickUser) => {
+    setSelectedUserForDelete(user);
+    setDeleteModalOpen(true);
+  };
+
+  // Handle close delete modal
+  const handleCloseDeleteModal = () => {
+    setDeleteModalOpen(false);
+    setSelectedUserForDelete(null);
+  };
+
+  // Handle delete user
+  const handleDeleteUser = async () => {
+    if (!selectedUserForDelete) return;
+    
+    setProcessing(true);
+    try {
+      await deleteEpickUser(selectedUserForDelete.id);
+      showSuccessToast('Epick user deleted successfully!');
+      await fetchEpickUsers();
+      handleCloseDeleteModal();
+    } catch (error: any) {
+      console.error('Failed to delete epick user:', error);
+      showErrorToast(error?.response?.data?.message || 'Failed to delete epick user');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   // Handle create user
   const handleCreateUser = async (data: CreateEpickUserFormData) => {
     setProcessing(true);
     try {
-      const payload = {
+      const payload: any = {
         email: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
         password: data.password,
-        userNumber: data.userNumber || undefined,
         category: data.category,
         order_type: data.order_type || 'order_number',
         shortby: data.shortby || 'Des',
@@ -260,6 +302,11 @@ const CreateEpickUserTab: React.FC = () => {
         status: data.status ?? true,
         isActive: true,
       };
+      
+      // Always include userNumber if it's defined (including "0")
+      if (data.userNumber !== undefined && data.userNumber !== null) {
+        payload.userNumber = data.userNumber;
+      }
       
       await createEpickUser(payload);
       showSuccessToast('Epick user created successfully!');
@@ -283,7 +330,14 @@ const CreateEpickUserTab: React.FC = () => {
       if (data.email) payload.email = data.email;
       if (data.firstName) payload.firstName = data.firstName;
       if (data.lastName) payload.lastName = data.lastName;
-      if (data.userNumber !== undefined) payload.userNumber = data.userNumber;
+      // Only include password if it's provided and not empty
+      if (data.password && data.password.trim() !== '') {
+        payload.password = data.password;
+      }
+      // Always include userNumber if it's defined (including "0")
+      if (data.userNumber !== undefined && data.userNumber !== null) {
+        payload.userNumber = data.userNumber;
+      }
       if (data.category !== undefined) payload.category = data.category;
       if (data.order_type !== undefined) payload.order_type = data.order_type;
       if (data.shortby !== undefined) payload.shortby = data.shortby;
@@ -350,13 +404,16 @@ const CreateEpickUserTab: React.FC = () => {
     return mapping[itemSortBy] || itemSortBy;
   };
 
-  // Category options for multi-select
-  const categoryOptions = categories
-    .filter(cat => cat && cat.Sales_Category != null && cat.Category_Desc != null)
-    .map(cat => ({
-      label: `${cat.Category_Desc} (${cat.Sales_Category})`,
-      value: cat.Sales_Category.toString(),
-    }));
+  // Category options for multi-select with "All Categories" option
+  const categoryOptions = [
+    { label: 'All Categories', value: 'all' },
+    ...categories
+      .filter(cat => cat && cat.Sales_Category != null && cat.Category_Desc != null)
+      .map(cat => ({
+        label: `${cat.Category_Desc} (${cat.Sales_Category})`,
+        value: cat.Sales_Category.toString(),
+      }))
+  ];
 
   // Table columns
   const columns: TableColumn<EpickUser>[] = [
@@ -462,6 +519,17 @@ const CreateEpickUserTab: React.FC = () => {
               <EditIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          <Tooltip title="Delete User">
+            <IconButton
+              size="small"
+              onClick={() => handleOpenDeleteModal(row)}
+              disabled={processing}
+              color="error"
+              sx={{ padding: '4px' }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
       ),
     },
@@ -563,9 +631,14 @@ const CreateEpickUserTab: React.FC = () => {
                 <SearchableDropdown
                   label="User Number"
                   options={userNumberOptions}
-                  value={userNumberOptions.find(opt => opt.value === field.value) || null}
+                  value={userNumberOptions.find(opt => String(opt.value) === String(field.value)) || null}
                   onChange={(selectedOption) => {
-                    field.onChange(selectedOption?.value || '');
+                    // Explicitly handle the value, including "0"
+                    if (selectedOption && selectedOption.value !== undefined && selectedOption.value !== null) {
+                      field.onChange(String(selectedOption.value));
+                    } else {
+                      field.onChange('');
+                    }
                   }}
                   error={!!fieldState.error}
                   helperText={fieldState.error?.message}
@@ -579,13 +652,63 @@ const CreateEpickUserTab: React.FC = () => {
               control={createForm.control}
               render={({ field, fieldState }) => {
                 const categoryValues = Array.isArray(field.value) ? field.value : [];
+                const allCategoryIds = categories
+                  .filter(cat => cat && cat.Sales_Category != null)
+                  .map(cat => cat.Sales_Category);
+                
+                // Check if all categories are selected
+                const allSelected = allCategoryIds.length > 0 && 
+                  categoryValues.length === allCategoryIds.length &&
+                  allCategoryIds.every(id => categoryValues.includes(id));
+                
+                // Build value array for MultiSelectInput
+                // When all are selected, show "all" and all category IDs
+                // When not all are selected, show only selected category IDs
+                const selectValue = allSelected 
+                  ? ['all', ...categoryValues.map((v: number) => v.toString())]
+                  : categoryValues.map((v: number) => v.toString());
+                
                 return (
                   <MultiSelectInput
                     label="Category"
                     options={categoryOptions}
-                    value={categoryValues.map((v: number) => v.toString())}
+                    value={selectValue}
                     onChange={(values: string[]) => {
-                      field.onChange(values.map((v: string) => parseInt(v, 10)));
+                      // Handle "All Categories" selection
+                      const hasAll = values.includes('all');
+                      const categoryOnlyValues = values.filter(v => v !== 'all');
+                      const newCategoryIds = categoryOnlyValues.map((v: string) => parseInt(v, 10));
+                      
+                      // Check if the new category values match all categories
+                      const newAllSelected = allCategoryIds.length > 0 && 
+                        newCategoryIds.length === allCategoryIds.length &&
+                        allCategoryIds.every(id => newCategoryIds.includes(id));
+                      
+                      // Check if "all" was just added (wasn't selected before, but is now)
+                      const allJustAdded = hasAll && !allSelected;
+                      
+                      if (hasAll) {
+                        // If "all" is in the values
+                        if (allJustAdded) {
+                          // "all" was just clicked - select all categories
+                          field.onChange(allCategoryIds);
+                        } else if (newAllSelected) {
+                          // All categories are actually selected, clicking "all" deselects all
+                          if (allSelected) {
+                            field.onChange([]);
+                          } else {
+                            // Select all categories (shouldn't happen, but just in case)
+                            field.onChange(allCategoryIds);
+                          }
+                        } else {
+                          // "all" is checked but not all categories are selected
+                          // This means a category was deselected - just update with selected categories
+                          field.onChange(newCategoryIds);
+                        }
+                      } else {
+                        // "all" is not in the new values - just update with selected categories
+                        field.onChange(newCategoryIds);
+                      }
                     }}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
@@ -601,10 +724,10 @@ const CreateEpickUserTab: React.FC = () => {
                 render={({ field, fieldState }) => (
                   <Box sx={{ flex: 1 }}>
                     <SelectInput
-                      label="Order Type"
+                      label="View Order By"
                       options={[
-                        { label: 'Order Number', value: 'order_number' },
-                        { label: 'Quantity Number', value: 'qty_number' },
+                        { label: 'latest Order', value: 'order_number' },
+                        { label: 'Quantity Size', value: 'qty_number' },
                       ]}
                       value={field.value || 'order_number'}
                       onChange={(e) => field.onChange(e.target.value)}
@@ -749,9 +872,14 @@ const CreateEpickUserTab: React.FC = () => {
                 <SearchableDropdown
                   label="User Number"
                   options={userNumberOptions}
-                  value={userNumberOptions.find(opt => opt.value === field.value) || null}
+                  value={userNumberOptions.find(opt => String(opt.value) === String(field.value)) || null}
                   onChange={(selectedOption) => {
-                    field.onChange(selectedOption?.value || '');
+                    // Explicitly handle the value, including "0"
+                    if (selectedOption && selectedOption.value !== undefined && selectedOption.value !== null) {
+                      field.onChange(String(selectedOption.value));
+                    } else {
+                      field.onChange('');
+                    }
                   }}
                   error={!!fieldState.error}
                   helperText={fieldState.error?.message}
@@ -760,18 +888,76 @@ const CreateEpickUserTab: React.FC = () => {
               )}
             />
 
+            <TextInput
+              label="Password"
+              type="password"
+              {...updateForm.register('password')}
+              error={!!updateForm.formState.errors.password}
+              helperText={updateForm.formState.errors.password?.message}
+            />
+
             <Controller
               name="category"
               control={updateForm.control}
               render={({ field, fieldState }) => {
                 const categoryValues = Array.isArray(field.value) ? field.value : [];
+                const allCategoryIds = categories
+                  .filter(cat => cat && cat.Sales_Category != null)
+                  .map(cat => cat.Sales_Category);
+                
+                // Check if all categories are selected
+                const allSelected = allCategoryIds.length > 0 && 
+                  categoryValues.length === allCategoryIds.length &&
+                  allCategoryIds.every(id => categoryValues.includes(id));
+                
+                // Build value array for MultiSelectInput
+                // When all are selected, show "all" and all category IDs
+                // When not all are selected, show only selected category IDs
+                const selectValue = allSelected 
+                  ? ['all', ...categoryValues.map((v: number) => v.toString())]
+                  : categoryValues.map((v: number) => v.toString());
+                
                 return (
                   <MultiSelectInput
                     label="Category"
                     options={categoryOptions}
-                    value={categoryValues.map((v: number) => v.toString())}
+                    value={selectValue}
                     onChange={(values: string[]) => {
-                      field.onChange(values.map((v: string) => parseInt(v, 10)));
+                      // Handle "All Categories" selection
+                      const hasAll = values.includes('all');
+                      const categoryOnlyValues = values.filter(v => v !== 'all');
+                      const newCategoryIds = categoryOnlyValues.map((v: string) => parseInt(v, 10));
+                      
+                      // Check if the new category values match all categories
+                      const newAllSelected = allCategoryIds.length > 0 && 
+                        newCategoryIds.length === allCategoryIds.length &&
+                        allCategoryIds.every(id => newCategoryIds.includes(id));
+                      
+                      // Check if "all" was just added (wasn't selected before, but is now)
+                      const allJustAdded = hasAll && !allSelected;
+                      
+                      if (hasAll) {
+                        // If "all" is in the values
+                        if (allJustAdded) {
+                          // "all" was just clicked - select all categories
+                          field.onChange(allCategoryIds);
+                        } else if (newAllSelected) {
+                          // All categories are actually selected, clicking "all" deselects all
+                          if (allSelected) {
+                            field.onChange([]);
+                          } else {
+                            // Select all categories (shouldn't happen, but just in case)
+                            field.onChange(allCategoryIds);
+                          }
+                        } else {
+                          // "all" is checked but not all categories are selected
+                          // This means a category was deselected - just update with selected categories
+                          field.onChange(newCategoryIds);
+                        }
+                      } else {
+                        // "all" is not in the new values - just update with selected categories
+                        field.onChange(newCategoryIds);
+                      }
                     }}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
@@ -1035,6 +1221,52 @@ const CreateEpickUserTab: React.FC = () => {
                 fullWidth={false}
               >
                 Close
+              </CustomButton>
+            </Box>
+          </Box>
+        )}
+      </CommonModal>
+
+      {/* Delete Confirmation Modal */}
+      <CommonModal
+        open={deleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        size="sm"
+        title="Delete Epick User"
+      >
+        {selectedUserForDelete && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Typography>
+              Are you sure you want to delete the user{' '}
+              <strong>
+                {selectedUserForDelete.firstName} {selectedUserForDelete.lastName}
+              </strong>{' '}
+              ({selectedUserForDelete.email})?
+            </Typography>
+            <Typography fontSize={14} color="text.secondary">
+              This action cannot be undone.
+            </Typography>
+
+            <Box display="flex" gap={2} justifyContent="flex-end" sx={{ mt: 2 }}>
+              <CustomButton
+                appearance="outlined"
+                buttonType="cancel"
+                onClick={handleCloseDeleteModal}
+                disabled={processing}
+                sx={{ minWidth: 100 }}
+                fullWidth={false}
+              >
+                Cancel
+              </CustomButton>
+              <CustomButton
+                appearance="filled"
+                buttonType="delete"
+                onClick={handleDeleteUser}
+                loading={processing}
+                sx={{ minWidth: 100 }}
+                fullWidth={false}
+              >
+                Delete
               </CustomButton>
             </Box>
           </Box>

@@ -102,6 +102,11 @@ export const updateEpickUser = async (id: number, data: {
     return response.data;
 }
 
+export const deleteEpickUser = async (id: number) => {
+    const response = await axiosInstance.delete(`/distrubutor/deleteEpickUser/${id}`);
+    return response.data;
+}
+
 export const updateUserOrderPreferences = async (userId: number, data: { order_type?: string; shortby?: string }) => {
     const response = await axiosInstance.put(`/distrubutor/epickUsers/${userId}/preferences`, data);
     return response.data;
