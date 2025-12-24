@@ -35,6 +35,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import AddIcon from '@mui/icons-material/Add';
 import PrintIcon from '@mui/icons-material/Print';
 import CloseIcon from '@mui/icons-material/Close';
+import UpdateIcon from '@mui/icons-material/Update';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const JsBarcode = require('jsbarcode');
 
@@ -1585,6 +1586,15 @@ const Product = () => {
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Typography fontSize={18} fontWeight={400} color="text.primary">Products Management</Typography>
           <Box display="flex" gap={2}>
+            <CustomButton 
+              fullWidth={false}
+              onClick={() => navigate('/admin/products/bulk-update')}
+              icon={<UpdateIcon sx={{ fontSize: 20 }} />}
+              iconPosition="left"
+              sx={{ mt: 0 }} 
+            >
+              Bulk Update
+            </CustomButton>
             <CustomButton 
               fullWidth={false}
               onClick={() => setPrintLabelDrawerOpen(true)}

@@ -11,6 +11,7 @@ import { Edit as EditIcon } from '@mui/icons-material';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import CommonModal from '../../../component/atoms/CommonModal';
 import CustomButton from '../../../component/atoms/CustomButton';
+import SelectInput from '../../../component/atoms/SelectInput';
 import { showSuccessToast, showErrorToast } from '../../../utils/toastUtils';
 import {
   getEpickUsers,
@@ -24,6 +25,7 @@ interface EpickUser {
   lastName: string;
   order_type: string;
   shortby: string;
+  item_sort_by?: string;
   userNumber: string;
   isActive: boolean;
   status: boolean;
@@ -39,6 +41,7 @@ const OrderPreferencesTab: React.FC = () => {
   // Form state
   const [orderType, setOrderType] = useState<string>('');
   const [shortby, setShortby] = useState<string>('');
+  const [itemSortBy, setItemSortBy] = useState<string>('line_number');
   const [formErrors, setFormErrors] = useState<{ orderType?: string; shortby?: string; general?: string }>({});
 
   // Fetch epick users
@@ -74,6 +77,10 @@ const OrderPreferencesTab: React.FC = () => {
     const normalizedShortby = user.shortby ? user.shortby.toLowerCase() : '';
     setOrderType(normalizedOrderType === 'order_number' ? 'order_number' : normalizedOrderType === 'qty_number' ? 'qty_number' : '');
     setShortby(normalizedShortby === 'asc' ? 'asc' : normalizedShortby === 'des' ? 'des' : '');
+    const validItemSortBy = user.item_sort_by && ['sales_location', 'alphabetically', 'item_number', 'short_number', 'line_number'].includes(user.item_sort_by)
+      ? user.item_sort_by
+      : 'line_number';
+    setItemSortBy(validItemSortBy);
     setFormErrors({});
     setEditModalOpen(true);
   };
@@ -84,6 +91,7 @@ const OrderPreferencesTab: React.FC = () => {
     setSelectedUser(null);
     setOrderType('');
     setShortby('');
+    setItemSortBy('line_number');
     setFormErrors({});
   };
 
@@ -147,7 +155,7 @@ const OrderPreferencesTab: React.FC = () => {
     setProcessingUserId(selectedUser.id);
     try {
       // Build request body - only include fields that have values
-      const requestBody: { order_type?: string; shortby?: string } = {};
+      const requestBody: { order_type?: string; shortby?: string; item_sort_by?: string } = {};
       
       if (orderType) {
         requestBody.order_type = orderType;
@@ -155,6 +163,10 @@ const OrderPreferencesTab: React.FC = () => {
       
       if (shortby) {
         requestBody.shortby = shortby;
+      }
+      
+      if (itemSortBy) {
+        requestBody.item_sort_by = itemSortBy;
       }
       
       await updateUserOrderPreferences(selectedUser.id, requestBody);
@@ -181,6 +193,19 @@ const OrderPreferencesTab: React.FC = () => {
     const normalized = shortby.toLowerCase();
     return normalized === 'asc' ? 'Asc' : normalized === 'des' ? 'Des' : shortby;
   };
+
+  // Format item sort by display
+  // const formatItemSortBy = (itemSortBy: string | undefined): string => {
+  //   if (!itemSortBy) return 'N/A';
+  //   const mapping: { [key: string]: string } = {
+  //     'sales_location': 'Sales Location',
+  //     'alphabetically': 'Alphabetically',
+  //     'item_number': 'Item Number',
+  //     'short_number': 'Short Number',
+  //     'line_number': 'Line Number',
+  //   };
+  //   return mapping[itemSortBy] || itemSortBy;
+  // };
 
   // Table columns
   const columns: TableColumn<EpickUser>[] = [
@@ -428,6 +453,26 @@ const OrderPreferencesTab: React.FC = () => {
                   * Sort By is required when Order Type is "Order Number"
                 </Typography>
               )}
+            </Box>
+
+            {/* Item Sort By */}
+            <Box>
+              <Typography fontSize={14} fontWeight={600} mb={1.5} sx={{ opacity: '70%' }}>
+                Item Sort By
+              </Typography>
+              <SelectInput
+                label="Item Sort By"
+                options={[
+                  { label: 'Sales Location', value: 'sales_location' },
+                  { label: 'Alphabetically', value: 'alphabetically' },
+                  { label: 'Item Number', value: 'item_number' },
+                  { label: 'Short Number', value: 'short_number' },
+                  { label: 'Line Number', value: 'line_number' },
+                ]}
+                value={itemSortBy}
+                onChange={(e) => setItemSortBy(e.target.value as string)}
+                marginBottom="0"
+              />
             </Box>
           </Box>
 

@@ -35,4 +35,7 @@ export const getListOfRoutes = async () => {
     return axiosInstance.get('/list/listOfRoutes');
 };
 
+export const getListForInventory = async () => {
+    return axiosInstance.get('/list/listForInventory');
+};
 

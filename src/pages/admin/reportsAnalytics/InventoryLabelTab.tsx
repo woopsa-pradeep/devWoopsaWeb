@@ -8,15 +8,26 @@ import {
   Select,
   MenuItem,
   Tooltip,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
 } from '@mui/material';
 import { productList } from '../../../redux/apis/distrubutor/productApis';
 import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
+import SearchableDropdown from '../../../component/atoms/SearchableDropdown';
 import { getSalesCategoryList, getPriceClassList, getCustomerList } from '../../../redux/apis/distrubutor/listApis';
+import { getOrderNumbers, getOrderHistoryByOrderNumber } from '../../../redux/apis/distrubutor/orderDistrubutorApis';
+import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import img from '../../../assets/Default-Product-Image.jpg';
 import CustomButton from '../../../component/atoms/CustomButton';
 import toast from 'react-hot-toast';
 import PrintIcon from '@mui/icons-material/Print';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import CloseIcon from '@mui/icons-material/Close';
 import { useTheme } from '@mui/material';
 import Switch from '@mui/material/Switch';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -100,9 +111,25 @@ const InventoryLabelTab = () => {
   const [salesCategoryOptions, setSalesCategoryOptions] = useState<FilterOption[]>([]);
   const [priceClassOptions, setPriceClassOptions] = useState<FilterOption[]>([]);
   const [customerOptions, setCustomerOptions] = useState<FilterOption[]>([]);
+  const [orderNumberOptions, setOrderNumberOptions] = useState<FilterOption[]>([]);
+  const [allOrderNumberOptions, setAllOrderNumberOptions] = useState<FilterOption[]>([]);
+  const [selectedOrderNumber, setSelectedOrderNumber] = useState<FilterOption | null>(null);
+  const [orderProducts, setOrderProducts] = useState<Product[]>([]);
+  const [orderNumberSearchTerm, setOrderNumberSearchTerm] = useState<string>('');
   const [loadingSalesCategory, setLoadingSalesCategory] = useState(false);
   const [loadingPriceClass, setLoadingPriceClass] = useState(false);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [loadingOrderNumbers, setLoadingOrderNumbers] = useState(false);
+  const [loadingOrderProducts, setLoadingOrderProducts] = useState(false);
+  
+  // Chunk loading for order numbers
+  const CHUNK_SIZE = 100;
+  const [displayedOrderNumberCount, setDisplayedOrderNumberCount] = useState(CHUNK_SIZE);
+
+  // Preview modal state
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   // Label form state
   const [labelForm, setLabelForm] = useState({
@@ -131,7 +158,170 @@ const InventoryLabelTab = () => {
     fetchSalesCategories();
     fetchPriceClasses();
     fetchCustomers();
+    fetchOrderNumbers();
   }, []);
+
+  const fetchOrderNumbers = async () => {
+    setLoadingOrderNumbers(true);
+    try {
+      const response = await getOrderNumbers() as any;
+      const orderNumbers = response?.data || response?.data?.data || [];
+      // Handle different response structures
+      const formattedOptions = Array.isArray(orderNumbers) 
+        ? orderNumbers.map((order: any) => ({
+            label: order.Order_Number?.toString() || order.toString(),
+            value: order.Order_Number?.toString() || order.toString()
+          }))
+        : [];
+      
+      // Sort by order number (descending - newest first)
+      formattedOptions.sort((a, b) => {
+        const numA = parseInt(a.value) || 0;
+        const numB = parseInt(b.value) || 0;
+        return numB - numA;
+      });
+      
+      setAllOrderNumberOptions(formattedOptions);
+      // Initially show only first chunk
+      setOrderNumberOptions(formattedOptions.slice(0, CHUNK_SIZE));
+      setDisplayedOrderNumberCount(CHUNK_SIZE);
+    } catch (error) {
+      console.error('Error fetching order numbers:', error);
+      toast.error('Failed to load order numbers');
+    } finally {
+      setLoadingOrderNumbers(false);
+    }
+  };
+
+  // Filter and chunk order numbers based on search term
+  useEffect(() => {
+    if (!orderNumberSearchTerm.trim()) {
+      // No search term - show chunks progressively
+      const filtered = allOrderNumberOptions.slice(0, displayedOrderNumberCount);
+      setOrderNumberOptions(filtered);
+    } else {
+      // Filter by search term
+      const searchLower = orderNumberSearchTerm.toLowerCase().trim();
+      const filtered = allOrderNumberOptions.filter(option => 
+        option.label.toLowerCase().includes(searchLower) || 
+        option.value.toLowerCase().includes(searchLower)
+      );
+      
+      // For search results, show all filtered results (they're already filtered)
+      setOrderNumberOptions(filtered);
+    }
+  }, [orderNumberSearchTerm, allOrderNumberOptions, displayedOrderNumberCount]);
+
+  // Load more order numbers when dropdown opens
+  const handleOrderNumberOpen = () => {
+    if (!orderNumberSearchTerm.trim() && displayedOrderNumberCount < allOrderNumberOptions.length) {
+      // Load next chunk asynchronously to prevent UI blocking
+      requestAnimationFrame(() => {
+        setDisplayedOrderNumberCount(prev => Math.min(prev + CHUNK_SIZE, allOrderNumberOptions.length));
+      });
+    }
+  };
+
+  // Handle scroll to load more chunks
+  const handleOrderNumberScroll = (e: React.UIEvent<HTMLUListElement>) => {
+    const target = e.currentTarget;
+    // Load more when user scrolls near bottom (within 100px)
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 100) {
+      if (!orderNumberSearchTerm.trim() && displayedOrderNumberCount < allOrderNumberOptions.length) {
+        // Use requestAnimationFrame for smooth loading
+        requestAnimationFrame(() => {
+          setDisplayedOrderNumberCount(prev => Math.min(prev + CHUNK_SIZE, allOrderNumberOptions.length));
+        });
+      }
+    }
+  };
+
+  const fetchOrderProducts = async (orderNumber: string) => {
+    if (!orderNumber) {
+      setOrderProducts([]);
+      return;
+    }
+
+    setLoadingOrderProducts(true);
+    try {
+      // Step 1: Get order items from order API
+      const response = await getOrderHistoryByOrderNumber(orderNumber, 1, 100000) as any;
+      const orderItems = response?.data?.data || [];
+      
+      // Step 2: Extract unique item numbers from order
+      const itemNumbers = orderItems
+        .map((item: any) => {
+          const inventory = item.inventory || {};
+          return inventory.Item_Number?.toString() || item.Item_Number?.toString();
+        })
+        .filter((itemNum: string) => itemNum && itemNum !== 'undefined' && itemNum !== 'null')
+        .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index); // Remove duplicates
+      
+      if (itemNumbers.length === 0) {
+        toast.error('No items found in order');
+        setOrderProducts([]);
+        setLoadingOrderProducts(false);
+        return;
+      }
+
+      // Step 3: Fetch products from main productList API one by one using search parameter
+      // Search for each item number individually
+      const allProducts: Product[] = [];
+      
+      for (const itemNumber of itemNumbers) {
+        try {
+          const params = {
+            search: itemNumber,
+            page: 1,
+            limit: 100000,
+            salesCategoryId: [],
+            priceClassId: [],
+          };
+          
+          const res: any = await productList(params);
+          const products: Product[] = res?.data?.data?.finalProductList || [];
+          
+          // Filter to find exact match for this item number
+          const matchedProduct = products.find((product: Product) => 
+            product.Item_Number?.toString() === itemNumber
+          );
+          
+          if (matchedProduct) {
+            allProducts.push(matchedProduct);
+          }
+        } catch (error) {
+          console.error(`Error fetching product for item number ${itemNumber}:`, error);
+          // Continue with next item even if one fails
+        }
+      }
+      
+      setOrderProducts(allProducts);
+      
+      if (allProducts.length === 0) {
+        toast.error('No matching products found in main listing');
+      } else {
+        toast.success(`Loaded ${allProducts.length} product(s) from order`);
+      }
+    } catch (error) {
+      console.error('Error fetching order products:', error);
+      toast.error('Failed to load order products');
+      setOrderProducts([]);
+    } finally {
+      setLoadingOrderProducts(false);
+    }
+  };
+
+  // Fetch order products when order number is selected
+  useEffect(() => {
+    if (selectedOrderNumber?.value) {
+      fetchOrderProducts(selectedOrderNumber.value);
+      // Clear sales category and price class when order is selected
+      setSalesCategory([]);
+      setPriceClass([]);
+    } else {
+      setOrderProducts([]);
+    }
+  }, [selectedOrderNumber]);
 
   // Reset rows when column count changes for A4 layouts and set orientation to portrait
   useEffect(() => {
@@ -1290,30 +1480,84 @@ const InventoryLabelTab = () => {
     }
   };
 
+  // Handle preview - show products that would be printed
+  const handlePreview = () => {
+    // If order is selected, use order products (already fetched)
+    if (selectedOrderNumber?.value && orderProducts.length > 0) {
+      setPreviewProducts(orderProducts);
+      setPreviewModalOpen(true);
+    } else {
+      // If no order selected, fetch products based on filters
+      setLoadingPreview(true);
+      const fetchPreviewProducts = async () => {
+        try {
+          const params = {
+            search: '',
+            page: 1,
+            limit: 100000,
+            salesCategoryId: salesCategory.length > 0 
+              ? salesCategory.map(cat => Number(cat.value))
+              : [],
+            priceClassId: priceClass.length > 0
+              ? priceClass.map(pc => Number(pc.value))
+              : [],
+          };
+          
+          const res: any = await productList(params);
+          const allProducts: Product[] = res?.data?.data?.finalProductList || [];
+          
+          if (!Array.isArray(allProducts) || allProducts.length === 0) {
+            toast.error('No products found');
+            setLoadingPreview(false);
+            return;
+          }
+
+          setPreviewProducts(allProducts);
+          setPreviewModalOpen(true);
+        } catch (error: any) {
+          console.error('Failed to fetch preview products:', error);
+          toast.error(error?.response?.data?.message || 'Failed to load preview');
+        } finally {
+          setLoadingPreview(false);
+        }
+      };
+      
+      fetchPreviewProducts();
+    }
+  };
+
   // Handle generate labels
   const handleGenerateLabels = async (downloadAsPDF: boolean = false) => {
     try {
       setGenerating(true);
       toast.loading('Fetching products...', { id: 'fetch-products' });
       
-      // Fetch all products using productList with high limit
-      const params = {
-        search: '', // Can be enhanced with search functionality later
-        page: 1,
-        limit: 100000,
-        salesCategoryId: salesCategory.length > 0 
-          ? salesCategory.map(cat => Number(cat.value))
-          : [],
-        priceClassId: priceClass.length > 0
-          ? priceClass.map(pc => Number(pc.value))
-          : [],
-      };
+      let allProducts: Product[] = [];
       
-      const res: any = await productList(params);
-      const allProducts: Product[] = res?.data?.data?.finalProductList || [];
+      // If order number is selected, use order products (already fetched from main API)
+      if (selectedOrderNumber?.value && orderProducts.length > 0) {
+        allProducts = orderProducts;
+      } else {
+        // Otherwise, fetch all products using productList with high limit
+        const params = {
+          search: '', // Can be enhanced with search functionality later
+          page: 1,
+          limit: 100000,
+          salesCategoryId: salesCategory.length > 0 
+            ? salesCategory.map(cat => Number(cat.value))
+            : [],
+          priceClassId: priceClass.length > 0
+            ? priceClass.map(pc => Number(pc.value))
+            : [],
+        };
+        
+        const res: any = await productList(params);
+        allProducts = res?.data?.data?.finalProductList || [];
+      }
       
       if (!Array.isArray(allProducts) || allProducts.length === 0) {
         toast.error('No products found', { id: 'fetch-products' });
+        setGenerating(false);
         return;
       }
 
@@ -1361,9 +1605,33 @@ const InventoryLabelTab = () => {
         p: 2,
         pb: 0.5,
       }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.813rem', mb: 1, mt: 0 }}>
-          Inventory Label Configuration
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, mt: 0 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.813rem' }}>
+            Inventory Label Configuration
+          </Typography>
+          <Tooltip title={selectedOrderNumber?.value && orderProducts.length > 0 ? "Preview items" : "Select an order to preview items"}>
+            <span>
+              <IconButton
+                size="small"
+                onClick={handlePreview}
+                disabled={!selectedOrderNumber?.value || orderProducts.length === 0 || loadingPreview || generating || loadingOrderProducts}
+                sx={{
+                  color: selectedOrderNumber?.value && orderProducts.length > 0 ? 'primary.main' : 'text.disabled',
+                  '&:hover': {
+                    backgroundColor: selectedOrderNumber?.value && orderProducts.length > 0
+                      ? (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)')
+                      : 'transparent',
+                  },
+                  '&.Mui-disabled': {
+                    color: 'text.disabled',
+                  },
+                }}
+              >
+                <VisibilityIcon sx={{ fontSize: '1.2rem' }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
 
         <Paper sx={{ 
           p: 0.75, 
@@ -1374,6 +1642,65 @@ const InventoryLabelTab = () => {
         }}>
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 3 }}>
+              {/* Order Number Filter */}
+              <Box sx={{ mb: 1.25 }}>
+                <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Order Number
+                </Typography>
+                <SearchableDropdown
+                  options={orderNumberOptions}
+                  value={selectedOrderNumber}
+                  onChange={(value: FilterOption | null) => {
+                    setSelectedOrderNumber(value);
+                  }}
+                  onSearchChange={(searchValue: string) => {
+                    setOrderNumberSearchTerm(searchValue);
+                    // Reset displayed count when searching
+                    if (searchValue.trim()) {
+                      setDisplayedOrderNumberCount(CHUNK_SIZE);
+                    }
+                  }}
+                  onOpen={handleOrderNumberOpen}
+                  loading={loadingOrderNumbers}
+                  placeholder="Search order number"
+                  disabled={generating}
+                  noOptionsText={orderNumberSearchTerm ? "No order numbers found" : "No order numbers available"}
+                  sx={{ 
+                    mb: 0, 
+                    width: '100%', 
+                    fontSize: '0.75rem',
+                    '& .MuiInputBase-root': {
+                      minHeight: 'auto',
+                      fontSize: '0.75rem',
+                    },
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderWidth: '1px',
+                    },
+                  }}
+                  ListboxProps={{
+                    onScroll: handleOrderNumberScroll,
+                    style: {
+                      maxHeight: '300px',
+                    }
+                  }}
+                />
+                {loadingOrderProducts && (
+                  <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary', mt: 0.5, display: 'block' }}>
+                    Loading order products...
+                  </Typography>
+                )}
+                {selectedOrderNumber?.value && orderProducts.length > 0 && (
+                  <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary', mt: 0.5, display: 'block' }}>
+                    {orderProducts.length} product(s) found
+                  </Typography>
+                )}
+                {!orderNumberSearchTerm && allOrderNumberOptions.length > displayedOrderNumberCount && (
+                  <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary', mt: 0.5, display: 'block', fontStyle: 'italic' }}>
+                    Showing {displayedOrderNumberCount} of {allOrderNumberOptions.length} orders. Scroll to load more.
+                  </Typography>
+                )}
+              </Box>
+
               {/* Sales Category Filter */}
               <Box sx={{ mb: 1.25 }}>
                 <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -1385,6 +1712,7 @@ const InventoryLabelTab = () => {
                   onChange={(options) => { setSalesCategory(options) } }
                   loading={loadingSalesCategory}
                   placeholder="Select sales categories"
+                  disabled={!!selectedOrderNumber?.value}
                   sx={{ 
                     mb: 0, 
                     width: '100%', 
@@ -1411,6 +1739,7 @@ const InventoryLabelTab = () => {
                   onChange={(options) => setPriceClass(options)}
                   loading={loadingPriceClass}
                   placeholder="Select sub category"
+                  disabled={!!selectedOrderNumber?.value}
                   sx={{ 
                     mb: 0, 
                     width: '100%', 
@@ -1731,7 +2060,7 @@ const InventoryLabelTab = () => {
           onClick={() => handleGenerateLabels(false)}
           fullWidth={false}
           loading={generating}
-          disabled={generating}
+          disabled={generating || (!!selectedOrderNumber?.value && (loadingOrderProducts || orderProducts.length === 0))}
           icon={<PrintIcon sx={{ fontSize: 20 }} />}
           iconPosition="left"
           sx={{ minWidth: 180, mt: 0 }}
@@ -1742,7 +2071,7 @@ const InventoryLabelTab = () => {
           onClick={() => handleGenerateLabels(true)}
           fullWidth={false}
           loading={generating}
-          disabled={generating}
+          disabled={generating || (!!selectedOrderNumber?.value && (loadingOrderProducts || orderProducts.length === 0))}
           icon={<PictureAsPdfIcon sx={{ fontSize: 20 }} />}
           iconPosition="left"
           sx={{ minWidth: 180, mt: 0 }}
@@ -1750,6 +2079,81 @@ const InventoryLabelTab = () => {
           Download PDF
         </CustomButton>
       </Box>
+
+      {/* Preview Modal */}
+      <Dialog
+        open={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            maxHeight: '90vh',
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          pb: 1,
+        }}>
+          <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600 }}>
+            Preview Items ({previewProducts.length})
+          </Typography>
+          <IconButton
+            size="small"
+            onClick={() => setPreviewModalOpen(false)}
+            sx={{ color: 'text.secondary' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          <CommonTable
+            data={previewProducts}
+            columns={[
+              {
+                id: 'Item_Number',
+                label: 'Item Number',
+                render: (row: Product) => (
+                  <Typography sx={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                    {row.Item_Number || 'N/A'}
+                  </Typography>
+                ),
+              },
+              {
+                id: 'Description',
+                label: 'Description',
+                render: (row: Product) => (
+                  <Typography sx={{ fontSize: '0.875rem' }}>
+                    {row.Description || row.Item_Name || 'N/A'}
+                  </Typography>
+                ),
+              },
+            ] as TableColumn<Product>[]}
+            loading={loadingPreview}
+            currentPage={1}
+            totalPages={1}
+            totalItems={previewProducts.length}
+            pageSize={previewProducts.length}
+            onPageChange={() => {}}
+            onPageSizeChange={() => {}}
+            containerHeight="calc(90vh - 200px)"
+            filterComponent={null}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 2, py: 1.5 }}>
+          <Button
+            onClick={() => setPreviewModalOpen(false)}
+            variant="outlined"
+            size="small"
+            sx={{ fontSize: '0.75rem' }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

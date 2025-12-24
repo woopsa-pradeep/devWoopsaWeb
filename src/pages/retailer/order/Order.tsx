@@ -19,11 +19,10 @@ import cart from '../../../assets/icons/cart.svg';
 import ViewModeToggle from '../../../component/atoms/ViewModeToggle';
 import GridCard from '../../../component/atoms/GridCard';
 // import LoadingSpinner from '../../../component/atoms/loader/LoadingSpinner';
-import { getInventoryItems, addToCart, updateCartItem, removeFromCart, clearCart, InventoryParams } from '../../../redux/apis/retailer/orderApis';
+import { getInventoryItems, addToCart, updateCartItem, removeFromCart, clearCart, InventoryParams, getSalesCategoryPriceClassByCustomer, getSalesCategoryByCustomer } from '../../../redux/apis/retailer/orderApis';
 import { useEffect, useCallback, useRef } from 'react';
 import DeleteConfirmationModal from '../../../component/atoms/DeleteConfirmationModal';
 import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
-import { getSalesCategoryList, getPriceClassList } from '../../../redux/apis/distrubutor/listApis';
 import { useAppDispatch, useAppSelector } from '../../../redux/store';
 import { fetchCartItems } from '../../../redux/slices/cartSlice';
 import { useSelector } from 'react-redux';
@@ -310,6 +309,7 @@ const Order = () => {
   const [priceClassOptions, setPriceClassOptions] = useState<{ label: string; value: string }[]>([]);
   const [loadingSalesCategory, setLoadingSalesCategory] = useState(false);
   const [loadingPriceClass, setLoadingPriceClass] = useState(false);
+  const [userSalesCategory, setUserSalesCategory] = useState<number[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [orderItems, setOrderItems] = useState<{ [key: string]: { quantity: number; price: number; Description: string; productId: number; placedBySalesPerson: boolean } }>({});
@@ -660,7 +660,8 @@ const Order = () => {
         masterSearch: masterSearchTerm,
         salesCategoryId: salesCategory.map(cat => cat.value),
         priceClassId: priceClass.map(pc => pc.value),
-      };
+        salesCategory: userSalesCategory
+      } as any;
       
       const response:any = await getInventoryItems(params);
       
@@ -682,7 +683,7 @@ const Order = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearchTerm, masterSearchTerm, salesCategory, priceClass, viewAllType, dashboardData]);
+  }, [currentPage, pageSize, debouncedSearchTerm, masterSearchTerm, salesCategory, priceClass, viewAllType, dashboardData, userSalesCategory]);
 
   // Load cart items on component mount
   const loadCartItems = useCallback(async () => {
@@ -988,49 +989,67 @@ const Order = () => {
     }
   }, [dashboardData, viewAllType, isInitialized, getInventoryData]);
 
-  // Fetch filter options on mount
+  // Fetch filter options on mount using getSalesCategoryPriceClassByCustomer
   useEffect(() => {
-    fetchSalesCategories();
-    fetchPriceClasses();
-  }, []);
-
-  const fetchSalesCategories = async () => {
-    setLoadingSalesCategory(true);
-    try {
-      const response = await getSalesCategoryList() as any;
-      const categories = response?.data?.data || [];
-      setSalesCategoryOptions(categories?.map((cat: any) => {
-        return {
-          label: cat.Category_Desc,
-          value: cat.Sales_Category
-        }
-      }));
-    } catch (error) {
-      console.error('Error fetching sales categories:', error);
-    } finally {
-      setLoadingSalesCategory(false);
+    const customerId = auth?.storeDetail?.C_Number || auth?.selectedCustomer?.C_Number;
+    if (!customerId) {
+      console.log('Retailer Order: Skipping filter API call - customer ID not available');
+      return;
     }
-  };
+    
+    const fetchFilterOptions = async () => {
+      setLoadingSalesCategory(true);
+      setLoadingPriceClass(true);
+      try {
+        const response = await getSalesCategoryPriceClassByCustomer(customerId) as any;
+        console.log('Retailer Order - getSalesCategoryPriceClassByCustomer response:', response);
+        
+        // Populate sales category options
+        const salesCategories = response?.data?.salesCategories || [];
+        setSalesCategoryOptions(salesCategories?.map((cat: any) => {
+          return {
+            label: cat.Category_Desc,
+            value: cat.Sales_Category.toString()
+          }
+        }));
+        
+        // Populate price class options
+        const priceClasses = response?.data?.priceClasses || [];
+        setPriceClassOptions(priceClasses?.map((pc: any) => {
+          return {
+            label: pc.Class_Desc,
+            value: pc.Price_Class.toString()
+          }
+        }));
+      } catch (error) {
+        console.error('Retailer Order - Error fetching filter options:', error);
+      } finally {
+        setLoadingSalesCategory(false);
+        setLoadingPriceClass(false);
+      }
+    };
+    
+    fetchFilterOptions();
+  }, [auth?.storeDetail?.C_Number, auth?.selectedCustomer?.C_Number]);
 
-  const fetchPriceClasses = async () => {
-    setLoadingPriceClass(true);
-    try {
-      const response = await getPriceClassList() as any;
-      const priceClasses = response?.data?.data || [];
-      setPriceClassOptions(priceClasses?.map((pc: any) => {
-        return {
-          label: pc.Class_Desc,
-          value: pc.Price_Class
-        }
-      }));
-    } catch (error) {
-      console.error('Error fetching price classes:', error);
-    } finally {
-      setLoadingPriceClass(false);
+  // Fetch user sales categories for API payload
+  useEffect(() => {
+    const customerId = auth?.storeDetail?.C_Number || auth?.selectedCustomer?.C_Number;
+    if (!customerId) {
+      return;
     }
-  };
-
-
+    const fetchUserSalesCategory = async () => {
+      try {
+        const response = await getSalesCategoryByCustomer(customerId) as any;
+        console.log('Retailer Order - getSalesCategoryByCustomer response:', response);
+        const categories = response?.data || [];
+        setUserSalesCategory(categories);
+      } catch (error) {
+        console.error('Retailer Order - Error fetching user sales categories:', error);
+      }
+    };
+    fetchUserSalesCategory();
+  }, [auth?.storeDetail?.C_Number, auth?.selectedCustomer?.C_Number]);
 
   // Optimized quantity change handler with debouncing
   const handleQuantityChange = async (id: string, change: number) => {
@@ -1814,7 +1833,8 @@ const Order = () => {
         masterSearch: '',
         salesCategoryId: [],
         priceClassId: [],
-      };
+        salesCategory: userSalesCategory
+      } as any;
       
       const response: any = await getInventoryItems(params);
       

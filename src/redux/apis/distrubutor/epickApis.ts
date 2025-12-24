@@ -58,8 +58,11 @@ export const getOngoingOrders = async () => {
     return response.data;
 }
 
-export const removeOngoingOrder = async (orderNumber: number) => {
-    const response = await axiosInstance.delete(`/distrubutor/ongoingOrders/${orderNumber}`);
+export const removeOngoingOrder = async (orderNumber: number, pickerId?: number) => {
+    const url = pickerId 
+        ? `/distrubutor/ongoingOrders/${orderNumber}?pickerId=${pickerId}`
+        : `/distrubutor/ongoingOrders/${orderNumber}`;
+    const response = await axiosInstance.delete(url);
     return response.data;
 }
 
@@ -68,8 +71,39 @@ export const getEpickUsers = async () => {
     return response.data;
 }
 
+export const createEpickUser = async (data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+    userNumber?: string;
+    category: number[];
+    order_type?: string;
+    shortby?: string;
+    status?: boolean;
+    isActive?: boolean;
+}) => {
+    const response = await axiosInstance.post('/distrubutor/createEpickUser', data);
+    return response.data;
+}
+
+export const updateEpickUser = async (id: number, data: {
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    userNumber?: string;
+    category?: number[];
+    order_type?: string;
+    shortby?: string;
+    status?: boolean;
+    isActive?: boolean;
+}) => {
+    const response = await axiosInstance.put(`/distrubutor/updateEpickUser/${id}`, data);
+    return response.data;
+}
+
 export const updateUserOrderPreferences = async (userId: number, data: { order_type?: string; shortby?: string }) => {
-    const response = await axiosInstance.put(`/distrubutor/users/${userId}/orderPreferences`, data);
+    const response = await axiosInstance.put(`/distrubutor/epickUsers/${userId}/preferences`, data);
     return response.data;
 }
 
@@ -136,7 +170,10 @@ export const getOrderDetailsByOrderNumber = async (orderNumber: number) => {
 }
 
 // Approve/Reject all override requests for an order
-export const requestAllStatusOverride = async (orderNumber: number, status: 'approved' | 'rejected') => {
-    const response = await axiosInstance.put(`/checker/requestAllStatusOverride/${orderNumber}?status=${status}`);
+export const requestAllStatusOverride = async (orderNumber: number, status: 'approved' | 'rejected', pickerId?: number) => {
+    const url = pickerId 
+        ? `/epick/requestAllStatusOverride/${orderNumber}?status=${status}&pickerId=${pickerId}`
+        : `/epick/requestAllStatusOverride/${orderNumber}?status=${status}`;
+    const response = await axiosInstance.put(url);
     return response.data;
 }

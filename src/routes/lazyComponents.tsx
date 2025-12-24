@@ -187,6 +187,10 @@ export const Inventory = lazyLoad(
   () => import("../pages/admin/inventory/Inventory"),
   "Loading Inventory..."
 );
+export const BulkUpdate = lazyLoad(
+  () => import("../pages/admin/products/BulkUpdate"),
+  "Loading Bulk Update..."
+);
 export const ReportsAnalytics = lazyLoad(
   () => import("../pages/admin/reportsAnalytics/ReportsAnalytics"),
   "Loading Reports Analytics..."

@@ -39,3 +39,19 @@ export const inventoryForReport = async (onDownloadProgress?: (progressEvent: an
     } as any);
 };
 
+export const inventoryItemsForUpdate = async (params: {
+    salesCategoryId?: string[];
+    priceClassId?: number[];
+    filter?: string;
+}) => {
+    return axiosInstance.post('/distrubutor/inventoryItemsForUpdate', params);
+};
+
+export const bulkUpdateInventory = async (params: {
+    field: Record<string, any>;
+    data: Record<string, any>;
+    hasBulkUpdate: boolean;
+}) => {
+    return axiosInstance.post('/distrubutor/bulkUpdateInventory', params);
+};
+

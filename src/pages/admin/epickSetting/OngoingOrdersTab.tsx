@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -9,8 +9,18 @@ import {
   Divider,
   Chip,
   TextField,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  Select,
+  MenuItem,
+  InputLabel,
 } from '@mui/material';
-import { Delete as DeleteIcon, Visibility as ViewIcon, Settings as OverrideIcon, ArrowBack as ArrowBackIcon, ThumbUp as ThumbUpIcon, Block as BlockIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Visibility as ViewIcon, ThumbUp as ThumbUpIcon, Block as BlockIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import CommonModal from '../../../component/atoms/CommonModal';
 import CustomButton from '../../../component/atoms/CustomButton';
@@ -33,7 +43,11 @@ interface Route {
 }
 
 interface OngoingOrder {
+  confirmationId: number;
   orderNumber: number;
+  categories: number[];
+  categoryNames: string[];
+  status: string;
   customerNumber: number;
   customerName: string;
   routes: Route[];
@@ -41,7 +55,7 @@ interface OngoingOrder {
   pickerId: number;
   pickerName: string;
   pickerEmail: string;
-  pickerUserNumber: number;
+  pickerUserNumber: number | string;
   startedAt: string;
   totalLines: number;
   totalQty: number;
@@ -49,9 +63,45 @@ interface OngoingOrder {
   scannedQty: number;
   outOfStockItems: number;
   notes: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  flagPass?: boolean;
+}
+
+interface OverrideRequestItem {
+  requestId: number;
+  orderNumber: number;
+  itemNumber: number;
+  itemDescription: string;
+  requestType: string;
+  qty: number;
+  note: string | null;
   createdAt: string;
   updatedAt: string;
-  flagPass?: boolean;
+  pickerUserNumber?: number;
+  userName?: string;
+  userEmail?: string;
+}
+
+interface PickerItem {
+  itemNumber: number;
+  description: string;
+  section: string;
+  location: number;
+  salesCategory: number;
+  quantityOrdered: number;
+  quantityShipped: number;
+  confirmed: boolean;
+}
+
+interface PickerData {
+  pickerUserId: number;
+  pickerUserNumber: number;
+  userName: string;
+  userEmail: string;
+  pickerCategories: number[];
+  overrideRequests: OverrideRequestItem[];
+  pickerItems: PickerItem[];
 }
 
 interface OverrideRequest {
@@ -171,11 +221,20 @@ const OngoingOrdersTab: React.FC = () => {
   const [selectedOrderNumber, setSelectedOrderNumber] = useState<number | null>(null);
   const [selectedOrderName, setSelectedOrderName] = useState<string>('');
   
-  // Override requests view states (for pending tab)
-  const [showOverrideRequests, setShowOverrideRequests] = useState(false);
-  const [selectedOrderNumberForOverride, setSelectedOrderNumberForOverride] = useState<number | null>(null);
-  const [overrideRequests, setOverrideRequests] = useState<OverrideRequest[]>([]);
-  const [loadingOverride, setLoadingOverride] = useState(false);
+  // Accordion states for pending tab
+  const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+  const [orderPickerData, setOrderPickerData] = useState<Record<number, PickerData[]>>({});
+  const [loadingOrderData, setLoadingOrderData] = useState<Record<number, boolean>>({});
+  const [expandedRequestAccordion, setExpandedRequestAccordion] = useState<string | null>(null);
+  const [expandedItemAccordion, setExpandedItemAccordion] = useState<string | null>(null);
+  
+  // Ref to track current orderPickerData to avoid stale closures
+  const orderPickerDataRef = useRef<Record<number, PickerData[]>>({});
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    orderPickerDataRef.current = orderPickerData;
+  }, [orderPickerData]);
   
   // Approve/Reject modal states
   const [approveModalOpen, setApproveModalOpen] = useState(false);
@@ -188,6 +247,7 @@ const OngoingOrdersTab: React.FC = () => {
   const [approveAllModalOpen, setApproveAllModalOpen] = useState(false);
   const [rejectAllModalOpen, setRejectAllModalOpen] = useState(false);
   const [processingAllRequests, setProcessingAllRequests] = useState(false);
+  const [selectedPickerIdForAll, setSelectedPickerIdForAll] = useState<number | null>(null);
   
   // Completed tab states
   const [completeOrders, setCompleteOrders] = useState<CompleteOrder[]>([]);
@@ -258,46 +318,51 @@ const OngoingOrdersTab: React.FC = () => {
     }
   };
 
-  // Fetch override requests for pending tab
-  const fetchOverrideRequests = async (orderNumber: number, showLoading: boolean = true, setView: boolean = true) => {
-    if (showLoading) {
-      setLoadingOverride(true);
-    }
-    if (setView) {
-      setSelectedOrderNumberForOverride(orderNumber);
+  // Fetch override requests for an order
+  const fetchOverrideRequests = async (orderNumber: number, isInitialLoad: boolean = false) => {
+    // Only show loading state on initial load, not during polling updates
+    // Use ref to get current state value to avoid stale closures
+    const hasExistingData = orderPickerDataRef.current[orderNumber] && orderPickerDataRef.current[orderNumber].length > 0;
+    if (isInitialLoad || !hasExistingData) {
+      setLoadingOrderData(prev => ({ ...prev, [orderNumber]: true }));
     }
     try {
       const response: any = await getPendingOverrideRequestsByOrderNumber(orderNumber);
       console.log('Override Requests API Response:', response);
       
-      let requestsData = [];
+      let pickerDataList: PickerData[] = [];
       if (response?.data && Array.isArray(response.data)) {
-        requestsData = response.data;
+        // API already returns data in PickerData format
+        pickerDataList = response.data;
       } else if (response?.data?.data && Array.isArray(response.data.data)) {
-        requestsData = response.data.data;
+        pickerDataList = response.data.data;
       }
       
-      setOverrideRequests(requestsData);
-      if (setView) {
-        setShowOverrideRequests(true);
-      }
+      setOrderPickerData(prev => ({ ...prev, [orderNumber]: pickerDataList }));
     } catch (error) {
       console.error('Failed to fetch override requests:', error);
-      if (showLoading) {
+      // Only show error toast on initial load, not during silent polling updates
+      if (isInitialLoad || !hasExistingData) {
         showErrorToast('Failed to fetch override requests');
       }
     } finally {
-      if (showLoading) {
-        setLoadingOverride(false);
+      if (isInitialLoad || !hasExistingData) {
+        setLoadingOrderData(prev => ({ ...prev, [orderNumber]: false }));
       }
     }
   };
 
-  // Handle back button click
-  const handleBackToOrders = () => {
-    setShowOverrideRequests(false);
-    setSelectedOrderNumberForOverride(null);
-    setOverrideRequests([]);
+  // Handle accordion expand/collapse
+  const handleAccordionChange = (orderNumber: number, isExpanded: boolean) => {
+    if (isExpanded) {
+      setExpandedOrder(orderNumber);
+      // Fetch data if not already loaded
+      if (!orderPickerData[orderNumber]) {
+        fetchOverrideRequests(orderNumber, true); // Initial load
+      }
+    } else {
+      setExpandedOrder(null);
+    }
   };
 
   // Open approve confirmation modal
@@ -314,15 +379,14 @@ const OngoingOrdersTab: React.FC = () => {
 
   // Handle approve request (after confirmation)
   const handleApproveRequest = async () => {
-    if (!selectedRequestId || !selectedOrderNumberForOverride) return;
+    if (!selectedRequestId || !expandedOrder) return;
     
     setProcessingRequestId(selectedRequestId);
     setApproveModalOpen(false);
     try {
       await approveOverrideRequest(selectedRequestId);
       showSuccessToast('Request approved successfully!');
-      // Refresh override requests (with loading since it's a user action)
-      await fetchOverrideRequests(selectedOrderNumberForOverride, true, false);
+      await fetchOverrideRequests(expandedOrder, false); // Refresh existing data
     } catch (error) {
       console.error('Failed to approve request:', error);
       showErrorToast('Failed to approve request');
@@ -334,16 +398,15 @@ const OngoingOrdersTab: React.FC = () => {
 
   // Handle cancel/reject request (after confirmation)
   const handleCancelRequest = async () => {
-    if (!selectedRequestId || !selectedOrderNumberForOverride) return;
+    if (!selectedRequestId || !expandedOrder) return;
     
     setProcessingRequestId(selectedRequestId);
     setRejectModalOpen(false);
     try {
       await cancelOverrideRequest(selectedRequestId, rejectionReason);
       showSuccessToast('Request rejected successfully!');
-      // Refresh override requests (with loading since it's a user action)
-      await fetchOverrideRequests(selectedOrderNumberForOverride, true, false);
-      setRejectionReason(''); // Reset rejection reason
+      await fetchOverrideRequests(expandedOrder, false); // Refresh existing data
+      setRejectionReason('');
     } catch (error) {
       console.error('Failed to reject request:', error);
       showErrorToast('Failed to reject request');
@@ -353,41 +416,41 @@ const OngoingOrdersTab: React.FC = () => {
     }
   };
 
-  // Handle approve all requests
+  // Handle approve all requests for a picker
   const handleApproveAll = async () => {
-    if (!selectedOrderNumberForOverride) return;
+    if (!expandedOrder || !selectedPickerIdForAll) return;
     
     setProcessingAllRequests(true);
     setApproveAllModalOpen(false);
     try {
-      await requestAllStatusOverride(selectedOrderNumberForOverride, 'approved');
+      await requestAllStatusOverride(expandedOrder, 'approved', selectedPickerIdForAll);
       showSuccessToast('All requests approved successfully!');
-      // Refresh override requests
-      await fetchOverrideRequests(selectedOrderNumberForOverride, true, false);
+      await fetchOverrideRequests(expandedOrder, false); // Refresh existing data
     } catch (error) {
       console.error('Failed to approve all requests:', error);
       showErrorToast('Failed to approve all requests');
     } finally {
       setProcessingAllRequests(false);
+      setSelectedPickerIdForAll(null);
     }
   };
 
-  // Handle reject all requests
+  // Handle reject all requests for a picker
   const handleRejectAll = async () => {
-    if (!selectedOrderNumberForOverride) return;
+    if (!expandedOrder || !selectedPickerIdForAll) return;
     
     setProcessingAllRequests(true);
     setRejectAllModalOpen(false);
     try {
-      await requestAllStatusOverride(selectedOrderNumberForOverride, 'rejected');
+      await requestAllStatusOverride(expandedOrder, 'rejected', selectedPickerIdForAll);
       showSuccessToast('All requests rejected successfully!');
-      // Refresh override requests
-      await fetchOverrideRequests(selectedOrderNumberForOverride, true, false);
+      await fetchOverrideRequests(expandedOrder, false); // Refresh existing data
     } catch (error) {
       console.error('Failed to reject all requests:', error);
       showErrorToast('Failed to reject all requests');
     } finally {
       setProcessingAllRequests(false);
+      setSelectedPickerIdForAll(null);
     }
   };
 
@@ -415,29 +478,45 @@ const OngoingOrdersTab: React.FC = () => {
   // Handle tab change
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
-    // Reset override requests view when switching tabs
-    setShowOverrideRequests(false);
-    setSelectedOrderNumberForOverride(null);
-    setOverrideRequests([]);
-    // Don't call API here - useEffect will handle it
+    setExpandedOrder(null);
   };
+
+  // State for delete modal
+  const [deleteType, setDeleteType] = useState<'all' | 'picker'>('all');
+  const [selectedPickerIdForDelete, setSelectedPickerIdForDelete] = useState<number | null>(null);
 
   // Handle delete confirmation modal open
   const handleOpenDeleteModal = (orderNumber: number, customerName: string) => {
     setSelectedOrderNumber(orderNumber);
     setSelectedOrderName(customerName);
+    setDeleteType('all');
+    setSelectedPickerIdForDelete(null);
     setDeleteModalOpen(true);
+    
+    // Fetch picker data if not already loaded (for picker selection dropdown)
+    if (!orderPickerData[orderNumber]) {
+      fetchOverrideRequests(orderNumber, false);
+    }
   };
 
   // Handle remove ongoing order
   const handleRemoveOrder = async () => {
     if (!selectedOrderNumber) return;
     
+    // Validate picker selection if delete type is 'picker'
+    if (deleteType === 'picker' && !selectedPickerIdForDelete) {
+      showErrorToast('Please select a picker to remove');
+      return;
+    }
+    
     setProcessingOrderNumber(selectedOrderNumber);
     setDeleteModalOpen(false);
     try {
-      await removeOngoingOrder(selectedOrderNumber);
-      showSuccessToast('Ongoing order removed successfully!');
+      const pickerIdToDelete = deleteType === 'picker' ? selectedPickerIdForDelete : undefined;
+      await removeOngoingOrder(selectedOrderNumber, pickerIdToDelete || undefined);
+      showSuccessToast(deleteType === 'picker' 
+        ? 'Picker removed from order successfully!' 
+        : 'Ongoing order removed successfully!');
       await fetchOngoingOrders(true);
     } catch (error) {
       console.error('Failed to remove ongoing order:', error);
@@ -446,12 +525,9 @@ const OngoingOrdersTab: React.FC = () => {
       setProcessingOrderNumber(null);
       setSelectedOrderNumber(null);
       setSelectedOrderName('');
+      setDeleteType('all');
+      setSelectedPickerIdForDelete(null);
     }
-  };
-
-  // Handle override icon click (pending tab)
-  const handleOverrideClick = (orderNumber: number) => {
-    fetchOverrideRequests(orderNumber, true, true);
   };
 
   // Handle view icon click (completed tab)
@@ -471,12 +547,6 @@ const OngoingOrdersTab: React.FC = () => {
     if (!dateString) return 'N/A';
     const date = moment(dateString);
     return date.isValid() ? date.format('MM/DD/YYYY HH:mm') : 'N/A';
-  };
-
-  // Format routes helper
-  const formatRoutes = (routes: Route[]): string => {
-    if (!routes || routes.length === 0) return 'N/A';
-    return routes.map(r => `R${r.Route_Number}-S${r.Stop_Number}`).join(', ');
   };
 
   // Format currency helper
@@ -647,198 +717,6 @@ const OngoingOrdersTab: React.FC = () => {
           size="small"
           color={row.confirmed ? 'success' : 'default'}
         />
-      ),
-    },
-  ];
-
-  // Override requests table columns (for pending tab with actions)
-  const overrideRequestsColumns: TableColumn<OverrideRequest>[] = [
-    {
-      id: 'requestId',
-      label: 'Request ID',
-      minWidth: 100,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.requestId}
-        </Typography>
-      ),
-    },
-    {
-      id: 'orderNumber',
-      label: 'Order Number',
-      minWidth: 120,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.orderNumber}
-        </Typography>
-      ),
-    },
-    {
-      id: 'itemNumber',
-      label: 'Item Number',
-      minWidth: 120,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.itemNumber}
-        </Typography>
-      ),
-    },
-    {
-      id: 'itemDescription',
-      label: 'Item Description',
-      minWidth: 200,
-      render: (row) => (
-        <Typography 
-          fontSize={14} 
-          fontWeight={400}
-          sx={{ 
-            maxWidth: 200, 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis', 
-            whiteSpace: 'nowrap' 
-          }}
-          title={row.itemDescription}
-        >
-          {row.itemDescription}
-        </Typography>
-      ),
-    },
-    {
-      id: 'qty',
-      label: 'Qty',
-      minWidth: 100,
-      align: 'center',
-      render: (row) => {
-        const qtyValue = row.qty;
-        if (qtyValue === undefined || qtyValue === null) {
-          return (
-            <Typography fontSize={14} fontWeight={400}>
-              N/A
-            </Typography>
-          );
-        }
-        const qtyNum = typeof qtyValue === 'string' ? Number(qtyValue) : qtyValue;
-        return (
-          <Typography fontSize={14} fontWeight={400}>
-            {qtyNum === 0 || qtyValue === "0" || qtyValue === 0 ? 'N/A' : String(qtyValue)}
-          </Typography>
-        );
-      },
-    },
-    {
-      id: 'pickerUserNumber',
-      label: 'Picker User #',
-      minWidth: 120,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.pickerUserNumber}
-        </Typography>
-      ),
-    },
-    {
-      id: 'userName',
-      label: 'User Name',
-      minWidth: 150,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.userName}
-        </Typography>
-      ),
-    },
-    {
-      id: 'userEmail',
-      label: 'Email',
-      minWidth: 180,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.userEmail}
-        </Typography>
-      ),
-    },
-    {
-      id: 'note',
-      label: 'Note',
-      minWidth: 200,
-      render: (row) => (
-        <Typography 
-          fontSize={14} 
-          fontWeight={400}
-          sx={{ 
-            maxWidth: 200, 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis', 
-            whiteSpace: 'nowrap' 
-          }}
-          title={row.note || ''}
-        >
-          {row.note || 'N/A'}
-        </Typography>
-      ),
-    },
-    {
-      id: 'createdAt',
-      label: 'Created At',
-      minWidth: 150,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {formatDateTime(row.createdAt)}
-        </Typography>
-      ),
-    },
-    {
-      id: 'actions',
-      label: 'Actions',
-      minWidth: 140,
-      align: 'center',
-      render: (row) => (
-        <Box display="flex" justifyContent="center" gap={1}>
-          <Tooltip title="Approve">
-            <IconButton
-              size="medium"
-              onClick={() => handleOpenApproveModal(row.requestId)}
-              disabled={processingRequestId === row.requestId}
-              sx={{ 
-                padding: '8px',
-                bgcolor: 'success.light',
-                color: 'success.contrastText',
-                '&:hover': {
-                  bgcolor: 'success.main',
-                  transform: 'scale(1.1)',
-                },
-                '&:disabled': {
-                  bgcolor: 'action.disabledBackground',
-                  color: 'action.disabled',
-                },
-                transition: 'all 0.2s ease-in-out',
-              }}
-            >
-              <ThumbUpIcon fontSize="medium" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Reject">
-            <IconButton
-              size="medium"
-              onClick={() => handleOpenRejectModal(row.requestId)}
-              disabled={processingRequestId === row.requestId}
-              sx={{ 
-                padding: '8px',
-                bgcolor: 'error.light',
-                color: 'error.contrastText',
-                '&:hover': {
-                  bgcolor: 'error.main',
-                  transform: 'scale(1.1)',
-                },
-                '&:disabled': {
-                  bgcolor: 'action.disabledBackground',
-                  color: 'action.disabled',
-                },
-                transition: 'all 0.2s ease-in-out',
-              }}
-            >
-              <BlockIcon fontSize="medium" />
-            </IconButton>
-          </Tooltip>
-        </Box>
       ),
     },
   ];
@@ -1017,146 +895,11 @@ const OngoingOrdersTab: React.FC = () => {
     },
   ];
 
-  // Pending tab columns
-  const pendingColumns: TableColumn<OngoingOrder>[] = [
-    {
-      id: 'orderNumber',
-      label: 'Order#',
-      // minWidth: 120,
-      render: (row) => (
-        <Box display="flex" alignItems="center" gap={1}>
-          {row.flagPass && (
-            <Box
-              sx={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                bgcolor: 'error.main',
-                flexShrink: 0,
-              }}
-            />
-          )}
-          <Typography 
-            fontSize={14} 
-            fontWeight={400}
-            sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}
-            onClick={() => handleOverrideClick(row.orderNumber)}
-          >
-            {row.orderNumber}
-          </Typography>
-        </Box>
-      ),
-    },
-    {
-      id: 'customerName',
-      label: 'Customer Name',
-      minWidth: 150,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.customerName}
-        </Typography>
-      ),
-    },
-    {
-      id: 'customerNumber',
-      label: 'Customer#',
-      // minWidth: 120,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.customerNumber}
-        </Typography>
-      ),
-    },
-    {
-      id: 'routes',
-      label: 'Routes',
-      minWidth: 150,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {formatRoutes(row.routes)}
-        </Typography>
-      ),
-    },
-    {
-      id: 'pickerName',
-      label: 'Picker Name',
-      minWidth: 150,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.pickerName}
-        </Typography>
-      ),
-    },
-    {
-      id: 'pickerUserNumber',
-      label: 'Picker User #',
-      minWidth: 120,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.pickerUserNumber}
-        </Typography>
-      ),
-    },
-    {
-      id: 'outOfStockItems',
-      label: 'Out of Stock',
-      minWidth: 100,
-      align: 'center',
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400} color={row.outOfStockItems > 0 ? 'error.main' : 'text.secondary'}>
-          {row.outOfStockItems}
-        </Typography>
-      ),
-    },
-    {
-      id: 'orderDate',
-      label: 'Date',
-      minWidth: 120,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {formatDate(row.orderDate)}
-        </Typography>
-      ),
-    },
-    {
-      id: 'actions',
-      label: 'Actions',
-      minWidth: 150,
-      align: 'center',
-      render: (row) => (
-        <Box display="flex" justifyContent="center" gap={0.5}>
-          <Tooltip title="View Override Requests">
-            <IconButton
-              size="small"
-              onClick={() => handleOverrideClick(row.orderNumber)}
-              color="primary"
-              sx={{ padding: '4px' }}
-            >
-              <OverrideIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Remove Order">
-            <IconButton
-              size="small"
-              onClick={() => handleOpenDeleteModal(row.orderNumber, row.customerName)}
-              disabled={processingOrderNumber === row.orderNumber}
-              color="error"
-              sx={{ padding: '4px' }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      ),
-    },
-  ];
-
   // Completed tab columns
   const completedColumns: TableColumn<CompleteOrder>[] = [
     {
       id: 'orderNumber',
       label: 'Order#',
-      // minWidth: 120,
       render: (row) => (
         <Typography 
           fontSize={14} 
@@ -1181,7 +924,6 @@ const OngoingOrdersTab: React.FC = () => {
     {
       id: 'customerNumber',
       label: 'Customer#',
-      // minWidth: 120,
       render: (row) => (
         <Typography fontSize={14} fontWeight={400}>
           {row.customer.customerNumber}
@@ -1287,49 +1029,39 @@ const OngoingOrdersTab: React.FC = () => {
   // Polling interval in milliseconds (5 seconds)
   const POLLING_INTERVAL = 5000;
 
-  // Real-time polling for ongoing orders (Pending tab - main view)
+  // Real-time polling for ongoing orders (Pending tab)
   useEffect(() => {
-    if (activeTab === 0 && !showOverrideRequests) {
-      // Initial fetch with loading
+    if (activeTab === 0) {
       fetchOngoingOrders(true);
       
-      // Set up polling interval (without loading spinner)
       const interval = setInterval(() => {
         fetchOngoingOrders(false);
       }, POLLING_INTERVAL);
 
-      // Cleanup interval on unmount or when conditions change
       return () => clearInterval(interval);
     }
-  }, [activeTab, showOverrideRequests]);
+  }, [activeTab]);
 
-  // Real-time polling for override requests (Pending tab - override requests view)
+  // Real-time polling for expanded order data
   useEffect(() => {
-    if (activeTab === 0 && showOverrideRequests && selectedOrderNumberForOverride) {
-      // Set up polling interval (without loading spinner and without setting view)
+    if (activeTab === 0 && expandedOrder) {
       const interval = setInterval(() => {
-        if (selectedOrderNumberForOverride) {
-          fetchOverrideRequests(selectedOrderNumberForOverride, false, false);
-        }
+        fetchOverrideRequests(expandedOrder, false); // Polling update, not initial load
       }, POLLING_INTERVAL);
 
-      // Cleanup interval on unmount or when conditions change
       return () => clearInterval(interval);
     }
-  }, [activeTab, showOverrideRequests, selectedOrderNumberForOverride]);
+  }, [activeTab, expandedOrder]);
 
   // Real-time polling for complete orders (Completed tab)
   useEffect(() => {
     if (activeTab === 1) {
-      // Initial fetch with loading
       fetchCompleteOrders(true);
       
-      // Set up polling interval (without loading spinner)
       const interval = setInterval(() => {
         fetchCompleteOrders(false);
       }, POLLING_INTERVAL);
 
-      // Cleanup interval on unmount or when conditions change
       return () => clearInterval(interval);
     }
   }, [activeTab]);
@@ -1357,102 +1089,520 @@ const OngoingOrdersTab: React.FC = () => {
         </Tabs>
       </Box>
 
-      {/* Pending Tab Content */}
-      {activeTab === 0 && !showOverrideRequests && (
-        <CommonTable
-          data={ongoingOrders}
-          columns={pendingColumns}
-          currentPage={1}
-          totalPages={1}
-          totalItems={ongoingOrders.length}
-          pageSize={ongoingOrders.length}
-          onPageChange={() => {}}
-          onPageSizeChange={() => {}}
-          loading={loadingPending}
-          isPagination={false}
-          stickyLastColumn={true}
-          containerHeight="calc(100vh - 350px)"
-          emptyStateComponent={
+      {/* Pending Tab Content - Accordion Structure */}
+      {activeTab === 0 && (
+        <Box sx={{ maxHeight: 'calc(100vh - 350px)', overflow: 'auto', pr: 0.5 }}>
+          {loadingPending ? (
             <Box display="flex" justifyContent="center" alignItems="center" py={4}>
-              <Typography color="text.secondary">No ongoing orders found</Typography>
+              <Typography color="text.secondary" fontSize={12}>Loading orders...</Typography>
             </Box>
-          }
-        />
-      )}
-
-      {/* Override Requests View (Pending Tab) */}
-      {activeTab === 0 && showOverrideRequests && (
-        <Box>
-          {/* Header with Back Button */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <IconButton
-                onClick={handleBackToOrders}
-                // sx={{ 
-                //   border: '1px solid',
-                //   borderColor: 'divider',
-                //   '&:hover': {
-                //     bgcolor: 'action.hover',
-                //   }
-                // }}
+          ) : ongoingOrders.length === 0 ? (
+            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+              <Typography color="text.secondary" fontSize={12}>No ongoing orders found</Typography>
+            </Box>
+          ) : (
+            ongoingOrders.map((order) => (
+              <Accordion
+                key={order.orderNumber}
+                expanded={expandedOrder === order.orderNumber}
+                onChange={(_, isExpanded) => handleAccordionChange(order.orderNumber, isExpanded)}
+                sx={{ 
+                  mb: 1,
+                  borderRadius: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: 'none',
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease',
+                  '&.Mui-expanded': {
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                    borderColor: 'primary.light',
+                  }
+                }}
               >
-                <ArrowBackIcon fontSize="small" />
-              </IconButton>
-              <Typography sx={{ fontWeight: 500, fontSize: 16, color: "text.primary" }}>
-                Override Requests - Order #{selectedOrderNumberForOverride}
-              </Typography>
-            </Box>
-            
-            {/* Approve All / Reject All Buttons */}
-            {overrideRequests.length > 0 && (
-              <Box sx={{ display: 'flex',justifyContent: 'flex-end', gap: 1 , width: '100%'}}>
-                <CustomButton
-                  buttonType="primary"
-                  appearance="filled"
-                  onClick={() => setApproveAllModalOpen(true)}
-                  disabled={processingAllRequests}
-                  size="small"
-                  fullWidth={false}
-                  sx={{ minWidth: 100, mt: 0 }}
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ color: 'text.secondary', fontSize: 18 }} />}
+                  sx={{
+                    px: 1,
+                    py: 0.75,
+                    minHeight: 40,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                    },
+                    '&.Mui-expanded': {
+                      minHeight: 40,
+                    }
+                  }}
                 >
-                  Approve All
-                </CustomButton>
-                <CustomButton
-                  buttonType="delete"
-                  appearance="filled"
-                  onClick={() => setRejectAllModalOpen(true)}
-                  disabled={processingAllRequests}
-                  size="small"
-                  fullWidth={false}
-                  sx={{ minWidth: 100, mt: 0 }}
-                >
-                  Reject All
-                </CustomButton>
-              </Box>
-            )}
-          </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', pr: 1 }}>
+                    <Tooltip title="Remove Order">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDeleteModal(order.orderNumber, order.customerName);
+                        }}
+                        disabled={processingOrderNumber === order.orderNumber}
+                        color="error"
+                        sx={{ 
+                          padding: '3px',
+                          mr: 0.5,
+                          '&:hover': {
+                            bgcolor: 'error.light',
+                            color: 'error.contrastText',
+                          }
+                        }}
+                      >
+                        <DeleteIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                    {order.flagPass && (
+                      <Box
+                        sx={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          bgcolor: 'error.main',
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 100 }}>
+                      <Typography fontWeight={500} fontSize={12} color="primary.main">
+                        Order #{order.orderNumber}
+                      </Typography>
+                      <Typography fontSize={9} color="text.secondary">
+                        {formatDate(order.orderDate)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 180, flex: 1 }}>
+                      <Typography fontWeight={500} fontSize={11}>
+                        {order.customerName}
+                      </Typography>
+                      {order.customerNumber && (
+                        <Typography fontSize={9} color="text.secondary">
+                          #{order.customerNumber}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ minWidth: 150 }}>
+                      {order.categoryNames && order.categoryNames.length > 0 ? (
+                        order.categoryNames.map((cat, index) => (
+                          <Chip 
+                            key={index} 
+                            label={cat} 
+                            size="small" 
+                            variant="outlined"
+                            sx={{ 
+                              fontSize: 9,
+                              height: 18,
+                              borderColor: 'divider',
+                              fontWeight: 400,
+                            }}
+                          />
+                        ))
+                      ) : (
+                        <Typography fontSize={9} color="text.secondary">N/A</Typography>
+                      )}
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, alignItems: 'flex-end', minWidth: 90 }}>
+                      <Chip 
+                        label={order.status ? order.status.replace('_', ' ').toUpperCase() : 'N/A'} 
+                        size="small"
+                        color={
+                          order.status === 'completed' ? 'success' :
+                          order.status === 'in_progress' ? 'warning' : 'default'
+                        }
+                        sx={{ 
+                          fontWeight: 500,
+                          fontSize: 9,
+                          height: 18,
+                        }}
+                      />
+                      {order.pickerName && (
+                        <Typography fontSize={9} color="text.secondary">
+                          {order.pickerName}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails sx={{ 
+                  px: 1, 
+                  py: 1, 
+                  bgcolor: 'grey.50', 
+                  transition: 'all 0.3s ease',
+                  maxHeight: '500px',
+                  overflowY: 'auto',
+                  '&::-webkit-scrollbar': {
+                    width: '6px',
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: 'transparent',
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    background: 'rgba(0,0,0,0.2)',
+                    borderRadius: '3px',
+                    '&:hover': {
+                      background: 'rgba(0,0,0,0.3)',
+                    },
+                  },
+                }}>
+                  {loadingOrderData[order.orderNumber] ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" py={2}>
+                      <Typography color="text.secondary" fontSize={12}>Loading...</Typography>
+                    </Box>
+                  ) : !orderPickerData[order.orderNumber] || orderPickerData[order.orderNumber].length === 0 ? (
+                    <Box 
+                      sx={{ 
+                        p: 2, 
+                        textAlign: 'center',
+                        borderRadius: 1,
+                        bgcolor: 'background.paper',
+                        border: '1px dashed',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      <Typography color="text.secondary" fontSize={12}>
+                        No override requests available
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      {orderPickerData[order.orderNumber].map((picker) => (
+                        <Box 
+                          key={picker.pickerUserId} 
+                          sx={{ 
+                            p: 1,
+                            borderRadius: 1,
+                            bgcolor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            transition: 'all 0.3s ease',
+                          }}
+                        >
+                        {/* Picker Header */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75, pb: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          <Box>
+                            <Typography fontWeight={500} fontSize={11} color="primary.main">
+                              {picker.userName}
+                            </Typography>
+                            <Typography fontSize={9} color="text.secondary" sx={{ mt: 0.25 }}>
+                              User #{picker.pickerUserNumber} • {picker.userEmail}
+                            </Typography>
+                          </Box>
+                          <Chip 
+                            label={`${picker.overrideRequests?.length || 0} Request${(picker.overrideRequests?.length || 0) !== 1 ? 's' : ''}`} 
+                            size="small" 
+                            color="warning"
+                            sx={{ 
+                              fontWeight: 500,
+                              fontSize: 9,
+                              height: 20,
+                            }}
+                          />
+                        </Box>
 
-          {/* Override Requests Table */}
-          <CommonTable
-            data={overrideRequests}
-            columns={overrideRequestsColumns}
-            currentPage={1}
-            totalPages={1}
-            totalItems={overrideRequests.length}
-            pageSize={overrideRequests.length}
-            onPageChange={() => {}}
-            onPageSizeChange={() => {}}
-            loading={loadingOverride}
-            isPagination={false}
-            stickyLastColumn={true}
-            stickyFirstThreeColumns={true}
-            containerHeight="calc(100vh - 350px)"
-            emptyStateComponent={
-              <Box display="flex" justifyContent="center" alignItems="center" py={4}>
-                <Typography color="text.secondary">No override requests found</Typography>
-              </Box>
-            }
-          />
+                        {/* Override Requests Accordion */}
+                        <Accordion
+                          expanded={expandedRequestAccordion === `${order.orderNumber}-${picker.pickerUserId}`}
+                          onChange={(_, isExpanded) => {
+                            setExpandedRequestAccordion(isExpanded ? `${order.orderNumber}-${picker.pickerUserId}` : null);
+                          }}
+                          sx={{ 
+                            mb: 0.75,
+                            boxShadow: 'none',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                            '&:before': { display: 'none' },
+                            '&.Mui-expanded': {
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                            }
+                          }}
+                        >
+                          <AccordionSummary 
+                            expandIcon={<ExpandMoreIcon sx={{ color: 'text.secondary', fontSize: 16 }} />}
+                            sx={{
+                              px: 0.75,
+                              py: 0.5,
+                              minHeight: 32,
+                              '&.Mui-expanded': {
+                                minHeight: 32,
+                              },
+                              '& .MuiAccordionSummary-content': {
+                                margin: '4px 0',
+                              }
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', pr: 1 }}>
+                              <Typography fontWeight={500} fontSize={11} color="text.primary">
+                                Override Requests ({picker.overrideRequests?.length || 0})
+                              </Typography>
+                              {picker.overrideRequests && picker.overrideRequests.length > 0 && (
+                                <Box sx={{ display: 'flex', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
+                                  <CustomButton
+                                    buttonType="primary"
+                                    appearance="filled"
+                                    onClick={() => {
+                                      setSelectedPickerIdForAll(picker.pickerUserId);
+                                      setApproveAllModalOpen(true);
+                                    }}
+                                    disabled={processingAllRequests}
+                                    size="small"
+                                    fullWidth={false}
+                                    sx={{ minWidth: 70, height: 24, fontSize: 10,mt: 0 }}
+                                  >
+                                    Approve All
+                                  </CustomButton>
+                                  <CustomButton
+                                    buttonType="delete"
+                                    appearance="filled"
+                                    onClick={() => {
+                                      setSelectedPickerIdForAll(picker.pickerUserId);
+                                      setRejectAllModalOpen(true);
+                                    }}
+                                    disabled={processingAllRequests}
+                                    size="small"
+                                    fullWidth={false}
+                                    sx={{ minWidth: 70, height: 24, fontSize: 10,mt: 0 }}
+                                  >
+                                    Reject All
+                                  </CustomButton>
+                                </Box>
+                              )}
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{ px: 0.75, py: 0.5 }}>
+                            {!picker.overrideRequests || picker.overrideRequests.length === 0 ? (
+                              <Box 
+                                sx={{ 
+                                  p: 1, 
+                                  borderRadius: 1,
+                                  bgcolor: 'grey.100',
+                                  textAlign: 'center',
+                                }}
+                              >
+                                <Typography color="text.secondary" fontSize={10}>No override requests</Typography>
+                              </Box>
+                            ) : (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                {picker.overrideRequests.map((req) => (
+                                  <Box 
+                                    key={req.requestId} 
+                                    sx={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: 0.75,
+                                      p: 0.75, 
+                                      border: '1px solid',
+                                      borderColor: 'divider',
+                                      borderRadius: 1,
+                                      bgcolor: 'background.paper',
+                                      transition: 'all 0.3s ease',
+                                      minHeight: 36,
+                                      '&:hover': {
+                                        borderColor: 'primary.light',
+                                        bgcolor: 'action.hover',
+                                      }
+                                    }}
+                                  >
+                                    <Box 
+                                      sx={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: 0.75,
+                                        flex: 1,
+                                        minWidth: 0,
+                                        overflowX: 'auto',
+                                        overflowY: 'hidden',
+                                        '&::-webkit-scrollbar': {
+                                          height: '3px',
+                                        },
+                                        '&::-webkit-scrollbar-track': {
+                                          background: 'transparent',
+                                        },
+                                        '&::-webkit-scrollbar-thumb': {
+                                          background: 'rgba(0,0,0,0.2)',
+                                          borderRadius: '2px',
+                                          '&:hover': {
+                                            background: 'rgba(0,0,0,0.3)',
+                                          },
+                                        },
+                                      }}
+                                    >
+                                      <Typography fontSize={10} fontWeight={500} color="text.primary" sx={{ flexShrink: 0 }}>
+                                        #{req.itemNumber}
+                                      </Typography>
+                                      <Typography fontSize={10} fontWeight={400} sx={{ minWidth: 120, flexShrink: 0 }}>
+                                        {req.itemDescription}
+                                      </Typography>
+                                      <Chip 
+                                        label={req.requestType.toUpperCase()} 
+                                        size="small" 
+                                        color={req.requestType === 'scan' ? 'info' : 'warning'}
+                                        sx={{ 
+                                          fontWeight: 500,
+                                          fontSize: 8,
+                                          height: 16,
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                      {req.qty > 0 && (
+                                        <Chip 
+                                          label={`Qty: ${req.qty}`}
+                                          size="small"
+                                          variant="outlined"
+                                          sx={{ 
+                                            fontSize: 8,
+                                            height: 16,
+                                            flexShrink: 0,
+                                          }}
+                                        />
+                                      )}
+                                      {req.note && (
+                                        <Typography fontSize={9} color="text.secondary" sx={{ fontStyle: 'italic', flexShrink: 0, minWidth: 100 }}>
+                                          Note: {req.note}
+                                        </Typography>
+                                      )}
+                                      <Typography fontSize={9} color="text.secondary" sx={{ flexShrink: 0, minWidth: 120 }}>
+                                        {formatDateTime(req.createdAt)}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                                      <Tooltip title="Approve">
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => handleOpenApproveModal(req.requestId)}
+                                          disabled={processingRequestId === req.requestId}
+                                          sx={{ 
+                                            bgcolor: 'success.light',
+                                            color: 'success.contrastText',
+                                            '&:hover': { 
+                                              bgcolor: 'success.main',
+                                            },
+                                            transition: 'all 0.3s ease',
+                                            width: 24,
+                                            height: 24,
+                                            padding: 0,
+                                          }}
+                                        >
+                                          <ThumbUpIcon sx={{ fontSize: 14 }} />
+                                        </IconButton>
+                                      </Tooltip>
+                                      <Tooltip title="Reject">
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => handleOpenRejectModal(req.requestId)}
+                                          disabled={processingRequestId === req.requestId}
+                                          sx={{ 
+                                            bgcolor: 'error.light',
+                                            color: 'error.contrastText',
+                                            '&:hover': { 
+                                              bgcolor: 'error.main',
+                                            },
+                                            transition: 'all 0.3s ease',
+                                            width: 24,
+                                            height: 24,
+                                            padding: 0,
+                                          }}
+                                        >
+                                          <BlockIcon sx={{ fontSize: 14 }} />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </Box>
+                                  </Box>
+                                ))}
+                              </Box>
+                            )}
+                          </AccordionDetails>
+                        </Accordion>
+
+                        {/* Picker Items Accordion - Only show if items exist */}
+                        {picker.pickerItems && picker.pickerItems.length > 0 && (
+                          <Accordion
+                            expanded={expandedItemAccordion === `${order.orderNumber}-${picker.pickerUserId}`}
+                            onChange={(_, isExpanded) => {
+                              setExpandedItemAccordion(isExpanded ? `${order.orderNumber}-${picker.pickerUserId}` : null);
+                            }}
+                            sx={{ 
+                              boxShadow: 'none',
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: 1,
+                              '&:before': { display: 'none' },
+                              '&.Mui-expanded': {
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                              }
+                            }}
+                          >
+                            <AccordionSummary 
+                              expandIcon={<ExpandMoreIcon sx={{ color: 'text.secondary', fontSize: 16 }} />}
+                              sx={{
+                                px: 0.75,
+                                py: 0.5,
+                                minHeight: 32,
+                                '&.Mui-expanded': {
+                                  minHeight: 32,
+                                },
+                                '& .MuiAccordionSummary-content': {
+                                  margin: '4px 0',
+                                }
+                              }}
+                            >
+                              <Typography fontWeight={500} fontSize={11} color="text.primary">
+                                Picker Items ({picker.pickerItems.length})
+                              </Typography>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ px: 0.75, py: 0.5 }}>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                {picker.pickerItems.map((item) => (
+                                  <Box 
+                                    key={item.itemNumber} 
+                                    sx={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'space-between',
+                                      p: 0.75, 
+                                      border: '1px solid',
+                                      borderColor: 'divider',
+                                      borderRadius: 1,
+                                      bgcolor: 'grey.50',
+                                    }}
+                                  >
+                                    <Box>
+                                      <Typography fontSize={10} fontWeight={500}>
+                                        #{item.itemNumber} - {item.description}
+                                      </Typography>
+                                      <Typography fontSize={9} color="text.secondary" sx={{ mt: 0.25 }}>
+                                        Section: {item.section} | Location: {item.location} | Ordered: {item.quantityOrdered} | Shipped: {item.quantityShipped}
+                                      </Typography>
+                                    </Box>
+                                    <Chip 
+                                      label={item.confirmed ? 'Confirmed' : 'Pending'} 
+                                      size="small" 
+                                      color={item.confirmed ? 'success' : 'default'}
+                                      sx={{ 
+                                        fontSize: 9,
+                                        height: 18,
+                                        fontWeight: 500,
+                                      }}
+                                    />
+                                  </Box>
+                                ))}
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        )}
+                      </Box>
+                      ))}
+                    </Box>
+                  )}
+                </AccordionDetails>
+              </Accordion>
+            ))
+          )}
         </Box>
       )}
 
@@ -1483,24 +1633,105 @@ const OngoingOrdersTab: React.FC = () => {
       {/* Remove Order Confirmation Modal */}
       <CommonModal
         open={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setDeleteType('all');
+          setSelectedPickerIdForDelete(null);
+        }}
         size="sm"
         title="Remove Ongoing Order"
       >
         <Box>
-          <Typography fontSize={14} color="text.secondary" sx={{ mb: 2 }}>
-            Are you sure you want to remove this ongoing order? This will make it available again in the order list.
-          </Typography>
           {selectedOrderName && (
             <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 2 }}>
               Order: {selectedOrderNumber} - {selectedOrderName}
             </Typography>
           )}
+          
+          <FormControl component="fieldset" sx={{ width: '100%', mb: 2 }}>
+            <RadioGroup
+              value={deleteType}
+              onChange={(e) => {
+                setDeleteType(e.target.value as 'all' | 'picker');
+                if (e.target.value === 'all') {
+                  setSelectedPickerIdForDelete(null);
+                }
+              }}
+            >
+              <FormControlLabel 
+                value="all" 
+                control={<Radio />} 
+                label={
+                  <Typography fontSize={14}>
+                    Remove all pickers (Delete entire order)
+                  </Typography>
+                }
+              />
+              <FormControlLabel 
+                value="picker" 
+                control={<Radio />} 
+                label={
+                  <Typography fontSize={14}>
+                    Remove specific picker
+                  </Typography>
+                }
+              />
+            </RadioGroup>
+          </FormControl>
+
+          {deleteType === 'picker' && (
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel id="picker-select-label">Select Picker</InputLabel>
+              <Select
+                labelId="picker-select-label"
+                value={selectedPickerIdForDelete || ''}
+                onChange={(e) => setSelectedPickerIdForDelete(e.target.value as number)}
+                label="Select Picker"
+                disabled={processingOrderNumber !== null}
+              >
+                {(() => {
+                  // Only show pickers from orderPickerData (actual pickers working on the order)
+                  const pickersFromData = selectedOrderNumber && orderPickerData[selectedOrderNumber]
+                    ? orderPickerData[selectedOrderNumber]
+                    : [];
+                  
+                  // Filter out invalid pickers (must have userId, userName, and valid userNumber)
+                  const validPickers = pickersFromData.filter(picker => 
+                    picker.pickerUserId && 
+                    picker.userName && 
+                    picker.pickerUserNumber && 
+                    picker.pickerUserNumber > 0
+                  );
+                  
+                  if (validPickers.length > 0) {
+                    return validPickers.map((picker) => (
+                      <MenuItem key={picker.pickerUserId} value={picker.pickerUserId}>
+                        {picker.userName} (User #{picker.pickerUserNumber})
+                      </MenuItem>
+                    ));
+                  } else {
+                    return <MenuItem disabled>No pickers available</MenuItem>;
+                  }
+                })()}
+              </Select>
+            </FormControl>
+          )}
+
+          <Typography fontSize={14} color="text.secondary" sx={{ mb: 2 }}>
+            {deleteType === 'picker'
+              ? 'Are you sure you want to remove this picker from the ongoing order? This will make the order available for this picker again.'
+              : 'Are you sure you want to remove this ongoing order? This will remove ALL pickers and make it available again in the order list.'}
+          </Typography>
+
           <Box display="flex" gap={2} justifyContent="flex-end">
             <CustomButton
               appearance="outlined"
               buttonType="cancel"
-              onClick={() => setDeleteModalOpen(false)}
+              onClick={() => {
+                setDeleteModalOpen(false);
+                setDeleteType('all');
+                setSelectedPickerIdForDelete(null);
+              }}
               disabled={processingOrderNumber !== null}
               sx={{ minWidth: 100 }}
             >
@@ -1511,6 +1742,7 @@ const OngoingOrdersTab: React.FC = () => {
               buttonType="delete"
               onClick={handleRemoveOrder}
               loading={processingOrderNumber !== null}
+              disabled={deleteType === 'picker' && !selectedPickerIdForDelete}
               sx={{ minWidth: 100 }}
             >
               Remove
@@ -1617,24 +1849,25 @@ const OngoingOrdersTab: React.FC = () => {
       {/* Approve All Confirmation Modal */}
       <CommonModal
         open={approveAllModalOpen}
-        onClose={() => setApproveAllModalOpen(false)}
+        onClose={() => {
+          setApproveAllModalOpen(false);
+          setSelectedPickerIdForAll(null);
+        }}
         size="sm"
         title="Confirm Approve All"
       >
         <Box>
           <Typography fontSize={14} color="text.secondary" sx={{ mb: 2 }}>
-            Are you sure you want to approve all override requests for this order? This action will approve all {overrideRequests.length} pending request(s) and cannot be undone.
+            Are you sure you want to approve all override requests for this picker? This action cannot be undone.
           </Typography>
-          {selectedOrderNumberForOverride && (
-            <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 2 }}>
-              Order Number: {selectedOrderNumberForOverride}
-            </Typography>
-          )}
           <Box display="flex" gap={2} justifyContent="flex-end">
             <CustomButton
               appearance="outlined"
               buttonType="cancel"
-              onClick={() => setApproveAllModalOpen(false)}
+              onClick={() => {
+                setApproveAllModalOpen(false);
+                setSelectedPickerIdForAll(null);
+              }}
               disabled={processingAllRequests}
               sx={{ minWidth: 100 }}
             >
@@ -1656,24 +1889,25 @@ const OngoingOrdersTab: React.FC = () => {
       {/* Reject All Confirmation Modal */}
       <CommonModal
         open={rejectAllModalOpen}
-        onClose={() => setRejectAllModalOpen(false)}
+        onClose={() => {
+          setRejectAllModalOpen(false);
+          setSelectedPickerIdForAll(null);
+        }}
         size="sm"
         title="Confirm Reject All"
       >
         <Box>
           <Typography fontSize={14} color="text.secondary" sx={{ mb: 2 }}>
-            Are you sure you want to reject all override requests for this order? This action will reject all {overrideRequests.length} pending request(s) and cannot be undone.
+            Are you sure you want to reject all override requests for this picker? This action cannot be undone.
           </Typography>
-          {selectedOrderNumberForOverride && (
-            <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 2 }}>
-              Order Number: {selectedOrderNumberForOverride}
-            </Typography>
-          )}
           <Box display="flex" gap={2} justifyContent="flex-end">
             <CustomButton
               appearance="outlined"
               buttonType="cancel"
-              onClick={() => setRejectAllModalOpen(false)}
+              onClick={() => {
+                setRejectAllModalOpen(false);
+                setSelectedPickerIdForAll(null);
+              }}
               disabled={processingAllRequests}
               sx={{ minWidth: 100 }}
             >

@@ -18,7 +18,7 @@ type Option = {
   value: string;
 };
 
-type Props = Omit<SelectProps, 'multiple'> & {
+type Props = Omit<SelectProps, 'multiple' | 'onChange'> & {
   label?: string;
   options: Option[];
   error?: boolean;

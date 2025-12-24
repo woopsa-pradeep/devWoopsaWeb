@@ -94,6 +94,7 @@ const OrderChecker = () => {
   const [selectedBoxId, setSelectedBoxId] = useState<number | null>(null);
   const [selectedContainerType, setSelectedContainerType] = useState<'box' | 'tote' | 'drink' | null>(null);
   const [showAllItems, setShowAllItems] = useState<boolean>(true);
+  const [selectedPriceClass, setSelectedPriceClass] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [boxItemsLoading, setBoxItemsLoading] = useState(false);
   const [orderItemsLoading, setOrderItemsLoading] = useState(false);
@@ -231,6 +232,35 @@ const OrderChecker = () => {
       containerType: item.boxType,
     }));
   }, [allOrderItems]);
+
+  // Get price classes with totals from current items
+  const getPriceClassesWithTotals = useMemo(() => {
+    const itemsToAnalyze = showAllItems ? getAllItemsFromOrder : boxItems;
+    const priceClassMap = new Map<string, { qtyOrdered: number; qtyShipped: number }>();
+    
+    itemsToAnalyze.forEach((item) => {
+      const priceClassDesc = (item as any).priceClassDescription || 'Unknown';
+      const current = priceClassMap.get(priceClassDesc) || { qtyOrdered: 0, qtyShipped: 0 };
+      priceClassMap.set(priceClassDesc, {
+        qtyOrdered: current.qtyOrdered + (item.qtyOrdered || 0),
+        qtyShipped: current.qtyShipped + (item.qtyShipped || 0),
+      });
+    });
+    
+    return Array.from(priceClassMap.entries()).map(([description, totals]) => ({
+      description,
+      ...totals,
+    }));
+  }, [getAllItemsFromOrder, boxItems, showAllItems]);
+
+  // Filter items based on selected price class
+  const getFilteredItems = useMemo(() => {
+    const itemsToFilter = showAllItems ? getAllItemsFromOrder : boxItems;
+    if (selectedPriceClass === 'all') {
+      return itemsToFilter;
+    }
+    return itemsToFilter.filter((item) => (item as any).priceClassDescription === selectedPriceClass);
+  }, [getAllItemsFromOrder, boxItems, showAllItems, selectedPriceClass]);
 
   // Fetch orders on mount and when tab changes
   useEffect(() => {
@@ -437,12 +467,14 @@ const OrderChecker = () => {
     setSelectedContainerType(null);
     setShowAllItems(true);
     setBoxItems([]);
+    setSelectedPriceClass('all');
   };
 
   const handleContainerSelect = (containerId: number, type: 'box' | 'tote' | 'drink') => {
     setSelectedBoxId(containerId);
     setSelectedContainerType(type);
     setShowAllItems(false);
+    setSelectedPriceClass('all');
   };
 
   const handleEditItem = (item: BoxItem & { containerId?: number; containerType?: 'box' | 'tote' | 'drink' }, mode: 'move' | 'qty' = 'move') => {
@@ -1491,7 +1523,7 @@ const OrderChecker = () => {
             const tableWidth = pageWidth - (margin * 2);
             
             autoTableFn(doc, {
-              head: [['Item #', 'Description', 'Qty Ordered', 'Qty Shipped']],
+              head: [['Item #', 'Description', 'Qty Ordered', 'Qty Scanned']],
               body: tableData,
               startY: yPosition,
               margin: { left: margin, right: margin },
@@ -2186,10 +2218,29 @@ const OrderChecker = () => {
               transition: 'all 0.2s ease',
             }}
           >
-            <Box sx={{ flexShrink: 0, mb: 1.5 }}>
+            <Box sx={{ flexShrink: 0, mb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
               <Typography variant="subtitle1" fontWeight={500} fontSize={14} color="text.primary">
                 Order Details
               </Typography>
+              {selectedOrder && getPriceClassesWithTotals.length > 0 && (
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <Select
+                    value={selectedPriceClass}
+                    onChange={(e) => setSelectedPriceClass(e.target.value)}
+                    displayEmpty
+                    sx={{ fontSize: 12 }}
+                  >
+                    <MenuItem value="all" sx={{ fontSize: 12 }}>
+                      All Price Classes
+                    </MenuItem>
+                    {getPriceClassesWithTotals.map((priceClass) => (
+                      <MenuItem key={priceClass.description} value={priceClass.description} sx={{ fontSize: 12 }}>
+                        {priceClass.description} (Ordered: {priceClass.qtyOrdered}, Scanned: {priceClass.qtyShipped})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
             </Box>
             <Box sx={{
               flex: 1,
@@ -2332,7 +2383,7 @@ const OrderChecker = () => {
               }}>
                 {selectedOrder ? (
                   <>
-                    <Box sx={{ flexShrink: 0, mb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ flexShrink: 0, mb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
                       <Box>
                         {showAllItems ? (
                           <>
@@ -2340,7 +2391,7 @@ const OrderChecker = () => {
                               All Items
                             </Typography>
                             <Typography variant="body2" fontSize={12} color="text.secondary" mt={0.5}>
-                              Items from all containers ({getAllItemsFromOrder.length}):
+                              Items from all containers ({getFilteredItems.length}):
                             </Typography>
                           </>
                         ) : selectedBoxId && selectedContainerType ? (
@@ -2349,7 +2400,7 @@ const OrderChecker = () => {
                               {selectedContainerType.toUpperCase()} {selectedBoxId}
                             </Typography>
                             <Typography variant="body2" fontSize={12} color="text.secondary" mt={0.5}>
-                              Items in this {selectedContainerType} ({boxItems.length}):
+                              Items in this {selectedContainerType} ({getFilteredItems.length}):
                             </Typography>
                           </>
                         ) : null}
@@ -2364,6 +2415,7 @@ const OrderChecker = () => {
                                 setSelectedBoxId(null);
                                 setSelectedContainerType(null);
                               }
+                              setSelectedPriceClass('all');
                             }}
                             size="small"
                           />
@@ -2382,13 +2434,13 @@ const OrderChecker = () => {
                           <CircularProgress />
                         </Box>
                       ) : showAllItems ? (
-                        getAllItemsFromOrder.length === 0 ? (
+                        getFilteredItems.length === 0 ? (
                           <Typography color="text.secondary" textAlign="center" p={3}>
                             No items available
                           </Typography>
                         ) : (
                           <List>
-                            {getAllItemsFromOrder.map((item, index) => (
+                            {getFilteredItems.map((item: any, index: any) => (
                               <Card
                                 key={`${item.containerId}-${item.itemNumber}-${index}`}
                                 sx={{
@@ -2411,9 +2463,39 @@ const OrderChecker = () => {
                                     {/* Left Side: Container - Item Number - Description */}
                                     <Box flex={1} minWidth={0}>
                                       <Box display="flex" gap={0.5} alignItems="center" mb={0.5}>
-                                        <Typography variant="caption" fontSize={10} color="text.secondary">
-                                          {item.containerType === 'box' ? 'BOX' : item.containerType === 'tote' ? 'TOTE' : 'DRINK'} {item.containerId}
-                                        </Typography>
+                                        <Box
+                                          sx={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            px: 1,
+                                            py: 0.25,
+                                            borderRadius: 1,
+                                            bgcolor: item.containerType === 'box'
+                                              ? (isDark ? 'rgba(60, 119, 149, 0.3)' : 'rgba(60, 119, 149, 0.15)')
+                                              : item.containerType === 'tote'
+                                                ? (isDark ? 'rgba(76, 175, 80, 0.3)' : 'rgba(76, 175, 80, 0.15)')
+                                                : (isDark ? 'rgba(244, 67, 54, 0.3)' : 'rgba(244, 67, 54, 0.15)'),
+                                            border: '1px solid',
+                                            borderColor: item.containerType === 'box'
+                                              ? 'primary.main'
+                                              : item.containerType === 'tote'
+                                                ? 'success.main'
+                                                : 'error.main',
+                                          }}
+                                        >
+                                          <Typography 
+                                            variant="caption" 
+                                            fontSize={10} 
+                                            fontWeight={600}
+                                            color={item.containerType === 'box'
+                                              ? 'primary.main'
+                                              : item.containerType === 'tote'
+                                                ? 'success.main'
+                                                : 'error.main'}
+                                          >
+                                            {item.containerType === 'box' ? 'BOX' : item.containerType === 'tote' ? 'TOTE' : 'DRINK'} {item.containerId}
+                                          </Typography>
+                                        </Box>
                                       </Box>
                                       <Box display="flex" gap={1} alignItems="center">
                                         <Typography 
@@ -2448,43 +2530,58 @@ const OrderChecker = () => {
                                       </Box>
                                     </Box>
                                     {/* Right Side: Qty - Edit - Move */}
-                                    <Box display="flex" gap={1} alignItems="center" flexShrink={0}>
+                                    <Box display="flex" gap={0.75} alignItems="center" flexShrink={0}>
+                                      {/* Ordered Chip */}
                                       <Box
                                         sx={{
                                           display: 'inline-flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
-                                          px: 1.25,
+                                          px: 1,
                                           py: 0.5,
-                                          borderRadius: 2,
+                                          borderRadius: 1.5,
                                           bgcolor: isDark 
-                                            ? 'rgba(60, 119, 149, 0.25)' 
-                                            : 'rgba(60, 119, 149, 0.15)',
-                                          border: '1.5px solid',
-                                          borderColor: 'primary.main',
-                                          minWidth: 50,
-                                          position: 'relative',
-                                          boxShadow: '0 2px 4px rgba(60, 119, 149, 0.2)',
+                                            ? 'rgba(25, 118, 210, 0.25)' 
+                                            : 'rgba(25, 118, 210, 0.15)',
+                                          border: '1px solid',
+                                          borderColor: 'info.main',
+                                          minWidth: 'auto',
                                         }}
                                       >
-                                      <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
                                         <Typography 
                                           variant="caption" 
                                           fontSize={10} 
                                           fontWeight={500} 
-                                          color="primary.main"
+                                          color="info.main"
                                         >
                                           Ordered: {item.qtyOrdered}
                                         </Typography>
+                                      </Box>
+                                      {/* Scanned Chip */}
+                                      <Box
+                                        sx={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          px: 1,
+                                          py: 0.5,
+                                          borderRadius: 1.5,
+                                          bgcolor: isDark 
+                                            ? 'rgba(76, 175, 80, 0.25)' 
+                                            : 'rgba(76, 175, 80, 0.15)',
+                                          border: '1px solid',
+                                          borderColor: 'success.main',
+                                          minWidth: 'auto',
+                                        }}
+                                      >
                                         <Typography 
                                           variant="caption" 
                                           fontSize={10} 
                                           fontWeight={500} 
-                                          color="primary.main"
+                                          color="success.main"
                                         >
-                                          Shipped: {item.qtyShipped}
+                                          Scanned: {item.qtyShipped}
                                         </Typography>
-                                      </Box>
                                       </Box>
                                       {isEditingAllowed && (
                                         <>
@@ -2536,13 +2633,13 @@ const OrderChecker = () => {
                           </List>
                         )
                       ) : selectedBoxId && selectedContainerType ? (
-                        boxItems.length === 0 ? (
+                        getFilteredItems.length === 0 ? (
                           <Typography color="text.secondary" textAlign="center" p={3}>
                             No items in this {selectedContainerType}
                           </Typography>
                         ) : (
                           <List>
-                            {boxItems.map((item, index) => (
+                            {getFilteredItems.map((item, index) => (
                               <Card
                                 key={index}
                               sx={{
@@ -2597,43 +2694,58 @@ const OrderChecker = () => {
                                     </Box>
                                   </Box>
                                   {/* Right Side: Qty - Edit - Move */}
-                                  <Box display="flex" gap={1} alignItems="center" flexShrink={0}>
+                                  <Box display="flex" gap={0.75} alignItems="center" flexShrink={0}>
+                                    {/* Ordered Chip */}
                                     <Box
                                       sx={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        px: 1.25,
+                                        px: 1,
                                         py: 0.5,
-                                        borderRadius: 2,
+                                        borderRadius: 1.5,
                                         bgcolor: isDark 
-                                          ? 'rgba(60, 119, 149, 0.25)' 
-                                          : 'rgba(60, 119, 149, 0.15)',
-                                        border: '1.5px solid',
-                                        borderColor: 'primary.main',
-                                        minWidth: 50,
-                                        position: 'relative',
-                                        boxShadow: '0 2px 4px rgba(60, 119, 149, 0.2)',
+                                          ? 'rgba(25, 118, 210, 0.25)' 
+                                          : 'rgba(25, 118, 210, 0.15)',
+                                        border: '1px solid',
+                                        borderColor: 'info.main',
+                                        minWidth: 'auto',
                                       }}
                                     >
-                                      <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-                                        <Typography 
-                                          variant="caption" 
-                                          fontSize={10} 
-                                          fontWeight={500} 
-                                          color="primary.main"
-                                        >
-                                          Ordered: {item.qtyOrdered}
-                                        </Typography>
-                                        <Typography 
-                                          variant="caption" 
-                                          fontSize={10} 
-                                          fontWeight={500} 
-                                          color="primary.main"
-                                        >
-                                          Shipped: {item.qtyShipped}
-                                        </Typography>
-                                      </Box>
+                                      <Typography 
+                                        variant="caption" 
+                                        fontSize={10} 
+                                        fontWeight={500} 
+                                        color="info.main"
+                                      >
+                                        Ordered: {item.qtyOrdered}
+                                      </Typography>
+                                    </Box>
+                                    {/* Scanned Chip */}
+                                    <Box
+                                      sx={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        px: 1,
+                                        py: 0.5,
+                                        borderRadius: 1.5,
+                                        bgcolor: isDark 
+                                          ? 'rgba(76, 175, 80, 0.25)' 
+                                          : 'rgba(76, 175, 80, 0.15)',
+                                        border: '1px solid',
+                                        borderColor: 'success.main',
+                                        minWidth: 'auto',
+                                      }}
+                                    >
+                                      <Typography 
+                                        variant="caption" 
+                                        fontSize={10} 
+                                        fontWeight={500} 
+                                        color="success.main"
+                                      >
+                                        Scanned: {item.qtyShipped}
+                                      </Typography>
                                     </Box>
                                     {isEditingAllowed && (
                                       <>

@@ -153,3 +153,21 @@ export const getInventoryShowPrepaidTax = async () => {
     const response = await axiosInstance.get('/sales/getInventoryShowPrepaidTax');
     return response.data;
 }
+
+export const getSalesCategoryPriceClassByCustomer = async (customerId: string | number) => {
+    const response = await axiosInstance.get(`/sales/getSalesCategoryPriceClassByCustomer/${customerId}`, {
+        headers: {
+            'customer': customerId.toString()
+        }
+    });
+    return response.data;
+}
+
+export const getSalesCategoryByCustomer = async (customerId: string | number) => {
+    const response = await axiosInstance.get(`/sales/getSalesCategoryByCustomer/${customerId}`, {
+        headers: {
+            'customer': customerId.toString()
+        }
+    });
+    return response.data;
+}

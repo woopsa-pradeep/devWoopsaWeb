@@ -8,12 +8,13 @@ import {
   Tabs, 
   Tab,
 } from '@mui/material';
-import { VpnKey as PinIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon, Assessment as ReportsIcon } from '@mui/icons-material';
+import { VpnKey as PinIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon, Assessment as ReportsIcon, PersonAdd as CreateUserIcon } from '@mui/icons-material';
 import PinSettingsTab from './PinSettingsTab';
 import OngoingOrdersTab from './OngoingOrdersTab';
 import OrderPreferencesTab from './OrderPreferencesTab';
 import EpickReportsTab from './EpickReportsTab';
 import CheckerUsersTab from './CheckerUsersTab';
+import CreateEpickUserTab from './CreateEpickUserTab';
 
 
 const EpickSetting = () => {
@@ -118,6 +119,26 @@ const EpickSetting = () => {
                 },
               }}
             />
+            <Tab
+              label="Create Epick User"
+              icon={<CreateUserIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              sx={{
+                alignItems: "center",
+                justifyContent: "flex-start",
+                textTransform: "none",
+                minHeight: { xs: 35, md: 48 },
+                fontWeight: 400,
+                gap: { xs: 0.3, md: 1 },
+                margin: '4px 8px',
+                transition: 'all 0.2s ease-in-out',
+                "&.Mui-selected": {
+                  color: theme.palette.primary.main,
+                  fontWeight: 500,
+                  borderLeft: `4px solid ${theme.palette.primary.main}`,
+                },
+              }}
+            />
             {/* <Tab
               label="Checker User"
               icon={<CheckerUserIcon sx={{ fontSize: 20 }} />}
@@ -170,6 +191,8 @@ const EpickSetting = () => {
               <OrderPreferencesTab />
             ) : activeTab === 3 ? (
               <EpickReportsTab />
+            ) : activeTab === 4 ? (
+              <CreateEpickUserTab />
             ) : (
               <CheckerUsersTab />
             )}
