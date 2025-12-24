@@ -25,6 +25,12 @@ import {
   FormControlLabel,
   Tabs,
   Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   Close,
@@ -36,6 +42,7 @@ import {
   Image as ImageIcon,
   ArrowBack,
   ArrowForward,
+  TableChart,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import CustomButton from '../../../component/atoms/CustomButton';
@@ -112,6 +119,7 @@ const OrderChecker = () => {
   const [reportLoading, setReportLoading] = useState(false);
   const [imageCarouselModalOpen, setImageCarouselModalOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [priceClassSummaryModalOpen, setPriceClassSummaryModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState<{
     title: string;
     message: string;
@@ -233,7 +241,7 @@ const OrderChecker = () => {
     }));
   }, [allOrderItems]);
 
-  // Get price classes with totals from current items
+  // Get price classes with totals from current items (for filter dropdown)
   const getPriceClassesWithTotals = useMemo(() => {
     const itemsToAnalyze = showAllItems ? getAllItemsFromOrder : boxItems;
     const priceClassMap = new Map<string, { qtyOrdered: number; qtyShipped: number }>();
@@ -252,6 +260,25 @@ const OrderChecker = () => {
       ...totals,
     }));
   }, [getAllItemsFromOrder, boxItems, showAllItems]);
+console.log(getPriceClassesWithTotals);
+  // Get price classes with totals from ALL items (for summary modal - always all boxes)
+  const getAllPriceClassesWithTotals = useMemo(() => {
+    const priceClassMap = new Map<string, { qtyOrdered: number; qtyShipped: number }>();
+    
+    getAllItemsFromOrder.forEach((item) => {
+      const priceClassDesc = (item as any).priceClassDescription || 'Unknown';
+      const current = priceClassMap.get(priceClassDesc) || { qtyOrdered: 0, qtyShipped: 0 };
+      priceClassMap.set(priceClassDesc, {
+        qtyOrdered: current.qtyOrdered + (item.qtyOrdered || 0),
+        qtyShipped: current.qtyShipped + (item.qtyShipped || 0),
+      });
+    });
+    
+    return Array.from(priceClassMap.entries()).map(([description, totals]) => ({
+      description,
+      ...totals,
+    }));
+  }, [getAllItemsFromOrder]);
 
   // Filter items based on selected price class
   const getFilteredItems = useMemo(() => {
@@ -2222,24 +2249,40 @@ const OrderChecker = () => {
               <Typography variant="subtitle1" fontWeight={500} fontSize={14} color="text.primary">
                 Order Details
               </Typography>
-              {selectedOrder && getPriceClassesWithTotals.length > 0 && (
-                <FormControl size="small" sx={{ minWidth: 200 }}>
-                  <Select
-                    value={selectedPriceClass}
-                    onChange={(e) => setSelectedPriceClass(e.target.value)}
-                    displayEmpty
-                    sx={{ fontSize: 12 }}
-                  >
-                    <MenuItem value="all" sx={{ fontSize: 12 }}>
-                      All Price Classes
-                    </MenuItem>
-                    {getPriceClassesWithTotals.map((priceClass) => (
-                      <MenuItem key={priceClass.description} value={priceClass.description} sx={{ fontSize: 12 }}>
-                        {priceClass.description} (Ordered: {priceClass.qtyOrdered}, Scanned: {priceClass.qtyShipped})
+              {selectedOrder && getAllPriceClassesWithTotals.length > 0 && (
+                <Box display="flex" alignItems="center" gap={1}>
+                  {/* <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <Select
+                      value={selectedPriceClass}
+                      onChange={(e) => setSelectedPriceClass(e.target.value)}
+                      displayEmpty
+                      sx={{ fontSize: 12 }}
+                    >
+                      <MenuItem value="all" sx={{ fontSize: 12 }}>
+                        All Price Classes
                       </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                      {getPriceClassesWithTotals.map((priceClass) => (
+                        <MenuItem key={priceClass.description} value={priceClass.description} sx={{ fontSize: 12 }}>
+                          {priceClass.description} (Ordered: {priceClass.qtyOrdered}, Scanned: {priceClass.qtyShipped})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl> */}
+                  <IconButton
+                    size="small"
+                    onClick={() => setPriceClassSummaryModalOpen(true)}
+                    sx={{
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      '&:hover': {
+                        bgcolor: 'primary.dark',
+                      },
+                    }}
+                    title="View Price Class Summary"
+                  >
+                    <TableChart fontSize="small" />
+                  </IconButton>
+                </Box>
               )}
             </Box>
             <Box sx={{
@@ -4529,6 +4572,98 @@ const OrderChecker = () => {
             </>
           )}
         </Box>
+      </CommonModal>
+
+      {/* Price Class Summary Modal */}
+      <CommonModal
+        open={priceClassSummaryModalOpen}
+        onClose={() => {
+          setPriceClassSummaryModalOpen(false);
+        }}
+        title={selectedOrder ? `Price Class Summary - Order #${selectedOrder.orderNumber}` : 'Price Class Summary'}
+        size="md"
+      >
+        {selectedOrder && getAllPriceClassesWithTotals.length > 0 ? (
+          <Box>
+            <TableContainer component={Paper} sx={{ maxHeight: 500 }}>
+              <Table stickyHeader size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Price Class
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Ordered Qty
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: 13, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                      Scanned Qty
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {getAllPriceClassesWithTotals.map((priceClass) => (
+                    <TableRow
+                      key={priceClass.description}
+                      sx={{
+                        '&:nth-of-type(odd)': {
+                          bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                        },
+                        '&:hover': {
+                          bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                        },
+                      }}
+                    >
+                      <TableCell sx={{ fontSize: 12 }}>{priceClass.description}</TableCell>
+                      <TableCell align="right" sx={{ fontSize: 12, color: 'info.main', fontWeight: 500 }}>
+                        {priceClass.qtyOrdered}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontSize: 12, color: 'success.main', fontWeight: 500 }}>
+                        {priceClass.qtyShipped}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* Total Row */}
+                  <TableRow
+                    sx={{
+                      bgcolor: isDark ? 'rgba(60, 119, 149, 0.2)' : 'rgba(60, 119, 149, 0.1)',
+                      '& td': {
+                        fontWeight: 600,
+                        fontSize: 13,
+                        borderTop: '2px solid',
+                        borderColor: 'divider',
+                      },
+                    }}
+                  >
+                    <TableCell sx={{ fontSize: 13, fontWeight: 600 }}>Total</TableCell>
+                    <TableCell align="right" sx={{ fontSize: 13, fontWeight: 600, color: 'info.main' }}>
+                      {getAllPriceClassesWithTotals.reduce((sum, pc) => sum + pc.qtyOrdered, 0)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontSize: 13, fontWeight: 600, color: 'success.main' }}>
+                      {getAllPriceClassesWithTotals.reduce((sum, pc) => sum + pc.qtyShipped, 0)}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Box display="flex" justifyContent="flex-end" mt={2}>
+              <CustomButton
+                buttonType="primary"
+                onClick={() => setPriceClassSummaryModalOpen(false)}
+                size="small"
+                fullWidth={false}
+                sx={{ mt: 0 }}
+              >
+                Close
+              </CustomButton>
+            </Box>
+          </Box>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 3 }}>
+            <Typography variant="body2" color="text.secondary">
+              No price class data available
+            </Typography>
+          </Box>
+        )}
       </CommonModal>
 
       {/* Image Carousel Modal */}

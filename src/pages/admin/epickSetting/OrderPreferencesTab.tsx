@@ -77,7 +77,7 @@ const OrderPreferencesTab: React.FC = () => {
     const normalizedShortby = user.shortby ? user.shortby.toLowerCase() : '';
     setOrderType(normalizedOrderType === 'order_number' ? 'order_number' : normalizedOrderType === 'qty_number' ? 'qty_number' : '');
     setShortby(normalizedShortby === 'asc' ? 'asc' : normalizedShortby === 'des' ? 'des' : '');
-    const validItemSortBy = user.item_sort_by && ['sales_location', 'alphabetically', 'item_number', 'short_number', 'line_number'].includes(user.item_sort_by)
+    const validItemSortBy = user.item_sort_by && ['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number'].includes(user.item_sort_by)
       ? user.item_sort_by
       : 'line_number';
     setItemSortBy(validItemSortBy);
@@ -198,7 +198,7 @@ const OrderPreferencesTab: React.FC = () => {
   // const formatItemSortBy = (itemSortBy: string | undefined): string => {
   //   if (!itemSortBy) return 'N/A';
   //   const mapping: { [key: string]: string } = {
-  //     'sales_location': 'Sales Location',
+  //     'section_location': 'Section Location',
   //     'alphabetically': 'Alphabetically',
   //     'item_number': 'Item Number',
   //     'short_number': 'Short Number',
@@ -463,7 +463,7 @@ const OrderPreferencesTab: React.FC = () => {
               <SelectInput
                 label="Item Sort By"
                 options={[
-                  { label: 'Sales Location', value: 'sales_location' },
+                  { label: 'Section Location', value: 'section_location' },
                   { label: 'Alphabetically', value: 'alphabetically' },
                   { label: 'Item Number', value: 'item_number' },
                   { label: 'Short Number', value: 'short_number' },
