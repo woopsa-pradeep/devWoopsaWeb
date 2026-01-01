@@ -57,7 +57,7 @@ const createEpickUserSchema = z.object({
   category: z.array(z.number()).min(1, 'At least one category is required'),
   order_type: z.enum(['order_number', 'qty_number']).optional(),
   shortby: z.enum(['Asc', 'Des']).optional(),
-  item_sort_by: z.enum(['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number']).optional(),
+  item_sort_by: z.enum(['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number', 'sales_section_location']).optional(),
   status: z.boolean().optional(),
 });
 
@@ -74,7 +74,7 @@ const updateEpickUserSchema = z.object({
   category: z.array(z.number()).optional(),
   order_type: z.enum(['order_number', 'qty_number']).optional(),
   shortby: z.enum(['Asc', 'Des']).optional(),
-  item_sort_by: z.enum(['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number']).optional(),
+  item_sort_by: z.enum(['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number', 'sales_section_location']).optional(),
   status: z.boolean().optional(),
 });
 
@@ -220,9 +220,9 @@ const CreateEpickUserTab: React.FC = () => {
     const shortbyValue = (user.shortby === 'Asc' || user.shortby === 'Des' 
       ? user.shortby 
       : 'Des') as 'Asc' | 'Des';
-    const itemSortBy = (user.item_sort_by && ['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number'].includes(user.item_sort_by)
+    const itemSortBy = (user.item_sort_by && ['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number', 'sales_section_location'].includes(user.item_sort_by)
       ? user.item_sort_by
-      : 'line_number') as 'section_location' | 'alphabetically' | 'item_number' | 'short_number' | 'line_number';
+      : 'line_number') as 'section_location' | 'alphabetically' | 'item_number' | 'short_number' | 'line_number' | 'sales_section_location';
     updateForm.reset({
       email: user.email,
       firstName: user.firstName,
@@ -400,6 +400,7 @@ const CreateEpickUserTab: React.FC = () => {
       'item_number': 'Item Number',
       'short_number': 'Short Number',
       'line_number': 'Line Number',
+      'sales_section_location': 'Sales Section Location',
     };
     return mapping[itemSortBy] || itemSortBy;
   };
@@ -772,6 +773,7 @@ const CreateEpickUserTab: React.FC = () => {
                     { label: 'Item Number', value: 'item_number' },
                     { label: 'Short Number', value: 'short_number' },
                     { label: 'Line Number', value: 'line_number' },
+                    { label: 'Sales Section Location', value: 'sales_section_location' },
                   ]}
                   value={field.value || 'line_number'}
                   onChange={(e) => field.onChange(e.target.value)}
@@ -1021,6 +1023,7 @@ const CreateEpickUserTab: React.FC = () => {
                     { label: 'Item Number', value: 'item_number' },
                     { label: 'Short Number', value: 'short_number' },
                     { label: 'Line Number', value: 'line_number' },
+                    { label: 'Sales Section Location', value: 'sales_section_location' },
                   ]}
                   value={field.value || 'line_number'}
                   onChange={(e) => field.onChange(e.target.value)}

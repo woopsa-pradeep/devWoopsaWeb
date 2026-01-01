@@ -75,3 +75,40 @@ export const lockOrderConfirmation = async (orderNumber: number) => {
   const response = await axiosInstance.put(`/sales/lock-order-confirmation/${orderNumber}`);
   return response.data;
 };
+
+// Get inventory items for order confirmation (search by UPC)
+export const getInventoryItemsForOrderConfirmation = async (search: string, customerNumber: number) => {
+  const queryParams = new URLSearchParams();
+  if (search) queryParams.append('search', search);
+  if (customerNumber) queryParams.append('customerNumber', customerNumber.toString());
+  
+  const queryString = queryParams.toString();
+  const url = queryString 
+    ? `/sales/getInventoryItemsForOrderConfirmation?${queryString}` 
+    : `/sales/getInventoryItemsForOrderConfirmation`;
+    
+  const response = await axiosInstance.get(url);
+  return response.data;
+};
+
+// Place order for customer (add item to order)
+export const placeOrderForCustomer = async (customerNumber: number, payload: {
+  orderNumber: string;
+  orderPlayload: Array<{
+    Customer_Number: number;
+    Item_Number: number;
+    Price: number;
+    Price_With_Tax: number;
+    Qty: number;
+    Tax_Rate: number;
+    TotalPrice: number;
+    TotalPriceWithTax: number;
+    prepaidTaxRate: number;
+    discountPrice: number;
+    id: number;
+    Line_Number: number;
+  }>;
+}) => {
+  const response = await axiosInstance.post(`/sales/placeOrderForCustomer/${customerNumber}`, payload);
+  return response.data;
+};

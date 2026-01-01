@@ -50,6 +50,7 @@ import userIcon from '../../../assets/icons/user_1.svg';
 import userActiveIcon from '../../../assets/icons/user_1.svg';
 import PromotedItemsSelector from "./PromotedItemsSelector";
 import { TableColumn } from '../../atoms/Table/CommonTable';
+import PicklistTemplateTab from '../../../pages/admin/settings/PicklistTemplateTab';
 
 interface TimeSlot {
   id: string;
@@ -271,6 +272,12 @@ const tabConfigs = [
     label: 'User',
     apiType: 'user' as const,
     icon: userIcon,
+    activeIcon: userActiveIcon
+  },
+  {
+    label: 'Picklist Template',
+    apiType: 'picklistTemplate' as const,
+    icon: userIcon, // Using placeholder icon
     activeIcon: userActiveIcon
   }
 ];
@@ -1538,6 +1545,9 @@ const SettingsTabs = () => {
           </Box>
         );
 
+      case 'picklistTemplate':
+        return <PicklistTemplateTab />;
+
       default:
         return null;
     }
@@ -1612,8 +1622,8 @@ const SettingsTabs = () => {
             {renderForm()}
           </Box>
 
-          {/* Save Button - Hide for Demanded Items, Contact Us, Email Management, and User tabs since they have their own save handling */}
-          {tabConfigs[tab].apiType !== 'demandedItems' && tabConfigs[tab].apiType !== 'contactUs' && tabConfigs[tab].apiType !== 'emailManagement' && tabConfigs[tab].apiType !== 'user' && (
+          {/* Save Button - Hide for Demanded Items, Contact Us, Email Management, User, and Picklist Template tabs since they have their own save handling */}
+          {tabConfigs[tab].apiType !== 'demandedItems' && tabConfigs[tab].apiType !== 'contactUs' && tabConfigs[tab].apiType !== 'emailManagement' && tabConfigs[tab].apiType !== 'user' && tabConfigs[tab].apiType !== 'picklistTemplate' && (
             <Box sx={{
               position: "sticky",
               bottom: 0,

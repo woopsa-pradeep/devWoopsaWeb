@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Box, Typography, useMediaQuery, Paper } from "@mui/material";
+import { Box, Typography, useMediaQuery, Paper, IconButton, CircularProgress } from "@mui/material";
 import CommonTable, {
   TableColumn,
 } from "../../../component/atoms/Table/CommonTable";
-import { VisibilityOutlined } from "@mui/icons-material";
+import { VisibilityOutlined, Print as PrintIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import { getOrderHistory } from "../../../redux/apis/distrubutor/orderDistrubutorApis";
+import { getOrderHistory, getOrderDetailByOrderNumberForInvoice } from "../../../redux/apis/distrubutor/orderDistrubutorApis";
 import { getCustomerList } from "../../../redux/apis/distrubutor/listApis";
+import { makePickListPrinted } from "../../../redux/apis/distrubutor/settingApis";
 import CustomAutoComplete from '../../../component/atoms/CustomAutoComplete';
 import CustomDateRangePicker from "../../../component/atoms/CustomDateRangePicker";
+import { generatePicklistPDF } from "../../../utils/picklistPdfGenerator";
+import toast from 'react-hot-toast';
 
 const AdminOrder = () => {
   const navigate = useNavigate();
@@ -24,9 +27,277 @@ const AdminOrder = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [selectedStartDate, setSelectedStartDate] = useState<any>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<any>(null);
+  const [printingOrder, setPrintingOrder] = useState<string | null>(null);
 
   const handleViewOrder = (orderId: string) => {
     navigate(`/admin/order/details/${orderId}`);
+  };
+
+  const handlePrintPicklist = async (orderNumber: string, picklistPrinted: boolean = false) => {
+    setPrintingOrder(orderNumber);
+    try {
+      // Fetch order details
+      const response: any = await getOrderDetailByOrderNumberForInvoice(orderNumber);
+      const invoiceData = response?.data;
+      
+      if (!invoiceData || !invoiceData.orderHeader) {
+        toast.error('Failed to fetch order details');
+        return;
+      }
+
+      const orderHeader = invoiceData.orderHeader;
+      const orderDetails = orderHeader.orderDetails || [];
+      const distributor = orderHeader.distributor || {};
+      const customer = orderHeader.customer || {};
+      
+      // Determine if this is a reprint based on Picklist_Printed flag from order list
+      const isReprint = picklistPrinted || orderHeader.IsReprint || false;
+
+      // Get template - will use default (most recently updated) template
+      // TODO: In future, this will come from API based on order configuration or user selection
+      // For now, it uses the template saved in Settings > Picklist Template
+
+      // Transform order data to match picklist format
+      const items = orderDetails.map((item: any, index: number) => {
+        // Get UPC from inventory if available
+        const upc = item.inventory?.UPCList?.[0]?.UPC_Number || 
+                   item.UPC_Number || 
+                   item.UPC || 
+                   item.inventory?.UPC || 
+                   '';
+        
+        // Get description - prioritize inventory.Description, then ItemDescription
+        const description = item.inventory?.Description || 
+                           item.ItemDescription || 
+                           item.Description || 
+                           item.Item_Description || 
+                           '';
+        
+        // Get size/UOM - from inventory.UOM
+        const size = item.inventory?.UOM || 
+                    item.UOM || 
+                    item.Size || 
+                    '';
+        
+        // Get on hand from inventory (commented out for now - may come in future API updates)
+        // const onhand = item.inventory?.OnHand || 
+        //               item.OnHand || 
+        //               item.Inventory_OnHand || 
+        //               item.inventory?.On_Hand || 
+        //               0;
+        const onhand = 0; // Temporarily set to 0 until API provides this field
+        
+        // Ensure proper type conversion
+        const lineNumber = item.Line_Number !== undefined && item.Line_Number !== null 
+          ? Number(item.Line_Number) 
+          : index + 1;
+        
+        const orderedQty = item.Quantity_Ordered !== undefined && item.Quantity_Ordered !== null
+          ? Number(item.Quantity_Ordered)
+          : (item.QuantityOrdered !== undefined && item.QuantityOrdered !== null
+            ? Number(item.QuantityOrdered)
+            : 0);
+        
+        const itemNumber = item.Item_Number !== undefined && item.Item_Number !== null
+          ? String(item.Item_Number)
+          : (item.ItemNumber !== undefined && item.ItemNumber !== null
+            ? String(item.ItemNumber)
+            : (item.inventory?.Item_Number !== undefined && item.inventory?.Item_Number !== null
+              ? String(item.inventory.Item_Number)
+              : ''));
+        
+        const pack = item.Pack !== undefined && item.Pack !== null
+          ? Number(item.Pack)
+          : (item.inventory?.Pack !== undefined && item.inventory?.Pack !== null
+            ? Number(item.inventory.Pack)
+            : (item.CaseCount !== undefined && item.CaseCount !== null
+              ? Number(item.CaseCount)
+              : (item.inventory?.CaseCount !== undefined && item.inventory?.CaseCount !== null
+                ? Number(item.inventory.CaseCount)
+                : 1)));
+        
+        // Unit cost = Price (as per user requirement)
+        const unitCost = item.Price !== undefined && item.Price !== null
+          ? Number(item.Price)
+          : (item.inventory?.Price !== undefined && item.inventory?.Price !== null
+            ? Number(item.inventory.Price)
+            : 0);
+        
+        // Extended cost = (Price + OTP_Amount_State) * Quantity_Ordered + PrepaidTax_Amount
+        const otpAmountState = item.OTP_Amount_State !== undefined && item.OTP_Amount_State !== null
+          ? Number(item.OTP_Amount_State)
+          : 0;
+        const prepaidTaxAmount = item.PrepaidTax_Amount !== undefined && item.PrepaidTax_Amount !== null
+          ? Number(item.PrepaidTax_Amount)
+          : 0;
+        const extendedCost = (unitCost + otpAmountState) * orderedQty + prepaidTaxAmount;
+        
+        const retail = item.Retail !== undefined && item.Retail !== null
+          ? Number(item.Retail)
+          : (item.Retail_Price !== undefined && item.Retail_Price !== null
+            ? Number(item.Retail_Price)
+            : (item.inventory?.Retail !== undefined && item.inventory?.Retail !== null
+              ? Number(item.inventory.Retail)
+              : (item.Price !== undefined && item.Price !== null
+                ? Number(item.Price)
+                : 0)));
+        
+        // Sequence - may come from backend in future, for now use Line_Number
+        const sequence = item.Sequence !== undefined && item.Sequence !== null
+          ? Number(item.Sequence)
+          : (item.inventory?.Sequence !== undefined && item.inventory?.Sequence !== null
+            ? Number(item.inventory.Sequence)
+            : (item.Line_Number !== undefined && item.Line_Number !== null
+              ? Number(item.Line_Number)
+              : index + 1));
+        
+        // Sales Category - from inventory.SalesCategory.Category_Desc
+        const salesCategory = item.inventory?.SalesCategory?.Category_Desc || 
+                            item.Sales_Category_Desc || 
+                            item.SalesCategory || 
+                            (item.Sales_Category !== undefined && item.Sales_Category !== null 
+                              ? String(item.Sales_Category) 
+                              : '') ||
+                            '';
+        
+        // Price Class - from inventory.PriceClass.Class_Desc
+        const priceClass = item.inventory?.PriceClass?.Class_Desc || 
+                          item.Price_Class_Desc || 
+                          item.PriceClass || 
+                          item.Price_Class || 
+                          item.inventory?.Price_Class_Desc ||
+                          '';
+        
+        // Section - from inventory.Section
+        const section = item.inventory?.Section || 
+                       item.Section || 
+                       item.inventory?.Section2 ||
+                       '';
+        
+        // Location - from inventory.Location (may be 0, convert to string)
+        const location = item.inventory?.Location !== undefined && item.inventory?.Location !== null
+          ? (item.inventory.Location === 0 ? '' : String(item.inventory.Location))
+          : (item.Location !== undefined && item.Location !== null
+            ? (item.Location === 0 ? '' : String(item.Location))
+            : (item.inventory?.Location2 !== undefined && item.inventory?.Location2 !== null
+              ? (item.inventory.Location2 === 0 ? '' : String(item.inventory.Location2))
+              : ''));
+        
+        // Vendor Item - from inventory.Vendor_ItemNumberAlpha
+        const vendorItem = item.inventory?.Vendor_ItemNumberAlpha || 
+                          item.inventory?.Vendor_Item || 
+                          item.Vendor_Item || 
+                          item.VendorItem || 
+                          item.inventory?.VendorItem ||
+                          '';
+        
+        return {
+          lineNumber,
+          orderedQty,
+          scannedQty: '', // Empty for manual entry
+          itemNumber,
+          description: String(description || ''),
+          pack,
+          size: String(size || ''),
+          upc: String(upc || ''),
+          onhand: Number(onhand || 0),
+          salesCategory: String(salesCategory),
+          priceClass: String(priceClass),
+          unitCost,
+          extendedCost,
+          retail,
+          section: String(section),
+          location: String(location),
+          vendorItem: String(vendorItem),
+          sequence,
+        };
+      });
+
+      const totals = {
+        totalPieces: items.reduce((sum: number, item: any) => sum + (item.orderedQty || 0), 0),
+        totalCartons: items.length,
+        totalLines: items.length,
+        totalExtendedCost: items.reduce((sum: number, item: any) => sum + (item.extendedCost || 0), 0),
+      };
+
+      // Get customer route and stop from Routes array
+      const customerRoute = customer.Routes && customer.Routes.length > 0 
+        ? customer.Routes[0].Route_Number || 0 
+        : (customer.Route || 0);
+      const customerStop = customer.Routes && customer.Routes.length > 0 
+        ? customer.Routes[0].Stop_Number || 0 
+        : (customer.Stop || 0);
+      
+      // Build customer address from components
+      const customerAddress = customer.C_Address || '';
+      const customerCity = customer.C_City || '';
+      const customerState = customer.C_State || '';
+      const customerZip = customer.C_Zip || '';
+      const fullAddress = [customerAddress, customerCity, customerState, customerZip]
+        .filter(Boolean)
+        .join(', ');
+      
+      // Build distributor address from components
+      const distributorAddr1 = distributor.D_Addr1 || '';
+      const distributorAddr2 = distributor.D_Addr2 || '';
+      const distributorCity = distributor.D_City || '';
+      const distributorState = distributor.D_State || '';
+      const distributorZip = distributor.D_Zip || '';
+      const distributorAddressParts = [distributorAddr1, distributorAddr2, distributorCity, distributorState, distributorZip]
+        .filter(Boolean);
+      const distributorAddress = distributorAddressParts.join(', ');
+      
+      const orderData = {
+        customer: {
+          number: orderHeader.C_Number || customer.C_Number || 0,
+          name: customer.C_Name || customer.C_CoName || '',
+          address: fullAddress || customer.C_Address || '',
+          phone: customer.C_Phone || '',
+          route: customerRoute,
+          stop: customerStop,
+        },
+        distributor: {
+          name: distributor.D_Name || '',
+          address: distributorAddress || distributor.D_Addr1 || '',
+        },
+        // Invoice_Number may not be present in current API, use Order_Number as fallback
+        invoiceNumber: orderHeader.Invoice_Number || 
+                      orderHeader.InvoiceNumber || 
+                      String(orderHeader.Order_Number || orderNumber),
+        isReprint: isReprint,
+        orderNumber: String(orderHeader.Order_Number || orderNumber),
+        orderDate: orderHeader.Order_Date || '',
+        // Invoice_Date may not be present in current API, use Order_Date as fallback
+        invoiceDate: orderHeader.Invoice_Date || 
+                    orderHeader.InvoiceDate || 
+                    orderHeader.Order_Date || 
+                    '',
+        items,
+        totals,
+      };
+
+      // Generate PDF using template (no template name = uses default/most recent)
+      // Generate PDF
+      await generatePicklistPDF(orderData);
+      
+      // Mark picklist as printed only if it hasn't been printed before
+      if (!picklistPrinted) {
+        try {
+          await makePickListPrinted(orderNumber);
+        } catch (printError: any) {
+          console.error('Error marking picklist as printed:', printError);
+          // Don't show error to user if PDF was generated successfully
+          // The picklist was printed, just the status update failed
+        }
+      }
+      
+      toast.success('Picklist PDF generated successfully');
+    } catch (error: any) {
+      console.error('Error generating picklist PDF:', error);
+      toast.error(error?.message || 'Failed to generate picklist PDF');
+    } finally {
+      setPrintingOrder(null);
+    }
   };
 
   const columns: TableColumn<any>[] = [
@@ -71,13 +342,41 @@ const AdminOrder = () => {
       </Box>
     )  },
     {
-      id: "history",
-      label: "Order History",
+      id: "Picklist",
+      label: "Picklist",
       render: (row) => (
-        <VisibilityOutlined 
-          sx={{ cursor: "pointer", color: "primary.main" }} 
-          onClick={() => handleViewOrder(row.Order_Number)}
-        />
+        <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+          <IconButton
+            size="small"
+            onClick={() => handlePrintPicklist(row.Order_Number, row.Picklist_Printed)}
+            disabled={printingOrder === row.Order_Number}
+            sx={{ p: 0.5 }}
+            title={row.Picklist_Printed ? "Reprint Picklist" : "Print Picklist"}
+          >
+            {printingOrder === row.Order_Number ? (
+              <CircularProgress size={16} />
+            ) : (
+              <PrintIcon sx={{ fontSize: 18, color: "primary.main", cursor: "pointer" }} />
+            )}
+          </IconButton>
+          {row.Picklist_Printed && (
+            <Typography fontSize={10} fontWeight={400} color="text.secondary">
+              Picklist Printed
+            </Typography>
+          )}
+        </Box>
+      ),
+    },
+    {
+      id: "actions",
+      label: "Actions",
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <VisibilityOutlined 
+            sx={{ cursor: "pointer", color: "primary.main" }} 
+            onClick={() => handleViewOrder(row.Order_Number)}
+          />
+        </Box>
       ),
     },
   ];
@@ -179,6 +478,7 @@ const AdminOrder = () => {
           showPageSizeSelector={true}
           showTotalItems={true}
           showPageNumbers={true}
+          stickyLastTwoColumns={true}
           maxPageNumbers={5}
           // Other props
           loading={loading}

@@ -55,3 +55,40 @@ export const bulkUpdateInventory = async (params: {
     return axiosInstance.post('/distrubutor/bulkUpdateInventory', params);
 };
 
+// Future Pricing APIs
+export const getAllFuturePricings = async () => {
+    return axiosInstance.get('/distrubutor/future-pricing');
+};
+
+export const getFuturePricingById = async (id: string) => {
+    return axiosInstance.get(`/distrubutor/future-pricing/${id}`);
+};
+
+export const createFuturePricing = async (params: {
+    futurePricings: Array<{
+        itemNumber: number;
+        effectiveAt: string;
+        changedFields: Array<Record<string, number>>;
+        isApplied: boolean;
+        changedBy: string;
+        changedUserId: string | null;
+    }>;
+}) => {
+    return axiosInstance.post('/distrubutor/future-pricing', params);
+};
+
+export const updateFuturePricing = async (id: string, params: {
+    itemNumber: number;
+    effectiveAt: string;
+    changedFields: Array<Record<string, number>>;
+    isApplied: boolean;
+    changedBy: string;
+    changedUserId: string | null;
+}) => {
+    return axiosInstance.put(`/distrubutor/future-pricing/${id}`, params);
+};
+
+export const deleteFuturePricing = async (id: string) => {
+    return axiosInstance.delete(`/distrubutor/future-pricing/${id}`);
+};
+

@@ -119,6 +119,11 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
+  '/admin/products/future-pricing': {
+    path: '/admin/products/future-pricing',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
   '/admin/product/add': {
     path: '/admin/product/add',
     allowedRoles: ['distributor'],

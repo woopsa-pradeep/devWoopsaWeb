@@ -249,6 +249,20 @@ const OrderChecker = () => {
     return getAllItemsIncludingNoContainer.filter((item) => item.containerId != null && item.containerType != null);
   }, [getAllItemsIncludingNoContainer]);
 
+  // Get item count for each container
+  const getContainerItemCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    getAllItemsFromOrder.forEach((item) => {
+      const containerId = item.containerId ?? item.boxId;
+      const containerType = item.containerType ?? item.boxType;
+      if (containerId != null && containerType != null) {
+        const key = `${containerType}-${containerId}`;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [getAllItemsFromOrder]);
+
   // Get price classes with totals from current items (for filter dropdown)
   const getPriceClassesWithTotals = useMemo(() => {
     const itemsToAnalyze = showAllItems ? getAllItemsFromOrder : boxItems;
@@ -289,26 +303,42 @@ console.log(getPriceClassesWithTotals);
   }, [getAllItemsFromOrder]);
 
   // Get out of stock items (items where qtyShipped is 0 or less than qtyOrdered)
-  // Include ALL items (even without container info) for the out of stock modal
+  // Exclude items that have both boxId and boxType (already assigned to containers)
   const getOutOfStockItems = useMemo(() => {
     return getAllItemsIncludingNoContainer.filter((item) => {
       const qtyOrdered = item.qtyOrdered || 0;
       const qtyShipped = item.qtyShipped || 0;
+      // Check if item has container info
+      const containerId = item.containerId ?? item.boxId;
+      const containerType = item.containerType ?? item.boxType;
+      const hasContainerInfo = containerId != null && containerType != null;
+      
       // Out of stock: either not shipped at all, or shipped less than ordered
-      return qtyShipped === 0 || qtyShipped < qtyOrdered;
+      // BUT exclude items that are already assigned to a container (have both boxId and boxType)
+      const isOutOfStock = qtyShipped === 0 || qtyShipped < qtyOrdered;
+      return isOutOfStock && !hasContainerInfo;
     });
   }, [getAllItemsIncludingNoContainer]);
 
   // Filter items based on selected price class
-  // Also filter out items where containerId or containerType is null
+  // Also filter out items where containerId or containerType is null (only for "Show All Items" view)
   const getFilteredItems = useMemo(() => {
     const itemsToFilter = showAllItems ? getAllItemsFromOrder : boxItems;
-    // Filter out items without container info
-    const filteredByContainer = itemsToFilter.filter((item: any) => {
-      const containerId = item.containerId ?? item.boxId;
-      const containerType = item.containerType ?? item.boxType;
-      return containerId != null && containerType != null;
-    });
+    
+    let filteredByContainer;
+    
+    if (showAllItems) {
+      // When showing all items, filter out items without container info
+      filteredByContainer = itemsToFilter.filter((item: any) => {
+        const containerId = item.containerId ?? item.boxId;
+        const containerType = item.containerType ?? item.boxType;
+        return containerId != null && containerType != null;
+      });
+    } else {
+      // When showing box-wise items, use all items from boxItems
+      // (items from getBoxItem API don't have boxId/boxType in response, but we know they belong to the selected box)
+      filteredByContainer = itemsToFilter;
+    }
     
     if (selectedPriceClass === 'all') {
       return filteredByContainer;
@@ -2347,9 +2377,11 @@ console.log(getPriceClassesWithTotals);
                       {allContainers.map((container) => {
                         const isSelected = selectedBoxId === container.id && selectedContainerType === container.type;
                         const containerColor = getContainerColor(container.type);
+                        const containerKey = `${container.type}-${container.id}`;
+                        const itemCount = getContainerItemCounts.get(containerKey) || 0;
                         return (
                           <ListItemButton
-                            key={`${container.type}-${container.id}`}
+                            key={containerKey}
                             onClick={() => handleContainerSelect(container.id, container.type)}
                             sx={{
                               mb: 1,
@@ -2388,12 +2420,30 @@ console.log(getPriceClassesWithTotals);
                               </Box>
                             </ListItemIcon>
                             <ListItemText
-                              primary={container.name}
-                              primaryTypographyProps={{
-                                fontWeight: isSelected ? 500 : 400,
-                                fontSize: 13,
-                                color: isSelected ? 'white' : 'text.primary',
-                              }}
+                              primary={
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                  <Typography
+                                    component="span"
+                                    sx={{
+                                      fontWeight: isSelected ? 500 : 400,
+                                      fontSize: 13,
+                                      color: isSelected ? 'white' : 'text.primary',
+                                    }}
+                                  >
+                                    {container.name}
+                                  </Typography>
+                                  <Typography
+                                    component="span"
+                                    sx={{
+                                      fontWeight: isSelected ? 500 : 400,
+                                      fontSize: 11,
+                                      color: isSelected ? 'rgba(255,255,255,0.8)' : 'text.secondary',
+                                    }}
+                                  >
+                                    ({itemCount})
+                                  </Typography>
+                                </Box>
+                              }
                             />
                             {isEditingAllowed && (
                               <IconButton 
@@ -2463,7 +2513,24 @@ console.log(getPriceClassesWithTotals);
                               All Items
                             </Typography>
                             <Typography variant="body2" fontSize={12} color="text.secondary" mt={0.5}>
-                              Items from all containers ({getFilteredItems.length}):
+                              Items from all containers ({(() => {
+                                const regularItems = getFilteredItems.filter((item: any) => {
+                                  const qtyOrdered = item.qtyOrdered || 0;
+                                  const qtyShipped = item.qtyShipped || 0;
+                                  return !(qtyShipped === 0 || qtyShipped < qtyOrdered);
+                                });
+                                const outOfStockItems = getFilteredItems.filter((item: any) => {
+                                  const qtyOrdered = item.qtyOrdered || 0;
+                                  const qtyShipped = item.qtyShipped || 0;
+                                  return qtyShipped === 0 || qtyShipped < qtyOrdered;
+                                });
+                                const noContainerOutOfStock = getOutOfStockItems.filter((item: any) => {
+                                  return !outOfStockItems.some((existing: any) => 
+                                    existing.itemNumber === item.itemNumber
+                                  );
+                                });
+                                return regularItems.length + outOfStockItems.length + noContainerOutOfStock.length;
+                              })()}):
                             </Typography>
                           </>
                         ) : selectedBoxId && selectedContainerType ? (
@@ -2506,30 +2573,61 @@ console.log(getPriceClassesWithTotals);
                           <CircularProgress />
                         </Box>
                       ) : showAllItems ? (
-                        getFilteredItems.length === 0 ? (
-                          <Typography color="text.secondary" textAlign="center" p={3}>
-                            No items available
-                          </Typography>
-                        ) : (
-                          <List>
-                            {getFilteredItems.map((item: any, index: any) => (
-                              <Card
-                                key={`${item.containerId}-${item.itemNumber}-${index}`}
-                                sx={{
-                                  mb: 1,
-                                  bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                                  border: '1px solid',
-                                  borderColor: 'divider',
-                                  borderRadius: 1.5,
-                                  transition: 'all 0.2s ease',
-                                  '&:hover': {
-                                    bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                                    borderColor: 'primary.main',
-                                    boxShadow: 2,
-                                    transform: 'translateY(-2px)',
-                                  },
-                                }}
-                              >
+                        (() => {
+                          // Separate regular items and out of stock items
+                          const regularItems = getFilteredItems.filter((item: any) => {
+                            const qtyOrdered = item.qtyOrdered || 0;
+                            const qtyShipped = item.qtyShipped || 0;
+                            const isOutOfStock = qtyShipped === 0 || qtyShipped < qtyOrdered;
+                            return !isOutOfStock;
+                          });
+                          
+                          const outOfStockItems = getFilteredItems.filter((item: any) => {
+                            const qtyOrdered = item.qtyOrdered || 0;
+                            const qtyShipped = item.qtyShipped || 0;
+                            const isOutOfStock = qtyShipped === 0 || qtyShipped < qtyOrdered;
+                            return isOutOfStock;
+                          });
+                          
+                          // Also include items without container info (from getOutOfStockItems)
+                          const noContainerOutOfStock = getOutOfStockItems.filter((item: any) => {
+                            // Check if already in outOfStockItems
+                            return !outOfStockItems.some((existing: any) => 
+                              existing.itemNumber === item.itemNumber
+                            );
+                          });
+                          
+                          const allOutOfStockItems = [...outOfStockItems, ...noContainerOutOfStock];
+                          
+                          if (regularItems.length === 0 && allOutOfStockItems.length === 0) {
+                            return (
+                              <Typography color="text.secondary" textAlign="center" p={3}>
+                                No items available
+                              </Typography>
+                            );
+                          }
+                          
+                          return (
+                            <List>
+                              {/* Regular Items */}
+                              {regularItems.map((item: any, index: any) => (
+                                <Card
+                                  key={`${item.containerId}-${item.itemNumber}-${index}`}
+                                  sx={{
+                                    mb: 1,
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    borderRadius: 1.5,
+                                    transition: 'all 0.2s ease',
+                                    '&:hover': {
+                                      bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                                      borderColor: 'primary.main',
+                                      boxShadow: 2,
+                                      transform: 'translateY(-2px)',
+                                    },
+                                  }}
+                                >
                                 <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                                   <Box display="flex" gap={1.5} alignItems="center" justifyContent="space-between">
                                     {/* Left Side: Container - Item Number - Description */}
@@ -2703,9 +2801,235 @@ console.log(getPriceClassesWithTotals);
                                   </Box>
                                 </CardContent>
                               </Card>
-                            ))}
-                          </List>
-                        )
+                              ))}
+                              
+                              {/* Divider and Out of Stock Items Section */}
+                              {allOutOfStockItems.length > 0 && (
+                                <>
+                                  <Box sx={{ my: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+                                    <Typography variant="body2" fontSize={12} fontWeight={600} color="error.main" sx={{ px: 1 }}>
+                                      Out of Stock Items
+                                    </Typography>
+                                    <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+                                  </Box>
+                                  
+                                  {allOutOfStockItems.map((item: any, index: any) => {
+                                    const qtyOrdered = item.qtyOrdered || 0;
+                                    const qtyShipped = item.qtyShipped || 0;
+                                    const missingQty = qtyOrdered - qtyShipped;
+                                    
+                                    return (
+                                      <Card
+                                        key={`out-of-stock-${item.itemNumber}-${item.containerId || 'no-container'}-${index}`}
+                                        sx={{
+                                          mb: 1,
+                                          bgcolor: isDark ? 'rgba(244, 67, 54, 0.1)' : 'rgba(244, 67, 54, 0.08)',
+                                          border: '1px solid',
+                                          borderColor: 'error.main',
+                                          borderRadius: 1.5,
+                                          transition: 'all 0.2s ease',
+                                          opacity: 0.9,
+                                          '&:hover': {
+                                            bgcolor: isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.12)',
+                                            borderColor: 'error.dark',
+                                            boxShadow: 2,
+                                            transform: 'translateY(-2px)',
+                                            opacity: 1,
+                                          },
+                                        }}
+                                      >
+                                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                          <Box display="flex" gap={1.5} alignItems="center" justifyContent="space-between">
+                                            {/* Left Side: Container - Item Number - Description */}
+                                            <Box flex={1} minWidth={0}>
+                                              {item.containerId && item.containerType && (
+                                                <Box display="flex" gap={0.5} alignItems="center" mb={0.5}>
+                                                  <Box
+                                                    sx={{
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      px: 1,
+                                                      py: 0.25,
+                                                      borderRadius: 1,
+                                                      bgcolor: item.containerType === 'box'
+                                                        ? (isDark ? 'rgba(60, 119, 149, 0.3)' : 'rgba(60, 119, 149, 0.15)')
+                                                        : item.containerType === 'tote'
+                                                          ? (isDark ? 'rgba(76, 175, 80, 0.3)' : 'rgba(76, 175, 80, 0.15)')
+                                                          : (isDark ? 'rgba(244, 67, 54, 0.3)' : 'rgba(244, 67, 54, 0.15)'),
+                                                      border: '1px solid',
+                                                      borderColor: item.containerType === 'box'
+                                                        ? 'primary.main'
+                                                        : item.containerType === 'tote'
+                                                          ? 'success.main'
+                                                          : 'error.main',
+                                                    }}
+                                                  >
+                                                    <Typography 
+                                                      variant="caption" 
+                                                      fontSize={10} 
+                                                      fontWeight={600}
+                                                      color={item.containerType === 'box'
+                                                        ? 'primary.main'
+                                                        : item.containerType === 'tote'
+                                                          ? 'success.main'
+                                                          : 'error.main'}
+                                                    >
+                                                      {item.containerType === 'box' ? 'BOX' : item.containerType === 'tote' ? 'TOTE' : 'DRINK'} {item.containerId}
+                                                    </Typography>
+                                                  </Box>
+                                                </Box>
+                                              )}
+                                              {!item.containerId && (
+                                                <Box display="flex" gap={0.5} alignItems="center" mb={0.5}>
+                                                  <Box
+                                                    sx={{
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      px: 1,
+                                                      py: 0.25,
+                                                      borderRadius: 1,
+                                                      bgcolor: isDark ? 'rgba(158, 158, 158, 0.3)' : 'rgba(158, 158, 158, 0.15)',
+                                                      border: '1px solid',
+                                                      borderColor: 'text.disabled',
+                                                    }}
+                                                  >
+                                                    <Typography 
+                                                      variant="caption" 
+                                                      fontSize={10} 
+                                                      fontWeight={600}
+                                                      color="text.disabled"
+                                                    >
+                                                      NO CONTAINER
+                                                    </Typography>
+                                                  </Box>
+                                                </Box>
+                                              )}
+                                              <Box display="flex" gap={1} alignItems="center">
+                                                <Typography 
+                                                  variant="body2"
+                                                  fontSize={13}
+                                                  fontWeight={500}
+                                                  color="error.main"
+                                                >
+                                                  {item.itemNumber}
+                                                </Typography>
+                                                <Box
+                                                  sx={{
+                                                    width: 4,
+                                                    height: 4,
+                                                    borderRadius: '50%',
+                                                    bgcolor: 'text.secondary',
+                                                    opacity: 0.5,
+                                                  }}
+                                                />
+                                                <Typography
+                                                  variant="body2"
+                                                  fontSize={13}
+                                                  fontWeight={500}
+                                                  color="text.primary"
+                                                  sx={{
+                                                    wordBreak: 'break-word',
+                                                    lineHeight: 1.4,
+                                                  }}
+                                                >
+                                                  {item.description}
+                                                </Typography>
+                                              </Box>
+                                            </Box>
+                                            {/* Right Side: Qty - Edit - Move */}
+                                            <Box display="flex" gap={0.75} alignItems="center" flexShrink={0}>
+                                              {/* Ordered Chip */}
+                                              <Box
+                                                sx={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  px: 1,
+                                                  py: 0.5,
+                                                  borderRadius: 1.5,
+                                                  bgcolor: isDark 
+                                                    ? 'rgba(25, 118, 210, 0.25)' 
+                                                    : 'rgba(25, 118, 210, 0.15)',
+                                                  border: '1px solid',
+                                                  borderColor: 'info.main',
+                                                  minWidth: 'auto',
+                                                }}
+                                              >
+                                                <Typography 
+                                                  variant="caption" 
+                                                  fontSize={10} 
+                                                  fontWeight={500} 
+                                                  color="info.main"
+                                                >
+                                                  Ordered: {qtyOrdered}
+                                                </Typography>
+                                              </Box>
+                                              {/* Scanned Chip */}
+                                              <Box
+                                                sx={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  px: 1,
+                                                  py: 0.5,
+                                                  borderRadius: 1.5,
+                                                  bgcolor: isDark 
+                                                    ? 'rgba(76, 175, 80, 0.25)' 
+                                                    : 'rgba(76, 175, 80, 0.15)',
+                                                  border: '1px solid',
+                                                  borderColor: 'success.main',
+                                                  minWidth: 'auto',
+                                                }}
+                                              >
+                                                <Typography 
+                                                  variant="caption" 
+                                                  fontSize={10} 
+                                                  fontWeight={500} 
+                                                  color="success.main"
+                                                >
+                                                  Scanned: {qtyShipped}
+                                                </Typography>
+                                              </Box>
+                                              {/* Missing Qty Chip */}
+                                              {missingQty > 0 && (
+                                                <Box
+                                                  sx={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    px: 1,
+                                                    py: 0.5,
+                                                    borderRadius: 1.5,
+                                                    bgcolor: isDark 
+                                                      ? 'rgba(244, 67, 54, 0.25)' 
+                                                      : 'rgba(244, 67, 54, 0.15)',
+                                                    border: '1px solid',
+                                                    borderColor: 'error.main',
+                                                    minWidth: 'auto',
+                                                  }}
+                                                >
+                                                  <Typography 
+                                                    variant="caption" 
+                                                    fontSize={10} 
+                                                    fontWeight={600} 
+                                                    color="error.main"
+                                                  >
+                                                    Missing: {missingQty}
+                                                  </Typography>
+                                                </Box>
+                                              )}
+                                            </Box>
+                                          </Box>
+                                        </CardContent>
+                                      </Card>
+                                    );
+                                  })}
+                                </>
+                              )}
+                            </List>
+                          );
+                        })()
                       ) : selectedBoxId && selectedContainerType ? (
                         getFilteredItems.length === 0 ? (
                           <Typography color="text.secondary" textAlign="center" p={3}>
@@ -3458,6 +3782,7 @@ console.log(getPriceClassesWithTotals);
                   <List sx={{ p: 0 }}>
                     {allContainers.map((container) => {
                       const containerKey = `${container.type}-${container.id}`;
+                      const itemCount = getContainerItemCounts.get(containerKey) || 0;
                       return (
                         <Box
                           key={containerKey}
@@ -3488,7 +3813,7 @@ console.log(getPriceClassesWithTotals);
                               flex: 1,
                             }}
                           >
-                            {container.type === 'box' ? 'Box' : container.type === 'tote' ? 'Tote' : 'Drink'} {container.id}
+                            {container.type === 'box' ? 'Box' : container.type === 'tote' ? 'Tote' : 'Drink'} {container.id} ({itemCount})
                           </Typography>
                           <IconButton
                             size="small"
@@ -4205,9 +4530,11 @@ console.log(getPriceClassesWithTotals);
                   const value = containerTypeUpper === 'BOX' ? `Box-${container.id}` :
                     containerTypeUpper === 'TOTE' ? `Tote-${container.id}` :
                       `Drink-${container.id}`;
+                  const containerKey = `${container.type}-${container.id}`;
+                  const itemCount = getContainerItemCounts.get(containerKey) || 0;
                   return (
                     <MenuItem key={`${container.type}-${container.id}`} value={value}>
-                      {container.name}
+                      {container.name} ({itemCount})
                     </MenuItem>
                   );
                 })}

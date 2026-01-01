@@ -77,7 +77,7 @@ const OrderPreferencesTab: React.FC = () => {
     const normalizedShortby = user.shortby ? user.shortby.toLowerCase() : '';
     setOrderType(normalizedOrderType === 'order_number' ? 'order_number' : normalizedOrderType === 'qty_number' ? 'qty_number' : '');
     setShortby(normalizedShortby === 'asc' ? 'asc' : normalizedShortby === 'des' ? 'des' : '');
-    const validItemSortBy = user.item_sort_by && ['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number'].includes(user.item_sort_by)
+    const validItemSortBy = user.item_sort_by && ['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number', 'sales_section_location'].includes(user.item_sort_by)
       ? user.item_sort_by
       : 'line_number';
     setItemSortBy(validItemSortBy);
@@ -468,6 +468,7 @@ const OrderPreferencesTab: React.FC = () => {
                   { label: 'Item Number', value: 'item_number' },
                   { label: 'Short Number', value: 'short_number' },
                   { label: 'Line Number', value: 'line_number' },
+                  { label: 'Sales Section Location', value: 'sales_section_location' },
                 ]}
                 value={itemSortBy}
                 onChange={(e) => setItemSortBy(e.target.value as string)}

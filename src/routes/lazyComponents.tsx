@@ -191,6 +191,10 @@ export const BulkUpdate = lazyLoad(
   () => import("../pages/admin/products/BulkUpdate"),
   "Loading Bulk Update..."
 );
+export const FuturePricing = lazyLoad(
+  () => import("../pages/admin/products/FuturePricing"),
+  "Loading Future Pricing..."
+);
 export const ReportsAnalytics = lazyLoad(
   () => import("../pages/admin/reportsAnalytics/ReportsAnalytics"),
   "Loading Reports Analytics..."

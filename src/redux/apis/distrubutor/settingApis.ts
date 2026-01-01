@@ -103,3 +103,25 @@ export const getErpUsers = async () => {
 export const getErpUser = async (id: string) => {
     return axiosInstance.get(`/distrubutor/erpuser/${id}`);
 };
+
+// Picklist Template APIs
+export const getPicklistTemplate = async () => {
+    const response: any = await axiosInstance.get('/distrubutor/picklists');
+    return response?.data;
+};
+
+export const savePicklistTemplate = async (data: any) => {
+    const response: any = await axiosInstance.post('/distrubutor/picklists', data);
+    return response?.data;
+};
+
+export const updatePicklistTemplate = async (id: string, data: any) => {
+    const response: any = await axiosInstance.put(`/distrubutor/picklists/${id}`, data);
+    return response?.data;
+};
+
+// Mark picklist as printed
+export const makePickListPrinted = async (orderNumber: string) => {
+    const response: any = await axiosInstance.put(`/distrubutor/makePickListPrinted/${orderNumber}`);
+    return response?.data;
+};

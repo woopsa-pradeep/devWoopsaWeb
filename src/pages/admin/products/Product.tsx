@@ -36,6 +36,7 @@ import AddIcon from '@mui/icons-material/Add';
 import PrintIcon from '@mui/icons-material/Print';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/Update';
+import EventIcon from '@mui/icons-material/Event';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const JsBarcode = require('jsbarcode');
 
@@ -147,6 +148,7 @@ const Product = () => {
     columns: 1 as number,
   });
   const [individualPrintLoading, setIndividualPrintLoading] = useState(false);
+
 
   useEffect(() => {
     fetchSalesCategories();
@@ -1591,6 +1593,15 @@ const Product = () => {
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Typography fontSize={18} fontWeight={400} color="text.primary">Products Management</Typography>
           <Box display="flex" gap={2}>
+            <CustomButton 
+              fullWidth={false}
+              onClick={() => navigate('/admin/products/future-pricing')}
+              icon={<EventIcon sx={{ fontSize: 20 }} />}
+              iconPosition="left"
+              sx={{ mt: 0 }} 
+            >
+              Future Pricing
+            </CustomButton>
             <CustomButton 
               fullWidth={false}
               onClick={() => navigate('/admin/products/bulk-update')}

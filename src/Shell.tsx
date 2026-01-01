@@ -17,6 +17,8 @@ import { initializeFirebaseOnStartup, isFirebaseMessagingAvailable } from "./uti
 import { notificationFallback, showBrowserNotification } from "./utils/notificationFallback";
 // import { initializeFCMAndSendToken, isFCMSupported } from "./utils/fcmUtils";
 import { fetchNotifications } from "./redux/slices/notificationSlice";
+import { getContactUsData } from "./redux/apis/landingPageApis";
+import { setFavicon } from "./utils/faviconUtils";
 
 function Shell() {
   const mode = useSelector((state: RootState) => state.theme.mode);
@@ -33,6 +35,24 @@ function Shell() {
     initializeFirebaseOnStartup().catch((error) => {
       console.warn('Failed to initialize Firebase on startup:', error);
     });
+  }, []);
+
+  // Fetch contact us data and set favicon on app load
+  useEffect(() => {
+    const fetchAndSetFavicon = async () => {
+      try {
+        const contactData = await getContactUsData();
+        const logoUrl = contactData?.logo;
+        // Set favicon - if logo exists use it, otherwise use default
+        setFavicon(logoUrl);
+      } catch (error) {
+        console.warn('Failed to fetch contact us data for favicon:', error);
+        // On error, use default favicon
+        setFavicon(null);
+      }
+    };
+
+    fetchAndSetFavicon();
   }, []);
 
   // Listen for foreground messages

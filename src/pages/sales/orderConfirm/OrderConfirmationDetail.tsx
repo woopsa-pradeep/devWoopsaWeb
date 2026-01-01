@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Typography, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, useTheme, List, ListItem, ListItemText, Divider, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Box, Typography, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, useTheme, List, ListItem, ListItemText, Divider, FormControl, InputLabel, Select, MenuItem, Tabs, Tab } from '@mui/material';
 import { KeyboardBackspaceOutlined, CheckCircle } from '@mui/icons-material';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
@@ -24,6 +24,9 @@ import image from '../../../assets/Default-Product-Image.jpg';
 import dayjs from 'dayjs';
 import type { LabelSize } from '../../../utils/labelGenerator';
 import { generateBarcode } from '../../../utils/labelGenerator';
+import { getSalesCategoryList } from '../../../redux/apis/distrubutor/listApis';
+import { getInventoryItemsForOrderConfirmation, placeOrderForCustomer } from '../../../redux/apis/sales/orderConfirmApis';
+import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
 
 const OrderConfirmationDetail = () => {
   const navigate = useNavigate();
@@ -71,6 +74,28 @@ const OrderConfirmationDetail = () => {
   } | null>(null);
   const [currentTime, setCurrentTime] = useState(dayjs()); // For real-time clock updates
   const [pageOpenTime, setPageOpenTime] = useState<dayjs.Dayjs | null>(null); // Track when page opened for not confirmed orders
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'confirmed'>('pending'); // Tab state - default to pending
+  const [salesCategorySummaryModalOpen, setSalesCategorySummaryModalOpen] = useState(false);
+  const [salesCategorySummaryData, setSalesCategorySummaryData] = useState<Array<{
+    salesCategory: number;
+    categoryDesc: string;
+    totalOrderedQty: number;
+    totalShippedQty: number;
+    totalOrderedPrice: number;
+    totalShippedPrice: number;
+  }>>([]);
+  const [loadingSalesCategorySummary, setLoadingSalesCategorySummary] = useState(false);
+  const [addProductModalOpen, setAddProductModalOpen] = useState(false);
+  const [foundProduct, setFoundProduct] = useState<any>(null);
+  const [searchingProduct, setSearchingProduct] = useState(false);
+  const [addingProduct, setAddingProduct] = useState(false);
+  const [scannedUPCForSearch, setScannedUPCForSearch] = useState<string>('');
+  const [manualAddItemModalOpen, setManualAddItemModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchingInventory, setSearchingInventory] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [addingSelectedProduct, setAddingSelectedProduct] = useState(false);
   const location = useLocation();
   
   const previousLocationRef = useRef<string | null>(null);
@@ -688,14 +713,9 @@ const OrderConfirmationDetail = () => {
 
   // Process scanned UPC code
   const processScannedUPC = useCallback(
-    (upcCode: string) => {
+    async (upcCode: string) => {
       if (!currentOrderNumber || !orderDetails.length) {
         setScanMessage({ text: 'No order selected', type: 'error' });
-        return;
-      }
-
-      if (!currentActiveLine) {
-        setScanMessage({ text: 'No active line to scan. All items may be completed.', type: 'error' });
         return;
       }
 
@@ -723,7 +743,42 @@ const OrderConfirmationDetail = () => {
       }
 
       if (!matchingLine) {
-        setScanMessage({ text: `Product with UPC ${cleanedUPC} not found in this order`, type: 'error' });
+        // Product not found in order - search for it in inventory
+        if (!orderHeader?.customer?.C_Number) {
+          setScanMessage({ text: 'Customer information not available', type: 'error' });
+          return;
+        }
+        
+        setSearchingProduct(true);
+        setScannedUPCForSearch(cleanedUPC);
+        
+        try {
+          const response: any = await getInventoryItemsForOrderConfirmation(cleanedUPC, orderHeader.customer.C_Number);
+          // API returns: { success: true, data: { finalProductList: [...] } }
+          // Since API function returns response.data, we get: { success: true, data: { finalProductList: [...] } }
+          const items = response?.data?.finalProductList || response?.finalProductList || (Array.isArray(response?.data) ? response.data : []);
+          const productList = Array.isArray(items) ? items : [];
+          
+          if (productList.length > 0) {
+            // Found product - show modal to add it
+            setFoundProduct(productList[0]); // Use first matching item
+            setAddProductModalOpen(true);
+            setScanMessage({ text: `Product found. Do you want to add it to the order?`, type: 'success' });
+          } else {
+            setScanMessage({ text: `Product with UPC ${cleanedUPC} not found in inventory`, type: 'error' });
+          }
+        } catch (error: any) {
+          console.error('Error searching for product:', error);
+          setScanMessage({ text: `Error searching for product: ${error.message || 'Unknown error'}`, type: 'error' });
+        } finally {
+          setSearchingProduct(false);
+        }
+        return;
+      }
+
+      // Check if there's an active line for existing products
+      if (!currentActiveLine) {
+        setScanMessage({ text: 'No active line to scan. All items may be completed.', type: 'error' });
         return;
       }
 
@@ -933,11 +988,11 @@ const OrderConfirmationDetail = () => {
             clearTimeout(processingTimeoutRef.current);
           }
           
-          const timeout = setTimeout(() => {
+          const timeout = setTimeout(async () => {
             if (upcBuffer.length >= 8 || (upcBuffer + e.key).length >= 8) {
               const finalBuffer = upcBuffer || e.key;
               if (finalBuffer.length >= 8) {
-                processScannedUPC(finalBuffer);
+                await processScannedUPC(finalBuffer);
                 setIsCapturingUPC(false);
                 setUpcBuffer('');
                 processingTimeoutRef.current = null;
@@ -958,9 +1013,9 @@ const OrderConfirmationDetail = () => {
         }
 
         // Auto-process when buffer reaches typical UPC length (12 digits)
-        const timeout = setTimeout(() => {
+        const timeout = setTimeout(async () => {
           if (newBuffer.length >= 8) {
-            processScannedUPC(newBuffer);
+            await processScannedUPC(newBuffer);
             setIsCapturingUPC(false);
             setUpcBuffer('');
             processingTimeoutRef.current = null;
@@ -971,13 +1026,15 @@ const OrderConfirmationDetail = () => {
       } else if (e.key === 'Enter') {
         // Enter key processes the buffer if there is one
         if (isCapturingUPC && upcBuffer.length >= 8) {
-          processScannedUPC(upcBuffer);
-          setIsCapturingUPC(false);
-          setUpcBuffer('');
-          if (processingTimeoutRef.current) {
-            clearTimeout(processingTimeoutRef.current);
-            processingTimeoutRef.current = null;
-          }
+          (async () => {
+            await processScannedUPC(upcBuffer);
+            setIsCapturingUPC(false);
+            setUpcBuffer('');
+            if (processingTimeoutRef.current) {
+              clearTimeout(processingTimeoutRef.current);
+              processingTimeoutRef.current = null;
+            }
+          })();
         } else if (isCapturingUPC && upcBuffer.length > 0 && upcBuffer.length < 8) {
           // Only show error if there's an incomplete buffer
           toast.error(`Invalid UPC code length: ${upcBuffer.length} (minimum 8)`);
@@ -1190,6 +1247,349 @@ const OrderConfirmationDetail = () => {
       return total + quantityShipped;
     }, 0);
   }, [orderDetails, confirmedLines]);
+
+  // Filter order details based on active tab
+  const getFilteredOrderDetails = useCallback((): OrderDetailItem[] => {
+    if (!orderDetails.length) return [];
+
+    if (activeTab === 'all') {
+      return orderDetails;
+    }
+
+    return orderDetails.filter((item: OrderDetailItem) => {
+      const confirmed = confirmedLines[item.Line_Number];
+      const quantityShipped = confirmed?.quantityShipped ?? item.Quantity_Shipped ?? 0;
+      
+      // Item is confirmed if:
+      // 1. In continue mode and line <= currentOrderline (already confirmed)
+      // 2. Quantity shipped equals quantity ordered (fully scanned/entered)
+      const isAlreadyConfirmedInContinueMode = mode === 'continue' && item.Line_Number <= currentOrderline;
+      const isFullyScanned = quantityShipped === item.Quantity_Ordered;
+      const isConfirmed = isAlreadyConfirmedInContinueMode || isFullyScanned;
+
+      if (activeTab === 'pending') {
+        return !isConfirmed;
+      } else if (activeTab === 'confirmed') {
+        return isConfirmed;
+      }
+
+      return true;
+    });
+  }, [orderDetails, confirmedLines, activeTab, mode, currentOrderline]);
+
+  // Search inventory manually (for Add More Item modal)
+  const handleSearchInventory = useCallback(async (searchTerm: string) => {
+    if (!orderHeader?.customer?.C_Number) {
+      toast.error('Customer information not available');
+      return;
+    }
+
+    if (!searchTerm || searchTerm.trim() === '') {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchingInventory(true);
+    try {
+      const response: any = await getInventoryItemsForOrderConfirmation(searchTerm.trim(), orderHeader.customer.C_Number);
+      // API returns: { success: true, data: { finalProductList: [...] } }
+      // Since API function returns response.data, we get: { success: true, data: { finalProductList: [...] } }
+      const items = response?.data?.finalProductList || response?.finalProductList || (Array.isArray(response?.data) ? response.data : []);
+      setSearchResults(Array.isArray(items) ? items : []);
+      // Clear any previously selected product when new search results come in
+      setSelectedProduct(null);
+    } catch (error: any) {
+      console.error('Error searching inventory:', error);
+      toast.error('Failed to search inventory');
+      setSearchResults([]);
+    } finally {
+      setSearchingInventory(false);
+    }
+  }, [orderHeader]);
+
+  // Debounced search for manual add item modal
+  useEffect(() => {
+    if (!manualAddItemModalOpen) return;
+    
+    const debounceTimer = setTimeout(() => {
+      if (searchQuery.trim() !== '') {
+        handleSearchInventory(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, manualAddItemModalOpen, handleSearchInventory]);
+
+  // Helper function to calculate cart payload with prepaidTaxRate (matching Order.tsx logic)
+  // Calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
+  const calculateCartPayload = useCallback((product: any, quantity: number = 1) => {
+    // Convert all values to numbers to prevent string operations
+    const basePrice = Number(product.price || product.Price || 0);
+    const prepaidTaxRate = Number(product.prepaidTaxRate || 0);
+    const taxRate = Number(product.Tax_Rate || product.taxRate || 0);
+    const qty = Number(quantity) || 0;
+    
+    // Standard calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
+    const basePriceWithTax = basePrice + taxRate;
+    
+    // Calculate final Price_With_Tax: basePriceWithTax * (1 + prepaidTaxRate)
+    const priceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
+    const price = basePrice;
+    
+    // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
+    const prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
+    // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
+    const totalPrepaidTax = prepaidTaxPerUnit * qty;
+    
+    // Calculate total price with tax: Price_With_Tax * qty
+    const totalPriceWithTax = priceWithTax * qty;
+    
+    return {
+      Price: Number(Number(price).toFixed(2)),
+      Price_With_Tax: Number(Number(priceWithTax).toFixed(2)),
+      Qty: Number(qty),
+      Tax_Rate: Number(Number(taxRate).toFixed(2)),
+      TotalPrice: Number(Number(price * qty).toFixed(2)),
+      TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
+      prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)),
+      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
+    };
+  }, []);
+
+  // Handle adding selected product to order (from manual search)
+  const handleAddSelectedProductToOrder = useCallback(async () => {
+    if (!selectedProduct || !currentOrderNumber || !orderHeader?.customer?.C_Number) {
+      toast.error('Missing required information to add product');
+      return;
+    }
+
+    setAddingSelectedProduct(true);
+    try {
+      // Get the next line number (max line number + 1)
+      const maxLineNumber = orderDetails.length > 0
+        ? Math.max(...orderDetails.map((item: OrderDetailItem) => item.Line_Number))
+        : 0;
+      const nextLineNumber = maxLineNumber + 1;
+
+      // Calculate payload using the same logic as Order.tsx
+      const cartPayload = calculateCartPayload(selectedProduct, 1);
+      
+      // Calculate prepaid tax amount: (price + tax_rate) * prepaidTaxRate
+      const basePrice = Number(selectedProduct.price || selectedProduct.Price || 0);
+      const taxRate = Number(selectedProduct.Tax_Rate || selectedProduct.taxRate || 0);
+      const prepaidTaxRateValue = Number(selectedProduct.prepaidTaxRate || 0);
+      const prepaidTaxAmount = (basePrice + taxRate) * prepaidTaxRateValue;
+      
+      // Prepare payload according to the API structure
+      const payload = {
+        orderNumber: currentOrderNumber.toString(),
+        orderPlayload: [
+          {
+            Customer_Number: orderHeader.customer.C_Number,
+            Item_Number: selectedProduct.Item_Number || selectedProduct.id || 0,
+            Price: cartPayload.Price,
+            Price_With_Tax: cartPayload.Price_With_Tax,
+            Qty: cartPayload.Qty,
+            Tax_Rate: cartPayload.Tax_Rate,
+            TotalPrice: cartPayload.TotalPrice,
+            TotalPriceWithTax: cartPayload.TotalPriceWithTax,
+            prepaidTaxRate: roundPrepaidTax(prepaidTaxAmount), // Use utility function for proper rounding
+            discountPrice: cartPayload.Price, // Use base price as discount price (no discount applied)
+            id: selectedProduct.id || selectedProduct.Item_Number || 0,
+            Line_Number: nextLineNumber,
+          },
+        ],
+      };
+
+      await placeOrderForCustomer(orderHeader.customer.C_Number, payload);
+
+      // Refresh order details to show the new item
+      await dispatch(fetchOrderConfirmationDetails(currentOrderNumber)).unwrap();
+
+      // Close modal and reset state
+      setManualAddItemModalOpen(false);
+      setSelectedProduct(null);
+      setSearchQuery('');
+      setSearchResults([]);
+      
+      toast.success('Product added to order successfully');
+    } catch (error: any) {
+      console.error('Error adding product to order:', error);
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to add product to order');
+    } finally {
+      setAddingSelectedProduct(false);
+    }
+  }, [selectedProduct, currentOrderNumber, orderHeader, orderDetails, dispatch, calculateCartPayload]);
+
+  // Handle adding product to order
+  const handleAddProductToOrder = useCallback(async () => {
+    if (!foundProduct || !currentOrderNumber || !orderHeader?.customer?.C_Number) {
+      toast.error('Missing required information to add product');
+      return;
+    }
+
+    setAddingProduct(true);
+    try {
+      // Get the next line number (max line number + 1)
+      const maxLineNumber = orderDetails.length > 0
+        ? Math.max(...orderDetails.map((item: OrderDetailItem) => item.Line_Number))
+        : 0;
+      const nextLineNumber = maxLineNumber + 1;
+
+      // Calculate payload using the same logic as Order.tsx
+      const cartPayload = calculateCartPayload(foundProduct, 1);
+      
+      // Calculate prepaid tax amount: (price + tax_rate) * prepaidTaxRate
+      const basePrice = Number(foundProduct.price || foundProduct.Price || 0);
+      const taxRate = Number(foundProduct.Tax_Rate || foundProduct.taxRate || 0);
+      const prepaidTaxRateValue = Number(foundProduct.prepaidTaxRate || 0);
+      const prepaidTaxAmount = (basePrice + taxRate) * prepaidTaxRateValue;
+      
+      // Prepare payload according to the API structure
+      const payload = {
+        orderNumber: currentOrderNumber.toString(),
+        orderPlayload: [
+          {
+            Customer_Number: orderHeader.customer.C_Number,
+            Item_Number: foundProduct.Item_Number || foundProduct.id || 0,
+            Price: cartPayload.Price,
+            Price_With_Tax: cartPayload.Price_With_Tax,
+            Qty: cartPayload.Qty,
+            Tax_Rate: cartPayload.Tax_Rate,
+            TotalPrice: cartPayload.TotalPrice,
+            TotalPriceWithTax: cartPayload.TotalPriceWithTax,
+            prepaidTaxRate: roundPrepaidTax(prepaidTaxAmount), // Use utility function for proper rounding
+            discountPrice: cartPayload.Price, // Use base price as discount price (no discount applied)
+            id: foundProduct.id || foundProduct.Item_Number || 0,
+            Line_Number: nextLineNumber,
+          },
+        ],
+      };
+
+      await placeOrderForCustomer(orderHeader.customer.C_Number, payload);
+
+      // Refresh order details to show the new item
+      await dispatch(fetchOrderConfirmationDetails(currentOrderNumber)).unwrap();
+
+      // Close modal and reset state
+      setAddProductModalOpen(false);
+      setFoundProduct(null);
+      setScannedUPCForSearch('');
+      
+      toast.success('Product added to order successfully');
+      setScanMessage({ text: `Product added to order at line ${nextLineNumber}`, type: 'success' });
+    } catch (error: any) {
+      console.error('Error adding product to order:', error);
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to add product to order');
+    } finally {
+      setAddingProduct(false);
+    }
+  }, [foundProduct, currentOrderNumber, orderHeader, orderDetails, dispatch, calculateCartPayload]);
+
+  // Fetch and calculate sales category summary
+  const fetchSalesCategorySummary = useCallback(async () => {
+    if (!orderDetails.length) {
+      toast.error('No order details available');
+      return;
+    }
+
+    setLoadingSalesCategorySummary(true);
+    try {
+      // Fetch sales category list
+      const response = await getSalesCategoryList() as any;
+      const categories = response?.data?.data || [];
+
+      // Create a map of Sales_Category to Category_Desc
+      const categoryMap = new Map<number, string>();
+      categories.forEach((cat: any) => {
+        categoryMap.set(cat.Sales_Category, cat.Category_Desc);
+      });
+
+      // Group items by Sales_Category and calculate totals
+      const categorySummary = new Map<number, {
+        salesCategory: number;
+        categoryDesc: string;
+        totalOrderedQty: number;
+        totalShippedQty: number;
+        totalOrderedPrice: number;
+        totalShippedPrice: number;
+      }>();
+
+      orderDetails.forEach((item: OrderDetailItem) => {
+        const salesCategory = item.Sales_Category;
+        const categoryDesc = categoryMap.get(salesCategory) || `Category ${salesCategory}`;
+        const confirmed = confirmedLines[item.Line_Number];
+        const quantityShipped = confirmed?.quantityShipped ?? item.Quantity_Shipped ?? 0;
+        const quantityOrdered = item.Quantity_Ordered;
+        const price = Number(item.Price) || 0;
+
+        if (!categorySummary.has(salesCategory)) {
+          categorySummary.set(salesCategory, {
+            salesCategory,
+            categoryDesc,
+            totalOrderedQty: 0,
+            totalShippedQty: 0,
+            totalOrderedPrice: 0,
+            totalShippedPrice: 0,
+          });
+        }
+
+        const summary = categorySummary.get(salesCategory)!;
+        summary.totalOrderedQty += quantityOrdered;
+        summary.totalShippedQty += quantityShipped;
+        summary.totalOrderedPrice += price * quantityOrdered;
+        summary.totalShippedPrice += price * quantityShipped;
+      });
+
+      // Convert map to array and sort by Sales_Category
+      const summaryArray = Array.from(categorySummary.values()).sort(
+        (a, b) => a.salesCategory - b.salesCategory
+      );
+
+      setSalesCategorySummaryData(summaryArray);
+      setSalesCategorySummaryModalOpen(true);
+    } catch (error: any) {
+      console.error('Error fetching sales category summary:', error);
+      toast.error('Failed to load sales category summary');
+    } finally {
+      setLoadingSalesCategorySummary(false);
+    }
+  }, [orderDetails, confirmedLines]);
+
+  // Handle F12 key to open Sales Category Summary modal
+  useEffect(() => {
+    const handleF12KeyPress = (e: KeyboardEvent) => {
+      // Only handle F12 key
+      if (e.key === 'F12') {
+        // Don't trigger if user is typing in an input field
+        const activeElement = document.activeElement;
+        if (
+          activeElement &&
+          (activeElement.tagName === 'INPUT' || 
+           activeElement.tagName === 'TEXTAREA' ||
+           activeElement.getAttribute('contenteditable') === 'true')
+        ) {
+          return;
+        }
+
+        // Prevent browser's default F12 behavior (developer tools)
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Open sales category summary modal if order details are available
+        if (orderDetails.length > 0 && !loadingSalesCategorySummary) {
+          fetchSalesCategorySummary();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleF12KeyPress);
+    return () => {
+      window.removeEventListener('keydown', handleF12KeyPress);
+    };
+  }, [orderDetails.length, loadingSalesCategorySummary, fetchSalesCategorySummary]);
 
   // Auto-open completion modal when all items are scanned (but not in review mode)
   useEffect(() => {
@@ -2963,6 +3363,86 @@ const OrderConfirmationDetail = () => {
         </Paper>
       )}
 
+      {/* Tabs and Action Buttons */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          sx={{
+            minHeight: 'auto',
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontSize: 13,
+              fontWeight: 500,
+              minHeight: 36,
+              px: 2,
+              py: 1,
+              color: 'text.secondary',
+              '&.Mui-selected': {
+                color: 'primary.main',
+                fontWeight: 600,
+              },
+            },
+            '& .MuiTabs-indicator': {
+              height: 2,
+              borderRadius: '2px 2px 0 0',
+            },
+          }}
+        >
+          <Tab label="All Items" value="all" />
+          <Tab label="Pending Items" value="pending" />
+          <Tab label="Confirmed Items" value="confirmed" />
+        </Tabs>
+        
+        <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+          {!isReviewMode && (
+            <CustomButton
+              appearance="filled"
+              onClick={() => {
+                setManualAddItemModalOpen(true);
+                setSearchQuery('');
+                setSearchResults([]);
+                setSelectedProduct(null);
+              }}
+              sx={{
+                minWidth: 140,
+                fontSize: 11,
+                fontWeight: 400,
+                px: 1.5,
+                py: 0.5,
+                mt: 0,
+                height: '36px',
+                borderRadius: '6px',
+                textTransform: 'none',
+              }}
+              fullWidth={false}
+            >
+              Add More Item
+            </CustomButton>
+          )}
+          <CustomButton
+            appearance="outlined"
+            onClick={fetchSalesCategorySummary}
+            disabled={loadingSalesCategorySummary || !orderDetails.length}
+            loading={loadingSalesCategorySummary}
+            sx={{
+              minWidth: 180,
+              fontSize: 11,
+              fontWeight: 400,
+              px: 1.5,
+              py: 0.5,
+              mt: 0,
+              height: '36px',
+              borderRadius: '6px',
+              textTransform: 'none',
+            }}
+            fullWidth={false}
+          >
+            Sales Category Summary
+          </CustomButton>
+        </Box>
+      </Box>
+
       {/* Modern Order Details Table */}
       <Paper 
         elevation={0} 
@@ -2976,15 +3456,15 @@ const OrderConfirmationDetail = () => {
         }}
       >
         <CommonTable
-          data={orderDetails}
+          data={getFilteredOrderDetails()}
           columns={detailColumns}
           containerHeight="calc(100vh - 450px)"
           loading={detailsLoading}
           filterComponent={null}
           currentPage={1}
           totalPages={1}
-          totalItems={orderDetails.length}
-          pageSize={orderDetails.length || 10}
+          totalItems={getFilteredOrderDetails().length}
+          pageSize={getFilteredOrderDetails().length || 10}
           onPageChange={() => {}}
           onPageSizeChange={() => {}}
           isPagination={false}
@@ -3549,6 +4029,483 @@ const OrderConfirmationDetail = () => {
           </CustomButton>
         </DialogActions>
       </Dialog>
+
+      {/* Sales Category Summary Modal */}
+      <CommonModal
+        open={salesCategorySummaryModalOpen}
+        onClose={() => {
+          if (!loadingSalesCategorySummary) {
+            setSalesCategorySummaryModalOpen(false);
+          }
+        }}
+        title="Sales Category Summary"
+        size="xl"
+        isCloseIcon={true}
+      >
+        <Box>
+          {salesCategorySummaryData.length > 0 ? (
+            <CommonTable
+              data={salesCategorySummaryData}
+              columns={[
+                {
+                  id: 'categoryDesc',
+                  label: 'Sales Category',
+                  render: (row) => (
+                    <Typography fontSize={12} fontWeight={500}>
+                      {row.categoryDesc}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'totalOrderedQty',
+                  label: 'Ordered Qty',
+                  align: 'center',
+                  render: (row) => (
+                    <Typography fontSize={12} fontWeight={400}>
+                      {row.totalOrderedQty.toFixed(0)}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'totalShippedQty',
+                  label: 'Shipped Qty',
+                  align: 'center',
+                  render: (row) => (
+                    <Typography fontSize={12} fontWeight={400}>
+                      {row.totalShippedQty.toFixed(0)}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'totalOrderedPrice',
+                  label: 'Ordered Price',
+                  align: 'right',
+                  render: (row) => (
+                    <Typography fontSize={12} fontWeight={400}>
+                      ${row.totalOrderedPrice.toFixed(2)}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'totalShippedPrice',
+                  label: 'Shipped Price',
+                  align: 'right',
+                  render: (row) => (
+                    <Typography fontSize={12} fontWeight={400}>
+                      ${row.totalShippedPrice.toFixed(2)}
+                    </Typography>
+                  ),
+                },
+              ]}
+              containerHeight="400px"
+              loading={loadingSalesCategorySummary}
+              filterComponent={null}
+              currentPage={1}
+              totalPages={1}
+              totalItems={salesCategorySummaryData.length}
+              pageSize={salesCategorySummaryData.length || 10}
+              onPageChange={() => {}}
+              onPageSizeChange={() => {}}
+              isPagination={false}
+              cellStyle={{ padding: '10px 12px' }}
+            />
+          ) : (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+              <Typography fontSize={14} color="text.secondary">
+                No data available
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </CommonModal>
+
+      {/* Add Product Modal */}
+      <Dialog
+        open={addProductModalOpen}
+        onClose={() => {
+          if (!addingProduct && !searchingProduct) {
+            setAddProductModalOpen(false);
+            setFoundProduct(null);
+            setScannedUPCForSearch('');
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+          },
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && !addingProduct && !searchingProduct) {
+            setAddProductModalOpen(false);
+            setFoundProduct(null);
+            setScannedUPCForSearch('');
+          } else if (e.key === 'Enter' && !addingProduct && !searchingProduct && foundProduct) {
+            e.preventDefault();
+            handleAddProductToOrder();
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 2, fontSize: 16, fontWeight: 500 }}>
+          Add Product to Order
+        </DialogTitle>
+        <DialogContent sx={{ pb: 2 }}>
+          {searchingProduct ? (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+              <Typography fontSize={14} color="text.secondary">
+                Searching for product...
+              </Typography>
+            </Box>
+          ) : foundProduct ? (
+            <Box display="flex" flexDirection="column" gap={2}>
+              <Typography variant="body1" color="text.secondary" fontSize={14} sx={{ mb: 1 }}>
+                Product found! Do you want to add this item to the order?
+              </Typography>
+              
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: '8px',
+                  border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e5e7eb'}`,
+                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
+                }}
+              >
+                <Box display="flex" flexDirection="column" gap={1.5}>
+                  {foundProduct.Description && (
+                    <Box>
+                      <Typography fontSize={11} fontWeight={400} color="text.secondary" mb={0.5}>
+                        Description
+                      </Typography>
+                      <Typography fontSize={13} fontWeight={500} color="text.primary">
+                        {foundProduct.Description}
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  <Box display="flex" gap={2} flexWrap="wrap">
+                    {foundProduct.Item_Number && (
+                      <Box>
+                        <Typography fontSize={11} fontWeight={400} color="text.secondary" mb={0.5}>
+                          Item Number
+                        </Typography>
+                        <Typography fontSize={13} fontWeight={500} color="text.primary">
+                          {foundProduct.Item_Number}
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {(foundProduct.Price !== undefined || foundProduct.price !== undefined) && (
+                      <Box>
+                        <Typography fontSize={11} fontWeight={400} color="text.secondary" mb={0.5}>
+                          Price
+                        </Typography>
+                        <Typography fontSize={13} fontWeight={500} color="text.primary">
+                          ${(foundProduct.Price || foundProduct.price || 0).toFixed(2)}
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {scannedUPCForSearch && (
+                      <Box>
+                        <Typography fontSize={11} fontWeight={400} color="text.secondary" mb={0.5}>
+                          UPC
+                        </Typography>
+                        <Typography fontSize={13} fontWeight={500} color="text.primary">
+                          {scannedUPCForSearch}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                  
+                  {(foundProduct.Pack !== undefined || foundProduct.pack !== undefined) && (
+                    <Box>
+                      <Typography fontSize={11} fontWeight={400} color="text.secondary" mb={0.5}>
+                        Pack
+                      </Typography>
+                      <Typography fontSize={13} fontWeight={500} color="text.primary">
+                        {foundProduct.Pack || foundProduct.pack || 'N/A'}
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {(foundProduct.CaseCount !== undefined || foundProduct.caseCount !== undefined) && (
+                    <Box>
+                      <Typography fontSize={11} fontWeight={400} color="text.secondary" mb={0.5}>
+                        Case Count
+                      </Typography>
+                      <Typography fontSize={13} fontWeight={500} color="text.primary">
+                        {foundProduct.CaseCount || foundProduct.caseCount || 'N/A'}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            </Box>
+          ) : (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+              <Typography fontSize={14} color="text.secondary">
+                No product information available
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
+          <CustomButton
+            onClick={() => {
+              setAddProductModalOpen(false);
+              setFoundProduct(null);
+              setScannedUPCForSearch('');
+            }}
+            buttonType="cancel"
+            appearance="outlined"
+            size="small"
+            fullWidth={false}
+            sx={{ minWidth: 100 }}
+            disabled={addingProduct || searchingProduct}
+          >
+            Cancel
+          </CustomButton>
+          <CustomButton
+            onClick={handleAddProductToOrder}
+            appearance="filled"
+            fullWidth={false}
+            sx={{ minWidth: 100 }}
+            size="small"
+            loading={addingProduct}
+            disabled={addingProduct || searchingProduct || !foundProduct}
+          >
+            Add to Order
+          </CustomButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Manual Add Item Modal */}
+      <CommonModal
+        open={manualAddItemModalOpen}
+        onClose={() => {
+          if (!addingSelectedProduct && !searchingInventory) {
+            setManualAddItemModalOpen(false);
+            setSearchQuery('');
+            setSearchResults([]);
+            setSelectedProduct(null);
+          }
+        }}
+        title="Add More Item"
+        size="xl"
+        isCloseIcon={true}
+      >
+        <Box display="flex" flexDirection="column" gap={2}>
+          {/* Search Section */}
+          <Box display="flex" gap={1} alignItems="center">
+            <TextField
+              fullWidth
+              label="Search by Item Number, Description, or UPC"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value.trim() === '') {
+                  setSearchResults([]);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.trim() !== '') {
+                  e.preventDefault();
+                  handleSearchInventory(searchQuery);
+                }
+              }}
+              InputProps={{
+                endAdornment: (
+                  <CustomButton
+                    appearance="filled"
+                    onClick={() => handleSearchInventory(searchQuery)}
+                    disabled={searchingInventory || !searchQuery.trim()}
+                    loading={searchingInventory}
+                    sx={{
+                      minWidth: 100,
+                      fontSize: 11,
+                      fontWeight: 400,
+                      px: 1.5,
+                      py: 0.5,
+                      // height: '36px',
+                      borderRadius: '6px',
+                      textTransform: 'none',
+                      mt: 0,
+                    }}
+                    fullWidth={false}
+                  >
+                    Search
+                  </CustomButton>
+                ),
+              }}
+              size="small"
+              autoFocus
+            />
+          </Box>
+
+          {/* Search Results Table */}
+          {searchResults.length > 0 ? (
+            <Box>
+              <Typography variant="body2" fontSize={12} color="text.secondary" mb={1}>
+                {searchResults.length} product{searchResults.length !== 1 ? 's' : ''} found. Select one to add to order.
+              </Typography>
+              <CommonTable
+                data={searchResults}
+                columns={[
+                  {
+                    id: 'Item_Number',
+                    label: 'Item #',
+                    render: (row) => (
+                      <Typography fontSize={12} fontWeight={500}>
+                        {row.Item_Number || row.id || 'N/A'}
+                      </Typography>
+                    ),
+                  },
+                  {
+                    id: 'Description',
+                    label: 'Description',
+                    render: (row) => (
+                      <Typography fontSize={12} fontWeight={400}>
+                        {row.Description || row.description || 'N/A'}
+                      </Typography>
+                    ),
+                  },
+                  {
+                    id: 'Price',
+                    label: 'Price',
+                    align: 'right',
+                    render: (row) => (
+                      <Typography fontSize={12} fontWeight={400}>
+                        ${(row.Price || row.price || 0).toFixed(2)}
+                      </Typography>
+                    ),
+                  },
+                  {
+                    id: 'Pack',
+                    label: 'Pack',
+                    align: 'center',
+                    render: (row) => (
+                      <Typography fontSize={12} fontWeight={400}>
+                        {row.Pack || row.pack || 'N/A'}
+                      </Typography>
+                    ),
+                  },
+                  {
+                    id: 'CaseCount',
+                    label: 'Case Count',
+                    align: 'center',
+                    render: (row) => (
+                      <Typography fontSize={12} fontWeight={400}>
+                        {row.CaseCount || row.caseCount || 'N/A'}
+                      </Typography>
+                    ),
+                  },
+                  {
+                    id: 'select',
+                    label: 'Action',
+                    align: 'center',
+                    render: (row) => {
+                      // Strict comparison using Item_Number as primary identifier
+                      const rowItemNumber = row.Item_Number || row.id;
+                      const selectedItemNumber = selectedProduct?.Item_Number || selectedProduct?.id;
+                      const isSelected = selectedProduct !== null && selectedItemNumber !== undefined && rowItemNumber !== undefined && 
+                                        String(selectedItemNumber) === String(rowItemNumber);
+                      
+                      return (
+                        <CustomButton
+                          appearance={isSelected ? "filled" : "outlined"}
+                          onClick={() => setSelectedProduct(row)}
+                          size="small"
+                          sx={{
+                            minWidth: 100,
+                            fontSize: 11,
+                            fontWeight: 400,
+                            px: 1.5,
+                            py: 0.5,
+                            height: '28px',
+                            borderRadius: '6px',
+                            textTransform: 'none',
+                            mt: 0,
+                          }}
+                          fullWidth={false}
+                        >
+                          {isSelected ? 'Selected' : 'Select'}
+                        </CustomButton>
+                      );
+                    },
+                  },
+                ]}
+                containerHeight="400px"
+                loading={searchingInventory}
+                filterComponent={null}
+                currentPage={1}
+                totalPages={1}
+                totalItems={searchResults.length}
+                pageSize={searchResults.length || 10}
+                onPageChange={() => {}}
+                onPageSizeChange={() => {}}
+                isPagination={false}
+                cellStyle={{ padding: '10px 12px' }}
+                getRowStyle={(row) => {
+                  // Strict comparison using Item_Number as primary identifier
+                  const rowItemNumber = row.Item_Number || row.id;
+                  const selectedItemNumber = selectedProduct?.Item_Number || selectedProduct?.id;
+                  const isSelected = selectedProduct !== null && selectedItemNumber !== undefined && rowItemNumber !== undefined && 
+                                    String(selectedItemNumber) === String(rowItemNumber);
+                  
+                  if (isSelected) {
+                    return {
+                      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe',
+                    };
+                  }
+                  return {};
+                }}
+              />
+            </Box>
+          ) : searchQuery.trim() !== '' && !searchingInventory ? (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+              <Typography fontSize={14} color="text.secondary">
+                No products found. Try a different search term.
+              </Typography>
+            </Box>
+          ) : searchQuery.trim() === '' ? (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+              <Typography fontSize={14} color="text.secondary">
+                Enter a search term to find products (Item Number, Description, or UPC)
+              </Typography>
+            </Box>
+          ) : null}
+
+          {/* Action Buttons */}
+          <Box display="flex" justifyContent="flex-end" gap={2} mt={2}>
+            <CustomButton
+              buttonType="cancel"
+              appearance="outlined"
+              onClick={() => {
+                setManualAddItemModalOpen(false);
+                setSearchQuery('');
+                setSearchResults([]);
+                setSelectedProduct(null);
+              }}
+              fullWidth={false}
+              disabled={addingSelectedProduct || searchingInventory}
+              sx={{ mt: 0 }}
+            >
+              Cancel
+            </CustomButton>
+            <CustomButton
+              buttonType="primary"
+              onClick={handleAddSelectedProductToOrder}
+              fullWidth={false}
+              loading={addingSelectedProduct}
+              disabled={addingSelectedProduct || searchingInventory || !selectedProduct}
+              sx={{ mt: 0 }}
+            >
+              Add to Order
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
     </Box>
   );
 };

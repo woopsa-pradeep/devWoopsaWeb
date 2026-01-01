@@ -12,7 +12,9 @@ import {
   getOrderHistoryByOrderNumber,
   getOrderDetailByOrderNumberForInvoice,
 } from "../../../redux/apis/distrubutor/orderDistrubutorApis";
-import { getWarehouseSetting } from "../../../redux/apis/distrubutor/settingApis";
+import { getWarehouseSetting, makePickListPrinted } from "../../../redux/apis/distrubutor/settingApis";
+import { generatePicklistPDF } from "../../../utils/picklistPdfGenerator";
+import toast from 'react-hot-toast';
 import image from "../../../assets/Default-Product-Image.jpg";
 import jsPDF from 'jspdf';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -27,6 +29,7 @@ const AdminOrderDetail = () => {
   const [orderHeader, setOrderHeader] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [picklistLoading, setPicklistLoading] = useState(false);
   const [showWithPerpaidTax, setShowWithPerpaidTax] = useState<boolean>(true);
 
   // Pagination state
@@ -108,6 +111,217 @@ const AdminOrderDetail = () => {
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
     setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  // Handle Print Picklist
+  const handlePrintPicklist = async () => {
+    if (!orderId) return;
+    
+    setPicklistLoading(true);
+    try {
+      // Fetch order details
+      const response: any = await getOrderDetailByOrderNumberForInvoice(orderId);
+      const invoiceData = response?.data;
+      
+      if (!invoiceData || !invoiceData.orderHeader) {
+        toast.error('Failed to fetch order details');
+        return;
+      }
+
+      const orderHeader = invoiceData.orderHeader;
+      const orderDetails = orderHeader.orderDetails || [];
+      const distributor = orderHeader.distributor || {};
+      const customer = orderHeader.customer || {};
+      
+      // Determine if this is a reprint based on Picklist_Printed flag
+      const picklistPrinted = orderHeader.Picklist_Printed || false;
+      const isReprint = picklistPrinted || orderHeader.IsReprint || false;
+
+      // Transform order data to match picklist format
+      const items = orderDetails.map((item: any, index: number) => {
+        // Get UPC from inventory if available
+        const upc = item.inventory?.UPCList?.[0]?.UPC_Number || 
+                   item.UPC_Number || 
+                   item.UPC || 
+                   '';
+        
+        // Get description - ItemDescription is empty, use inventory.Description
+        const description = item.ItemDescription || 
+                           item.Description || 
+                           item.Item_Description || 
+                           item.inventory?.Description || 
+                           '';
+        
+        // Get size/UOM - from inventory.UOM
+        const size = item.Size || 
+                    item.UOM || 
+                    item.inventory?.UOM || 
+                    '';
+        
+        // Get on hand from inventory
+        const onhand = item.OnHand || 
+                      item.Inventory_OnHand || 
+                      item.inventory?.OnHand || 
+                      0;
+        
+        // Ensure proper type conversion
+        const lineNumber = item.Line_Number !== undefined && item.Line_Number !== null 
+          ? Number(item.Line_Number) 
+          : index + 1;
+        
+        const orderedQty = item.Quantity_Ordered !== undefined && item.Quantity_Ordered !== null
+          ? Number(item.Quantity_Ordered)
+          : (item.QuantityOrdered !== undefined && item.QuantityOrdered !== null
+            ? Number(item.QuantityOrdered)
+            : 0);
+        
+        const itemNumber = item.Item_Number !== undefined && item.Item_Number !== null
+          ? String(item.Item_Number)
+          : (item.ItemNumber !== undefined && item.ItemNumber !== null
+            ? String(item.ItemNumber)
+            : '');
+        
+        const pack = item.Pack !== undefined && item.Pack !== null
+          ? Number(item.Pack)
+          : (item.CaseCount !== undefined && item.CaseCount !== null
+            ? Number(item.CaseCount)
+            : (item.inventory?.CaseCount !== undefined && item.inventory?.CaseCount !== null
+              ? Number(item.inventory.CaseCount)
+              : 1));
+        
+        // Unit cost = Price (as per user requirement)
+        const unitCost = item.Price !== undefined && item.Price !== null
+          ? Number(item.Price)
+          : 0;
+        
+        // Extended cost = (Price + OTP_Amount_State) * Quantity_Ordered + PrepaidTax_Amount
+        const otpAmountState = item.OTP_Amount_State !== undefined && item.OTP_Amount_State !== null
+          ? Number(item.OTP_Amount_State)
+          : 0;
+        const prepaidTaxAmount = item.PrepaidTax_Amount !== undefined && item.PrepaidTax_Amount !== null
+          ? Number(item.PrepaidTax_Amount)
+          : 0;
+        const extendedCost = (unitCost + otpAmountState) * orderedQty + prepaidTaxAmount;
+        
+        const retail = item.Retail !== undefined && item.Retail !== null
+          ? Number(item.Retail)
+          : (item.Retail_Price !== undefined && item.Retail_Price !== null
+            ? Number(item.Retail_Price)
+            : (item.Price !== undefined && item.Price !== null
+              ? Number(item.Price)
+              : 0));
+        
+        const sequence = item.Sequence !== undefined && item.Sequence !== null
+          ? Number(item.Sequence)
+          : (item.Line_Number !== undefined && item.Line_Number !== null
+            ? Number(item.Line_Number)
+            : index + 1);
+        
+        // Sales Category - from inventory.SalesCategory.Category_Desc or Sales_Category
+        const salesCategory = item.inventory?.SalesCategory?.Category_Desc || 
+                            item.Sales_Category_Desc || 
+                            item.SalesCategory || 
+                            (item.Sales_Category !== undefined && item.Sales_Category !== null ? String(item.Sales_Category) : '') ||
+                            '';
+        
+        return {
+          lineNumber,
+          orderedQty,
+          scannedQty: '', // Empty for manual entry
+          itemNumber,
+          description: String(description || ''),
+          pack,
+          size: String(size || ''),
+          upc: String(upc || ''),
+          onhand: Number(onhand || 0),
+          salesCategory: String(salesCategory),
+          priceClass: String(item.Price_Class_Desc || item.PriceClass || item.Price_Class || ''),
+          unitCost,
+          extendedCost,
+          retail,
+          section: String(item.Section || ''),
+          location: String(item.Location || ''),
+          vendorItem: String(item.Vendor_Item || item.VendorItem || ''),
+          sequence,
+        };
+      });
+
+      const totals = {
+        totalPieces: items.reduce((sum: number, item: any) => sum + (item.orderedQty || 0), 0),
+        totalCartons: items.length,
+        totalLines: items.length,
+        totalExtendedCost: items.reduce((sum: number, item: any) => sum + (item.extendedCost || 0), 0),
+      };
+
+      // Get customer route and stop from Routes array
+      const customerRoute = customer.Routes && customer.Routes.length > 0 
+        ? customer.Routes[0].Route_Number || 0 
+        : (customer.Route || 0);
+      const customerStop = customer.Routes && customer.Routes.length > 0 
+        ? customer.Routes[0].Stop_Number || 0 
+        : (customer.Stop || 0);
+      
+      // Build customer address from components
+      const customerAddress = customer.C_Address || '';
+      const customerCity = customer.C_City || '';
+      const customerState = customer.C_State || '';
+      const customerZip = customer.C_Zip || '';
+      const fullAddress = [customerAddress, customerCity, customerState, customerZip]
+        .filter(Boolean)
+        .join(', ');
+      
+      // Build distributor address from components
+      const distributorAddr1 = distributor.D_Addr1 || '';
+      const distributorAddr2 = distributor.D_Addr2 || '';
+      const distributorCity = distributor.D_City || '';
+      const distributorState = distributor.D_State || '';
+      const distributorZip = distributor.D_Zip || '';
+      const distributorAddressParts = [distributorAddr1, distributorAddr2, distributorCity, distributorState, distributorZip]
+        .filter(Boolean);
+      const distributorAddress = distributorAddressParts.join(', ');
+      
+      const orderData = {
+        customer: {
+          number: orderHeader.C_Number || customer.C_Number || 0,
+          name: customer.C_Name || '',
+          address: fullAddress || customer.C_Address || '',
+          phone: customer.C_Phone || '',
+          route: customerRoute,
+          stop: customerStop,
+        },
+        distributor: {
+          name: distributor.D_Name || '',
+          address: distributorAddress || distributor.D_Addr1 || '',
+        },
+        invoiceNumber: orderHeader.Invoice_Number || orderId,
+        isReprint: isReprint,
+        orderNumber: orderHeader.Order_Number || orderId,
+        orderDate: orderHeader.Order_Date || '',
+        invoiceDate: orderHeader.Invoice_Date || orderHeader.Order_Date || '',
+        items,
+        totals,
+      };
+
+      // Generate PDF
+      await generatePicklistPDF(orderData);
+      
+      // Mark picklist as printed only if it hasn't been printed before
+      if (!picklistPrinted) {
+        try {
+          await makePickListPrinted(orderId);
+        } catch (printError: any) {
+          console.error('Error marking picklist as printed:', printError);
+          // Don't show error to user if PDF was generated successfully
+        }
+      }
+      
+      toast.success('Picklist PDF generated successfully');
+    } catch (error: any) {
+      console.error('Error generating picklist PDF:', error);
+      toast.error(error?.message || 'Failed to generate picklist PDF');
+    } finally {
+      setPicklistLoading(false);
+    }
   };
 
   // Helper to load logo as data URL
@@ -854,13 +1068,23 @@ const AdminOrderDetail = () => {
                 Order Number: {orderHeader?.Order_Number || "-"}
               </Typography>
               <Box display="flex" alignItems="center" gap={2}>
+                <Button
+                  variant="contained"
+                  startIcon={picklistLoading ? <CircularProgress size={16} color="inherit" /> : <PrintIcon />}
+                  onClick={handlePrintPicklist}
+                  size="small"
+                  disabled={picklistLoading || pdfLoading}
+                  sx={{ backgroundColor: "primary.main", color: "white" }}
+                >
+                  {picklistLoading ? "Generating..." : "Print Picklist"}
+                </Button>
                 {canPrintInvoice && (
                   <Button
                     variant="contained"
                     startIcon={pdfLoading ? <CircularProgress size={16} color="inherit" /> : <PrintIcon />}
                     onClick={generateInvoicePDF}
                     size="small"
-                    disabled={pdfLoading}
+                    disabled={pdfLoading || picklistLoading}
                     sx={{ backgroundColor: "primary.main", color: "white" }}
                   >
                     {pdfLoading ? "Generating..." : "Print Invoice"}
