@@ -90,12 +90,16 @@ const OrderConfirmationDetail = () => {
   const [searchingProduct, setSearchingProduct] = useState(false);
   const [addingProduct, setAddingProduct] = useState(false);
   const [scannedUPCForSearch, setScannedUPCForSearch] = useState<string>('');
+  const [addProductQuantity, setAddProductQuantity] = useState<string>('1');
+  const addProductQuantityRef = useRef<string>('1');
   const [manualAddItemModalOpen, setManualAddItemModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchingInventory, setSearchingInventory] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [addingSelectedProduct, setAddingSelectedProduct] = useState(false);
+  const [selectedProductQuantity, setSelectedProductQuantity] = useState<string>('1');
+  const selectedProductQuantityRef = useRef<string>('1');
   const location = useLocation();
   
   const previousLocationRef = useRef<string | null>(null);
@@ -195,29 +199,41 @@ const OrderConfirmationDetail = () => {
   // Initialize confirmed lines for continue mode
   useEffect(() => {
     if (mode === 'continue' && orderDetails.length > 0) {
-      if (currentOrderline > 0) {
-        // Mark lines <= currentOrderline as already confirmed
-        orderDetails.forEach((item: OrderDetailItem) => {
-          if (item.Line_Number <= currentOrderline) {
-            dispatch(
-              updateConfirmedLine({
-                lineNumber: item.Line_Number,
-                quantityShipped: item.Quantity_Ordered, // Already fully confirmed
-                scanned: false, // Not scanned in this session
-              })
-            );
-          }
-        });
-        // Set the next line as active (currentOrderline + 1)
-        const nextLine = orderDetails.find((item: OrderDetailItem) => item.Line_Number > currentOrderline);
-        setCurrentActiveLine(nextLine ? nextLine.Line_Number : null);
-      } else {
-        // If currentOrderline is 0, start from line 1 (first line)
-        const sortedLines = [...orderDetails].sort((a, b) => a.Line_Number - b.Line_Number);
-        const firstLine = sortedLines[0];
-        if (firstLine) {
-          setCurrentActiveLine(firstLine.Line_Number);
+      // Use actual Quantity_Shipped from API, not assume all lines <= currentOrderline are fully confirmed
+      // Only mark lines as confirmed if they are actually fully scanned (Quantity_Shipped === Quantity_Ordered)
+      orderDetails.forEach((item: OrderDetailItem) => {
+        const quantityShipped = item.Quantity_Shipped || 0;
+        
+        // Update confirmedLines with actual API values
+        dispatch(
+          updateConfirmedLine({
+            lineNumber: item.Line_Number,
+            quantityShipped: quantityShipped, // Use actual Quantity_Shipped from API
+            scanned: false, // Not scanned in this session (loaded from saved state)
+          })
+        );
+      });
+      
+      // Find the next incomplete line to set as active
+      const sortedLines = [...orderDetails].sort((a, b) => a.Line_Number - b.Line_Number);
+      const nextIncompleteLine = sortedLines.find((item: OrderDetailItem) => {
+        // Skip lines that are already fully confirmed (from previous session)
+        if (item.Line_Number <= currentOrderline) {
+          // Only skip if it's actually fully scanned
+          return item.Quantity_Shipped !== item.Quantity_Ordered;
         }
+        // For lines > currentOrderline, check if they're incomplete
+        return item.Quantity_Shipped !== item.Quantity_Ordered;
+      });
+      
+      if (nextIncompleteLine) {
+        setCurrentActiveLine(nextIncompleteLine.Line_Number);
+      } else {
+        // All items are complete, or find first incomplete line regardless of currentOrderline
+        const firstIncomplete = sortedLines.find((item: OrderDetailItem) => 
+          item.Quantity_Shipped !== item.Quantity_Ordered
+        );
+        setCurrentActiveLine(firstIncomplete ? firstIncomplete.Line_Number : null);
       }
     } else if (mode === 'restart' || !mode) {
       // In restart mode or new order, start from the first line
@@ -238,13 +254,9 @@ const OrderConfirmationDetail = () => {
     const confirmed = confirmedLines[currentActiveLine];
     // If current active line is fully scanned, move to next line
     if (confirmed && confirmed.quantityShipped >= activeLineItem.Quantity_Ordered) {
-      // Find next incomplete line
+      // Find next incomplete line (allow scanning all items, not just after currentOrderline)
       const sortedLines = [...orderDetails].sort((a, b) => a.Line_Number - b.Line_Number);
       const nextIncompleteLine = sortedLines.find((item: OrderDetailItem) => {
-        // Skip already confirmed lines in continue mode
-        if (mode === 'continue' && item.Line_Number <= currentOrderline) {
-          return false;
-        }
         const lineConfirmed = confirmedLines[item.Line_Number];
         return !lineConfirmed || lineConfirmed.quantityShipped < item.Quantity_Ordered;
       });
@@ -762,6 +774,9 @@ const OrderConfirmationDetail = () => {
           if (productList.length > 0) {
             // Found product - show modal to add it
             setFoundProduct(productList[0]); // Use first matching item
+            setAddProductQuantity('1');
+      addProductQuantityRef.current = '1'; // Reset quantity to 1
+            addProductQuantityRef.current = '1';
             setAddProductModalOpen(true);
             setScanMessage({ text: `Product found. Do you want to add it to the order?`, type: 'success' });
           } else {
@@ -782,9 +797,9 @@ const OrderConfirmationDetail = () => {
         return;
       }
 
-      // In continue mode, prevent scanning lines <= current_orderline
-      if (mode === 'continue' && matchingLine.Line_Number <= currentOrderline) {
-        setScanMessage({ text: `Line ${matchingLine.Line_Number} is already confirmed. Please scan from line ${currentOrderline + 1} onwards.`, type: 'error' });
+      // Only prevent scanning in review mode
+      if (isReviewMode) {
+        setScanMessage({ text: 'Cannot scan items in review mode', type: 'error' });
         return;
       }
 
@@ -804,10 +819,6 @@ const OrderConfirmationDetail = () => {
         // Find and set next incomplete line immediately
         const sortedLines = [...orderDetails].sort((a, b) => a.Line_Number - b.Line_Number);
         const nextIncompleteLine = sortedLines.find((item: OrderDetailItem) => {
-          // Skip already confirmed lines in continue mode
-          if (mode === 'continue' && item.Line_Number <= currentOrderline) {
-            return false;
-          }
           const lineConfirmed = confirmedLines[item.Line_Number];
           return !lineConfirmed || lineConfirmed.quantityShipped < item.Quantity_Ordered;
         });
@@ -862,9 +873,6 @@ const OrderConfirmationDetail = () => {
       } else {
         // Line is now complete - check if all items are scanned
         const allScanned = orderDetails.every((item: OrderDetailItem) => {
-          if (mode === 'continue' && item.Line_Number <= currentOrderline) {
-            return true; // Already confirmed, consider it scanned
-          }
           // Use updated confirmedLines instead of the closure value
           const lineConfirmed = updatedConfirmedLines[item.Line_Number];
           if (!lineConfirmed) return false;
@@ -880,10 +888,6 @@ const OrderConfirmationDetail = () => {
           const sortedLines = [...orderDetails].sort((a, b) => a.Line_Number - b.Line_Number);
           
           const nextIncompleteLine = sortedLines.find((item: OrderDetailItem) => {
-            // Skip already confirmed lines in continue mode
-            if (mode === 'continue' && item.Line_Number <= currentOrderline) {
-              return false;
-            }
             // Use updated confirmedLines instead of the closure value
             const lineConfirmed = updatedConfirmedLines[item.Line_Number];
             return !lineConfirmed || lineConfirmed.quantityShipped < item.Quantity_Ordered;
@@ -937,21 +941,17 @@ const OrderConfirmationDetail = () => {
 
       // Handle Tab or Esc to open current line's text input
       if (e.key === 'Tab' || e.key === 'Escape') {
-        if (currentActiveLine) {
+        if (currentActiveLine && !isReviewMode) {
           const activeLineItem = orderDetails.find((item: OrderDetailItem) => item.Line_Number === currentActiveLine);
           if (activeLineItem) {
-            const isAlreadyConfirmed = mode === 'continue' && activeLineItem.Line_Number <= currentOrderline;
-            
-            // Open edit mode if line is not already confirmed (validation happens on submit)
-            if (!isAlreadyConfirmed) {
-              e.preventDefault();
-              e.stopPropagation();
-              const confirmed = confirmedLines[activeLineItem.Line_Number];
-              const quantityShipped = confirmed?.quantityShipped ?? activeLineItem.Quantity_Shipped ?? 0;
-              setEditingLineNumber(activeLineItem.Line_Number);
-              setManualQuantity(quantityShipped.toString());
-              return;
-            }
+            // Open edit mode (only disabled in review mode)
+            e.preventDefault();
+            e.stopPropagation();
+            const confirmed = confirmedLines[activeLineItem.Line_Number];
+            const quantityShipped = confirmed?.quantityShipped ?? activeLineItem.Quantity_Shipped ?? 0;
+            setEditingLineNumber(activeLineItem.Line_Number);
+            setManualQuantity(quantityShipped.toString());
+            return;
           }
         }
         
@@ -1040,19 +1040,16 @@ const OrderConfirmationDetail = () => {
           toast.error(`Invalid UPC code length: ${upcBuffer.length} (minimum 8)`);
           setIsCapturingUPC(false);
           setUpcBuffer('');
-        } else if (!isCapturingUPC && currentActiveLine) {
-          // If nothing is open and there's an active line, open text input
+        } else if (!isCapturingUPC && currentActiveLine && !isReviewMode) {
+          // If nothing is open and there's an active line, open text input (only if not in review mode)
           e.preventDefault();
           e.stopPropagation();
           const activeLineItem = orderDetails.find((item: OrderDetailItem) => item.Line_Number === currentActiveLine);
           if (activeLineItem) {
-            const isAlreadyConfirmed = mode === 'continue' && activeLineItem.Line_Number <= currentOrderline;
-            if (!isAlreadyConfirmed) {
-              const confirmed = confirmedLines[activeLineItem.Line_Number];
-              const quantityShipped = confirmed?.quantityShipped ?? activeLineItem.Quantity_Shipped ?? 0;
-              setEditingLineNumber(activeLineItem.Line_Number);
-              setManualQuantity(quantityShipped.toString());
-            }
+            const confirmed = confirmedLines[activeLineItem.Line_Number];
+            const quantityShipped = confirmed?.quantityShipped ?? activeLineItem.Quantity_Shipped ?? 0;
+            setEditingLineNumber(activeLineItem.Line_Number);
+            setManualQuantity(quantityShipped.toString());
           }
         }
       }
@@ -1087,9 +1084,9 @@ const OrderConfirmationDetail = () => {
       return;
     }
 
-    // In continue mode, prevent editing lines <= current_orderline
-    if (mode === 'continue' && lineNumber <= currentOrderline) {
-      setScanMessage({ text: `Line ${lineNumber} is already confirmed. Cannot edit.`, type: 'error' });
+    // Only prevent editing in review mode
+    if (isReviewMode) {
+      setScanMessage({ text: 'Cannot edit items in review mode', type: 'error' });
       setEditingLineNumber(null);
       setManualQuantity('');
       return;
@@ -1131,9 +1128,6 @@ const OrderConfirmationDetail = () => {
       
       // Check if all items are now scanned
       const allScanned = orderDetails.every((item: OrderDetailItem) => {
-        if (mode === 'continue' && item.Line_Number <= currentOrderline) {
-          return true; // Already confirmed, consider it scanned
-        }
         const confirmed = updatedConfirmedLines[item.Line_Number];
         if (!confirmed) return false;
         return confirmed.quantityShipped === item.Quantity_Ordered;
@@ -1146,9 +1140,6 @@ const OrderConfirmationDetail = () => {
         // Find next incomplete line
         const sortedLines = [...orderDetails].sort((a, b) => a.Line_Number - b.Line_Number);
         const nextIncompleteLine = sortedLines.find((item: OrderDetailItem) => {
-          if (mode === 'continue' && item.Line_Number <= currentOrderline) {
-            return false;
-          }
           const lineConfirmed = updatedConfirmedLines[item.Line_Number];
           return !lineConfirmed || lineConfirmed.quantityShipped < item.Quantity_Ordered;
         });
@@ -1183,36 +1174,26 @@ const OrderConfirmationDetail = () => {
     if (!orderDetails.length) return false;
 
     return orderDetails.every((item: OrderDetailItem) => {
-      // In continue mode, skip lines that are already confirmed
-      if (mode === 'continue' && item.Line_Number <= currentOrderline) {
-        return true; // Already confirmed, consider it scanned
-      }
-
       const confirmed = confirmedLines[item.Line_Number];
-      if (!confirmed) return false;
+      const quantityShipped = confirmed?.quantityShipped ?? item.Quantity_Shipped ?? 0;
       
-      // Check if quantity shipped equals quantity ordered
-      return confirmed.quantityShipped === item.Quantity_Ordered;
+      // Check if quantity shipped equals quantity ordered (fully scanned)
+      return quantityShipped === item.Quantity_Ordered;
     });
-  }, [orderDetails, mode, currentOrderline, confirmedLines]);
+  }, [orderDetails, confirmedLines]);
 
   // Get incomplete items (not scanned or shipped quantity != ordered quantity)
   const getIncompleteItems = useCallback((): OrderDetailItem[] => {
     if (!orderDetails.length) return [];
 
     return orderDetails.filter((item: OrderDetailItem) => {
-      // In continue mode, skip lines that are already confirmed
-      if (mode === 'continue' && item.Line_Number <= currentOrderline) {
-        return false; // Already confirmed, skip
-      }
-
       const confirmed = confirmedLines[item.Line_Number];
-      if (!confirmed) return true; // Not scanned at all
+      const quantityShipped = confirmed?.quantityShipped ?? item.Quantity_Shipped ?? 0;
       
-      // Check if quantity shipped does not equal quantity ordered
-      return confirmed.quantityShipped !== item.Quantity_Ordered;
+      // Check if quantity shipped does not equal quantity ordered (incomplete)
+      return quantityShipped !== item.Quantity_Ordered;
     });
-  }, [orderDetails, mode, currentOrderline, confirmedLines]);
+  }, [orderDetails, confirmedLines]);
 
   // Calculate total scanned items price
   const calculateScannedItemsPrice = useCallback((): number => {
@@ -1260,12 +1241,10 @@ const OrderConfirmationDetail = () => {
       const confirmed = confirmedLines[item.Line_Number];
       const quantityShipped = confirmed?.quantityShipped ?? item.Quantity_Shipped ?? 0;
       
-      // Item is confirmed if:
-      // 1. In continue mode and line <= currentOrderline (already confirmed)
-      // 2. Quantity shipped equals quantity ordered (fully scanned/entered)
-      const isAlreadyConfirmedInContinueMode = mode === 'continue' && item.Line_Number <= currentOrderline;
+      // Item is confirmed ONLY if Quantity_Shipped equals Quantity_Ordered (fully scanned)
+      // Don't use currentOrderline as a shortcut - check actual scanned quantity
       const isFullyScanned = quantityShipped === item.Quantity_Ordered;
-      const isConfirmed = isAlreadyConfirmedInContinueMode || isFullyScanned;
+      const isConfirmed = isFullyScanned;
 
       if (activeTab === 'pending') {
         return !isConfirmed;
@@ -1373,8 +1352,24 @@ const OrderConfirmationDetail = () => {
         : 0;
       const nextLineNumber = maxLineNumber + 1;
 
+      // Get quantity from input (default to 1 if invalid)
+      // IMPORTANT: Use ref to get the latest value, avoiding closure issues
+      const qtyValue = selectedProductQuantityRef.current?.trim() || selectedProductQuantity?.trim() || '1';
+      const quantity = Number(qtyValue);
+      
+      console.log('🔍 DEBUG - handleAddSelectedProductToOrder:');
+      console.log('  - selectedProductQuantity state:', selectedProductQuantity);
+      console.log('  - selectedProductQuantityRef.current:', selectedProductQuantityRef.current);
+      console.log('  - qtyValue after trim:', qtyValue);
+      console.log('  - parsed quantity:', quantity);
+      
+      if (isNaN(quantity) || quantity <= 0) {
+        toast.error('Please enter a valid quantity greater than 0');
+        return;
+      }
+
       // Calculate payload using the same logic as Order.tsx
-      const cartPayload = calculateCartPayload(selectedProduct, 1);
+      const cartPayload = calculateCartPayload(selectedProduct, quantity);
       
       // Calculate prepaid tax amount: (price + tax_rate) * prepaidTaxRate
       const basePrice = Number(selectedProduct.price || selectedProduct.Price || 0);
@@ -1391,7 +1386,7 @@ const OrderConfirmationDetail = () => {
             Item_Number: selectedProduct.Item_Number || selectedProduct.id || 0,
             Price: cartPayload.Price,
             Price_With_Tax: cartPayload.Price_With_Tax,
-            Qty: cartPayload.Qty,
+            Qty: quantity, // Use the quantity directly to ensure it's correct
             Tax_Rate: cartPayload.Tax_Rate,
             TotalPrice: cartPayload.TotalPrice,
             TotalPriceWithTax: cartPayload.TotalPriceWithTax,
@@ -1403,14 +1398,38 @@ const OrderConfirmationDetail = () => {
         ],
       };
 
+      console.log('📦 FINAL PAYLOAD:', JSON.stringify(payload, null, 2));
+      console.log('  - Qty in payload:', payload.orderPlayload[0].Qty);
+
       await placeOrderForCustomer(orderHeader.customer.C_Number, payload);
+
+      // Preserve existing scanned items before refreshing
+      const preservedConfirmedLines = { ...confirmedLines };
 
       // Refresh order details to show the new item
       await dispatch(fetchOrderConfirmationDetails(currentOrderNumber)).unwrap();
 
+      // Restore preserved scanned items after refresh
+      // This ensures previously scanned items don't get reset to 0
+      Object.keys(preservedConfirmedLines).forEach((lineNumberStr) => {
+        const lineNumber = parseInt(lineNumberStr, 10);
+        const preserved = preservedConfirmedLines[lineNumber];
+        if (preserved) {
+          dispatch(
+            updateConfirmedLine({
+              lineNumber: lineNumber,
+              quantityShipped: preserved.quantityShipped,
+              scanned: preserved.scanned,
+            })
+          );
+        }
+      });
+
       // Close modal and reset state
       setManualAddItemModalOpen(false);
       setSelectedProduct(null);
+      setSelectedProductQuantity('1');
+      selectedProductQuantityRef.current = '1';
       setSearchQuery('');
       setSearchResults([]);
       
@@ -1421,7 +1440,7 @@ const OrderConfirmationDetail = () => {
     } finally {
       setAddingSelectedProduct(false);
     }
-  }, [selectedProduct, currentOrderNumber, orderHeader, orderDetails, dispatch, calculateCartPayload]);
+  }, [selectedProduct, selectedProductQuantity, currentOrderNumber, orderHeader, orderDetails, confirmedLines, dispatch, calculateCartPayload]);
 
   // Handle adding product to order
   const handleAddProductToOrder = useCallback(async () => {
@@ -1438,8 +1457,26 @@ const OrderConfirmationDetail = () => {
         : 0;
       const nextLineNumber = maxLineNumber + 1;
 
+      // Get quantity from input (default to 1 if invalid)
+      // IMPORTANT: Use ref to get the latest value, avoiding closure issues
+      const qtyValue = addProductQuantityRef.current?.trim() || addProductQuantity?.trim() || '1';
+      const quantity = Number(qtyValue);
+      
+      console.log('🔍 DEBUG - handleAddProductToOrder:');
+      console.log('  - addProductQuantity state:', addProductQuantity);
+      console.log('  - addProductQuantityRef.current:', addProductQuantityRef.current);
+      console.log('  - qtyValue after trim:', qtyValue);
+      console.log('  - parsed quantity:', quantity);
+      
+      if (isNaN(quantity) || quantity <= 0) {
+        toast.error('Please enter a valid quantity greater than 0');
+        return;
+      }
+
+      console.log('Adding product (scanned) - Quantity from state:', addProductQuantity, 'Parsed quantity:', quantity);
+
       // Calculate payload using the same logic as Order.tsx
-      const cartPayload = calculateCartPayload(foundProduct, 1);
+      const cartPayload = calculateCartPayload(foundProduct, quantity);
       
       // Calculate prepaid tax amount: (price + tax_rate) * prepaidTaxRate
       const basePrice = Number(foundProduct.price || foundProduct.Price || 0);
@@ -1456,7 +1493,7 @@ const OrderConfirmationDetail = () => {
             Item_Number: foundProduct.Item_Number || foundProduct.id || 0,
             Price: cartPayload.Price,
             Price_With_Tax: cartPayload.Price_With_Tax,
-            Qty: cartPayload.Qty,
+            Qty: quantity, // Use the quantity directly to ensure it's correct
             Tax_Rate: cartPayload.Tax_Rate,
             TotalPrice: cartPayload.TotalPrice,
             TotalPriceWithTax: cartPayload.TotalPriceWithTax,
@@ -1470,13 +1507,34 @@ const OrderConfirmationDetail = () => {
 
       await placeOrderForCustomer(orderHeader.customer.C_Number, payload);
 
+      // Preserve existing scanned items before refreshing
+      const preservedConfirmedLines = { ...confirmedLines };
+
       // Refresh order details to show the new item
       await dispatch(fetchOrderConfirmationDetails(currentOrderNumber)).unwrap();
+
+      // Restore preserved scanned items after refresh
+      // This ensures previously scanned items don't get reset to 0
+      Object.keys(preservedConfirmedLines).forEach((lineNumberStr) => {
+        const lineNumber = parseInt(lineNumberStr, 10);
+        const preserved = preservedConfirmedLines[lineNumber];
+        if (preserved) {
+          dispatch(
+            updateConfirmedLine({
+              lineNumber: lineNumber,
+              quantityShipped: preserved.quantityShipped,
+              scanned: preserved.scanned,
+            })
+          );
+        }
+      });
 
       // Close modal and reset state
       setAddProductModalOpen(false);
       setFoundProduct(null);
       setScannedUPCForSearch('');
+      setAddProductQuantity('1');
+      addProductQuantityRef.current = '1';
       
       toast.success('Product added to order successfully');
       setScanMessage({ text: `Product added to order at line ${nextLineNumber}`, type: 'success' });
@@ -1486,7 +1544,7 @@ const OrderConfirmationDetail = () => {
     } finally {
       setAddingProduct(false);
     }
-  }, [foundProduct, currentOrderNumber, orderHeader, orderDetails, dispatch, calculateCartPayload]);
+  }, [foundProduct, addProductQuantity, currentOrderNumber, orderHeader, orderDetails, confirmedLines, dispatch, calculateCartPayload]);
 
   // Fetch and calculate sales category summary
   const fetchSalesCategorySummary = useCallback(async () => {
@@ -2656,27 +2714,12 @@ const OrderConfirmationDetail = () => {
       render: (row) => {
         const confirmed = confirmedLines[row.Line_Number];
         const quantityShipped = confirmed?.quantityShipped ?? row.Quantity_Shipped ?? 0;
-        const isAlreadyConfirmed = mode === 'continue' && row.Line_Number <= currentOrderline;
         const isActiveLine = row.Line_Number === currentActiveLine;
         const isCompleted = quantityShipped === row.Quantity_Ordered;
         const isEditing = editingLineNumber === row.Line_Number;
 
-        // Check if previous line is complete (for showing edit icon)
-        // const sortedLines = [...orderDetails].sort((a, b) => a.Line_Number - b.Line_Number);
-        // const currentIndex = sortedLines.findIndex((item) => item.Line_Number === row.Line_Number);
-        // const previousLine = currentIndex > 0 ? sortedLines[currentIndex - 1] : null;
-        // const previousLineCompleted = previousLine
-        //   ? (() => {
-        //       if (mode === 'continue' && previousLine.Line_Number <= currentOrderline) {
-        //         return true; // Already confirmed
-        //       }
-        //       const prevConfirmed = confirmedLines[previousLine.Line_Number];
-        //       return prevConfirmed && prevConfirmed.quantityShipped === previousLine.Quantity_Ordered;
-        //     })()
-        //   : true; // First line is always available
-
         // If product is being edited, show input field (works for both UPC and non-UPC products) - disabled in review mode
-        if (isEditing && !isAlreadyConfirmed && !isReviewMode) {
+        if (isEditing && !isReviewMode) {
           return (
             <Box display="flex" alignItems="center" justifyContent="center">
               <TextField
@@ -2748,7 +2791,7 @@ const OrderConfirmationDetail = () => {
               fontSize={11}
               fontWeight={400}
               color={
-                isReviewMode || isAlreadyConfirmed
+                isReviewMode
                   ? 'text.disabled'
                   : isCompleted
                   ? 'success.main'
@@ -2758,15 +2801,15 @@ const OrderConfirmationDetail = () => {
               }
               align="center"
               onClick={() => {
-                if (!isReviewMode && !isAlreadyConfirmed && !isEditing) {
+                if (!isReviewMode && !isEditing) {
                   setEditingLineNumber(row.Line_Number);
                   setManualQuantity(quantityShipped.toString());
                 }
               }}
               sx={{
-                cursor: !isReviewMode && !isAlreadyConfirmed && !isEditing ? 'pointer' : 'default',
+                cursor: !isReviewMode && !isEditing ? 'pointer' : 'default',
                 '&:hover': {
-                  textDecoration: !isReviewMode && !isAlreadyConfirmed && !isEditing ? 'underline' : 'none',
+                  textDecoration: !isReviewMode && !isEditing ? 'underline' : 'none',
                 }
               }}
             >
@@ -2783,15 +2826,9 @@ const OrderConfirmationDetail = () => {
   const getRowStyle = (row: OrderDetailItem) => {
     const confirmed = confirmedLines[row.Line_Number];
     const quantityShipped = confirmed?.quantityShipped ?? row.Quantity_Shipped ?? 0;
-    const isAlreadyConfirmed = mode === 'continue' && row.Line_Number <= currentOrderline;
     const isActiveLine = row.Line_Number === currentActiveLine;
     const isCompleted = quantityShipped === row.Quantity_Ordered;
 
-    if (isAlreadyConfirmed) {
-      return {
-        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#f8f9fa',
-      };
-    }
     if (isCompleted) {
       // Darker green for completed items
       return {
@@ -3403,6 +3440,8 @@ const OrderConfirmationDetail = () => {
                 setSearchQuery('');
                 setSearchResults([]);
                 setSelectedProduct(null);
+                setSelectedProductQuantity('1');
+      selectedProductQuantityRef.current = '1';
               }}
               sx={{
                 minWidth: 140,
@@ -4127,6 +4166,8 @@ const OrderConfirmationDetail = () => {
             setAddProductModalOpen(false);
             setFoundProduct(null);
             setScannedUPCForSearch('');
+            setAddProductQuantity('1');
+      addProductQuantityRef.current = '1';
           }
         }}
         maxWidth="sm"
@@ -4241,6 +4282,51 @@ const OrderConfirmationDetail = () => {
                   )}
                 </Box>
               </Box>
+              
+              {/* Quantity Input */}
+              <Box>
+                <TextField
+                  label="Quantity"
+                  type="text"
+                  value={addProductQuantity}
+                  onChange={(e) => {
+                    let value = e.target.value;
+                    // Remove non-numeric characters
+                    value = value.replace(/[^0-9]/g, '');
+                    console.log('📝 Quantity input changed (scanned):', value);
+                    // Always update the state, even if empty (user can clear and retype)
+                    setAddProductQuantity(value);
+                    addProductQuantityRef.current = value; // Update ref immediately
+                    console.log('✅ State and ref updated to:', value);
+                  }}
+                  onBlur={(e) => {
+                    // Validate on blur - if empty or invalid, set to 1
+                    const value = e.target.value.trim();
+                    if (value === '' || Number(value) < 1) {
+                      setAddProductQuantity('1');
+      addProductQuantityRef.current = '1';
+                    } else if (Number(value) > 9999) {
+                      setAddProductQuantity('9999');
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !addingProduct && !searchingProduct && foundProduct) {
+                      e.preventDefault();
+                      handleAddProductToOrder();
+                    }
+                  }}
+                  inputProps={{
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*',
+                    min: 1,
+                    max: 9999,
+                  }}
+                  fullWidth
+                  size="small"
+                  autoFocus
+                  sx={{ mt: 2 }}
+                />
+              </Box>
             </Box>
           ) : (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -4256,6 +4342,8 @@ const OrderConfirmationDetail = () => {
               setAddProductModalOpen(false);
               setFoundProduct(null);
               setScannedUPCForSearch('');
+              setAddProductQuantity('1');
+      addProductQuantityRef.current = '1';
             }}
             buttonType="cancel"
             appearance="outlined"
@@ -4273,7 +4361,7 @@ const OrderConfirmationDetail = () => {
             sx={{ minWidth: 100 }}
             size="small"
             loading={addingProduct}
-            disabled={addingProduct || searchingProduct || !foundProduct}
+            disabled={addingProduct || searchingProduct || !foundProduct || !addProductQuantity || Number(addProductQuantity) <= 0}
           >
             Add to Order
           </CustomButton>
@@ -4289,6 +4377,8 @@ const OrderConfirmationDetail = () => {
             setSearchQuery('');
             setSearchResults([]);
             setSelectedProduct(null);
+            setSelectedProductQuantity('1');
+      selectedProductQuantityRef.current = '1';
           }
         }}
         title="Add More Item"
@@ -4476,6 +4566,50 @@ const OrderConfirmationDetail = () => {
             </Box>
           ) : null}
 
+          {/* Quantity Input - Only show when product is selected */}
+          {selectedProduct && (
+            <Box>
+              <TextField
+                label="Quantity"
+                type="text"
+                value={selectedProductQuantity}
+                onChange={(e) => {
+                  let value = e.target.value;
+                  // Remove non-numeric characters
+                  value = value.replace(/[^0-9]/g, '');
+                  // Always update the state, even if empty (user can clear and retype)
+                  setSelectedProductQuantity(value);
+                  selectedProductQuantityRef.current = value; // Update ref immediately
+                }}
+                onBlur={(e) => {
+                  // Validate on blur - if empty or invalid, set to 1
+                  const value = e.target.value.trim();
+                  if (value === '' || Number(value) < 1) {
+                    setSelectedProductQuantity('1');
+      selectedProductQuantityRef.current = '1';
+                  } else if (Number(value) > 9999) {
+                    setSelectedProductQuantity('9999');
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !addingSelectedProduct && !searchingInventory && selectedProduct) {
+                    e.preventDefault();
+                    handleAddSelectedProductToOrder();
+                  }
+                }}
+                inputProps={{
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  min: 1,
+                  max: 9999,
+                }}
+                fullWidth
+                size="small"
+                autoFocus
+              />
+            </Box>
+          )}
+
           {/* Action Buttons */}
           <Box display="flex" justifyContent="flex-end" gap={2} mt={2}>
             <CustomButton
@@ -4486,6 +4620,8 @@ const OrderConfirmationDetail = () => {
                 setSearchQuery('');
                 setSearchResults([]);
                 setSelectedProduct(null);
+                setSelectedProductQuantity('1');
+      selectedProductQuantityRef.current = '1';
               }}
               fullWidth={false}
               disabled={addingSelectedProduct || searchingInventory}
@@ -4498,7 +4634,7 @@ const OrderConfirmationDetail = () => {
               onClick={handleAddSelectedProductToOrder}
               fullWidth={false}
               loading={addingSelectedProduct}
-              disabled={addingSelectedProduct || searchingInventory || !selectedProduct}
+              disabled={addingSelectedProduct || searchingInventory || !selectedProduct || !selectedProductQuantity || Number(selectedProductQuantity) <= 0}
               sx={{ mt: 0 }}
             >
               Add to Order

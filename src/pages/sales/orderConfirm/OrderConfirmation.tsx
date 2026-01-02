@@ -687,20 +687,36 @@ const OrderConfirmation = () => {
             </CustomButton>
           )}
           
-          {/* Show only Close button for confirmed status */}
+          {/* Show Review and Close buttons for confirmed status */}
           {pendingAction?.status === 'confirmed' && (
-            <CustomButton
-              onClick={() => {
-                setConfirmModalOpen(false);
-                setPendingAction(null);
-              }}
-              appearance="filled"
-              fullWidth={false}
-              sx={{ minWidth: 100 }}
-              size="small"
-            >
-              Close
-            </CustomButton>
+            <>
+              <CustomButton
+                onClick={() => {
+                  setConfirmModalOpen(false);
+                  setPendingAction(null);
+                }}
+                appearance="outlined"
+                fullWidth={false}
+                sx={{ minWidth: 100 }}
+                size="small"
+              >
+                Cancel
+              </CustomButton>
+              <CustomButton
+                onClick={() => {
+                  if (!pendingAction) return;
+                  navigate(`/sales/order-confirmation/${pendingAction.orderNumber}?mode=review`);
+                  setConfirmModalOpen(false);
+                  setPendingAction(null);
+                }}
+                appearance="filled"
+                fullWidth={false}
+                sx={{ minWidth: 100 }}
+                size="small"
+              >
+                Review
+              </CustomButton>
+            </>
           )}
         </DialogActions>
       </Dialog>
