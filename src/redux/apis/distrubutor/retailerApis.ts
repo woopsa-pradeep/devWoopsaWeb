@@ -105,4 +105,39 @@ export const updateCustomer = async (customerId: string, params: any) => {
     const response = await axiosInstance.put(`/distrubutor/updateCustomer/${customerId}`, params);
     return response.data;
 };
+
+export const uploadRetailerDocuments = async (params: {
+    customerNumber: number;
+    attachments?: string[];
+    salesTaxDoc?: string | null;
+    CigTaxDoc?: string | null;
+    licenseAttachments?: string[];
+    feinDocument?: string | null;
+}) => {
+    const response = await axiosInstance.post('/distrubutor/retailer-documents', params);
+    return response.data;
+};
+
+export const updateRetailerDocuments = async (id: number, params: {
+    customerNumber: number;
+    attachments?: string[];
+    salesTaxDoc?: string | null;
+    CigTaxDoc?: string | null;
+    licenseAttachments?: string[];
+    feinDocument?: string | null;
+}) => {
+    const response = await axiosInstance.put(`/distrubutor/retailer-documents/${id}`, params);
+    return response.data;
+};
+
+export const uploadImages = async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await axiosInstance.post('/distrubutor/uploadImages', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+    return response.data;
+};
     

@@ -3,12 +3,14 @@ import { Box, Tabs, Tab, useTheme, useMediaQuery, Paper } from "@mui/material";
 import CompanyDetails from "./CompanyDetails";
 import ContactInformation from "./ContactInformation";
 import CustomerLicense from "./CustomerLicense";
+import Documents from "./Documents";
 import CompanyIconActive from "../../../assets/bag.svg";
 import CompanyIconInactive from "../../../assets/icons/bag-inactive.svg";
 import ContactIconActive from "../../../assets/icons/phone-user-active.svg";
 import ContactIconInactive from "../../../assets/icons/phone-user-inactive.svg";
 import LicenseIconActive from "../../../assets/icons/licence-active.svg";
 import LicenseIconInactive from "../../../assets/icons/licence-inactive.svg";
+import DescriptionIcon from "@mui/icons-material/Description";
 import { getRetailerProfile } from "../../../redux/apis/profileAPIs";
 import { 
   ApiProfileResponse, 
@@ -23,6 +25,7 @@ const ProfileTabs = () => {
     const [value, setValue] = useState(0);
     const [profileData, setProfileData] = useState<ApiProfileResponse | null>(null);
     const [loading, setLoading] = useState(true);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
   
     const handleChange = (_: React.SyntheticEvent, newValue: number) => {
       setValue(newValue);
@@ -32,7 +35,8 @@ const ProfileTabs = () => {
       const fetchData = async () => {
         try {
           const data: any = await getRetailerProfile();
-          setProfileData(data?.data as ApiProfileResponse);
+          const profileResponse = data?.data as ApiProfileResponse;
+          setProfileData(profileResponse);
         } catch (err) {
           console.error("Failed to fetch profile:", err);
         } finally {
@@ -41,7 +45,11 @@ const ProfileTabs = () => {
       };
   
       fetchData();
-    }, []);
+    }, [refreshTrigger]);
+
+    const handleDocumentsUpdate = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
 
     // Map API data to component data
     const companyDetailsData = profileData ? mapApiToCompanyDetails(profileData) : null;
@@ -137,6 +145,14 @@ const ProfileTabs = () => {
             label="License Info"
             sx={tabStyle}
           />
+          <Tab
+            icon={
+              <DescriptionIcon sx={{ color: value === 3 ? theme.palette.primary.main : 'text.secondary' }} />
+            }
+            iconPosition="start"
+            label="Documents"
+            sx={tabStyle}
+          />
         </Tabs>
       </Paper>
 
@@ -160,6 +176,13 @@ const ProfileTabs = () => {
             {value === 0 && companyDetailsData && <CompanyDetails data={companyDetailsData} />}
             {value === 1 && contactData && <ContactInformation data={contactData} />}
             {value === 2 && licenseData && <CustomerLicense data={licenseData} />}
+            {value === 3 && profileData && (
+              <Documents 
+                documents={profileData.documents || null} 
+                customerNumber={profileData.C_Number}
+                onDocumentsUpdate={handleDocumentsUpdate}
+              />
+            )}
           </>
         )}
       </Paper>

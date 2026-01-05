@@ -22,15 +22,21 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  IconButton,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ClearIcon from '@mui/icons-material/Clear';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import TextInput from '../../../component/atoms/TextInput';
 import SelectInput from '../../../component/atoms/SelectInput';
 import CheckboxInput from '../../../component/atoms/CheckboxInput';
 import CustomButton from '../../../component/atoms/CustomButton';
 import { retailerSchema, RetailerFormData } from './retailer.schema';
-import { createCustomer, listOfCustomersCreate, getCustomerById, updateCustomer } from '../../../redux/apis/distrubutor/retailerApis';
+import { createCustomer, listOfCustomersCreate, getCustomerById, updateCustomer, uploadRetailerDocuments, updateRetailerDocuments, uploadImages } from '../../../redux/apis/distrubutor/retailerApis';
+import FileUploadInput from '../../../component/atoms/FileUploadInput';
 import toast from 'react-hot-toast';
+import { geocodeAddress } from '../../../utils/geocodingUtils';
 
 const AddRetailer: React.FC = () => {
   const { customerId } = useParams<{ customerId?: string }>();
@@ -52,6 +58,23 @@ const AddRetailer: React.FC = () => {
   const [posAccordionExpanded, setPosAccordionExpanded] = useState(false);
   const [categoryAccordionExpanded, setCategoryAccordionExpanded] = useState(false);
   const [salesCategories, setSalesCategories] = useState<Array<{ Sales_Category: number; Category_Desc: string }>>([]);
+  
+  // Document upload states
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [salesTaxDoc, setSalesTaxDoc] = useState<File | null>(null);
+  const [CigTaxDoc, setCigTaxDoc] = useState<File | null>(null);
+  const [licenseAttachments, setLicenseAttachments] = useState<File[]>([]);
+  const [feinDocument, setFeinDocument] = useState<File | null>(null);
+  const [uploadingDocuments, setUploadingDocuments] = useState(false);
+  const [retailerDocumentId, setRetailerDocumentId] = useState<number | null>(null);
+  const [existingDocumentUrls, setExistingDocumentUrls] = useState<{
+    attachments?: string[];
+    salesTaxDoc?: string | null;
+    CigTaxDoc?: string | null;
+    licenseAttachments?: string[];
+    feinDocument?: string | null;
+  }>({});
+  
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -194,6 +217,19 @@ const AddRetailer: React.FC = () => {
             }
           }
         });
+
+        // Load existing retailer documents if available
+        if (customerData.retailerDocuments) {
+          const docs = customerData.retailerDocuments;
+          setRetailerDocumentId(docs.id);
+          setExistingDocumentUrls({
+            attachments: docs.attachments || [],
+            salesTaxDoc: docs.salesTaxDoc || null,
+            CigTaxDoc: docs.CigTaxDoc || null,
+            licenseAttachments: docs.licenseAttachments || [],
+            feinDocument: docs.feinDocument || null,
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching customer data:', error);
@@ -310,9 +346,181 @@ const AddRetailer: React.FC = () => {
     }
   };
 
+  // Helper function to upload a file and get URL
+  const uploadFileAndGetUrl = async (file: File): Promise<string> => {
+    try {
+      const response = await uploadImages(file) as any;
+      return response?.data?.url || response?.url || response?.data || '';
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  };
+
+  // Function to update/create retailer documents
+  const saveRetailerDocuments = async (customerNumber: number, documentData: {
+    attachments?: string[];
+    salesTaxDoc?: string | null;
+    CigTaxDoc?: string | null;
+    licenseAttachments?: string[];
+    feinDocument?: string | null;
+  }) => {
+    try {
+      const payload = {
+        customerNumber,
+        ...documentData,
+      };
+
+      if (retailerDocumentId) {
+        // Update existing document
+        await updateRetailerDocuments(retailerDocumentId, payload);
+      } else {
+        // Create new document
+        const response = await uploadRetailerDocuments(payload) as any;
+        if (response?.data?.id) {
+          setRetailerDocumentId(response.data.id);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error saving retailer documents:', error);
+      throw error;
+    }
+  };
+
+  // Function to handle file upload and immediately save to documents
+  const handleFileUpload = async (file: File, type: 'attachments' | 'salesTaxDoc' | 'CigTaxDoc' | 'licenseAttachments' | 'feinDocument', customerNumber: number) => {
+    try {
+      // Upload file and get URL
+      const url = await uploadFileAndGetUrl(file);
+      
+      // Get current document URLs
+      const currentUrls = { ...existingDocumentUrls };
+      
+      // Update the appropriate field
+      if (type === 'attachments') {
+        currentUrls.attachments = [...(currentUrls.attachments || []), url];
+      } else if (type === 'licenseAttachments') {
+        currentUrls.licenseAttachments = [...(currentUrls.licenseAttachments || []), url];
+      } else {
+        currentUrls[type] = url;
+      }
+      
+      // Save to retailer documents
+      await saveRetailerDocuments(customerNumber, currentUrls);
+      
+      // Update state
+      setExistingDocumentUrls(currentUrls);
+      
+      return url;
+    } catch (error: any) {
+      console.error(`Error uploading ${type}:`, error);
+      toast.error(error?.response?.data?.message || `Failed to upload ${type}`);
+      throw error;
+    }
+  };
+
+  // Function to handle multiple file uploads (for attachments and licenseAttachments)
+  const handleMultipleFileUpload = async (files: File[], type: 'attachments' | 'licenseAttachments', customerNumber: number) => {
+    try {
+      const uploadedUrls: string[] = [];
+      
+      for (const file of files) {
+        const url = await handleFileUpload(file, type, customerNumber);
+        uploadedUrls.push(url);
+      }
+      
+      return uploadedUrls;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Function to upload documents after customer creation/update
+  const uploadDocuments = async (customerNumber: number) => {
+    if (!attachments.length && !salesTaxDoc && !CigTaxDoc && !licenseAttachments.length && !feinDocument) {
+      return; // No documents to upload
+    }
+
+    setUploadingDocuments(true);
+    try {
+      const documentData: {
+        attachments?: string[];
+        salesTaxDoc?: string | null;
+        CigTaxDoc?: string | null;
+        licenseAttachments?: string[];
+        feinDocument?: string | null;
+      } = {
+        attachments: existingDocumentUrls.attachments || [],
+        salesTaxDoc: existingDocumentUrls.salesTaxDoc || null,
+        CigTaxDoc: existingDocumentUrls.CigTaxDoc || null,
+        licenseAttachments: existingDocumentUrls.licenseAttachments || [],
+        feinDocument: existingDocumentUrls.feinDocument || null,
+      };
+
+      // Upload new attachments
+      if (attachments.length > 0) {
+        const uploadedUrls = await handleMultipleFileUpload(attachments, 'attachments', customerNumber);
+        documentData.attachments = [...(documentData.attachments || []), ...uploadedUrls];
+      }
+
+      // Upload salesTaxDoc if new
+      if (salesTaxDoc) {
+        const url = await handleFileUpload(salesTaxDoc, 'salesTaxDoc', customerNumber);
+        documentData.salesTaxDoc = url;
+      }
+
+      // Upload CigTaxDoc if new
+      if (CigTaxDoc) {
+        const url = await handleFileUpload(CigTaxDoc, 'CigTaxDoc', customerNumber);
+        documentData.CigTaxDoc = url;
+      }
+
+      // Upload licenseAttachments if new
+      if (licenseAttachments.length > 0) {
+        const uploadedUrls = await handleMultipleFileUpload(licenseAttachments, 'licenseAttachments', customerNumber);
+        documentData.licenseAttachments = [...(documentData.licenseAttachments || []), ...uploadedUrls];
+      }
+
+      // Upload feinDocument if new
+      if (feinDocument) {
+        const url = await handleFileUpload(feinDocument, 'feinDocument', customerNumber);
+        documentData.feinDocument = url;
+      }
+
+      // Final save to ensure all documents are synced
+      await saveRetailerDocuments(customerNumber, documentData);
+      toast.success('Documents uploaded successfully!');
+    } catch (error: any) {
+      console.error('Error uploading documents:', error);
+      toast.error(error?.response?.data?.message || 'Failed to upload documents');
+    } finally {
+      setUploadingDocuments(false);
+    }
+  };
+
   const onSubmit = async (data: RetailerFormData) => {
     setSubmitting(true);
     try {
+      let customerNumber: number | null = null;
+
+      // Geocode the address before submitting
+      let geocodedAddress = null;
+      try {
+        geocodedAddress = await geocodeAddress(
+          data.C_Address || '',
+          data.C_City || '',
+          data.C_State || '',
+          data.C_Country || '',
+          data.C_Zip || ''
+        );
+        if (!geocodedAddress) {
+          console.warn('Address geocoding failed, but continuing with form submission');
+        }
+      } catch (error) {
+        console.error('Error during address geocoding:', error);
+        // Continue with form submission even if geocoding fails
+      }
+
       if (isEditMode && customerId && originalData) {
         // Only send changed fields
         const changedFields: any = {};
@@ -325,23 +533,126 @@ const AddRetailer: React.FC = () => {
             changedFields[key] = currentValue;
           }
         });
+
+        // Add geocoded address if available
+        if (geocodedAddress) {
+          changedFields.address = geocodedAddress;
+        }
         
         const response = await updateCustomer(customerId, changedFields) as any;
         if (response?.success) {
+          // In edit mode, use the customerId from params
+          customerNumber = Number(customerId);
           toast.success(response?.message || 'Retailer updated successfully!');
-          navigate('/admin/retailers');
         } else {
           toast.error(response?.message || 'Failed to update retailer');
+          return;
         }
       } else {
-        const response = await createCustomer(data) as any;
+        // For new customer creation, upload files first to get URLs
+        const documentUrls: {
+          attachments?: string[];
+          salesTaxDoc?: string | null;
+          CigTaxDoc?: string | null;
+          licenseAttachments?: string[];
+          feinDocument?: string | null;
+        } = {
+          attachments: [],
+          salesTaxDoc: null,
+          CigTaxDoc: null,
+          licenseAttachments: [],
+          feinDocument: null,
+        };
+
+        setUploadingDocuments(true);
+        try {
+          // Upload attachments
+          if (attachments.length > 0) {
+            const uploadedUrls = await Promise.all(
+              attachments.map(file => uploadFileAndGetUrl(file))
+            );
+            documentUrls.attachments = uploadedUrls;
+          }
+
+          // Upload salesTaxDoc
+          if (salesTaxDoc) {
+            documentUrls.salesTaxDoc = await uploadFileAndGetUrl(salesTaxDoc);
+          }
+
+          // Upload CigTaxDoc
+          if (CigTaxDoc) {
+            documentUrls.CigTaxDoc = await uploadFileAndGetUrl(CigTaxDoc);
+          }
+
+          // Upload licenseAttachments
+          if (licenseAttachments.length > 0) {
+            const uploadedUrls = await Promise.all(
+              licenseAttachments.map(file => uploadFileAndGetUrl(file))
+            );
+            documentUrls.licenseAttachments = uploadedUrls;
+          }
+
+          // Upload feinDocument
+          if (feinDocument) {
+            documentUrls.feinDocument = await uploadFileAndGetUrl(feinDocument);
+          }
+        } catch (error: any) {
+          console.error('Error uploading files:', error);
+          toast.error(error?.response?.data?.message || 'Failed to upload files');
+          setUploadingDocuments(false);
+          setSubmitting(false);
+          return;
+        } finally {
+          setUploadingDocuments(false);
+        }
+
+        // Include documents and geocoded address in the create payload
+        const createPayload: any = {
+          ...data,
+          documents: {
+            attachments: documentUrls.attachments || [],
+            salesTaxDoc: documentUrls.salesTaxDoc || null,
+            CigTaxDoc: documentUrls.CigTaxDoc || null,
+            licenseAttachments: documentUrls.licenseAttachments || [],
+            feinDocument: documentUrls.feinDocument || null,
+          },
+        };
+
+        // Add geocoded address if available
+        if (geocodedAddress) {
+          createPayload.address = geocodedAddress;
+        }
+
+        const response = await createCustomer(createPayload) as any;
         if (response?.success) {
+          // Get customer number from response - try multiple possible locations
+          customerNumber = response?.data?.C_Number || 
+                          response?.data?.customerNumber || 
+                          response?.C_Number || 
+                          response?.customerNumber ||
+                          null;
+          
+          // If still no customer number, try to get it from the data object directly
+          if (!customerNumber && response?.data) {
+            // Check if data itself is the customer object
+            if (typeof response.data === 'object' && 'C_Number' in response.data) {
+              customerNumber = response.data.C_Number;
+            }
+          }
+          
           toast.success(response?.message || 'Retailer created successfully!');
-          navigate('/admin/retailers');
         } else {
           toast.error(response?.message || 'Failed to create retailer');
+          return;
         }
       }
+
+      // In edit mode, upload any remaining documents if customer number is available
+      if (customerNumber && isEditMode) {
+        await uploadDocuments(customerNumber);
+      }
+
+      navigate('/admin/retailers');
     } catch (error: any) {
       console.error(`Error ${isEditMode ? 'updating' : 'creating'} retailer:`, error);
       toast.error(error?.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} retailer`);
@@ -1599,6 +1910,451 @@ const AddRetailer: React.FC = () => {
 
                     <Divider sx={{ my: 2 }} />
 
+                    {/* Document Uploads */}
+                    <Box sx={{
+                      mb: 2,
+                      pb: 1.5,
+                      borderBottom: '2px solid',
+                      borderColor: 'divider',
+                      p: 1.5,
+                      borderRadius: 2,
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        backgroundColor: alpha(theme.palette.info.main, 0.05),
+                        transform: 'translateX(4px)',
+                      }
+                    }}>
+                      <Typography variant="h6" sx={{ fontWeight: 500, color: 'primary.main', fontSize: '1rem' }}>
+                        Document Uploads
+                      </Typography>
+                    </Box>
+
+                    <Grid container spacing={1.5}>
+                      {/* Attachments (Multiple Files) */}
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ mb: 1, fontSize: 14, fontWeight: 500, color: 'text.primary' }}>
+                            Attachments (Max 3)
+                          </Typography>
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                            onChange={async (e) => {
+                              const files = Array.from(e.target.files || []);
+                              const currentCount = attachments.length + (existingDocumentUrls.attachments?.length || 0);
+                              
+                              if (currentCount + files.length > 3) {
+                                toast.error('Maximum 3 attachments allowed');
+                                return;
+                              }
+                              
+                              // In edit mode, upload immediately
+                              if (isEditMode && customerId) {
+                                const customerNumber = Number(customerId);
+                                try {
+                                  for (const file of files) {
+                                    await handleFileUpload(file, 'attachments', customerNumber);
+                                  }
+                                  toast.success('Files uploaded successfully');
+                                } catch {
+                                  // Error already handled in handleFileUpload
+                                }
+                              } else {
+                                // In create mode, just store files for later upload
+                                setAttachments([...attachments, ...files]);
+                              }
+                            }}
+                            style={{ display: 'none' }}
+                            id="attachments-upload"
+                          />
+                          <CustomButton
+                            onClick={() => {
+                              const currentCount = attachments.length + (existingDocumentUrls.attachments?.length || 0);
+                              if (currentCount >= 3) {
+                                toast.error('Maximum 3 attachments allowed');
+                                return;
+                              }
+                              document.getElementById('attachments-upload')?.click();
+                            }}
+                            buttonType="cancel"
+                            appearance="outlined"
+                            fullWidth={false}
+                            sx={{ mb: 1 }}
+                            disabled={attachments.length + (existingDocumentUrls.attachments?.length || 0) >= 3}
+                          >
+                            Select Files
+                          </CustomButton>
+                          {attachments.length > 0 && (
+                            <Box sx={{ mt: 1 }}>
+                              {attachments.map((file, index) => (
+                                <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                  <Typography variant="body2" sx={{ fontSize: 12, color: 'text.secondary' }}>
+                                    {file.name}
+                                  </Typography>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                      const newFiles = attachments.filter((_, i) => i !== index);
+                                      setAttachments(newFiles);
+                                    }}
+                                  >
+                                    <ClearIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ))}
+                            </Box>
+                          )}
+                          {existingDocumentUrls.attachments && existingDocumentUrls.attachments.length > 0 && (
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="body2" sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
+                                Existing attachments:
+                              </Typography>
+                              {existingDocumentUrls.attachments.map((url, index) => (
+                                <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                  <Box
+                                    component="a"
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 0.5,
+                                      fontSize: 12,
+                                      color: 'primary.main',
+                                      textDecoration: 'none',
+                                      maxWidth: 200,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      '&:hover': {
+                                        textDecoration: 'underline',
+                                      },
+                                    }}
+                                  >
+                                    {url.split('/').pop()}
+                                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                                  </Box>
+                                  <IconButton
+                                    size="small"
+                                    onClick={async () => {
+                                      const newUrls = existingDocumentUrls.attachments?.filter((_, i) => i !== index) || [];
+                                      const customerNumber = customerId ? Number(customerId) : originalData?.C_Number;
+                                      if (customerNumber) {
+                                        try {
+                                          await saveRetailerDocuments(customerNumber, {
+                                            ...existingDocumentUrls,
+                                            attachments: newUrls,
+                                          });
+                                          setExistingDocumentUrls({
+                                            ...existingDocumentUrls,
+                                            attachments: newUrls,
+                                          });
+                                          toast.success('Attachment removed');
+                                        } catch {
+                                          toast.error('Failed to remove attachment');
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    <ClearIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ))}
+                            </Box>
+                          )}
+                        </Box>
+                      </Grid>
+
+                      {/* Sales Tax Document */}
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <FileUploadInput
+                          label="Sales Tax Document"
+                          onChange={async (file) => {
+                            // In edit mode, upload immediately
+                            if (isEditMode && customerId && file) {
+                              const customerNumber = Number(customerId);
+                              try {
+                                await handleFileUpload(file, 'salesTaxDoc', customerNumber);
+                                toast.success('Sales tax document uploaded successfully');
+                              } catch {
+                                // Error already handled
+                              }
+                            } else {
+                              // In create mode, just store file for later upload
+                              setSalesTaxDoc(file);
+                            }
+                          }}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          value={salesTaxDoc}
+                          id="sales-tax-doc-upload"
+                        />
+                        {existingDocumentUrls.salesTaxDoc && (
+                          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box
+                              component="a"
+                              href={existingDocumentUrls.salesTaxDoc}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                fontSize: 12,
+                                color: 'primary.main',
+                                textDecoration: 'none',
+                                '&:hover': {
+                                  textDecoration: 'underline',
+                                },
+                              }}
+                            >
+                              <VisibilityIcon sx={{ fontSize: 16 }} />
+                              View: {existingDocumentUrls.salesTaxDoc.split('/').pop()}
+                              <OpenInNewIcon sx={{ fontSize: 14 }} />
+                            </Box>
+                          </Box>
+                        )}
+                      </Grid>
+
+                      {/* Cigarette Tax Document */}
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <FileUploadInput
+                          label="Cigarette Tax Document"
+                          onChange={async (file) => {
+                            // In edit mode, upload immediately
+                            if (isEditMode && customerId && file) {
+                              const customerNumber = Number(customerId);
+                              try {
+                                await handleFileUpload(file, 'CigTaxDoc', customerNumber);
+                                toast.success('Cigarette tax document uploaded successfully');
+                              } catch {
+                                // Error already handled
+                              }
+                            } else {
+                              // In create mode, just store file for later upload
+                              setCigTaxDoc(file);
+                            }
+                          }}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          value={CigTaxDoc}
+                          id="cig-tax-doc-upload"
+                        />
+                        {existingDocumentUrls.CigTaxDoc && (
+                          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box
+                              component="a"
+                              href={existingDocumentUrls.CigTaxDoc}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                fontSize: 12,
+                                color: 'primary.main',
+                                textDecoration: 'none',
+                                '&:hover': {
+                                  textDecoration: 'underline',
+                                },
+                              }}
+                            >
+                              <VisibilityIcon sx={{ fontSize: 16 }} />
+                              View: {existingDocumentUrls.CigTaxDoc.split('/').pop()}
+                              <OpenInNewIcon sx={{ fontSize: 14 }} />
+                            </Box>
+                          </Box>
+                        )}
+                      </Grid>
+
+                      {/* License Attachments (Multiple Files) */}
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ mb: 1, fontSize: 14, fontWeight: 500, color: 'text.primary' }}>
+                            License Attachments (Max 3)
+                          </Typography>
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                            onChange={async (e) => {
+                              const files = Array.from(e.target.files || []);
+                              const currentCount = licenseAttachments.length + (existingDocumentUrls.licenseAttachments?.length || 0);
+                              
+                              if (currentCount + files.length > 3) {
+                                toast.error('Maximum 3 license attachments allowed');
+                                return;
+                              }
+                              
+                              // In edit mode, upload immediately
+                              if (isEditMode && customerId) {
+                                const customerNumber = Number(customerId);
+                                try {
+                                  for (const file of files) {
+                                    await handleFileUpload(file, 'licenseAttachments', customerNumber);
+                                  }
+                                  toast.success('Files uploaded successfully');
+                                } catch {
+                                  // Error already handled in handleFileUpload
+                                }
+                              } else {
+                                // In create mode, just store files for later upload
+                                setLicenseAttachments([...licenseAttachments, ...files]);
+                              }
+                            }}
+                            style={{ display: 'none' }}
+                            id="license-attachments-upload"
+                          />
+                          <CustomButton
+                            onClick={() => {
+                              const currentCount = licenseAttachments.length + (existingDocumentUrls.licenseAttachments?.length || 0);
+                              if (currentCount >= 3) {
+                                toast.error('Maximum 3 license attachments allowed');
+                                return;
+                              }
+                              document.getElementById('license-attachments-upload')?.click();
+                            }}
+                            buttonType="cancel"
+                            appearance="outlined"
+                            fullWidth={false}
+                            sx={{ mb: 1 }}
+                            disabled={licenseAttachments.length + (existingDocumentUrls.licenseAttachments?.length || 0) >= 3}
+                          >
+                            Select Files
+                          </CustomButton>
+                          {licenseAttachments.length > 0 && (
+                            <Box sx={{ mt: 1 }}>
+                              {licenseAttachments.map((file, index) => (
+                                <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                  <Typography variant="body2" sx={{ fontSize: 12, color: 'text.secondary' }}>
+                                    {file.name}
+                                  </Typography>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                      const newFiles = licenseAttachments.filter((_, i) => i !== index);
+                                      setLicenseAttachments(newFiles);
+                                    }}
+                                  >
+                                    <ClearIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ))}
+                            </Box>
+                          )}
+                          {existingDocumentUrls.licenseAttachments && existingDocumentUrls.licenseAttachments.length > 0 && (
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="body2" sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
+                                Existing license attachments:
+                              </Typography>
+                              {existingDocumentUrls.licenseAttachments.map((url, index) => (
+                                <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                  <Box
+                                    component="a"
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 0.5,
+                                      fontSize: 12,
+                                      color: 'primary.main',
+                                      textDecoration: 'none',
+                                      maxWidth: 200,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      '&:hover': {
+                                        textDecoration: 'underline',
+                                      },
+                                    }}
+                                  >
+                                    {url.split('/').pop()}
+                                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                                  </Box>
+                                  <IconButton
+                                    size="small"
+                                    onClick={async () => {
+                                      const newUrls = existingDocumentUrls.licenseAttachments?.filter((_, i) => i !== index) || [];
+                                      const customerNumber = customerId ? Number(customerId) : originalData?.C_Number;
+                                      if (customerNumber) {
+                                        try {
+                                          await saveRetailerDocuments(customerNumber, {
+                                            ...existingDocumentUrls,
+                                            licenseAttachments: newUrls,
+                                          });
+                                          setExistingDocumentUrls({
+                                            ...existingDocumentUrls,
+                                            licenseAttachments: newUrls,
+                                          });
+                                          toast.success('License attachment removed');
+                                        } catch {
+                                          toast.error('Failed to remove license attachment');
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    <ClearIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ))}
+                            </Box>
+                          )}
+                        </Box>
+                      </Grid>
+
+                      {/* FEIN Document */}
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <FileUploadInput
+                          label="FEIN Document"
+                          onChange={async (file) => {
+                            // In edit mode, upload immediately
+                            if (isEditMode && customerId && file) {
+                              const customerNumber = Number(customerId);
+                              try {
+                                await handleFileUpload(file, 'feinDocument', customerNumber);
+                                toast.success('FEIN document uploaded successfully');
+                              } catch {
+                                // Error already handled
+                              }
+                            } else {
+                              // In create mode, just store file for later upload
+                              setFeinDocument(file);
+                            }
+                          }}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          value={feinDocument}
+                          id="fein-document-upload"
+                        />
+                        {existingDocumentUrls.feinDocument && (
+                          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box
+                              component="a"
+                              href={existingDocumentUrls.feinDocument}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                fontSize: 12,
+                                color: 'primary.main',
+                                textDecoration: 'none',
+                                '&:hover': {
+                                  textDecoration: 'underline',
+                                },
+                              }}
+                            >
+                              <VisibilityIcon sx={{ fontSize: 16 }} />
+                              View: {existingDocumentUrls.feinDocument.split('/').pop()}
+                              <OpenInNewIcon sx={{ fontSize: 14 }} />
+                            </Box>
+                          </Box>
+                        )}
+                      </Grid>
+                    </Grid>
+
+                    <Divider sx={{ my: 2 }} />
+
                     {/* Navigation Buttons for Step 2 */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5, mt: 2, pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
                       <CustomButton
@@ -1636,12 +2392,16 @@ const AddRetailer: React.FC = () => {
                           type="submit"
                           buttonType="primary"
                           appearance="filled"
-                          disabled={submitting}
-                          icon={submitting ? <CircularProgress size={20} /> : null}
+                          disabled={submitting || uploadingDocuments}
+                          icon={(submitting || uploadingDocuments) ? <CircularProgress size={20} /> : null}
                           sx={{ minWidth: 120 }}
                           fullWidth={false}
                         >
-                          {submitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Retailer' : 'Create Retailer')}
+                          {uploadingDocuments 
+                            ? 'Uploading Documents...' 
+                            : submitting 
+                              ? (isEditMode ? 'Updating...' : 'Creating...') 
+                              : (isEditMode ? 'Update Retailer' : 'Create Retailer')}
                         </CustomButton>
                       </Box>
                     </Box>
@@ -1657,4 +2417,5 @@ const AddRetailer: React.FC = () => {
 };
 
 export default AddRetailer;
+
 

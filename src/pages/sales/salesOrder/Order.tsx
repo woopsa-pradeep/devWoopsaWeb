@@ -308,6 +308,8 @@ const Order = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [orderItems, setOrderItems] = useState<{ [key: string]: { quantity: number; price: number; Description: string; productId: number; placedBySalesPerson: boolean } }>({});
   const [cartItemsData, setCartItemsData] = useState<{ [key: string]: Product }>({});
+  // Track insertion order of items to maintain display order
+  const [itemInsertionOrder, setItemInsertionOrder] = useState<string[]>([]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedHistoryProduct, setSelectedHistoryProduct] = useState<Product | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'table' | 'keyboard'>('table');
@@ -540,6 +542,7 @@ const Order = () => {
             setInactiveItemsModalOpen(true);
           }
           
+          const insertionOrder: string[] = [];
           response?.finalCartItems?.forEach((item: any) => {
             // Create a product object from the cart item data
             const productData = {
@@ -595,10 +598,13 @@ const Order = () => {
             };
             
             cartItemsData[itemId] = product;
+            // Preserve order from server response
+            insertionOrder.push(itemId);
           });
           
           setOrderItems(cartItems);
           setCartItemsData(cartItemsData);
+          setItemInsertionOrder(insertionOrder);
         }
       }
     } catch (error) {
@@ -609,6 +615,7 @@ const Order = () => {
         const cartItems: { [key: string]: { quantity: number; price: number; Description: string; productId: number; placedBySalesPerson: boolean } } = {};
         const cartItemsData: { [key: string]: Product } = {};
         
+        const insertionOrder: string[] = [];
         persistedCartItems.forEach((item: any) => {
           const productData = {
             Pack: item.CaseCount || 1,
@@ -660,10 +667,13 @@ const Order = () => {
           };
           
           cartItemsData[itemId] = product;
+          // Preserve order from persisted data
+          insertionOrder.push(itemId);
         });
         
         setOrderItems(cartItems);
         setCartItemsData(cartItemsData);
+        setItemInsertionOrder(insertionOrder);
       }
     }
   }, [dispatch]);
@@ -690,6 +700,7 @@ const Order = () => {
     if (cartValidationData.items && cartValidationData.items.length > 0 && Object.keys(orderItems).length === 0 && selectedCustomer?.C_Number) {
       const cartItems: { [key: string]: { quantity: number; price: number; Description: string; productId: number; placedBySalesPerson: boolean } } = {};
       const cartItemsData: { [key: string]: Product } = {};
+      const insertionOrder: string[] = [];
       
       cartValidationData.items.forEach((item: any) => {
         const productData = {
@@ -742,10 +753,13 @@ const Order = () => {
         };
         
         cartItemsData[itemId] = product;
+        // Preserve order from persisted data
+        insertionOrder.push(itemId);
       });
       
       setOrderItems(cartItems);
       setCartItemsData(cartItemsData);
+      setItemInsertionOrder(insertionOrder);
     }
   }, [cartValidationData.items, selectedCustomer?.C_Number]);
 
@@ -912,6 +926,8 @@ const Order = () => {
           delete rest[id];
           return rest;
         });
+        // Remove from insertion order
+        setItemInsertionOrder(prev => prev.filter(itemId => itemId !== id));
         
         // Clear any pending debounce for this item
         if (quantityDebounceRef.current[id]) {
@@ -939,6 +955,7 @@ const Order = () => {
     }
 
     // Update local state immediately for better UX
+    const isNewItem = !currentItem || currentItem.quantity === 0;
     setOrderItems(prev => ({
       ...prev,
       [id]: {
@@ -949,6 +966,10 @@ const Order = () => {
         placedBySalesPerson: item?.Product?.placedBySalesPerson
       }
     }));
+    // Add to insertion order if it's a new item
+    if (isNewItem) {
+      setItemInsertionOrder(prev => [...prev, id]);
+    }
 
     // Clear any existing debounce timer for this item
     if (quantityDebounceRef.current[id]) {
@@ -1334,6 +1355,8 @@ const Order = () => {
         delete rest[id];
         return rest;
       });
+      // Remove from insertion order
+      setItemInsertionOrder(prev => prev.filter(itemId => itemId !== id));
       
       // Clear any pending debounce for this item
       if (quantityDebounceRef.current[id]) {
@@ -1362,6 +1385,7 @@ const Order = () => {
       await clearCart(selectedCustomer?.C_Number?.toString() || '');
       setOrderItems({});
       setCartItemsData({});
+      setItemInsertionOrder([]); // Clear insertion order
       setClearModalOpen(false);
       
       // Clear all pending debounce timers
@@ -1769,6 +1793,7 @@ const Order = () => {
       finalPrice = Math.max(0, finalPrice);
 
       // Update local state immediately for better UX
+      const isNewItem = !existingItem || existingItem.quantity === 0;
       setOrderItems(prev => ({
         ...prev,
         [matchingProduct.id]: {
@@ -1779,6 +1804,10 @@ const Order = () => {
           placedBySalesPerson: matchingProduct?.productDetails?.placedBySalesPerson
         }
       }));
+      // Add to insertion order if it's a new item
+      if (isNewItem) {
+        setItemInsertionOrder(prev => [...prev, matchingProduct.id]);
+      }
 
       // Add to cart or update existing item
       try {
@@ -2556,6 +2585,7 @@ const Order = () => {
         const discountedPrice = basePriceWithTax * (1 + prepaidTaxRate);
         
         // Update local state with discounted price
+        const isNewItem = !orderItems[product.id] || orderItems[product.id].quantity === 0;
         setOrderItems(prev => ({
           ...prev,
           [product.id]: {
@@ -2567,6 +2597,10 @@ const Order = () => {
             placedBySalesPerson: product?.Product?.placedBySalesPerson || false
           }
         }));
+        // Add to insertion order if it's a new item
+        if (isNewItem) {
+          setItemInsertionOrder(prev => [...prev, product.id]);
+        }
         
         // Add to cart via API with discounted price using calculateCartPayload
         setTimeout(async () => {
@@ -2622,6 +2656,7 @@ const Order = () => {
         const originalPriceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
         
         // Update local state
+        const isNewItem = !orderItems[product.id] || orderItems[product.id].quantity === 0;
         setOrderItems(prev => ({
           ...prev,
           [product.id]: {
@@ -2633,6 +2668,10 @@ const Order = () => {
             placedBySalesPerson: product?.Product?.placedBySalesPerson || false
           }
         }));
+        // Add to insertion order if it's a new item
+        if (isNewItem) {
+          setItemInsertionOrder(prev => [...prev, product.id]);
+        }
         
         // Add to cart via API with original price
         setTimeout(async () => {
@@ -2908,32 +2947,35 @@ const Order = () => {
         <Grid size={{ xs: 12, md: 3 }}>
           {/* {console.log(orderItems, "orderItems====>", cartItemsData)} */}
           <OrderDetails
-            items={Object.entries(orderItems).map(([id, item]) => {
-              // Try to get product data from cartItemsData first, then from data array
-              const productData = cartItemsData[id] || data.find((p: any) => p.id === id);
-              // Get base price components for display price calculation
-              const basePrice = Number(productData?.price) || 0;
-              const taxRate = Number(productData?.Tax_Rate) || 0;
-              const prepaidTaxRate = Number(productData?.prepaidTaxRate) || 0;
-              
-              return {
-                id,
-                name: item.Description,
-                quantity: item.quantity,
-                price: item.price,
-                priceWithTax: item.price, // Use the price as priceWithTax since it's already the main price
-                placedBySalesPerson: item?.placedBySalesPerson,
-                showWithOutPrice: productData?.showWithOutPrice,
-                // Add quantity discount fields
-                hasQtyDiscount: productData?.hasQtyDiscount,
-                qtyDiscount: productData?.qtyDiscount,
-                originalPrice: Number(productData?.price) || 0,
-                // Base price components for display price calculation
-                basePrice,
-                taxRate,
-                prepaidTaxRate
-              };
-            })}
+            items={itemInsertionOrder
+              .filter(id => orderItems[id]) // Only include items that still exist
+              .map((id) => {
+                const item = orderItems[id];
+                // Try to get product data from cartItemsData first, then from data array
+                const productData = cartItemsData[id] || data.find((p: any) => p.id === id);
+                // Get base price components for display price calculation
+                const basePrice = Number(productData?.price) || 0;
+                const taxRate = Number(productData?.Tax_Rate) || 0;
+                const prepaidTaxRate = Number(productData?.prepaidTaxRate) || 0;
+                
+                return {
+                  id,
+                  name: item.Description,
+                  quantity: item.quantity,
+                  price: item.price,
+                  priceWithTax: item.price, // Use the price as priceWithTax since it's already the main price
+                  placedBySalesPerson: item?.placedBySalesPerson,
+                  showWithOutPrice: productData?.showWithOutPrice,
+                  // Add quantity discount fields
+                  hasQtyDiscount: productData?.hasQtyDiscount,
+                  qtyDiscount: productData?.qtyDiscount,
+                  originalPrice: Number(productData?.price) || 0,
+                  // Base price components for display price calculation
+                  basePrice,
+                  taxRate,
+                  prepaidTaxRate
+                };
+              })}
             onQuantityChange={handleOrderDetailsQuantityChange}
             onRemoveItem={handleRemoveItem}
             onClear={handleClearOrder}

@@ -21,6 +21,17 @@ export interface ApiProfileResponse {
   salesRep: {
     S_Desc: string;
   };
+  documents?: {
+    id: number;
+    feinDocument: string | null;
+    customerNumber: number;
+    attachments: string[];
+    salesTaxDoc: string | null;
+    CigTaxDoc: string | null;
+    licenseAttachments: string[] | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
 }
 
 export interface CompanyDetailsData {
