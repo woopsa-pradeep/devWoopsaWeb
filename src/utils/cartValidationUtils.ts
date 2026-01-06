@@ -76,26 +76,31 @@ export const validateMinimumOrderAmount = (
  * Validates cart before proceeding to checkout
  * @param cartItems Array of cart items with product limit data
  * @param validationData Cart validation data from API
+ * @param isReturnOrder Optional flag to skip minimum amount and empty cart validation for return orders
  * @returns true if validation passes, false if it fails
  */
 export const validateCartForCheckout = (
   cartItems: (CartItem & ProductLimitData)[],
-  validationData: CartValidationData
+  validationData: CartValidationData,
+  isReturnOrder: boolean = false
 ): boolean => {
   const { userLimitMinOrderAmount, totalAmountWithTax } = validationData;
 
-  // Check if cart is empty
-  if (cartItems.length === 0) {
-    showErrorToast('Your cart is empty. Please add items before proceeding.');
-    return false;
+  // For return orders, skip empty cart and minimum amount checks
+  if (!isReturnOrder) {
+    // Check if cart is empty
+    if (cartItems.length === 0) {
+      showErrorToast('Your cart is empty. Please add items before proceeding.');
+      return false;
+    }
+
+    // Check minimum order amount
+    if (!validateMinimumOrderAmount(totalAmountWithTax, userLimitMinOrderAmount)) {
+      return false;
+    }
   }
 
-  // Check minimum order amount
-  if (!validateMinimumOrderAmount(totalAmountWithTax, userLimitMinOrderAmount)) {
-    return false;
-  }
-
-  // Check individual item limits
+  // Check individual item limits (applies to both regular and return orders)
   for (const item of cartItems) {
     const productLimitData: ProductLimitData = {
       hasProductLimit: item.hasProductLimit,

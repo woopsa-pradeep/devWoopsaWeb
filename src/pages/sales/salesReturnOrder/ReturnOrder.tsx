@@ -1356,7 +1356,7 @@ const Order = () => {
   };
 
   const handleContinueOrder = () => {
-    // Validate cart before proceeding
+    // For return orders, skip minimum amount validation and allow empty cart
     const cartItems = Object.entries(orderItems).map(([id, item]) => {
       const productData = cartItemsData[id];
       return {
@@ -1376,7 +1376,8 @@ const Order = () => {
       totalAmount: cartValidationData.totalAmount
     };
 
-    if (!validateCartForCheckout(cartItems, validationData)) {
+    // Pass isReturnOrder=true to skip minimum amount and empty cart validation
+    if (!validateCartForCheckout(cartItems, validationData, true)) {
       return;
     }
 

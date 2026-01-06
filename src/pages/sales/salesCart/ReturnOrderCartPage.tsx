@@ -449,7 +449,7 @@ const ReturnOrderCartPage: React.FC = () => {
 
   // Handle place order
   const handlePlaceOrder = async () => {
-    // Validate cart before placing order
+    // For return orders, skip minimum amount validation and allow empty cart
     const cartItemsForValidation = cartItems.map((item: CartItem) => ({
       id: item.Description,
       quantity: item.Product.Qty,
@@ -465,7 +465,8 @@ const ReturnOrderCartPage: React.FC = () => {
       totalAmount
     };
 
-    if (!validateCartForCheckout(cartItemsForValidation, validationData)) {
+    // Pass isReturnOrder=true to skip minimum amount and empty cart validation
+    if (!validateCartForCheckout(cartItemsForValidation, validationData, true)) {
       return;
     }
 
