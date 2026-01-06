@@ -909,8 +909,23 @@ const AdminOrderDetail = () => {
         addFooterToPage(doc, rabbitLogoDataUrl || undefined, i, totalPages);
       }
 
-      // Save PDF
-      doc.save(`Invoice_${orderHeader.Order_Number || 'Order'}.pdf`);
+      // Open PDF in new window and trigger print dialog
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(pdfUrl, '_blank');
+      
+      if (printWindow) {
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+            // Clean up the blob URL after printing
+            URL.revokeObjectURL(pdfUrl);
+          }, 250);
+        };
+      } else {
+        // Fallback: if popup blocked, download the file
+        doc.save(`Invoice_${orderHeader.Order_Number || 'Order'}.pdf`);
+      }
     } catch (error) {
       console.error('Error generating invoice PDF:', error);
     } finally {

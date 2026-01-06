@@ -1136,9 +1136,24 @@ export const generatePicklistPDF = async (
     addFullHeaderToPage(doc, i, totalPages, orderData, template);
   }
   
-  // Save PDF
-  const filename = `picklist-${orderData.orderNumber}-${orderData.invoiceNumber}.pdf`;
-  doc.save(filename);
+  // Open PDF in new window and trigger print dialog
+  const pdfBlob = doc.output('blob');
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+  const printWindow = window.open(pdfUrl, '_blank');
+  
+  if (printWindow) {
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        // Clean up the blob URL after printing
+        URL.revokeObjectURL(pdfUrl);
+      }, 250);
+    };
+  } else {
+    // Fallback: if popup blocked, download the file
+    const filename = `picklist-${orderData.orderNumber}-${orderData.invoiceNumber}.pdf`;
+    doc.save(filename);
+  }
 };
 
 
