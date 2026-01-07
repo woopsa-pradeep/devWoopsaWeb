@@ -45,7 +45,7 @@ interface ApiProduct {
   AvgCost: number;
   NetCost: number;
   UPCList: Array<{ UPC_Number: string }>;
-  SalesCategory: string;
+  SalesCategory: string | { Category_Desc: string; Sales_Category?: number };
   PriceClass: string;
   showDistributorImage: boolean;
   distributorImage: string | null;
@@ -128,7 +128,7 @@ const getProductImage = (apiProduct: ApiProduct): string => {
 // Function to transform API response to Product interface
 // Maps the new API structure to the existing Product interface
 const transformApiProduct = (apiProduct: ApiProduct): Product => {
-  
+  console.log(apiProduct,'apiProduct');
   // Safely handle missing or undefined fields
   const itemNumber = apiProduct.Item_Number || (apiProduct as any).id || 0;
   const description = apiProduct.Description || (apiProduct as any).name || '';
@@ -140,7 +140,16 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
   const price1 = apiProduct.Price1 || apiProduct.price || 0;
   const taxRate = apiProduct.Tax_Rate || 0;
   const priceWithTax = apiProduct.priceWithTax || price;
-  const salesCategory = apiProduct.SalesCategory || '';
+  // Handle SalesCategory as either string or object with Category_Desc
+  // Check multiple possible field names: SalesCategory, salesCategory, Sales_Category
+  let salesCategory = '';
+  const salesCategoryValue = apiProduct.SalesCategory || (apiProduct as any).salesCategory || (apiProduct as any).Sales_Category;
+  
+  if (typeof salesCategoryValue === 'object' && salesCategoryValue !== null) {
+    salesCategory = salesCategoryValue.Category_Desc || '';
+  } else if (typeof salesCategoryValue === 'string') {
+    salesCategory = salesCategoryValue;
+  }
   const priceClass = apiProduct.PriceClass || '';
   const upcList = apiProduct.UPCList || [];
   const showTheInventoryStock = apiProduct.showTheInventoryStock || false;
@@ -744,8 +753,17 @@ const Order = () => {
               AvgCost: item.AvgCost || 0,
               NetCost: item.NetCost || 0,
               UPCList: [],
-              SalesCategory: '',
-              PriceClass: '',
+              SalesCategory: (() => {
+                // Extract SalesCategory from cart item - check multiple possible field names
+                const salesCat = item.salesCategory || item.SalesCategory || item.Sales_Category;
+                if (typeof salesCat === 'object' && salesCat !== null) {
+                  return salesCat;
+                } else if (typeof salesCat === 'string') {
+                  return salesCat;
+                }
+                return '';
+              })(),
+              PriceClass: item.PriceClass || '',
               showDistributorImage: item.showDistributorImage || false,
               distributorImage: item.distributorImage,
               masterImage: item.masterImage,
@@ -818,8 +836,17 @@ const Order = () => {
             AvgCost: item.AvgCost || 0,
             NetCost: item.NetCost || 0,
             UPCList: [],
-            SalesCategory: '',
-            PriceClass: '',
+            SalesCategory: (() => {
+              // Extract SalesCategory from cart item - check multiple possible field names
+              const salesCat = item.salesCategory || item.SalesCategory || item.Sales_Category;
+              if (typeof salesCat === 'object' && salesCat !== null) {
+                return salesCat;
+              } else if (typeof salesCat === 'string') {
+                return salesCat;
+              }
+              return '';
+            })(),
+            PriceClass: item.PriceClass || '',
             showDistributorImage: item.showDistributorImage || false,
             distributorImage: item.distributorImage,
             masterImage: item.masterImage,
@@ -911,8 +938,17 @@ const Order = () => {
           AvgCost: item.AvgCost || 0,
           NetCost: item.NetCost || 0,
           UPCList: [],
-          SalesCategory: '',
-          PriceClass: '',
+          SalesCategory: (() => {
+            // Extract SalesCategory from cart item - check multiple possible field names
+            const salesCat = item.salesCategory || item.SalesCategory || item.Sales_Category;
+            if (typeof salesCat === 'object' && salesCat !== null) {
+              return salesCat;
+            } else if (typeof salesCat === 'string') {
+              return salesCat;
+            }
+            return '';
+          })(),
+          PriceClass: item.PriceClass || '',
           showDistributorImage: item.showDistributorImage || false,
           distributorImage: item.distributorImage,
           masterImage: item.masterImage,

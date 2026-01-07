@@ -25,12 +25,12 @@ import rabbitLogo from '../../../assets/Rabbit.svg';
 import { getPicklistTemplate, savePicklistTemplate, updatePicklistTemplate } from '../../../redux/apis/distrubutor/settingApis';
 import toast from 'react-hot-toast';
 
-// Field definitions for picklist - Ordered Qty and Scanned Qty are compulsory and together
+// Field definitions for picklist - Line Number, Description, Ordered Qty and Scanned Qty are compulsory
 const PICKLIST_FIELDS = [
-  { key: 'lineNumber', label: 'Line #' },
+  { key: 'lineNumber', label: 'Line #', required: true },
   { key: 'orderedQty', label: 'Ord Qty', required: true },
   { key: 'scannedQty', label: 'Qty', required: true },
-  { key: 'description', label: 'Description' },
+  { key: 'description', label: 'Description', required: true },
   { key: 'itemNumber', label: 'Item Number' },
   { key: 'pack', label: 'Pack' },
   { key: 'size', label: 'Size' },
@@ -38,9 +38,6 @@ const PICKLIST_FIELDS = [
   // { key: 'onhand', label: 'On Hand' }, // Commented out for now - may come in future API updates
   { key: 'salesCategory', label: 'Sales Category' },
   { key: 'priceClass', label: 'Price Class' },
-  { key: 'unitCost', label: 'Unit Cost' },
-  { key: 'extendedCost', label: 'Extended Cost' },
-  { key: 'retail', label: 'Retail' },
   { key: 'section', label: 'Section' },
   { key: 'location', label: 'Location' },
   { key: 'vendorItem', label: 'Vendor Item' },
@@ -50,62 +47,62 @@ const PICKLIST_FIELDS = [
 // Static sample data for preview
 const SAMPLE_CUSTOMER = {
   number: 2290,
-  name: 'DUNKIM EXPRESS MART',
-  address: '700 CAMPBELL STREET, WASHINGTON COURT I, OH 43160',
-  phone: '423-244-1554',
+  name: 'WOOPSA',
+  address: '500 JAMISON TEST STREET XX 12345',
+  phone: '1234567890',
   route: 0,
   stop: 0,
 };
 
 const SAMPLE_DISTRIBUTOR = {
-  name: 'J.E.S Wholesale',
-  address: '123 Main Street, City, State 12345',
+  name: 'WOOPSA TEST',
+  address: '500 JAMISON TEST STREET XX 12345',
 };
 
 const SAMPLE_ITEMS = [
-  { lineNumber: 1, orderedQty: 1.00, scannedQty: '', itemNumber: 44077, description: 'GAME 2/129 MVP WATERMELON 30CT', pack: 1, size: 'BOX', upc: '123456789012', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A1', vendorItem: 'V001', sequence: 1 },
-  { lineNumber: 2, orderedQty: 2.00, scannedQty: '', itemNumber: 41742, description: 'DUTCH 2/129 COCOA 2PKT 30CT', pack: 1, size: 'BOX', upc: '123456789013', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.75, extendedCost: 5.50, retail: 3.25, section: '01', location: 'A2', vendorItem: 'V002', sequence: 2 },
-  { lineNumber: 3, orderedQty: 3.00, scannedQty: '', itemNumber: 44013, description: 'SWISHER 2/1.39 RED 30CT', pack: 1, size: 'BOX', upc: '123456789014', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 4.17, retail: 1.99, section: '02', location: 'B1', vendorItem: 'V003', sequence: 3 },
-  { lineNumber: 4, orderedQty: 1.00, scannedQty: '', itemNumber: 44018, description: 'SWISHER 2/1.39 GRAPE 30CT', pack: 1, size: 'BOX', upc: '123456789015', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 1.39, retail: 1.99, section: '02', location: 'B2', vendorItem: 'V004', sequence: 4 },
-  { lineNumber: 5, orderedQty: 1.00, scannedQty: '', itemNumber: 44006, description: 'SWISHER 2/1.19 HONEY BANANA 30CT', pack: 1, size: 'BOX', upc: '123456789016', salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 1.19, retail: 1.79, section: '02', location: 'B3', vendorItem: 'V005', sequence: 5 },
-  { lineNumber: 6, orderedQty: 1.00, scannedQty: '', itemNumber: 42016, description: 'SWISHER 2/1.39 CREAM 30CT', pack: 1, size: 'BOX', upc: '123456789017', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 1.39, retail: 1.99, section: '02', location: 'B4', vendorItem: 'V006', sequence: 6 },
-  { lineNumber: 7, orderedQty: 1.00, scannedQty: '', itemNumber: 41592, description: 'GAME 2/129 DIAMOND 30CT', pack: 30, size: 'BOX', upc: '123456789018', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A3', vendorItem: 'V007', sequence: 7 },
-  { lineNumber: 8, orderedQty: 1.00, scannedQty: '', itemNumber: 43041, description: 'WHITE OWL 2/119 PINEAPPLE 30CT', pack: 30, size: 'BOX', upc: '123456789019', salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 1.19, retail: 1.79, section: '02', location: 'B5', vendorItem: 'V008', sequence: 8 },
-  { lineNumber: 9, orderedQty: 2.00, scannedQty: '', itemNumber: 44020, description: 'SWISHER 2/1.39 SWEET 30CT', pack: 1, size: 'BOX', upc: '123456789020', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B6', vendorItem: 'V009', sequence: 9 },
-  { lineNumber: 10, orderedQty: 3.00, scannedQty: '', itemNumber: 44021, description: 'GAME 2/129 BLUE 30CT', pack: 1, size: 'BOX', upc: '123456789021', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 7.50, retail: 2.99, section: '01', location: 'A4', vendorItem: 'V010', sequence: 10 },
-  { lineNumber: 11, orderedQty: 1.00, scannedQty: '', itemNumber: 44022, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789022', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 12, orderedQty: 2.00, scannedQty: '', itemNumber: 44023, description: 'SWISHER 2/1.39 CHERRY 30CT', pack: 1, size: 'BOX', upc: '123456789023', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B7', vendorItem: 'V012', sequence: 12 },
-  { lineNumber: 13, orderedQty: 1.00, scannedQty: '', itemNumber: 44024, description: 'GAME 2/129 GREEN 30CT', pack: 1, size: 'BOX', upc: '123456789024', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A6', vendorItem: 'V013', sequence: 13 },
-  { lineNumber: 14, orderedQty: 4.00, scannedQty: '', itemNumber: 44025, description: 'WHITE OWL 2/119 STRAWBERRY 30CT WHITE OWL 2/119 STRAWBERRY 30CTWHITE OWL 2/119 STRAWBERRY 30CTWHITE OWL 2/119 STRAWBERRY 30CT', pack: 30, size: 'BOX', upc: '123456789025', salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 4.76, retail: 1.79, section: '02', location: 'B8', vendorItem: 'V014', sequence: 14 },
-  { lineNumber: 15, orderedQty: 2.00, scannedQty: '', itemNumber: 44026, description: 'SWISHER 2/1.39 PEACH 30CT', pack: 1, size: 'BOX', upc: '123456789026', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B9', vendorItem: 'V015', sequence: 15 },
-  { lineNumber: 16, orderedQty: 1.00, scannedQty: '', itemNumber: 44027, description: 'DUTCH 2/129 ORIGINAL 30CT', pack: 1, size: 'BOX', upc: '123456789027', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A7', vendorItem: 'V016', sequence: 16 },
-  { lineNumber: 17, orderedQty: 3.00, scannedQty: '', itemNumber: 44028, description: 'GAME 2/129 RED 30CT', pack: 1, size: 'BOX', upc: '123456789028', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 7.50, retail: 2.99, section: '01', location: 'A8', vendorItem: 'V017', sequence: 17 },
-  { lineNumber: 18, orderedQty: 2.00, scannedQty: '', itemNumber: 44029, description: 'SWISHER 2/1.39 APPLE 30CT', pack: 1, size: 'BOX', upc: '123456789029', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B10', vendorItem: 'V018', sequence: 18 },
-  { lineNumber: 19, orderedQty: 1.00, scannedQty: '', itemNumber: 44030, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789030', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 20, orderedQty: 1.00, scannedQty: '', itemNumber: 44031, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789031', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 21, orderedQty: 1.00, scannedQty: '', itemNumber: 44032, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789032', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 22, orderedQty: 1.00, scannedQty: '', itemNumber: 44033, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789033', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 23, orderedQty: 1.00, scannedQty: '', itemNumber: 44034, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789034', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 24, orderedQty: 1.00, scannedQty: '', itemNumber: 44035, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789035', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 25, orderedQty: 1.00, scannedQty: '', itemNumber: 44036, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789036', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 26, orderedQty: 1.00, scannedQty: '', itemNumber: 44037, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789037', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 27, orderedQty: 1.00, scannedQty: '', itemNumber: 44038, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789038', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 28, orderedQty: 1.00, scannedQty: '', itemNumber: 44039, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789039', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 29, orderedQty: 1.00, scannedQty: '', itemNumber: 44040, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789040', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 30, orderedQty: 1.00, scannedQty: '', itemNumber: 44041, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789041', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 31, orderedQty: 1.00, scannedQty: '', itemNumber: 44042, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789042', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 32, orderedQty: 1.00, scannedQty: '', itemNumber: 44043, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789043', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 33, orderedQty: 1.00, scannedQty: '', itemNumber: 44044, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789044', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 34, orderedQty: 1.00, scannedQty: '', itemNumber: 44045, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789045', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 35, orderedQty: 1.00, scannedQty: '', itemNumber: 44046, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789046', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 36, orderedQty: 1.00, scannedQty: '', itemNumber: 44047, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789047', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 37, orderedQty: 1.00, scannedQty: '', itemNumber: 44048, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789048', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 38, orderedQty: 1.00, scannedQty: '', itemNumber: 44049, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789049', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 39, orderedQty: 1.00, scannedQty: '', itemNumber: 44050, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789050', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 40, orderedQty: 1.00, scannedQty: '', itemNumber: 44051, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789051', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 41, orderedQty: 1.00, scannedQty: '', itemNumber: 44052, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789052', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 42, orderedQty: 1.00, scannedQty: '', itemNumber: 44053, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789053', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 43, orderedQty: 1.00, scannedQty: '', itemNumber: 44054, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789054', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 1, orderedQty: 1.00, scannedQty: '', itemNumber: 44077, description: 'GAME 2/129 MVP WATERMELON 30CT', pack: 1, size: 'BOX', upc: '123456789012', salesCategory: 'Cigarettes', priceClass: 'A', section: '01', location: 'A1', vendorItem: 'V001', sequence: 1 },
+  { lineNumber: 2, orderedQty: 2.00, scannedQty: '', itemNumber: 41742, description: 'DUTCH 2/129 COCOA 2PKT 30CT', pack: 1, size: 'BOX', upc: '123456789013', salesCategory: 'Cigarettes', priceClass: 'A', section: '01', location: 'A2', vendorItem: 'V002', sequence: 2 },
+  { lineNumber: 3, orderedQty: 3.00, scannedQty: '', itemNumber: 44013, description: 'SWISHER 2/1.39 RED 30CT', pack: 1, size: 'BOX', upc: '123456789014', salesCategory: 'Cigars', priceClass: 'B', section: '02', location: 'B1', vendorItem: 'V003', sequence: 3 },
+  { lineNumber: 4, orderedQty: 1.00, scannedQty: '', itemNumber: 44018, description: 'SWISHER 2/1.39 GRAPE 30CT', pack: 1, size: 'BOX', upc: '123456789015', salesCategory: 'Cigars', priceClass: 'B', section: '02', location: 'B2', vendorItem: 'V004', sequence: 4 },
+  { lineNumber: 5, orderedQty: 1.00, scannedQty: '', itemNumber: 44006, description: 'SWISHER 2/1.19 HONEY BANANA 30CT', pack: 1, size: 'BOX', upc: '123456789016', salesCategory: 'Cigars', priceClass: 'C', section: '02', location: 'B3', vendorItem: 'V005', sequence: 5 },
+  { lineNumber: 6, orderedQty: 1.00, scannedQty: '', itemNumber: 42016, description: 'SWISHER 2/1.39 CREAM 30CT', pack: 1, size: 'BOX', upc: '123456789017', salesCategory: 'Cigars', priceClass: 'B', section: '02', location: 'B4', vendorItem: 'V006', sequence: 6 },
+  { lineNumber: 7, orderedQty: 1.00, scannedQty: '', itemNumber: 41592, description: 'GAME 2/129 DIAMOND 30CT', pack: 30, size: 'BOX', upc: '123456789018', salesCategory: 'Cigarettes', priceClass: 'A', section: '01', location: 'A3', vendorItem: 'V007', sequence: 7 },
+  { lineNumber: 8, orderedQty: 1.00, scannedQty: '', itemNumber: 43041, description: 'WHITE OWL 2/119 PINEAPPLE 30CT', pack: 30, size: 'BOX', upc: '123456789019', salesCategory: 'Cigars', priceClass: 'C', section: '02', location: 'B5', vendorItem: 'V008', sequence: 8 },
+  { lineNumber: 9, orderedQty: 2.00, scannedQty: '', itemNumber: 44020, description: 'SWISHER 2/1.39 SWEET 30CT', pack: 1, size: 'BOX', upc: '123456789020', salesCategory: 'Cigars', priceClass: 'B', section: '02', location: 'B6', vendorItem: 'V009', sequence: 9 },
+  { lineNumber: 10, orderedQty: 3.00, scannedQty: '', itemNumber: 44021, description: 'GAME 2/129 BLUE 30CT', pack: 1, size: 'BOX', upc: '123456789021', salesCategory: 'Cigarettes', priceClass: 'A', section: '01', location: 'A4', vendorItem: 'V010', sequence: 10 },
+  { lineNumber: 11, orderedQty: 1.00, scannedQty: '', itemNumber: 44022, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789022', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 12, orderedQty: 2.00, scannedQty: '', itemNumber: 44023, description: 'SWISHER 2/1.39 CHERRY 30CT', pack: 1, size: 'BOX', upc: '123456789023', salesCategory: 'Cigars', priceClass: 'B', section: '02', location: 'B7', vendorItem: 'V012', sequence: 12 },
+  { lineNumber: 13, orderedQty: 1.00, scannedQty: '', itemNumber: 44024, description: 'GAME 2/129 GREEN 30CT', pack: 1, size: 'BOX', upc: '123456789024', salesCategory: 'Cigarettes', priceClass: 'A', section: '01', location: 'A6', vendorItem: 'V013', sequence: 13 },
+  { lineNumber: 14, orderedQty: 4.00, scannedQty: '', itemNumber: 44025, description: 'WHITE OWL 2/119 STRAWBERRY 30CT WHITE OWL 2/119 STRAWBERRY 30CTWHITE OWL 2/119 STRAWBERRY 30CTWHITE OWL 2/119 STRAWBERRY 30CT', pack: 30, size: 'BOX', upc: '123456789025', salesCategory: 'Cigars', priceClass: 'C', section: '02', location: 'B8', vendorItem: 'V014', sequence: 14 },
+  { lineNumber: 15, orderedQty: 2.00, scannedQty: '', itemNumber: 44026, description: 'SWISHER 2/1.39 PEACH 30CT', pack: 1, size: 'BOX', upc: '123456789026', salesCategory: 'Cigars', priceClass: 'B', section: '02', location: 'B9', vendorItem: 'V015', sequence: 15 },
+  { lineNumber: 16, orderedQty: 1.00, scannedQty: '', itemNumber: 44027, description: 'DUTCH 2/129 ORIGINAL 30CT', pack: 1, size: 'BOX', upc: '123456789027', salesCategory: 'Cigarettes', priceClass: 'A', section: '01', location: 'A7', vendorItem: 'V016', sequence: 16 },
+  { lineNumber: 17, orderedQty: 3.00, scannedQty: '', itemNumber: 44028, description: 'GAME 2/129 RED 30CT', pack: 1, size: 'BOX', upc: '123456789028', salesCategory: 'Cigarettes', priceClass: 'A', section: '01', location: 'A8', vendorItem: 'V017', sequence: 17 },
+  { lineNumber: 18, orderedQty: 2.00, scannedQty: '', itemNumber: 44029, description: 'SWISHER 2/1.39 APPLE 30CT', pack: 1, size: 'BOX', upc: '123456789029', salesCategory: 'Cigars', priceClass: 'B', section: '02', location: 'B10', vendorItem: 'V018', sequence: 18 },
+  { lineNumber: 19, orderedQty: 1.00, scannedQty: '', itemNumber: 44030, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789030', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 20, orderedQty: 1.00, scannedQty: '', itemNumber: 44031, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789031', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 21, orderedQty: 1.00, scannedQty: '', itemNumber: 44032, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789032', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 22, orderedQty: 1.00, scannedQty: '', itemNumber: 44033, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789033', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 23, orderedQty: 1.00, scannedQty: '', itemNumber: 44034, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789034', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 24, orderedQty: 1.00, scannedQty: '', itemNumber: 44035, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789035', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 25, orderedQty: 1.00, scannedQty: '', itemNumber: 44036, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789036', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 26, orderedQty: 1.00, scannedQty: '', itemNumber: 44037, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789037', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 27, orderedQty: 1.00, scannedQty: '', itemNumber: 44038, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789038', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 28, orderedQty: 1.00, scannedQty: '', itemNumber: 44039, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789039', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 29, orderedQty: 1.00, scannedQty: '', itemNumber: 44040, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789040', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 30, orderedQty: 1.00, scannedQty: '', itemNumber: 44041, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789041', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 31, orderedQty: 1.00, scannedQty: '', itemNumber: 44042, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789042', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 32, orderedQty: 1.00, scannedQty: '', itemNumber: 44043, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789043', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 33, orderedQty: 1.00, scannedQty: '', itemNumber: 44044, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789044', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 34, orderedQty: 1.00, scannedQty: '', itemNumber: 44045, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789045', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 35, orderedQty: 1.00, scannedQty: '', itemNumber: 44046, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789046', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 36, orderedQty: 1.00, scannedQty: '', itemNumber: 44047, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789047', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 37, orderedQty: 1.00, scannedQty: '', itemNumber: 44048, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789048', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 38, orderedQty: 1.00, scannedQty: '', itemNumber: 44049, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789049', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 39, orderedQty: 1.00, scannedQty: '', itemNumber: 44050, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789050', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 40, orderedQty: 1.00, scannedQty: '', itemNumber: 44051, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789051', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 41, orderedQty: 1.00, scannedQty: '', itemNumber: 44052, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789052', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 42, orderedQty: 1.00, scannedQty: '', itemNumber: 44053, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789053', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 43, orderedQty: 1.00, scannedQty: '', itemNumber: 44054, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789054', salesCategory: 'cigars', priceClass: 'A', section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
 ];
 
 // Template interface
@@ -1600,7 +1597,7 @@ const PicklistTemplateTab: React.FC = () => {
                             size="small"
                             checked={selectedFields[field.key] || false}
                             onChange={(e) => handleFieldToggle(field.key, e.target.checked)}
-                            disabled={field.required || (field.key === 'orderedQty' || field.key === 'scannedQty')}
+                            disabled={field.required}
                             sx={{ flexShrink: 0 }}
                           />
                           <Typography 

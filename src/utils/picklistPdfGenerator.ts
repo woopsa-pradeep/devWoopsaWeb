@@ -44,9 +44,6 @@ const FIELD_LABELS: { [key: string]: string } = {
   // onhand: 'On Hand',
   salesCategory: 'Sales Category',
   priceClass: 'Price Class',
-  unitCost: 'Unit Cost',
-  extendedCost: 'Extended Cost',
-  retail: 'Retail',
   section: 'Section',
   location: 'Location',
   vendorItem: 'Vendor Item',
@@ -770,9 +767,6 @@ export const generatePicklistPDF = async (
       // onhand?: number;
       salesCategory?: string;
       priceClass?: string;
-      unitCost?: number;
-      extendedCost?: number;
-      retail?: number;
       section?: string;
       location?: string;
       vendorItem?: string;
@@ -782,7 +776,6 @@ export const generatePicklistPDF = async (
       totalPieces: number;
       totalCartons: number;
       totalLines: number;
-      totalExtendedCost?: number;
     };
   },
 ): Promise<void> => {
@@ -921,10 +914,6 @@ export const generatePicklistPDF = async (
               if (key === 'orderedQty' || key === 'pack' || key === 'lineNumber' || key === 'sequence') {
                 return value % 1 === 0 ? String(Math.round(value)) : String(value);
               }
-              // For prices/costs, show 2 decimal places
-              if (key === 'unitCost' || key === 'extendedCost' || key === 'retail') {
-                return value.toFixed(2);
-              }
               return String(value);
             }
             // For strings, return as is (empty string is valid for scannedQty)
@@ -1030,9 +1019,7 @@ export const generatePicklistPDF = async (
               return value % 1 === 0 ? String(Math.round(value)) : String(value);
             }
             // For prices/costs, show 2 decimal places
-            if (key === 'unitCost' || key === 'extendedCost' || key === 'retail') {
-              return value.toFixed(2);
-            }
+            // (removed unitCost, extendedCost, retail fields)
             return String(value);
           }
           // For strings, return as is (empty string is valid for scannedQty)
