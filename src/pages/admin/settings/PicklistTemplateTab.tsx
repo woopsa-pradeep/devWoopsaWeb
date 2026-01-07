@@ -63,49 +63,49 @@ const SAMPLE_DISTRIBUTOR = {
 };
 
 const SAMPLE_ITEMS = [
-  { lineNumber: 1, orderedQty: 1.00, scannedQty: '', itemNumber: 44077, description: 'GAME 2/129 MVP WATERMELON 30CT', pack: 1, size: 'BOX', upc: '123456789012', onhand: 100, salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A1', vendorItem: 'V001', sequence: 1 },
-  { lineNumber: 2, orderedQty: 2.00, scannedQty: '', itemNumber: 41742, description: 'DUTCH 2/129 COCOA 2PKT 30CT', pack: 1, size: 'BOX', upc: '123456789013', onhand: 150, salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.75, extendedCost: 5.50, retail: 3.25, section: '01', location: 'A2', vendorItem: 'V002', sequence: 2 },
-  { lineNumber: 3, orderedQty: 3.00, scannedQty: '', itemNumber: 44013, description: 'SWISHER 2/1.39 RED 30CT', pack: 1, size: 'BOX', upc: '123456789014', onhand: 200, salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 4.17, retail: 1.99, section: '02', location: 'B1', vendorItem: 'V003', sequence: 3 },
-  { lineNumber: 4, orderedQty: 1.00, scannedQty: '', itemNumber: 44018, description: 'SWISHER 2/1.39 GRAPE 30CT', pack: 1, size: 'BOX', upc: '123456789015', onhand: 75, salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 1.39, retail: 1.99, section: '02', location: 'B2', vendorItem: 'V004', sequence: 4 },
-  { lineNumber: 5, orderedQty: 1.00, scannedQty: '', itemNumber: 44006, description: 'SWISHER 2/1.19 HONEY BANANA 30CT', pack: 1, size: 'BOX', upc: '123456789016', onhand: 50, salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 1.19, retail: 1.79, section: '02', location: 'B3', vendorItem: 'V005', sequence: 5 },
-  { lineNumber: 6, orderedQty: 1.00, scannedQty: '', itemNumber: 42016, description: 'SWISHER 2/1.39 CREAM 30CT', pack: 1, size: 'BOX', upc: '123456789017', onhand: 90, salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 1.39, retail: 1.99, section: '02', location: 'B4', vendorItem: 'V006', sequence: 6 },
-  { lineNumber: 7, orderedQty: 1.00, scannedQty: '', itemNumber: 41592, description: 'GAME 2/129 DIAMOND 30CT', pack: 30, size: 'BOX', upc: '123456789018', onhand: 120, salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A3', vendorItem: 'V007', sequence: 7 },
-  { lineNumber: 8, orderedQty: 1.00, scannedQty: '', itemNumber: 43041, description: 'WHITE OWL 2/119 PINEAPPLE 30CT', pack: 30, size: 'BOX', upc: '123456789019', onhand: 80, salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 1.19, retail: 1.79, section: '02', location: 'B5', vendorItem: 'V008', sequence: 8 },
-  { lineNumber: 9, orderedQty: 2.00, scannedQty: '', itemNumber: 44020, description: 'SWISHER 2/1.39 SWEET 30CT', pack: 1, size: 'BOX', upc: '123456789020', onhand: 110, salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B6', vendorItem: 'V009', sequence: 9 },
-  { lineNumber: 10, orderedQty: 3.00, scannedQty: '', itemNumber: 44021, description: 'GAME 2/129 BLUE 30CT', pack: 1, size: 'BOX', upc: '123456789021', onhand: 95, salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 7.50, retail: 2.99, section: '01', location: 'A4', vendorItem: 'V010', sequence: 10 },
-  { lineNumber: 11, orderedQty: 1.00, scannedQty: '', itemNumber: 44022, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789022', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 12, orderedQty: 2.00, scannedQty: '', itemNumber: 44023, description: 'SWISHER 2/1.39 CHERRY 30CT', pack: 1, size: 'BOX', upc: '123456789023', onhand: 85, salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B7', vendorItem: 'V012', sequence: 12 },
-  { lineNumber: 13, orderedQty: 1.00, scannedQty: '', itemNumber: 44024, description: 'GAME 2/129 GREEN 30CT', pack: 1, size: 'BOX', upc: '123456789024', onhand: 105, salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A6', vendorItem: 'V013', sequence: 13 },
-  { lineNumber: 14, orderedQty: 4.00, scannedQty: '', itemNumber: 44025, description: 'WHITE OWL 2/119 STRAWBERRY 30CT WHITE OWL 2/119 STRAWBERRY 30CTWHITE OWL 2/119 STRAWBERRY 30CTWHITE OWL 2/119 STRAWBERRY 30CT', pack: 30, size: 'BOX', upc: '123456789025', onhand: 70, salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 4.76, retail: 1.79, section: '02', location: 'B8', vendorItem: 'V014', sequence: 14 },
-  { lineNumber: 15, orderedQty: 2.00, scannedQty: '', itemNumber: 44026, description: 'SWISHER 2/1.39 PEACH 30CT', pack: 1, size: 'BOX', upc: '123456789026', onhand: 60, salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B9', vendorItem: 'V015', sequence: 15 },
-  { lineNumber: 16, orderedQty: 1.00, scannedQty: '', itemNumber: 44027, description: 'DUTCH 2/129 ORIGINAL 30CT', pack: 1, size: 'BOX', upc: '123456789027', onhand: 140, salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A7', vendorItem: 'V016', sequence: 16 },
-  { lineNumber: 17, orderedQty: 3.00, scannedQty: '', itemNumber: 44028, description: 'GAME 2/129 RED 30CT', pack: 1, size: 'BOX', upc: '123456789028', onhand: 125, salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 7.50, retail: 2.99, section: '01', location: 'A8', vendorItem: 'V017', sequence: 17 },
-  { lineNumber: 18, orderedQty: 2.00, scannedQty: '', itemNumber: 44029, description: 'SWISHER 2/1.39 APPLE 30CT', pack: 1, size: 'BOX', upc: '123456789029', onhand: 55, salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B10', vendorItem: 'V018', sequence: 18 },
-  { lineNumber: 19, orderedQty: 1.00, scannedQty: '', itemNumber: 44030, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789030', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 20, orderedQty: 1.00, scannedQty: '', itemNumber: 44031, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789031', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 21, orderedQty: 1.00, scannedQty: '', itemNumber: 44032, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789032', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 22, orderedQty: 1.00, scannedQty: '', itemNumber: 44033, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789033', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 23, orderedQty: 1.00, scannedQty: '', itemNumber: 44034, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789034', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 24, orderedQty: 1.00, scannedQty: '', itemNumber: 44035, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789035', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 25, orderedQty: 1.00, scannedQty: '', itemNumber: 44036, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789036', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 26, orderedQty: 1.00, scannedQty: '', itemNumber: 44037, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789037', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 27, orderedQty: 1.00, scannedQty: '', itemNumber: 44038, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789038', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 28, orderedQty: 1.00, scannedQty: '', itemNumber: 44039, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789039', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 29, orderedQty: 1.00, scannedQty: '', itemNumber: 44040, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789040', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 30, orderedQty: 1.00, scannedQty: '', itemNumber: 44041, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789041', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 31, orderedQty: 1.00, scannedQty: '', itemNumber: 44042, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789042', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 32, orderedQty: 1.00, scannedQty: '', itemNumber: 44043, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789043', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 33, orderedQty: 1.00, scannedQty: '', itemNumber: 44044, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789044', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 34, orderedQty: 1.00, scannedQty: '', itemNumber: 44045, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789045', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 35, orderedQty: 1.00, scannedQty: '', itemNumber: 44046, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789046', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 36, orderedQty: 1.00, scannedQty: '', itemNumber: 44047, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789047', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 37, orderedQty: 1.00, scannedQty: '', itemNumber: 44048, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789048', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 38, orderedQty: 1.00, scannedQty: '', itemNumber: 44049, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789049', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 39, orderedQty: 1.00, scannedQty: '', itemNumber: 44050, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789050', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 40, orderedQty: 1.00, scannedQty: '', itemNumber: 44051, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789051', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 41, orderedQty: 1.00, scannedQty: '', itemNumber: 44052, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789052', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 42, orderedQty: 1.00, scannedQty: '', itemNumber: 44053, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789053', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
-  { lineNumber: 43, orderedQty: 1.00, scannedQty: '', itemNumber: 44054, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789054', onhand: 130, salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 1, orderedQty: 1.00, scannedQty: '', itemNumber: 44077, description: 'GAME 2/129 MVP WATERMELON 30CT', pack: 1, size: 'BOX', upc: '123456789012', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A1', vendorItem: 'V001', sequence: 1 },
+  { lineNumber: 2, orderedQty: 2.00, scannedQty: '', itemNumber: 41742, description: 'DUTCH 2/129 COCOA 2PKT 30CT', pack: 1, size: 'BOX', upc: '123456789013', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.75, extendedCost: 5.50, retail: 3.25, section: '01', location: 'A2', vendorItem: 'V002', sequence: 2 },
+  { lineNumber: 3, orderedQty: 3.00, scannedQty: '', itemNumber: 44013, description: 'SWISHER 2/1.39 RED 30CT', pack: 1, size: 'BOX', upc: '123456789014', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 4.17, retail: 1.99, section: '02', location: 'B1', vendorItem: 'V003', sequence: 3 },
+  { lineNumber: 4, orderedQty: 1.00, scannedQty: '', itemNumber: 44018, description: 'SWISHER 2/1.39 GRAPE 30CT', pack: 1, size: 'BOX', upc: '123456789015', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 1.39, retail: 1.99, section: '02', location: 'B2', vendorItem: 'V004', sequence: 4 },
+  { lineNumber: 5, orderedQty: 1.00, scannedQty: '', itemNumber: 44006, description: 'SWISHER 2/1.19 HONEY BANANA 30CT', pack: 1, size: 'BOX', upc: '123456789016', salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 1.19, retail: 1.79, section: '02', location: 'B3', vendorItem: 'V005', sequence: 5 },
+  { lineNumber: 6, orderedQty: 1.00, scannedQty: '', itemNumber: 42016, description: 'SWISHER 2/1.39 CREAM 30CT', pack: 1, size: 'BOX', upc: '123456789017', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 1.39, retail: 1.99, section: '02', location: 'B4', vendorItem: 'V006', sequence: 6 },
+  { lineNumber: 7, orderedQty: 1.00, scannedQty: '', itemNumber: 41592, description: 'GAME 2/129 DIAMOND 30CT', pack: 30, size: 'BOX', upc: '123456789018', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A3', vendorItem: 'V007', sequence: 7 },
+  { lineNumber: 8, orderedQty: 1.00, scannedQty: '', itemNumber: 43041, description: 'WHITE OWL 2/119 PINEAPPLE 30CT', pack: 30, size: 'BOX', upc: '123456789019', salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 1.19, retail: 1.79, section: '02', location: 'B5', vendorItem: 'V008', sequence: 8 },
+  { lineNumber: 9, orderedQty: 2.00, scannedQty: '', itemNumber: 44020, description: 'SWISHER 2/1.39 SWEET 30CT', pack: 1, size: 'BOX', upc: '123456789020', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B6', vendorItem: 'V009', sequence: 9 },
+  { lineNumber: 10, orderedQty: 3.00, scannedQty: '', itemNumber: 44021, description: 'GAME 2/129 BLUE 30CT', pack: 1, size: 'BOX', upc: '123456789021', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 7.50, retail: 2.99, section: '01', location: 'A4', vendorItem: 'V010', sequence: 10 },
+  { lineNumber: 11, orderedQty: 1.00, scannedQty: '', itemNumber: 44022, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789022', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 12, orderedQty: 2.00, scannedQty: '', itemNumber: 44023, description: 'SWISHER 2/1.39 CHERRY 30CT', pack: 1, size: 'BOX', upc: '123456789023', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B7', vendorItem: 'V012', sequence: 12 },
+  { lineNumber: 13, orderedQty: 1.00, scannedQty: '', itemNumber: 44024, description: 'GAME 2/129 GREEN 30CT', pack: 1, size: 'BOX', upc: '123456789024', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 2.50, retail: 2.99, section: '01', location: 'A6', vendorItem: 'V013', sequence: 13 },
+  { lineNumber: 14, orderedQty: 4.00, scannedQty: '', itemNumber: 44025, description: 'WHITE OWL 2/119 STRAWBERRY 30CT WHITE OWL 2/119 STRAWBERRY 30CTWHITE OWL 2/119 STRAWBERRY 30CTWHITE OWL 2/119 STRAWBERRY 30CT', pack: 30, size: 'BOX', upc: '123456789025', salesCategory: 'Cigars', priceClass: 'C', unitCost: 1.19, extendedCost: 4.76, retail: 1.79, section: '02', location: 'B8', vendorItem: 'V014', sequence: 14 },
+  { lineNumber: 15, orderedQty: 2.00, scannedQty: '', itemNumber: 44026, description: 'SWISHER 2/1.39 PEACH 30CT', pack: 1, size: 'BOX', upc: '123456789026', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B9', vendorItem: 'V015', sequence: 15 },
+  { lineNumber: 16, orderedQty: 1.00, scannedQty: '', itemNumber: 44027, description: 'DUTCH 2/129 ORIGINAL 30CT', pack: 1, size: 'BOX', upc: '123456789027', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A7', vendorItem: 'V016', sequence: 16 },
+  { lineNumber: 17, orderedQty: 3.00, scannedQty: '', itemNumber: 44028, description: 'GAME 2/129 RED 30CT', pack: 1, size: 'BOX', upc: '123456789028', salesCategory: 'Cigarettes', priceClass: 'A', unitCost: 2.50, extendedCost: 7.50, retail: 2.99, section: '01', location: 'A8', vendorItem: 'V017', sequence: 17 },
+  { lineNumber: 18, orderedQty: 2.00, scannedQty: '', itemNumber: 44029, description: 'SWISHER 2/1.39 APPLE 30CT', pack: 1, size: 'BOX', upc: '123456789029', salesCategory: 'Cigars', priceClass: 'B', unitCost: 1.39, extendedCost: 2.78, retail: 1.99, section: '02', location: 'B10', vendorItem: 'V018', sequence: 18 },
+  { lineNumber: 19, orderedQty: 1.00, scannedQty: '', itemNumber: 44030, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789030', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 20, orderedQty: 1.00, scannedQty: '', itemNumber: 44031, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789031', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 21, orderedQty: 1.00, scannedQty: '', itemNumber: 44032, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789032', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 22, orderedQty: 1.00, scannedQty: '', itemNumber: 44033, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789033', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 23, orderedQty: 1.00, scannedQty: '', itemNumber: 44034, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789034', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 24, orderedQty: 1.00, scannedQty: '', itemNumber: 44035, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789035', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 25, orderedQty: 1.00, scannedQty: '', itemNumber: 44036, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789036', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 26, orderedQty: 1.00, scannedQty: '', itemNumber: 44037, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789037', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 27, orderedQty: 1.00, scannedQty: '', itemNumber: 44038, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789038', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 28, orderedQty: 1.00, scannedQty: '', itemNumber: 44039, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789039', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 29, orderedQty: 1.00, scannedQty: '', itemNumber: 44040, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789040', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 30, orderedQty: 1.00, scannedQty: '', itemNumber: 44041, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789041', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 31, orderedQty: 1.00, scannedQty: '', itemNumber: 44042, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789042', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 32, orderedQty: 1.00, scannedQty: '', itemNumber: 44043, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789043', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 33, orderedQty: 1.00, scannedQty: '', itemNumber: 44044, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789044', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 34, orderedQty: 1.00, scannedQty: '', itemNumber: 44045, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789045', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 35, orderedQty: 1.00, scannedQty: '', itemNumber: 44046, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789046', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 36, orderedQty: 1.00, scannedQty: '', itemNumber: 44047, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789047', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 37, orderedQty: 1.00, scannedQty: '', itemNumber: 44048, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789048', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 38, orderedQty: 1.00, scannedQty: '', itemNumber: 44049, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789049', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 39, orderedQty: 1.00, scannedQty: '', itemNumber: 44050, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789050', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 40, orderedQty: 1.00, scannedQty: '', itemNumber: 44051, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789051', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 41, orderedQty: 1.00, scannedQty: '', itemNumber: 44052, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789052', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 42, orderedQty: 1.00, scannedQty: '', itemNumber: 44053, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789053', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
+  { lineNumber: 43, orderedQty: 1.00, scannedQty: '', itemNumber: 44054, description: 'DUTCH 2/129 MENTHOL 30CT', pack: 1, size: 'BOX', upc: '123456789054', salesCategory: 'cigars', priceClass: 'A', unitCost: 2.75, extendedCost: 2.75, retail: 3.25, section: '01', location: 'A5', vendorItem: 'V011', sequence: 11 },
 ];
 
 // Template interface
@@ -251,7 +251,7 @@ const PicklistTemplateTab: React.FC = () => {
 
   // Generate template name from groupBy
   const getTemplateName = (groupByValue: string): string => {
-    if (!groupByValue) return '';
+    if (!groupByValue || groupByValue === 'none') return 'tempNone';
     // Convert camelCase to PascalCase and add "temp" prefix
     // Examples: salesCategory -> tempSalesCategory, sectionSalesCategory -> tempSectionSalesCategory
     const firstChar = groupByValue.charAt(0).toUpperCase();
@@ -284,8 +284,9 @@ const PicklistTemplateTab: React.FC = () => {
           }
           
           // Set groupBy first (this will trigger template loading)
+          // Convert 'none' back to empty string for UI (RadioGroup uses '' for "None")
           if (templateData.groupBy) {
-            setGroupBy(templateData.groupBy);
+            setGroupBy(templateData.groupBy === 'none' ? '' : templateData.groupBy);
           }
           
           // Set all other fields
@@ -373,18 +374,13 @@ const PicklistTemplateTab: React.FC = () => {
 
   // Save template to API
   const handleSaveTemplate = async () => {
-    if (!groupBy) {
-      toast.error('Please select a Group By option first');
-      return;
-    }
-
     setSaving(true);
     try {
-      const templateName = getTemplateName(groupBy);
+      const templateName = getTemplateName(groupBy || '');
       const templateData = {
         name: templateName,
         selectedFields,
-        groupBy,
+        groupBy: groupBy || 'none',
         newCategoryOnNewPage: newCategoryOnNewPage || false, // Explicitly include false
         headerPosition: 'topRight', // Always top right
         footerPosition: 'left', // Always bottom center (left is default, but footer is centered)
@@ -599,7 +595,7 @@ const PicklistTemplateTab: React.FC = () => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 10;
     const headerStartY = 8;
-    let yPos = headerStartY + 4;
+    const yPos = headerStartY + 4;
     
     // Page number at top right (above header box)
     doc.setFontSize(7);
@@ -616,34 +612,46 @@ const PicklistTemplateTab: React.FC = () => {
     const middleX = margin + leftColumnWidth + 5;
     const rightX = pageWidth - margin - 2;
     
-    // Calculate header height first
-    let rightYPos = yPos;
-    let rightContentHeight = 0;
+    // First, calculate the header height by simulating content positions
+    // This is needed to draw the background box first
+    let estimatedRightHeight = 4; // Date
+    estimatedRightHeight += 3.8; // Doc
+    estimatedRightHeight += 3.8; // Order
+    estimatedRightHeight += 4.5; // Distributor
+    if (isReprint) estimatedRightHeight += 5;
+    if (pickedByPosition === 'top' && showPickedBy) estimatedRightHeight += 5;
+    if (checkedByPosition === 'top' && showCheckedBy) estimatedRightHeight += 5;
     
-    // Right side content height calculation
-    rightContentHeight += 4; // Date
-    rightContentHeight += 3.5; // Doc
-    rightContentHeight += 3.5; // Order
-    rightContentHeight += 3.5; // Distributor
-    if (isReprint) rightContentHeight += 4;
-    if (pickedByPosition === 'top' && showPickedBy) rightContentHeight += 5;
-    if (checkedByPosition === 'top' && showCheckedBy) rightContentHeight += 5;
+    let estimatedLeftHeight = 5; // Title spacing
+    estimatedLeftHeight += 4.5; // Customer Information label
+    estimatedLeftHeight += 3.5; // ID
+    estimatedLeftHeight += 3.5; // Name
+    estimatedLeftHeight += 3.5; // Address
+    if (SAMPLE_CUSTOMER.phone) estimatedLeftHeight += 3.5; // Phone
+    estimatedLeftHeight += 3.5; // Route/Stop
     
-    const leftContentHeight = 4 + 3.5 + 3.5 + 3.5 + 3.5 + 3.5; // Label + 5 lines of customer info
-    const middleContentHeight = 35; // Barcode height
-    const headerBoxHeight = Math.max(leftContentHeight, rightContentHeight, middleContentHeight) + 8;
+    const estimatedBarcodeHeight = 15; // Barcode height
+    const estimatedMaxHeight = Math.max(estimatedLeftHeight, estimatedRightHeight, estimatedBarcodeHeight);
+    const estimatedHeaderBoxHeight = estimatedMaxHeight + 8; // Add padding
     
-    // Draw header background box (no border)
+    // Draw header background box FIRST (before content)
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(margin, headerStartY, pageWidth - (margin * 2), headerBoxHeight, 1, 1, 'F');
+    doc.roundedRect(margin, headerStartY, pageWidth - (margin * 2), estimatedHeaderBoxHeight, 1, 1, 'F');
+    
+    // Track actual Y positions as we render content
+    let leftYPos = yPos;
+    let rightYPos = yPos;
+    let maxYPos = yPos;
     
     // Main title - PICKLIST (bold, larger) - Left column
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 30, 30);
-    doc.text('PICKLIST', leftX, yPos);
+    doc.text('PICKLIST', leftX, leftYPos);
+    maxYPos = Math.max(maxYPos, leftYPos);
     
     // Middle column: Barcode of order number (doc number)
+    let barcodeBottomY = yPos;
     if (showBarcode && orderNumber) {
       const barcodeDataUrl = generateBarcodeDataUrl(orderNumber);
       if (barcodeDataUrl) {
@@ -653,6 +661,8 @@ const PicklistTemplateTab: React.FC = () => {
           const barcodeX = middleX + (middleColumnWidth - barcodeWidth) / 2;
           const barcodeY = yPos - 2;
           doc.addImage(barcodeDataUrl, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight);
+          barcodeBottomY = barcodeY + barcodeHeight;
+          maxYPos = Math.max(maxYPos, barcodeBottomY);
         } catch (error) {
           console.error('Error adding barcode to PDF:', error);
         }
@@ -660,8 +670,6 @@ const PicklistTemplateTab: React.FC = () => {
     }
     
     // Right side: Document information section
-    rightYPos = yPos;
-    
     // Date
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
@@ -670,17 +678,19 @@ const PicklistTemplateTab: React.FC = () => {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
     doc.text(invoiceDate, rightX, rightYPos, { align: 'right' });
-    
     rightYPos += 3.8;
+    maxYPos = Math.max(maxYPos, rightYPos);
+    
     // Doc Number
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
-    doc.text('Doc:', rightX - 35, rightYPos, { align: 'right' });
+    // doc.text('Doc:', rightX - 35, rightYPos, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
     doc.text(invoiceNumber, rightX, rightYPos, { align: 'right' });
-    
     rightYPos += 3.8;
+    maxYPos = Math.max(maxYPos, rightYPos);
+    
     // Order Number
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
@@ -688,8 +698,9 @@ const PicklistTemplateTab: React.FC = () => {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
     doc.text(orderNumber, rightX, rightYPos, { align: 'right' });
-    
     rightYPos += 3.8;
+    maxYPos = Math.max(maxYPos, rightYPos);
+    
     // Distributor
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
@@ -698,8 +709,9 @@ const PicklistTemplateTab: React.FC = () => {
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(7);
     doc.text(SAMPLE_DISTRIBUTOR.name, rightX, rightYPos, { align: 'right' });
-    
     rightYPos += 4.5;
+    maxYPos = Math.max(maxYPos, rightYPos);
+    
     // REPRINT badge
     if (isReprint) {
       doc.setFillColor(255, 240, 240);
@@ -713,6 +725,7 @@ const PicklistTemplateTab: React.FC = () => {
       doc.setTextColor(200, 0, 0);
       doc.text('REPRINT', rightX - reprintWidth / 2, rightYPos, { align: 'center' });
       rightYPos += 5;
+      maxYPos = Math.max(maxYPos, rightYPos);
     }
     
     // Picked by and Checked by (right side, top position)
@@ -729,6 +742,7 @@ const PicklistTemplateTab: React.FC = () => {
         doc.setLineWidth(0.2);
         doc.line(rightX - 30, rightYPos + 2, rightX, rightYPos + 2);
         rightYPos += 5;
+        maxYPos = Math.max(maxYPos, rightYPos);
       }
       if (checkedByPosition === 'top' && showCheckedBy) {
         doc.setFont('helvetica', 'bold');
@@ -738,17 +752,19 @@ const PicklistTemplateTab: React.FC = () => {
         doc.setLineWidth(0.2);
         doc.line(rightX - 30, rightYPos + 2, rightX, rightYPos + 2);
         rightYPos += 5;
+        maxYPos = Math.max(maxYPos, rightYPos);
       }
     }
     
     // Left side: Customer information section
-    yPos += 5;
+    leftYPos += 5;
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 30, 30);
-    doc.text('Customer Information', leftX, yPos);
+    doc.text('Customer Information', leftX, leftYPos);
+    leftYPos += 4.5;
+    maxYPos = Math.max(maxYPos, leftYPos);
     
-    yPos += 4.5;
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
@@ -756,52 +772,59 @@ const PicklistTemplateTab: React.FC = () => {
     // Customer details with labels
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
-    doc.text('ID:', leftX, yPos);
+    doc.text('ID:', leftX, leftYPos);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(String(SAMPLE_CUSTOMER.number), leftX + 8, yPos);
+    doc.text(String(SAMPLE_CUSTOMER.number), leftX + 8, leftYPos);
+    leftYPos += 3.5;
+    maxYPos = Math.max(maxYPos, leftYPos);
     
-    yPos += 3.5;
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
-    doc.text('Name:', leftX, yPos);
+    doc.text('Name:', leftX, leftYPos);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(SAMPLE_CUSTOMER.name, leftX + 12, yPos);
+    doc.text(SAMPLE_CUSTOMER.name, leftX + 12, leftYPos);
+    leftYPos += 3.5;
+    maxYPos = Math.max(maxYPos, leftYPos);
     
-    yPos += 3.5;
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
-    doc.text('Address:', leftX, yPos);
+    doc.text('Address:', leftX, leftYPos);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(SAMPLE_CUSTOMER.address, leftX + 15, yPos);
+    doc.text(SAMPLE_CUSTOMER.address, leftX + 15, leftYPos);
+    leftYPos += 3.5;
+    maxYPos = Math.max(maxYPos, leftYPos);
     
-    yPos += 3.5;
     if (SAMPLE_CUSTOMER.phone) {
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(60, 60, 60);
-      doc.text('Phone:', leftX, yPos);
+      doc.text('Phone:', leftX, leftYPos);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
-      doc.text(SAMPLE_CUSTOMER.phone, leftX + 12, yPos);
-      yPos += 3.5;
+      doc.text(SAMPLE_CUSTOMER.phone, leftX + 12, leftYPos);
+      leftYPos += 3.5;
+      maxYPos = Math.max(maxYPos, leftYPos);
     }
     
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
-    doc.text('Route:', leftX, yPos);
+    doc.text('Route:', leftX, leftYPos);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(String(SAMPLE_CUSTOMER.route), leftX + 12, yPos);
+    doc.text(String(SAMPLE_CUSTOMER.route), leftX + 12, leftYPos);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
-    doc.text('Stop:', leftX + 35, yPos);
+    doc.text('Stop:', leftX + 35, leftYPos);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(String(SAMPLE_CUSTOMER.stop), leftX + 42, yPos);
+    doc.text(String(SAMPLE_CUSTOMER.stop), leftX + 42, leftYPos);
+    maxYPos = Math.max(maxYPos, leftYPos);
     
-    // Calculate the bottom position
+    // Calculate actual header box height based on rendered content
+    const actualContentHeight = maxYPos - headerStartY;
+    const headerBoxHeight = Math.max(actualContentHeight + 8, estimatedHeaderBoxHeight); // Use actual or estimated, whichever is larger
     
     // Add divider below header (dark color like footer)
     const dividerY = headerStartY + headerBoxHeight + 2;
@@ -809,7 +832,7 @@ const PicklistTemplateTab: React.FC = () => {
     doc.setLineWidth(0.5);
     doc.line(margin, dividerY, pageWidth - margin, dividerY);
     
-    // Return the bottom position of header for table positioning
+    // Return the bottom position of header (divider + spacing) for table positioning
     return dividerY + 4; // Divider + spacing
   };
 
@@ -1049,22 +1072,10 @@ const PicklistTemplateTab: React.FC = () => {
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 10;
     
-    // Calculate header height dynamically
-    // Header box starts at 8mm, with padding
-    // Left side: Title (4) + Customer label (4.5) + Customer details (5 lines * 3.5) = ~26mm
-    // Right side: Date/Doc/Order/Distributor (4 lines * 3.8) + REPRINT (5 if present) + Picked by/Checked by (0, 5, or 10mm)
-    const leftSideHeight = 4 + 4.5 + (5 * 3.5); // ~26mm
-    const rightSideBaseHeight = 4 + (4 * 3.8); // Date + Doc + Order + Distributor
-    let rightSideHeight = rightSideBaseHeight;
-    if (isReprint) rightSideHeight += 5;
-    if (pickedByPosition === 'top' && showPickedBy) rightSideHeight += 5;
-    if (checkedByPosition === 'top' && showCheckedBy) rightSideHeight += 5;
-    
-    const maxContentHeight = Math.max(leftSideHeight, rightSideHeight);
-    const headerBoxHeight = maxContentHeight + 8; // Content + padding
-    const headerHeight = 8 + headerBoxHeight + 2 + 4; // Start Y + box height + spacing + divider
+    // Add header to first page to get actual header height
+    const headerHeight = addFullHeaderToPage(doc, 1, 1);
     const headerMargin = 2;
-    let yPosition = headerHeight + headerMargin; // Start below header with margin
+    let yPosition = headerHeight + headerMargin; // Start below header divider with margin
     
     // Group items
     const grouped = groupItems(SAMPLE_ITEMS);
@@ -1302,7 +1313,7 @@ const PicklistTemplateTab: React.FC = () => {
     }
     
     // Totals section at bottom (on last page only) - ensure enough space above footer
-    const currentPage = doc.getNumberOfPages();
+    let currentPage = doc.getNumberOfPages();
     doc.setPage(currentPage);
     
     // Calculate totals section position - dynamically adjust based on enabled footer items
@@ -1316,8 +1327,27 @@ const PicklistTemplateTab: React.FC = () => {
     if (showTotalLines) spaceNeeded += 5; // Auto-filled
     const totalsY = pageHeight - spaceNeeded;
     
-    // Add divider above footer/totals section (with more gap before totals)
+    // Check if we need a new page for totals section
+    // We need at least 10mm gap between last content and divider
+    const minGapBeforeTotals = 10;
     const dividerY = totalsY - 6;
+    const requiredYForDivider = dividerY - minGapBeforeTotals;
+    
+    // Get the last Y position from the last table
+    const lastTableY = (doc as any).lastAutoTable?.finalY || yPosition;
+    
+    // If last content is too close to totals section, add a new page
+    if (lastTableY > requiredYForDivider) {
+      doc.addPage();
+      currentPage = doc.getNumberOfPages();
+      doc.setPage(currentPage);
+      yPosition = headerHeight + headerMargin;
+    }
+    
+    // Ensure we're on the correct page before adding totals
+    doc.setPage(currentPage);
+    
+    // Add divider above footer/totals section (with more gap before totals)
     doc.setDrawColor(0, 0, 0); // Black
     doc.setLineWidth(0.3);
     doc.line(margin, dividerY, pageWidth - margin, dividerY);
@@ -1712,7 +1742,7 @@ const PicklistTemplateTab: React.FC = () => {
             <Button
               variant="contained"
               onClick={handleSaveTemplate}
-              disabled={saving || loading || !groupBy}
+              disabled={saving || loading}
               startIcon={saving ? <CircularProgress size={16} /> : null}
               sx={{
                 minWidth: 120,

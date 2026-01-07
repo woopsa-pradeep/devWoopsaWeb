@@ -5,13 +5,14 @@ import {
   Grid,
   // Chip,
   Paper,
-  // Divider,
+  Link,
 } from '@mui/material';
 import {
   Person as PersonIcon,
   Phone as PhoneIcon,
   LocationOn as LocationIcon,
   LocationOn as LocationOnIcon,
+  AttachFile as AttachFileIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import CommonModal from '../atoms/CommonModal';
@@ -37,6 +38,13 @@ interface Retailer {
   customerLimit?: {
     maxOrderLimit: number | null;
     minOrderAmount: number | null;
+  };
+  retailerDocuments?: {
+    feinDocument: string | null;
+    attachments: string[];
+    salesTaxDoc: string | null;
+    CigTaxDoc: string | null;
+    licenseAttachments: string[];
   };
 }
 
@@ -186,6 +194,117 @@ const RetailerViewModal: React.FC<RetailerViewModalProps> = ({
             </Grid>
           </Grid>
         </SectionBox>
+
+        {retailer.retailerDocuments && (
+          <SectionBox icon={<AttachFileIcon fontSize="small" color="primary" />} title="Documents">
+            <Grid container spacing={2}>
+              {retailer.retailerDocuments.feinDocument && (
+                <Grid size={{ xs: 12 }}>
+                  <Box>
+                    <Typography fontSize={12} fontWeight={400} color="text.secondary" mb={0.5}>
+                      FEIN Document
+                    </Typography>
+                    <Link
+                      href={retailer.retailerDocuments.feinDocument}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{ fontSize: 13, cursor: 'pointer' }}
+                    >
+                      View FEIN Document
+                    </Link>
+                  </Box>
+                </Grid>
+              )}
+              {retailer.retailerDocuments.salesTaxDoc && (
+                <Grid size={{ xs: 12 }}>
+                  <Box>
+                    <Typography fontSize={12} fontWeight={400} color="text.secondary" mb={0.5}>
+                      Sales Tax Document
+                    </Typography>
+                    <Link
+                      href={retailer.retailerDocuments.salesTaxDoc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{ fontSize: 13, cursor: 'pointer' }}
+                    >
+                      View Sales Tax Document
+                    </Link>
+                  </Box>
+                </Grid>
+              )}
+              {retailer.retailerDocuments.CigTaxDoc && (
+                <Grid size={{ xs: 12 }}>
+                  <Box>
+                    <Typography fontSize={12} fontWeight={400} color="text.secondary" mb={0.5}>
+                      Cig Tax Document
+                    </Typography>
+                    <Link
+                      href={retailer.retailerDocuments.CigTaxDoc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{ fontSize: 13, cursor: 'pointer' }}
+                    >
+                      View Cig Tax Document
+                    </Link>
+                  </Box>
+                </Grid>
+              )}
+              {retailer.retailerDocuments.attachments && retailer.retailerDocuments.attachments.length > 0 && (
+                <Grid size={{ xs: 12 }}>
+                  <Box>
+                    <Typography fontSize={12} fontWeight={400} color="text.secondary" mb={1}>
+                      Attachments
+                    </Typography>
+                    <Box display="flex" flexDirection="column" gap={0.5}>
+                      {retailer.retailerDocuments.attachments.map((url: string, idx: number) => (
+                        <Link
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ fontSize: 13, cursor: 'pointer' }}
+                        >
+                          Attachment {idx + 1}
+                        </Link>
+                      ))}
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {retailer.retailerDocuments.licenseAttachments && retailer.retailerDocuments.licenseAttachments.length > 0 && (
+                <Grid size={{ xs: 12 }}>
+                  <Box>
+                    <Typography fontSize={12} fontWeight={400} color="text.secondary" mb={1}>
+                      License Attachments
+                    </Typography>
+                    <Box display="flex" flexDirection="column" gap={0.5}>
+                      {retailer.retailerDocuments.licenseAttachments.map((url: string, idx: number) => (
+                        <Link
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ fontSize: 13, cursor: 'pointer' }}
+                        >
+                          License Attachment {idx + 1}
+                        </Link>
+                      ))}
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {!retailer.retailerDocuments.feinDocument && 
+               !retailer.retailerDocuments.salesTaxDoc && 
+               !retailer.retailerDocuments.CigTaxDoc && 
+               (!retailer.retailerDocuments.attachments || retailer.retailerDocuments.attachments.length === 0) &&
+               (!retailer.retailerDocuments.licenseAttachments || retailer.retailerDocuments.licenseAttachments.length === 0) && (
+                <Grid size={{ xs: 12 }}>
+                  <Typography fontSize={13} color="text.secondary">No documents available</Typography>
+                </Grid>
+              )}
+            </Grid>
+          </SectionBox>
+        )}
       </Box>
     </CommonModal>
   );

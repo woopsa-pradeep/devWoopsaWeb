@@ -40,6 +40,60 @@ interface InventoryListOptions {
 // Column display name mapping
 const COLUMN_DISPLAY_NAMES: Record<string, string> = {
   'ShortOrderForm': 'Web Allow',
+  'Price1': 'Price 1',
+  'Price2': 'Price 2',
+  'Price3': 'Price 3',
+  'Price4': 'Price 4',
+  'Price5': 'Price 5',
+  'Price6': 'Price 6',
+  'Retail1': 'Retail 1',
+  'Retail2': 'Retail 2',
+  'Retail3': 'Retail 3',
+  'RetailPct1': 'Retail % 1',
+  'RetailPct2': 'Retail % 2',
+  'RetailPct3': 'Retail % 3',
+  'BaseCost': 'Base Cost',
+  'UnitOunces': 'Ounces/ml',
+  'Cig_Sticks': 'Sticks',
+  'Primary_Vendor': 'Vendor',
+  'I_Inactive': 'Inactive',
+  'I_Discontinued': 'Discontinued',
+  'UOM': 'Size',
+  'Unit_Upcharge': 'Unit Upcharge',
+  'Unit_Price': 'Unit Price',
+  'Invoice_Cost': 'MFG Cost',
+  'NetCost': 'Net Cost',
+  'Item_GroupID': 'Item Group ID',
+  'Sales_Category': 'Sales Category',
+  'Price_Class': 'Price Class',
+  'Price_Subclass': 'Price Subclass',
+  'OTP_Number': 'OTP Number',
+  'CaseCount': 'Case Count',
+  'PriceBook_Include': 'Price Book Include',
+  'Track_ExpirationDate': 'Track Expiration Date',
+  'Brand_ID': 'Brand ID',
+  'PriceCostModifiedDate': 'Price Cost Modified Date',
+  'PriceCostModifiedUser': 'Price Cost Modified User',
+  'Date_LastChange': 'Date Last Change',
+  'Date_LastChangeUser': 'Date Last Change User',
+  'MSA_Category_Code': 'MSA Category Code',
+  'Project_Identifier': 'Project Identifier',
+};
+
+// Helper function to format column names
+const formatColumnName = (column: string): string => {
+  // First check if there's a custom display name
+  if (COLUMN_DISPLAY_NAMES[column]) {
+    return COLUMN_DISPLAY_NAMES[column];
+  }
+  // Otherwise, replace underscores with spaces and capitalize first letter of each word
+  return column
+    .replace(/_/g, ' ')
+    .replace(/([A-Z])/g, ' $1')
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 };
 
 // Checkbox/toggle fields
@@ -364,7 +418,7 @@ const BulkUpdateFields: React.FC<BulkUpdateFieldsProps> = ({
                         .filter(field => !fieldUpdates.some(fu => fu.field === field && fu.id !== fieldUpdate.id))
                         .map((field) => (
                           <MenuItem key={field} value={field} sx={{ fontSize: '12px' }}>
-                            {COLUMN_DISPLAY_NAMES[field] || field}
+                            {formatColumnName(field)}
                           </MenuItem>
                         ))}
                     </Select>
@@ -374,11 +428,11 @@ const BulkUpdateFields: React.FC<BulkUpdateFieldsProps> = ({
                   <TextField
                     fullWidth
                     size="small"
-                    label={fieldUpdate.field ? `Filter by ${COLUMN_DISPLAY_NAMES[fieldUpdate.field] || fieldUpdate.field} (optional)` : 'Filter field (optional)'}
+                    label={fieldUpdate.field ? `Filter by ${formatColumnName(fieldUpdate.field)} (optional)` : 'Filter field (optional)'}
                     value={fieldUpdate.matchValue || ''}
                     onChange={(e) => handleFieldChange(fieldUpdate.id, 'matchValue', e.target.value)}
                     type={getFieldType(fieldUpdate.field)}
-                    placeholder={fieldUpdate.field ? `Filter by ${COLUMN_DISPLAY_NAMES[fieldUpdate.field] || fieldUpdate.field} value` : 'Select field first'}
+                    placeholder={fieldUpdate.field ? `Filter by ${formatColumnName(fieldUpdate.field)} value` : 'Select field first'}
                     disabled={!fieldUpdate.field}
                     sx={{
                       '& .MuiInputBase-input': { fontSize: '12px' },

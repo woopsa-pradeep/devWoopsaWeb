@@ -41,7 +41,7 @@ const FIELD_LABELS: { [key: string]: string } = {
   pack: 'Pack',
   size: 'Size',
   upc: 'UPC',
-  onhand: 'On Hand',
+  // onhand: 'On Hand',
   salesCategory: 'Sales Category',
   priceClass: 'Price Class',
   unitCost: 'Unit Cost',
@@ -204,7 +204,7 @@ const addFullHeaderToPage = (
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 10;
   const headerStartY = 8;
-  let yPos = headerStartY + 4;
+  const yPos = headerStartY + 4;
   
   // Page number at top right (above header box)
   doc.setFontSize(7);
@@ -221,35 +221,47 @@ const addFullHeaderToPage = (
   const middleX = margin + leftColumnWidth + 5;
   const rightX = pageWidth - margin - 2;
   
-  // Calculate header height first
-  let rightYPos = yPos;
-  let rightContentHeight = 0;
+  // First, calculate the header height by simulating content positions
+  // This is needed to draw the background box first
+  let estimatedRightHeight = 4; // Date
+  estimatedRightHeight += 3.8; // Doc
+  estimatedRightHeight += 3.8; // Order
+  estimatedRightHeight += 4.5; // Distributor
+  if (orderData.isReprint) estimatedRightHeight += 5;
+  if (template.pickedByPosition === 'top' && template.showPickedBy !== false) estimatedRightHeight += 5;
+  if (template.checkedByPosition === 'top' && template.showCheckedBy !== false) estimatedRightHeight += 5;
   
-  // Right side content height calculation
-  rightContentHeight += 4; // Date
-  rightContentHeight += 3.5; // Doc
-  rightContentHeight += 3.5; // Order
-  rightContentHeight += 3.5; // Distributor
-  if (orderData.isReprint) rightContentHeight += 4;
-  if (template.pickedByPosition === 'top' && template.showPickedBy !== false) rightContentHeight += 5;
-  if (template.checkedByPosition === 'top' && template.showCheckedBy !== false) rightContentHeight += 5;
+  let estimatedLeftHeight = 5; // Title spacing
+  estimatedLeftHeight += 4.5; // Customer Information label
+  estimatedLeftHeight += 3.5; // ID
+  estimatedLeftHeight += 3.5; // Name
+  estimatedLeftHeight += 3.5; // Address
+  if (orderData.customer.phone) estimatedLeftHeight += 3.5; // Phone
+  estimatedLeftHeight += 3.5; // Route/Stop
   
-  const leftContentHeight = 4 + 3.5 + 3.5 + 3.5 + 3.5 + 3.5; // Label + 5 lines of customer info
-  const middleContentHeight = 35; // Barcode height
-  const headerBoxHeight = Math.max(leftContentHeight, rightContentHeight, middleContentHeight) + 8;
+  const estimatedBarcodeHeight = 15; // Barcode height
+  const estimatedMaxHeight = Math.max(estimatedLeftHeight, estimatedRightHeight, estimatedBarcodeHeight);
+  const estimatedHeaderBoxHeight = estimatedMaxHeight + 8; // Add padding
   
-  // Draw header background box (no border)
+  // Draw header background box FIRST (before content)
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(margin, headerStartY, pageWidth - (margin * 2), headerBoxHeight, 1, 1, 'F');
+  doc.roundedRect(margin, headerStartY, pageWidth - (margin * 2), estimatedHeaderBoxHeight, 1, 1, 'F');
+  
+  // Track actual Y positions as we render content
+  let leftYPos = yPos;
+  let rightYPos = yPos;
+  let maxYPos = yPos;
   
   // Main title - PICKLIST (bold, larger) - Left column
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 30, 30);
-  doc.text('PICKLIST', leftX, yPos);
+  doc.text('PICKLIST', leftX, leftYPos);
+  maxYPos = Math.max(maxYPos, leftYPos);
   
   // Middle column: Barcode of order number (doc number)
   const orderNumber = String(orderData.orderNumber || orderData.invoiceNumber || '');
+  let barcodeBottomY = yPos;
   if (template.showBarcode !== false && orderNumber) {
     const barcodeDataUrl = generateBarcodeDataUrl(orderNumber);
     if (barcodeDataUrl) {
@@ -259,6 +271,8 @@ const addFullHeaderToPage = (
         const barcodeX = middleX + (middleColumnWidth - barcodeWidth) / 2;
         const barcodeY = yPos - 2;
         doc.addImage(barcodeDataUrl, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight);
+        barcodeBottomY = barcodeY + barcodeHeight;
+        maxYPos = Math.max(maxYPos, barcodeBottomY);
       } catch (error) {
         console.error('Error adding barcode to PDF:', error);
       }
@@ -266,8 +280,6 @@ const addFullHeaderToPage = (
   }
   
   // Right side: Document information section
-  rightYPos = yPos;
-  
   // Date
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
@@ -276,17 +288,19 @@ const addFullHeaderToPage = (
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   doc.text(String(orderData.invoiceDate || orderData.orderDate || ''), rightX, rightYPos, { align: 'right' });
-  
   rightYPos += 3.8;
+  maxYPos = Math.max(maxYPos, rightYPos);
+  
   // Doc Number
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('Doc:', rightX - 35, rightYPos, { align: 'right' });
+  // doc.text('Doc:', rightX - 35, rightYPos, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   doc.text(String(orderData.invoiceNumber || ''), rightX, rightYPos, { align: 'right' });
-  
   rightYPos += 3.8;
+  maxYPos = Math.max(maxYPos, rightYPos);
+  
   // Order Number
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
@@ -294,8 +308,9 @@ const addFullHeaderToPage = (
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   doc.text(String(orderData.orderNumber || ''), rightX, rightYPos, { align: 'right' });
-  
   rightYPos += 3.8;
+  maxYPos = Math.max(maxYPos, rightYPos);
+  
   // Distributor
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
@@ -304,8 +319,9 @@ const addFullHeaderToPage = (
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(7);
   doc.text(orderData.distributor.name, rightX, rightYPos, { align: 'right' });
-  
   rightYPos += 4.5;
+  maxYPos = Math.max(maxYPos, rightYPos);
+  
   // REPRINT badge
   if (orderData.isReprint) {
     doc.setFillColor(255, 240, 240);
@@ -319,6 +335,7 @@ const addFullHeaderToPage = (
     doc.setTextColor(200, 0, 0);
     doc.text('REPRINT', rightX - reprintWidth / 2, rightYPos, { align: 'center' });
     rightYPos += 5;
+    maxYPos = Math.max(maxYPos, rightYPos);
   }
   
   // Picked by and Checked by (right side, top position)
@@ -335,6 +352,7 @@ const addFullHeaderToPage = (
       doc.setLineWidth(0.2);
       doc.line(rightX - 30, rightYPos + 2, rightX, rightYPos + 2);
       rightYPos += 5;
+      maxYPos = Math.max(maxYPos, rightYPos);
     }
     if (template.checkedByPosition === 'top' && template.showCheckedBy !== false) {
       doc.setFont('helvetica', 'bold');
@@ -344,17 +362,19 @@ const addFullHeaderToPage = (
       doc.setLineWidth(0.2);
       doc.line(rightX - 30, rightYPos + 2, rightX, rightYPos + 2);
       rightYPos += 5;
+      maxYPos = Math.max(maxYPos, rightYPos);
     }
   }
   
   // Left side: Customer information section
-  yPos += 5;
+  leftYPos += 5;
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 30, 30);
-  doc.text('Customer Information', leftX, yPos);
+  doc.text('Customer Information', leftX, leftYPos);
+  leftYPos += 4.5;
+  maxYPos = Math.max(maxYPos, leftYPos);
   
-  yPos += 4.5;
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
@@ -362,52 +382,59 @@ const addFullHeaderToPage = (
   // Customer details with labels
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('ID:', leftX, yPos);
+  doc.text('ID:', leftX, leftYPos);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-  doc.text(String(orderData.customer.number), leftX + 8, yPos);
+  doc.text(String(orderData.customer.number), leftX + 8, leftYPos);
+  leftYPos += 3.5;
+  maxYPos = Math.max(maxYPos, leftYPos);
   
-  yPos += 3.5;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('Name:', leftX, yPos);
+  doc.text('Name:', leftX, leftYPos);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-  doc.text(orderData.customer.name, leftX + 12, yPos);
+  doc.text(orderData.customer.name, leftX + 12, leftYPos);
+  leftYPos += 3.5;
+  maxYPos = Math.max(maxYPos, leftYPos);
   
-  yPos += 3.5;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('Address:', leftX, yPos);
+  doc.text('Address:', leftX, leftYPos);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-  doc.text(orderData.customer.address, leftX + 15, yPos);
+  doc.text(orderData.customer.address, leftX + 15, leftYPos);
+  leftYPos += 3.5;
+  maxYPos = Math.max(maxYPos, leftYPos);
   
-  yPos += 3.5;
   if (orderData.customer.phone) {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 60, 60);
-    doc.text('Phone:', leftX, yPos);
+    doc.text('Phone:', leftX, leftYPos);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(orderData.customer.phone, leftX + 12, yPos);
-    yPos += 3.5;
+    doc.text(orderData.customer.phone, leftX + 12, leftYPos);
+    leftYPos += 3.5;
+    maxYPos = Math.max(maxYPos, leftYPos);
   }
   
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('Route:', leftX, yPos);
+  doc.text('Route:', leftX, leftYPos);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-  doc.text(String(orderData.customer.route || ''), leftX + 12, yPos);
+  doc.text(String(orderData.customer.route || ''), leftX + 12, leftYPos);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('Stop:', leftX + 35, yPos);
+  doc.text('Stop:', leftX + 35, leftYPos);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-  doc.text(String(orderData.customer.stop), leftX + 42, yPos);
+  doc.text(String(orderData.customer.stop), leftX + 42, leftYPos);
+  maxYPos = Math.max(maxYPos, leftYPos);
   
-  // Calculate the bottom position
+  // Calculate actual header box height based on rendered content
+  const actualContentHeight = maxYPos - headerStartY;
+  const headerBoxHeight = Math.max(actualContentHeight + 8, estimatedHeaderBoxHeight); // Use actual or estimated, whichever is larger
   
   // Add divider below header (dark color like footer)
   const dividerY = headerStartY + headerBoxHeight + 2;
@@ -415,7 +442,7 @@ const addFullHeaderToPage = (
   doc.setLineWidth(0.5);
   doc.line(margin, dividerY, pageWidth - margin, dividerY);
   
-  // Return the bottom position of header for table positioning
+  // Return the bottom position of header (divider + spacing) for table positioning
   return dividerY + 4; // Divider + spacing
 };
 
@@ -660,11 +687,13 @@ const getTemplateFromAPI = async (): Promise<PicklistTemplate | null> => {
     const templateData = picklists[0];
 
     // Transform API response to PicklistTemplate format
+    // Convert 'none' back to empty string for internal use (groupItems function expects empty string)
+    const groupByValue = templateData.groupBy === 'none' ? '' : (templateData.groupBy || '');
     const template: PicklistTemplate = {
       id: String(templateData.id || 'default'),
-      name: templateData.name || getTemplateName(templateData.groupBy || ''),
+      name: templateData.name || getTemplateName(groupByValue),
       selectedFields: templateData.selectedFields || {},
-      groupBy: templateData.groupBy || '',
+      groupBy: groupByValue,
       newCategoryOnNewPage: templateData.newCategoryOnNewPage || false,
       headerPosition: templateData.headerPosition || 'topRight',
       footerPosition: templateData.footerPosition || 'left',
@@ -738,7 +767,7 @@ export const generatePicklistPDF = async (
       pack: number;
       size: string;
       upc?: string;
-      onhand?: number;
+      // onhand?: number;
       salesCategory?: string;
       priceClass?: string;
       unitCost?: number;
@@ -774,22 +803,10 @@ export const generatePicklistPDF = async (
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
   
-  // Calculate header height dynamically
-  // Header box starts at 8mm, with padding
-  // Left side: Title (4) + Customer label (4.5) + Customer details (5 lines * 3.5) = ~26mm
-  // Right side: Date/Doc/Order/Distributor (4 lines * 3.8) + REPRINT (5 if present) + Picked by/Checked by (0, 5, or 10mm)
-  const leftSideHeight = 4 + 4.5 + (5 * 3.5); // ~26mm
-  const rightSideBaseHeight = 4 + (4 * 3.8); // Date + Doc + Order + Distributor
-  let rightSideHeight = rightSideBaseHeight;
-  if (orderData.isReprint) rightSideHeight += 5;
-  if (template.pickedByPosition === 'top' && template.showPickedBy !== false) rightSideHeight += 5;
-  if (template.checkedByPosition === 'top' && template.showCheckedBy !== false) rightSideHeight += 5;
-  
-  const maxContentHeight = Math.max(leftSideHeight, rightSideHeight);
-  const headerBoxHeight = maxContentHeight + 8; // Content + padding
-  const headerHeight = 8 + headerBoxHeight + 2 + 4; // Start Y + box height + spacing + divider
+  // Add header to first page to get actual header height
+  const headerHeight = addFullHeaderToPage(doc, 1, 1, orderData, template);
   const headerMargin = 2;
-  let yPosition = headerHeight + headerMargin; // Start below header with margin
+  let yPosition = headerHeight + headerMargin; // Start below header divider with margin
   
   // Group items
   const grouped = groupItems(orderData.items, template.groupBy);
@@ -901,7 +918,7 @@ export const generatePicklistPDF = async (
             // For numbers, convert to string with proper formatting
             if (typeof value === 'number') {
               // For quantities, show as integer if whole number, otherwise show decimals
-              if (key === 'orderedQty' || key === 'pack' || key === 'onhand' || key === 'lineNumber' || key === 'sequence') {
+              if (key === 'orderedQty' || key === 'pack' || key === 'lineNumber' || key === 'sequence') {
                 return value % 1 === 0 ? String(Math.round(value)) : String(value);
               }
               // For prices/costs, show 2 decimal places
@@ -1009,7 +1026,7 @@ export const generatePicklistPDF = async (
           // For numbers, convert to string with proper formatting
           if (typeof value === 'number') {
             // For quantities, show as integer if whole number, otherwise show decimals
-            if (key === 'orderedQty' || key === 'pack' || key === 'onhand' || key === 'lineNumber' || key === 'sequence') {
+            if (key === 'orderedQty' || key === 'pack' || key === 'lineNumber' || key === 'sequence') {
               return value % 1 === 0 ? String(Math.round(value)) : String(value);
             }
             // For prices/costs, show 2 decimal places
@@ -1053,7 +1070,7 @@ export const generatePicklistPDF = async (
   }
   
   // Totals section at bottom (on last page only) - ensure enough space above footer
-  const currentPage = doc.getNumberOfPages();
+  let currentPage = doc.getNumberOfPages();
   doc.setPage(currentPage);
   
   // Calculate totals section position - dynamically adjust based on enabled footer items
@@ -1067,8 +1084,27 @@ export const generatePicklistPDF = async (
   if (template.showTotalLines !== false) spaceNeeded += 5; // Auto-filled
   const totalsY = pageHeight - spaceNeeded;
   
-  // Add divider above footer/totals section (with more gap before totals)
+  // Check if we need a new page for totals section
+  // We need at least 10mm gap between last content and divider
+  const minGapBeforeTotals = 10;
   const dividerY = totalsY - 6;
+  const requiredYForDivider = dividerY - minGapBeforeTotals;
+  
+  // Get the last Y position from the last table
+  const lastTableY = (doc as any).lastAutoTable?.finalY || yPosition;
+  
+  // If last content is too close to totals section, add a new page
+  if (lastTableY > requiredYForDivider) {
+    doc.addPage();
+    currentPage = doc.getNumberOfPages();
+    doc.setPage(currentPage);
+    yPosition = headerHeight + headerMargin;
+  }
+  
+  // Ensure we're on the correct page before adding totals
+  doc.setPage(currentPage);
+  
+  // Add divider above footer/totals section (with more gap before totals)
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
   doc.line(margin, dividerY, pageWidth - margin, dividerY);

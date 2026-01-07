@@ -10,11 +10,14 @@ import {
   Select,
   MenuItem,
   IconButton,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import { useDebounce } from '../../../hooks/useDebounce';
-import { createProductLimit, productList, updateProductImageByImageId, updateProductLimit, uploadProductImage} from '../../../redux/apis/distrubutor/productApis';
+import { createProductLimit, productList, updateProductImageByImageId, updateProductLimit, uploadProductImage, getProductById} from '../../../redux/apis/distrubutor/productApis';
 import TextInput from '../../../component/atoms/TextInput';
 import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
 import img from '../../../assets/Default-Product-Image.jpg';
@@ -37,6 +40,14 @@ import PrintIcon from '@mui/icons-material/Print';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/Update';
 import EventIcon from '@mui/icons-material/Event';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+// import Card from '@mui/material/Card';
+// import CardContent from '@mui/material/CardContent';
+import Pagination from '@mui/material/Pagination';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const JsBarcode = require('jsbarcode');
 
@@ -149,6 +160,19 @@ const Product = () => {
   });
   const [individualPrintLoading, setIndividualPrintLoading] = useState(false);
 
+  // Detailed view state
+  const [viewMode, setViewMode] = useState<'table' | 'detailed'>('detailed');
+  const [expandedCards, setExpandedCards] = useState<{ [key: string]: boolean }>({});
+  const [expandedSections, setExpandedSections] = useState<{ [key: string]: { [section: string]: boolean } }>({});
+  
+  // Track which card was opened first (for default open behavior)
+  const [firstOpenedCard, setFirstOpenedCard] = useState<string | null>(null);
+  const [detailedData, setDetailedData] = useState<any[]>([]);
+  const [detailedLoading, setDetailedLoading] = useState(false);
+  const [detailedCurrentPage, setDetailedCurrentPage] = useState(1);
+  const [detailedPageSize, setDetailedPageSize] = useState(10);
+  const [detailedTotalItems, setDetailedTotalItems] = useState(0);
+  const [detailedTotalPages, setDetailedTotalPages] = useState(0);
 
   useEffect(() => {
     fetchSalesCategories();
@@ -217,37 +241,120 @@ const Product = () => {
   // Reset data and page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, salesCategory, priceClass]);
+    if (viewMode === 'detailed') {
+      setDetailedCurrentPage(1);
+    }
+  }, [debouncedSearch, salesCategory, priceClass, viewMode]);
 
   useEffect(() => {
-    let ignore = false;
-    const fetchProducts = async () => {
-      setLoading(true);
-      try {
-        const params = {
-          search: debouncedSearch,
-          page: currentPage,
-          limit: pageSize,
-          salesCategoryId: salesCategory.map(cat => Number(cat.value)),
-          priceClassId: priceClass.map(pc => Number(pc.value)),
-        };
-        const res = await productList(params) as any;
-        // Adjust this line based on your API response structure
-        const list = res?.data?.data?.finalProductList || [];
-        const total = res?.data?.data?.totalCount || 0;
-        
-        if (!ignore) {
-          setData(list);
-          setTotalItems(total);
-          setTotalPages(Math.ceil(total / pageSize));
+    if (viewMode === 'table') {
+      let ignore = false;
+      const fetchProducts = async () => {
+        setLoading(true);
+        try {
+          const params = {
+            search: debouncedSearch,
+            page: currentPage,
+            limit: pageSize,
+            salesCategoryId: salesCategory.map(cat => Number(cat.value)),
+            priceClassId: priceClass.map(pc => Number(pc.value)),
+          };
+          const res = await productList(params) as any;
+          // Adjust this line based on your API response structure
+          const list = res?.data?.data?.finalProductList || [];
+          const total = res?.data?.data?.totalCount || 0;
+          
+          if (!ignore) {
+            setData(list);
+            setTotalItems(total);
+            setTotalPages(Math.ceil(total / pageSize));
+          }
+        } finally {
+          if (!ignore) setLoading(false);
         }
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    };
-    fetchProducts();
-    return () => { ignore = true; };
-  }, [currentPage, pageSize, debouncedSearch, salesCategory, priceClass]);
+      };
+      fetchProducts();
+      return () => { ignore = true; };
+    }
+  }, [currentPage, pageSize, debouncedSearch, salesCategory, priceClass, viewMode]);
+
+  // Store detailed product data with full details
+  const [detailedProductsWithFullData, setDetailedProductsWithFullData] = useState<any[]>([]);
+  const [loadingFullDetails, setLoadingFullDetails] = useState<{ [key: string]: boolean }>({});
+
+  // Fetch product list with pagination and filters
+  useEffect(() => {
+    if (viewMode === 'detailed') {
+      let ignore = false;
+      const fetchDetailedProducts = async () => {
+        setDetailedLoading(true);
+        try {
+          const params: any = {
+            search: debouncedSearch || '',
+            page: detailedCurrentPage,
+            limit: detailedPageSize,
+            salesCategoryId: salesCategory.map(cat => Number(cat.value)),
+            priceClassId: priceClass.map(pc => Number(pc.value)),
+          };
+          
+          const res = await productList(params) as any;
+          const list = res?.data?.data?.finalProductList || [];
+          const total = res?.data?.data?.totalCount || 0;
+          
+          if (!ignore) {
+            setDetailedData(list);
+            setDetailedTotalItems(total);
+            setDetailedTotalPages(Math.ceil(total / detailedPageSize));
+            setDetailedProductsWithFullData([]); // Clear previous full data
+          }
+        } catch (error) {
+          console.error('Error fetching detailed products:', error);
+          toast.error('Failed to load detailed products');
+          if (!ignore) {
+            setDetailedData([]);
+          }
+        } finally {
+          if (!ignore) setDetailedLoading(false);
+        }
+      };
+      fetchDetailedProducts();
+      return () => { ignore = true; };
+    }
+  }, [detailedCurrentPage, detailedPageSize, debouncedSearch, salesCategory, priceClass, viewMode]);
+
+  // Fetch full details for each product in the current page
+  useEffect(() => {
+    if (viewMode === 'detailed' && detailedData.length > 0) {
+      const fetchFullDetails = async () => {
+        const newFullData: any[] = [];
+        const loadingMap: { [key: string]: boolean } = {};
+        
+        // Set loading state for all items
+        detailedData.forEach((item: any) => {
+          loadingMap[item.Item_Number] = true;
+        });
+        setLoadingFullDetails(loadingMap);
+        
+        // Fetch full details for each product
+        for (const item of detailedData) {
+          try {
+            const res = await getProductById(String(item.Item_Number)) as any;
+            const fullData = res?.data?.data || item; // Fallback to basic data if API fails
+            newFullData.push(fullData);
+          } catch (error) {
+            console.error(`Error fetching full details for product ${item.Item_Number}:`, error);
+            // Use basic data if full details fetch fails
+            newFullData.push(item);
+          }
+        }
+        
+        setDetailedProductsWithFullData(newFullData);
+        setLoadingFullDetails({});
+      };
+      
+      fetchFullDetails();
+    }
+  }, [detailedData, viewMode]);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -984,10 +1091,10 @@ const Product = () => {
 
       const upc = product.UPCList?.[0]?.UPC_Number || product.Item_Number || '';
       const price = product.Price1 ? Number(product.Price1).toFixed(2) : '0.00';
-      const pack = product.Pack || 'N/A';
-      const caseCount = product.CaseCount || 'N/A';
-      const productName = (product.Description || product.Item_Name || 'N/A').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-      const itemNumber = product.Item_Number || 'N/A';
+      const pack = product.Pack || '-';
+      const caseCount = product.CaseCount || '-';
+      const productName = (product.Description || product.Item_Name || '-').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const itemNumber = product.Item_Number || '-';
 
       // Check if it's a small size (2x2, 2x3, 3x2)
       const isSmallSize = size === '2x2' || size === '2x3' || size === '3x2';
@@ -1588,52 +1695,1704 @@ const Product = () => {
     },
   ];
   
+  // Get product image based on showDistributorImage flag
+  const getProductImage = (item: any) => {
+    if (item.showDistributorImage && item.distributorImage) {
+      return item.distributorImage;
+    } else if (item.masterImage) {
+      return item.masterImage;
+    } else if (item.Item_Image) {
+      return item.Item_Image;
+    }
+    return img;
+  };
+
+  // Helper function to format display values
+  const formatValue = (value: any): string => {
+    if (value === null || value === undefined) return '-';
+    if (value === '') return '-';
+    if (value === 0 || value === '0') return '0';
+    return String(value);
+  };
+
+  // Render detailed view card with full product details
+  const renderDetailedCard = (item: any, index: number) => {
+    // Find full details if available
+    const fullDetails = detailedProductsWithFullData.find(
+      (p: any) => p.Item_Number === item.Item_Number
+    ) || item;
+    const isLoading = loadingFullDetails[item.Item_Number];
+    const productData = fullDetails || item;
+    const cardId = `card-${item.Item_Number}`;
+    
+    // Default: only first card open, but allow multiple to be open
+    const isFirstCard = index === 0;
+    const shouldBeExpandedByDefault = isFirstCard && firstOpenedCard === null;
+    const isCardExpanded = expandedCards[cardId] !== undefined 
+      ? expandedCards[cardId] 
+      : shouldBeExpandedByDefault;
+    
+    // Set first opened card on mount
+    if (isFirstCard && firstOpenedCard === null) {
+      setFirstOpenedCard(cardId);
+      setExpandedCards(prev => ({ ...prev, [cardId]: true }));
+    }
+    
+    // Initialize expanded sections for this card if not exists
+    if (!expandedSections[cardId]) {
+      setExpandedSections(prev => ({
+        ...prev,
+        [cardId]: {
+          pricing: true,
+          cost: true,
+          product: true,
+          inventory: true,
+          caseDimensions: true,
+          quantity: true,
+          vendor: true,
+          jurisdiction: true,
+          flags: true,
+          additional: true,
+          dates: true,
+        }
+      }));
+    }
+    
+    const sectionExpanded = expandedSections[cardId] || {};
+    
+    return (
+        <Accordion
+        key={item.Item_Number || index}
+        expanded={isCardExpanded}
+        onChange={(_, expanded) => {
+          setExpandedCards(prev => ({ ...prev, [cardId]: expanded }));
+          if (expanded && firstOpenedCard === null) {
+            setFirstOpenedCard(cardId);
+          }
+        }}
+        sx={{ 
+          mb: 1.5, 
+          boxShadow: (theme) => theme.palette.mode === 'dark' ? '0 1px 4px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.08)',
+          borderRadius: 1,
+          bgcolor: 'background.paper',
+          '&:before': { display: 'none' },
+          transition: 'all 0.3s ease-in-out',
+          maxWidth: '100%',
+          overflow: 'hidden',
+        }}
+      >
+        <AccordionSummary
+          expandIcon={<ExpandMoreIcon />}
+          sx={{ 
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'grey.50',
+            px: 1.5,
+            py: 1,
+            minHeight: 56,
+            '&.Mui-expanded': { minHeight: 56 },
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={{ xs: 1, md: 2 }} width="100%" sx={{ maxWidth: '100%', overflow: 'hidden' }}>
+            {isLoading && <CircularProgress size={20} />}
+            <Box
+              sx={{
+                width: { xs: 60, md: 100 },
+                height: { xs: 60, md: 100 },
+                borderRadius: 1,
+                overflow: 'hidden',
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'grey.100',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                position: 'relative',
+                cursor: 'pointer',
+                '&:hover .edit-overlay': { opacity: 1 }
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                // Open the same modal as table view
+                const productForModal: Product = {
+                  id: String(item.Item_Number),
+                  Item_Number: String(item.Item_Number),
+                  Item_Image: '',
+                  Item_Name: productData.Description,
+                  Description: productData.Description,
+                  Pack: String(productData.Pack),
+                  CaseCount: String(productData.CaseCount),
+                  UOM: productData.UOM,
+                  UnitOunces: String(productData.UnitOunces || 0),
+                  Price1: productData.Price1,
+                  Price2: productData.Price2,
+                  BaseCost: productData.BaseCost,
+                  Invoice_Cost: productData.Invoice_Cost,
+                  orderQty: 0,
+                  shippedQty: 0,
+                  qtyShipped: 0,
+                  qtyOrder: 0,
+                  AvgCost: productData.AvgCost,
+                  priceWithoutTax: 0,
+                  taxAmount: 0,
+                  totalPrice: 0,
+                  extendedPrice: 0,
+                  salesTaxApplies: false,
+                  showDistributorImage: productData.showDistributorImage || false,
+                  distributorImage: productData.distributorImage || '',
+                  masterImage: productData.masterImage || '',
+                  imageId: productData.imageId,
+                  PriceClass: productData.PriceClass?.Class_Desc || productData.PriceClass || '',
+                  SalesCategory: productData.SalesCategory?.Category_Desc || productData.SalesCategory || '',
+                };
+                setSelectedProduct(productForModal);
+                setShowDistributorImage(!!productData.showDistributorImage);
+                setModalOpen(true);
+                setFile(null);
+              }}
+            >
+              <img
+                src={getProductImage(productData)}
+                alt={productData.Description || 'Product'}
+                onError={(e) => {
+                  e.currentTarget.src = img;
+                }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain'
+                }}
+              />
+              <Box
+                className="edit-overlay"
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  bgcolor: 'rgba(0,0,0,0.4)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0,
+                  transition: 'opacity 0.2s'
+                }}
+              >
+                <AddPhotoAlternateIcon sx={{ fontSize: 20 }} />
+              </Box>
+            </Box>
+            <Box flex={1} minWidth={0} sx={{ maxWidth: '100%', overflow: 'hidden' }}>
+            <Box display="flex" gap={{ xs: 0.5, md: 1 }} mb={0.5} flexWrap="wrap" sx={{ maxWidth: '100%' }}>
+                <Chip label={`#${productData.Item_Number}`} size="small" sx={{ height: 20, fontSize: 12, fontWeight: 600 }} />
+                <Chip 
+                  label={formatValue(productData.SalesCategory?.Category_Desc || productData.SalesCategory)}
+                  size="small" 
+                  variant="outlined"
+                  sx={{ height: 20, fontSize: 10 }}
+                />
+                <Chip 
+                  label={formatValue(productData.PriceClass?.Class_Desc || productData.PriceClass)}
+                  size="small" 
+                  variant="outlined"
+                  sx={{ height: 20, fontSize: 10 }}
+                />
+                <Chip 
+                  label={productData.I_Inactive === false ? 'Active' : 'Inactive'} 
+                  size="small" 
+                  color={productData.I_Inactive === false ? 'success' : 'error'}
+                  sx={{ height: 20, fontSize: 10 }}
+                />
+              </Box>
+              <Typography 
+                fontSize={{ xs: 12, md: 14 }} 
+                fontWeight={500} 
+                color="primary.main" 
+                sx={{ 
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: { xs: 2, md: 1 },
+                  WebkitBoxOrient: 'vertical',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {formatValue(productData.Description)}
+              </Typography>
+              
+            </Box>
+            <Box display="flex" gap={{ xs: 0.25, md: 0.5 }} flexShrink={0}>
+              {/* <Tooltip title="View Details">
+                <IconButton 
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetailProductId(String(item.Item_Number));
+                    setDetailModalOpen(true);
+                  }}
+                  sx={{ border: '1px solid', borderColor: 'divider' }}
+                >
+                  <VisibilityOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip> */}
+              <Tooltip title="Edit Product">
+                <IconButton 
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/admin/product/edit/${item.Item_Number}`);
+                  }}
+                  sx={{ 
+                    border: '1px solid', 
+                    borderColor: 'divider',
+                    p: { xs: 0.5, md: 1 }
+                  }}
+                >
+                  <EditIcon sx={{ fontSize: { xs: 16, md: 18 } }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Set Product Limit">
+                <IconButton 
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const productForLimit: Product = {
+                      id: String(item.Item_Number),
+                      Item_Number: String(item.Item_Number),
+                      Item_Image: '',
+                      Item_Name: productData.Description,
+                      Description: productData.Description,
+                      Pack: String(productData.Pack),
+                      CaseCount: String(productData.CaseCount),
+                      UOM: productData.UOM,
+                      UnitOunces: String(productData.UnitOunces || 0),
+                      Price1: productData.Price1,
+                      Price2: productData.Price2,
+                      BaseCost: productData.BaseCost,
+                      Invoice_Cost: productData.Invoice_Cost,
+                      orderQty: 0,
+                      shippedQty: 0,
+                      qtyShipped: 0,
+                      qtyOrder: 0,
+                      AvgCost: productData.AvgCost,
+                      priceWithoutTax: 0,
+                      taxAmount: 0,
+                      totalPrice: 0,
+                      extendedPrice: 0,
+                      salesTaxApplies: false,
+                      showDistributorImage: productData.showDistributorImage || false,
+                      distributorImage: productData.distributorImage || '',
+                      masterImage: productData.masterImage || '',
+                      imageId: productData.imageId,
+                      PriceClass: productData.PriceClass?.Class_Desc || productData.PriceClass || '',
+                      SalesCategory: productData.SalesCategory?.Category_Desc || productData.SalesCategory || '',
+                      QtyLimit: productData.QtyLimit,
+                      markAsBundle: productData.markAsBundle,
+                    };
+                    handleLimitClick(productForLimit);
+                  }}
+                  sx={{ 
+                    border: '1px solid', 
+                    borderColor: 'divider',
+                    p: { xs: 0.5, md: 1 }
+                  }}
+                >
+                  <SettingsIcon sx={{ fontSize: { xs: 16, md: 18 } }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Print Label">
+                <IconButton 
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const productForPrint: Product = {
+                      id: String(item.Item_Number),
+                      Item_Number: String(item.Item_Number),
+                      Item_Image: '',
+                      Item_Name: productData.Description,
+                      Description: productData.Description,
+                      Pack: String(productData.Pack),
+                      CaseCount: String(productData.CaseCount),
+                      UOM: productData.UOM,
+                      UnitOunces: String(productData.UnitOunces || 0),
+                      Price1: productData.Price1,
+                      Price2: productData.Price2,
+                      BaseCost: productData.BaseCost,
+                      Invoice_Cost: productData.Invoice_Cost,
+                      orderQty: 0,
+                      shippedQty: 0,
+                      qtyShipped: 0,
+                      qtyOrder: 0,
+                      AvgCost: productData.AvgCost,
+                      priceWithoutTax: 0,
+                      taxAmount: 0,
+                      totalPrice: 0,
+                      extendedPrice: 0,
+                      salesTaxApplies: false,
+                      showDistributorImage: productData.showDistributorImage || false,
+                      distributorImage: productData.distributorImage || '',
+                      masterImage: productData.masterImage || '',
+                      imageId: productData.imageId,
+                      PriceClass: productData.PriceClass?.Class_Desc || productData.PriceClass || '',
+                      SalesCategory: productData.SalesCategory?.Category_Desc || productData.SalesCategory || '',
+                      UPCList: productData.UPCList,
+                    };
+                    setIndividualPrintProduct(productForPrint);
+                    setIndividualPrintModalOpen(true);
+                  }}
+                  sx={{ 
+                    border: '1px solid', 
+                    borderColor: 'divider',
+                    p: { xs: 0.5, md: 1 }
+                  }}
+                >
+                  <PrintIcon sx={{ fontSize: { xs: 16, md: 18 } }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails sx={{ p: { xs: 0.5, md: 1 }, maxWidth: '100%', overflow: 'hidden' }}>
+          <Grid container spacing={{ xs: 1, md: 1.5 }} sx={{ maxWidth: '100%', margin: 0 }}>
+            {/* Pricing Information */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex', maxWidth: '100%' }}>
+              <Accordion
+                expanded={sectionExpanded.pricing !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], pricing: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  maxWidth: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Pricing Information
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Price 1:</Typography>
+                      <Typography fontSize={11} fontWeight={500} color="primary.main">
+                        ${Number(productData.Price1 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Price 2:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Price2 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Price 3:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Price3 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Price 4:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Price4 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Price 5:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Price5 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Price 6:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Price6 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Retail 1:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Retail1 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Retail 2:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Retail2 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Retail 3:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Retail3 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Retail % 1:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {Number(productData.RetailPct1 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Retail % 2:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {Number(productData.RetailPct2 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Retail % 3:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {Number(productData.RetailPct3 || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Cost Information */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.cost !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], cost: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Cost Information
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Base Cost:</Typography>
+                      <Typography fontSize={11} fontWeight={500}>
+                        ${Number(productData.BaseCost || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Net Cost:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.NetCost || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Invoice Cost:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Invoice_Cost || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Average Cost:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.AvgCost || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Unit Price:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Unit_Price || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Deposit Amount:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.DepositAmount || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Unit Upcharge:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        ${Number(productData.Unit_Upcharge || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Case Discount:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {Number(productData.CaseDiscount_Pct || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Weight Rate:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {formatValue(productData.I_WeightRate)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Product Details */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.product !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], product: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Product Details
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Pack:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Pack)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Case Count:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.CaseCount)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Case Weight:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.CaseWeight)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Size:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.UOM)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Unit Ounces:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.UnitOunces)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">OTP Number:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.OTP_Number)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Sequence:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Sequence)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Price Subclass:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Price_Subclass)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">I Cube:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.I_Cube)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Project Identifier:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Project_Identifier)}</Typography>
+                    </Box>
+                    {productData.UPCList && productData.UPCList.length > 0 && (
+                      <Box display="flex" flexDirection="column" gap={0.5}>
+                        <Typography fontSize={11} color="text.secondary">UPC Numbers:</Typography>
+                        <Box display="flex" flexWrap="wrap" gap={0.5}>
+                          {productData.UPCList.map((upc: any, idx: number) => (
+                            <Chip 
+                              key={idx}
+                              label={upc.UPC_Number} 
+                              size="small" 
+                              sx={{ fontSize: 9, height: 18 }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Inventory & Location */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.inventory !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], inventory: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Inventory & Location
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">On Hand:</Typography>
+                      <Typography 
+                        fontSize={11} 
+                        fontWeight={500}
+                        color={productData.inventoryOnHand >= 0 ? 'success.main' : 'error.main'}
+                      >
+                        {formatValue(productData.inventoryOnHand ?? productData.Inventory_OnHand)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">On Hand Maximum:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.OnHand_Maximum)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Section:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Section)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Location:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Location)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Section 2:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Section2)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Location 2:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Location2)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Pick Area:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.PickArea)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Reorder Level:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Reorder_Level)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Reorder Qty:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Reorder_Qty)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">ROQ Method:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.ROQ_Method)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Minimum Stock Availability:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MinimumStockAvailability)}</Typography>
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Case Dimensions */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.caseDimensions !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], caseDimensions: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Case Dimensions
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Case Length:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.CaseLength)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Case Width:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.CaseWidth)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Case Height:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.CaseHeight)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Cases Per Pallet:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.CasesPerPallet)}</Typography>
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Quantity Limits */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.quantity !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], quantity: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Quantity Limits
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Min QTY:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MinimumQTY)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Max QTY:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MaximumQTY)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Customer Limit Qty:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Customer_LimitQty)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Customer Limit Days:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Customer_LimitDays)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Max Customer Order Qty:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MaximumCustomerOrderQty)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Max Customer Order Days:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MaximumCustomerOrderDays)}</Typography>
+                    </Box>
+                    {productData.QtyLimit && (
+                      <Box 
+                        mt={0.5} 
+                        p={0.75} 
+                        bgcolor={(theme) => theme.palette.mode === 'dark' ? 'rgba(33, 150, 243, 0.2)' : 'info.light'} 
+                        borderRadius={0.5}
+                      >
+                        <Typography fontSize={10} color="text.secondary">Product Limit:</Typography>
+                        <Typography fontSize={11} fontWeight={500}>
+                          {productData.QtyLimit.QtyLimit} {productData.QtyLimit.markAsBundle ? '(Bundle)' : ''}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Vendor & Manufacturer */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.vendor !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], vendor: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Vendor & Manufacturer
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Primary Vendor:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {formatValue(productData.primaryVendor?.V_Description || productData.Primary_Vendor)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Manufacturer:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {formatValue(productData.manufacturerVendor?.V_Description || productData.Manufacturer)}
+                      </Typography>
+                    </Box>
+                    {/* <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Vendor Item (Legacy):</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {formatValue(productData.Vendor_ItemNumberLegacy)}
+                      </Typography>
+                    </Box> */}
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Vendor Item:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {formatValue(productData.Vendor_ItemNumberAlpha)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Brand ID:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Brand_ID)}</Typography>
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Jurisdiction & Cigarette */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.jurisdiction !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], jurisdiction: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Jurisdiction & Cigarette
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Jurisdiction State:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Jurisdiction_State)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Jurisdiction County:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Jurisdiction_County)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Jurisdiction City:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Jurisdiction_City)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Cig Total:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Cig_Total)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Cig Pack:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Cig_Pack)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Cig Sticks:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Cig_Sticks)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Cig Prem Disc Code:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Cig_PremDisc_Code)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Cig Promo Code:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Cig_Promo_Code)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Cig UPC Ref:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Cig_Upc_Ref)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Points:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Points)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">PM Exclude:</Typography>
+                      <Chip 
+                        label={productData.PM_Exclude ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.PM_Exclude ? 'warning' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Heading Flag:</Typography>
+                      <Chip 
+                        label={productData.HeadingFlag ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.HeadingFlag ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Image Flag:</Typography>
+                      <Chip 
+                        label={productData.ImageFlag ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.ImageFlag ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Use Master Image:</Typography>
+                      <Chip 
+                        label={productData.UseMasterImage ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.UseMasterImage ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Is Add On Deposit Inventory:</Typography>
+                      <Chip 
+                        label={productData.IsAddOnDeposit_Inventory ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.IsAddOnDeposit_Inventory ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Add On Deposit Item Number:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.AddOnDeposit_Item_Number)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Is Include Deposit QB:</Typography>
+                      <Chip 
+                        label={productData.IsIncludeDeposit_QB ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.IsIncludeDeposit_QB ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Flags & Status */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.flags !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], flags: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Flags & Status
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={0.75}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Short Order Form:</Typography>
+                      <Chip 
+                        label={productData.ShortOrderForm ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.ShortOrderForm ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Inactive:</Typography>
+                      <Chip 
+                        label={productData.I_Inactive ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.I_Inactive ? 'error' : 'success'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">eCommerce:</Typography>
+                      <Chip 
+                        label={productData.eCommerce ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.eCommerce ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">eCommerce Update Tag:</Typography>
+                      <Chip 
+                        label={productData.eCommerce_UpdateTag ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.eCommerce_UpdateTag ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">eCommerce FTP Host ID:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.eCommerce_FTP_HostID)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">EBT:</Typography>
+                      <Chip 
+                        label={productData.EBT ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.EBT ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Price Book Include:</Typography>
+                      <Chip 
+                        label={productData.PriceBook_Include ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.PriceBook_Include ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Case Discounts:</Typography>
+                      <Chip 
+                        label={productData.Case_Discounts ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.Case_Discounts ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Frozen:</Typography>
+                      <Chip 
+                        label={productData.FrozenFlag ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.FrozenFlag ? 'info' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Cooler:</Typography>
+                      <Chip 
+                        label={productData.CoolerFlag ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.CoolerFlag ? 'info' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">HazMat:</Typography>
+                      <Chip 
+                        label={productData.HazMatFlag ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.HazMatFlag ? 'warning' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Breakable:</Typography>
+                      <Chip 
+                        label={productData.Breakable ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.Breakable ? 'warning' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Discontinued:</Typography>
+                      <Chip 
+                        label={productData.I_Discontinued ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.I_Discontinued ? 'error' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Additional Information */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.additional !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], additional: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Additional Information
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Sales Tax Select:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.I_SalesTaxSelect)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Never Discount:</Typography>
+                      <Chip 
+                        label={productData.I_NeverDiscount ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.I_NeverDiscount ? 'warning' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Taxable At Retail:</Typography>
+                      <Chip 
+                        label={productData.TaxableAtRetail ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.TaxableAtRetail ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Return Status:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.I_ReturnStatus)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Standard Unit:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.StandardUnitDescription)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">NACS:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.NACS)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">NACS Unit:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.NACS_Unit)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">MSA Category:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MSA_Category_Code)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">MSA Description:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MSA_Description)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Special Tax Units:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.SpecialTaxUnits)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Exclusion Group ID:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.ExclusionGroup_ID)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Item Group ID:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Item_GroupID)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Non Merchandise Code:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.NonMerchandiseCode)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Non Merchandise Code Select:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.NonMerchandiseCodeSelect)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Lot ID:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.Lot_ID)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">Bump To Minimum:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.BumpToMinimum)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">No Retail Rounding:</Typography>
+                      <Chip 
+                        label={productData.NoRetailRounding ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.NoRetailRounding ? 'warning' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">I Prepaid Status:</Typography>
+                      <Chip 
+                        label={productData.I_PrepaidStatus ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.I_PrepaidStatus ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">MSA Component:</Typography>
+                      <Chip 
+                        label={productData.MSA_Component ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.MSA_Component ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">MSA Promotion:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MSA_Promotion)}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography fontSize={11} color="text.secondary">MSA Promotion Code:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>{formatValue(productData.MSA_Promotion_Code)}</Typography>
+                    </Box>
+                    {productData.AltDesc && (
+                      <Box>
+                        <Typography fontSize={11} color="text.secondary">Alt Description:</Typography>
+                        <Typography fontSize={11} fontWeight={400}>{productData.AltDesc}</Typography>
+                      </Box>
+                    )}
+                    {productData.ALT_Description2 && (
+                      <Box>
+                        <Typography fontSize={11} color="text.secondary">Alt Description 2:</Typography>
+                        <Typography fontSize={11} fontWeight={400}>{productData.ALT_Description2}</Typography>
+                      </Box>
+                    )}
+                    {productData.Item_Message && (
+                      <Box>
+                        <Typography fontSize={11} color="text.secondary">Item Message:</Typography>
+                        <Typography fontSize={11} fontWeight={400}>{productData.Item_Message}</Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Dates & Tracking */}
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
+              <Accordion
+                expanded={sectionExpanded.dates !== false}
+                onChange={(_, expanded) => {
+                  setExpandedSections(prev => ({
+                    ...prev,
+                    [cardId]: { ...prev[cardId], dates: expanded }
+                  }));
+                }}
+                defaultExpanded
+                sx={{ 
+                  boxShadow: 'none', 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  '&:before': { display: 'none' },
+                  transition: 'all 0.3s ease-in-out',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon sx={{ fontSize: 18 }} />} 
+                  sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    minHeight: 36, 
+                    '&.Mui-expanded': { minHeight: 36 },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                >
+                  <Typography fontSize={12} fontWeight={500} color="primary.main">
+                    Dates & Tracking
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Date Created:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {productData.Date_Created ? new Date(productData.Date_Created).toLocaleDateString() : '-'}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Last Changed:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {productData.Date_LastChange ? new Date(productData.Date_LastChange).toLocaleDateString() : '-'}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Price/Cost Modified:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {productData.PriceCostModifiedDate ? new Date(productData.PriceCostModifiedDate).toLocaleDateString() : '-'}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Item Expiry Date:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {productData.ItemExpiryDate ? new Date(productData.ItemExpiryDate).toLocaleDateString() : '-'}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Inactive Date:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {productData.Inactive_Date ? new Date(productData.Inactive_Date).toLocaleDateString() : '-'}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Track Expiration:</Typography>
+                      <Chip 
+                        label={productData.Track_ExpirationDate ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.Track_ExpirationDate ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Track Lot Ref:</Typography>
+                      <Chip 
+                        label={productData.Track_LotRef ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.Track_LotRef ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Catch Weight:</Typography>
+                      <Chip 
+                        label={productData.CatchWeight_Capture ? 'Yes' : 'No'} 
+                        size="small" 
+                        color={productData.CatchWeight_Capture ? 'success' : 'default'}
+                        sx={{ height: 20, fontSize: 9 }}
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Date Created User:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {formatValue(productData.Date_CreatedUser)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Date Last Change User:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {formatValue(productData.Date_LastChangeUser)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography fontSize={11} color="text.secondary">Price Cost Modified User:</Typography>
+                      <Typography fontSize={11} fontWeight={400}>
+                        {formatValue(productData.PriceCostModifiedUser)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+          </Grid>
+        </AccordionDetails>
+      </Accordion>
+    );
+  };
+
   return (
-    <Box sx={{ p: { xs: 0, md: 3 }, pt: { xs: 0, md: 0 } }}>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-          <Typography fontSize={18} fontWeight={400} color="text.primary">Products Management</Typography>
-          <Box display="flex" gap={2}>
+    <Box sx={{ p: { xs: 1, md: 3 }, pt: { xs: 1, md: 0 }, maxWidth: '100%', overflow: 'hidden' }}>
+      <Box 
+        display="flex" 
+        flexDirection={{ xs: 'column', md: 'row' }}
+        alignItems={{ xs: 'flex-start', md: 'center' }}
+        justifyContent="space-between" 
+        mb={2}
+        gap={{ xs: 2, md: 0 }}
+        sx={{ width: '100%' }}
+      >
+          <Typography 
+            fontSize={{ xs: 16, md: 18 }} 
+            fontWeight={400} 
+            color="text.primary"
+            sx={{ mb: { xs: 1, md: 0 } }}
+          >
+            Products Management
+          </Typography>
+          <Box 
+            display="flex" 
+            gap={{ xs: 1, md: 2 }} 
+            alignItems="center"
+            flexWrap="wrap"
+            sx={{ width: { xs: '100%', md: 'auto' } }}
+          >
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => {
+                if (newMode !== null) {
+                  setViewMode(newMode);
+                }
+              }}
+              size="small"
+              sx={{ 
+                '& .MuiToggleButton-root': {
+                  fontSize: { xs: '0.75rem', md: '0.875rem' },
+                  px: { xs: 1, md: 1.5 },
+                }
+              }}
+            >
+              <ToggleButton value="table">
+                <ViewListIcon sx={{ fontSize: { xs: 16, md: 18 }, mr: 0.5 }} />
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Table</Box>
+              </ToggleButton>
+              <ToggleButton value="detailed">
+                <ViewModuleIcon sx={{ fontSize: { xs: 16, md: 18 }, mr: 0.5 }} />
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Detailed</Box>
+              </ToggleButton>
+            </ToggleButtonGroup>
             <CustomButton 
               fullWidth={false}
               onClick={() => navigate('/admin/products/future-pricing')}
-              icon={<EventIcon sx={{ fontSize: 20 }} />}
+              icon={<EventIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
               iconPosition="left"
-              sx={{ mt: 0 }} 
+              sx={{ 
+                mt: 0,
+                fontSize: { xs: '0.75rem', md: '0.875rem' },
+                px: { xs: 1, md: 1.5 },
+                '& .MuiButton-startIcon': {
+                  mr: { xs: 0.5, md: 1 }
+                }
+              }} 
             >
-              Future Pricing
+              <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Future Pricing</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Pricing</Box>
             </CustomButton>
             <CustomButton 
               fullWidth={false}
               onClick={() => navigate('/admin/products/bulk-update')}
-              icon={<UpdateIcon sx={{ fontSize: 20 }} />}
+              icon={<UpdateIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
               iconPosition="left"
-              sx={{ mt: 0 }} 
+              sx={{ 
+                mt: 0,
+                fontSize: { xs: '0.75rem', md: '0.875rem' },
+                px: { xs: 1, md: 1.5 },
+                '& .MuiButton-startIcon': {
+                  mr: { xs: 0.5, md: 1 }
+                }
+              }} 
             >
-              Bulk Update
+              <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Bulk Update</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Update</Box>
             </CustomButton>
             <CustomButton 
               fullWidth={false}
               onClick={() => setPrintLabelDrawerOpen(true)}
-              icon={<PrintIcon sx={{ fontSize: 20 }} />}
+              icon={<PrintIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
               iconPosition="left"
-              sx={{ mt: 0 }} 
+              sx={{ 
+                mt: 0,
+                fontSize: { xs: '0.75rem', md: '0.875rem' },
+                px: { xs: 1, md: 1.5 },
+                '& .MuiButton-startIcon': {
+                  mr: { xs: 0.5, md: 1 }
+                }
+              }} 
             >
-              Print Label
+              <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Print Label</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Print</Box>
             </CustomButton>
             <CustomButton 
               fullWidth={false}
               onClick={() => navigate('/admin/product/add')}
-              icon={<AddIcon sx={{ fontSize: 20 }} />}
+              icon={<AddIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
               iconPosition="left"
-              sx={{ mt: 0 }} 
+              sx={{ 
+                mt: 0,
+                fontSize: { xs: '0.75rem', md: '0.875rem' },
+                px: { xs: 1, md: 1.5 },
+                '& .MuiButton-startIcon': {
+                  mr: { xs: 0.5, md: 1 }
+                }
+              }} 
             >
-              Add Product
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Add Product</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Add</Box>
             </CustomButton>  
           </Box>
       </Box>
-      <Paper sx={{ boxShadow: 'none', borderRadius: '0px' }}>
-      <Box px={2} pt={2}>
-        <Grid container spacing={2}>
+      <Paper sx={{ boxShadow: 'none', borderRadius: '0px', maxWidth: '100%', overflow: 'hidden' }}>
+      <Box px={{ xs: 1, md: 2 }} pt={{ xs: 1, md: 2 }} sx={{ maxWidth: '100%', overflow: 'hidden' }}>
+        <Grid container spacing={{ xs: 1, md: 2 }} sx={{ maxWidth: '100%', margin: 0 }}>
           <Grid size={{ xs: 12, sm: 6, md: 4}}>
             <TextInput
               placeholder="Search products"
@@ -1664,27 +3423,168 @@ const Product = () => {
           </Grid>
         </Grid>
       </Box>
-      <CommonTable
-        data={data}
-        columns={columns}
-        // Pagination props
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        pageSize={pageSize}
-        onPageChange={handlePageChange}
-        onPageSizeChange={handlePageSizeChange}
-        // Optional pagination customization
-        pageSizeOptions={[10, 25, 50, 100]}
-        showPageSizeSelector={true}
-        showTotalItems={true}
-        showPageNumbers={true}
-        maxPageNumbers={5}
-        // Other props
-        loading={loading}
-        containerHeight="calc(100vh - 362px)"
-        stickyHeader={true}
-      />
+      {viewMode === 'table' ? (
+        <CommonTable
+          data={data}
+          columns={columns}
+          // Pagination props
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          // Optional pagination customization
+          pageSizeOptions={[10, 25, 50, 100]}
+          showPageSizeSelector={true}
+          showTotalItems={true}
+          showPageNumbers={true}
+          maxPageNumbers={5}
+          // Other props
+          loading={loading}
+          containerHeight="calc(100vh - 362px)"
+          stickyHeader={true}
+        />
+      ) : (
+        <Box 
+          sx={{ 
+            maxWidth: '100%', 
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            height: 'calc(100vh - 280px)',
+            '@media (max-width: 1024px)': {
+              height: 'calc(100vh - 240px)',
+            },
+            '@media (max-width: 600px)': {
+              height: 'calc(100vh - 200px)',
+            },
+          }}
+        >
+          <Box 
+            px={{ xs: 1, md: 2 }} 
+            pb={{ xs: 1, md: 2 }} 
+            sx={{ 
+              maxWidth: '100%', 
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              flex: 1,
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f1f1f1',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.2)' : '#888',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : '#555',
+              },
+            }}
+          >
+            {detailedLoading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+                <CircularProgress />
+              </Box>
+            ) : detailedData.length > 0 ? (
+              <>
+                {detailedData.map((item, index) => renderDetailedCard(item, index))}
+              </>
+            ) : (
+              <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+                <Typography color="text.secondary">No products found</Typography>
+              </Box>
+            )}
+          </Box>
+          {!detailedLoading && detailedData.length > 0 && (
+            <Box
+              sx={{
+                bgcolor: 'background.paper',
+                borderTop: '1px solid',
+                borderColor: 'divider',
+                py: { xs: 1, md: 1.5 },
+                px: { xs: 1, md: 2 },
+                zIndex: 10,
+                boxShadow: '0 -2px 8px rgba(0,0,0,0.1)',
+                maxWidth: '100%',
+                overflow: 'hidden',
+                flexShrink: 0,
+              }}
+            >
+              <Box 
+                display="flex" 
+                flexDirection={{ xs: 'column', sm: 'row' }}
+                justifyContent="space-between" 
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                gap={{ xs: 1, sm: 0 }}
+                sx={{ maxWidth: '100%' }}
+              >
+                <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap" sx={{ maxWidth: '100%' }}>
+                  <FormControl size="small" sx={{ minWidth: { xs: 60, md: 70 } }}>
+                    <Select
+                      value={detailedPageSize}
+                      onChange={(e) => {
+                        setDetailedPageSize(Number(e.target.value));
+                        setDetailedCurrentPage(1);
+                      }}
+                      sx={{ 
+                        bgcolor: 'background.paper',
+                        fontSize: { xs: '0.75rem', md: '0.875rem' },
+                        height: { xs: '28px', md: '32px' },
+                        '& .MuiSelect-select': {
+                          py: 0.5,
+                          color: 'text.primary',
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: 'divider',
+                        },
+                      }}
+                      displayEmpty
+                    >
+                      <MenuItem value={10} sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>10</MenuItem>
+                      <MenuItem value={25} sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>25</MenuItem>
+                      <MenuItem value={50} sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>50</MenuItem>
+                      <MenuItem value={100} sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>100</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <Typography fontSize={{ xs: 10, md: 12 }} color="text.secondary" sx={{ whiteSpace: { xs: 'normal', sm: 'nowrap' } }}>
+                    Showing {((detailedCurrentPage - 1) * detailedPageSize) + 1}-{Math.min(detailedCurrentPage * detailedPageSize, detailedTotalItems)} of {detailedTotalItems} items
+                  </Typography>
+                </Box>
+                <Pagination
+                  count={detailedTotalPages}
+                  page={detailedCurrentPage}
+                  onChange={(_, page) => setDetailedCurrentPage(page)}
+                  color="primary"
+                  size="small"
+                  showFirstButton
+                  showLastButton
+                  sx={{
+                    '& .MuiPaginationItem-root': {
+                      bgcolor: 'background.paper',
+                      fontSize: { xs: '0.7rem', md: '0.875rem' },
+                      minWidth: { xs: '28px', md: '32px' },
+                      height: { xs: '28px', md: '32px' },
+                      border: '1px solid',
+                      borderColor: 'divider',
+                    },
+                    '& .Mui-selected': {
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      borderColor: 'primary.main',
+                    },
+                    '& .MuiPaginationItem-root:hover': {
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'grey.100',
+                    },
+                  }}
+                />
+              </Box>
+            </Box>
+          )}
+        </Box>
+      )}
       {/* <PaginationExample /> */}
       </Paper>
       <CommonModal open={modalOpen} onClose={() => setModalOpen(false)} title="Product Details" size="lg">
@@ -1706,7 +3606,7 @@ const Product = () => {
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6, lg:4 }}>
                       <Typography fontSize={12} fontWeight={400} color="text.secondary">UPC Number</Typography>
-                      <Typography fontSize={13} fontWeight={400} color="text.primary">{selectedProduct.UPCList?.[0]?.UPC_Number || 'N/A'}</Typography>
+                      <Typography fontSize={13} fontWeight={400} color="text.primary">{formatValue(selectedProduct.UPCList?.[0]?.UPC_Number)}</Typography>
                     </Grid>
                     {/* <Grid size={{ xs: 12, sm: 6, lg:4 }}>
                       <Typography fontSize={14} fontWeight={400} color="text.secondary">Pack Size</Typography>

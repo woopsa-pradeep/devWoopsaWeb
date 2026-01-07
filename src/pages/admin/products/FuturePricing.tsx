@@ -662,7 +662,7 @@ const FuturePricing = () => {
                         <TableCell align="right" sx={{ minWidth: 80, fontSize: '11px', fontWeight: 500 }}>Retail 3</TableCell>
                         <TableCell align="right" sx={{ minWidth: 80, fontSize: '11px', fontWeight: 500 }}>Net Cost</TableCell>
                         <TableCell align="right" sx={{ minWidth: 80, fontSize: '11px', fontWeight: 500 }}>Base Cost</TableCell>
-                        <TableCell align="right" sx={{ minWidth: 80, fontSize: '11px', fontWeight: 500 }}>Invoice Cost</TableCell>
+                        <TableCell align="right" sx={{ minWidth: 80, fontSize: '11px', fontWeight: 500 }}>MFG Cost</TableCell>
                         <TableCell 
                           sx={{ 
                             minWidth: 80, 
@@ -1155,7 +1155,7 @@ const FuturePricing = () => {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextInput
-                label="Invoice Cost"
+                label="MFG Cost"
                 type="number"
                 value={formData.Invoice_Cost}
                 onChange={(e) => handleFormChange('Invoice_Cost', e.target.value)}

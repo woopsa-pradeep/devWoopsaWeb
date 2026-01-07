@@ -447,10 +447,10 @@ const OrderConfirmation = () => {
     <Box sx={{ padding: '10px 20px' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} gap={2}>
         <Box display="flex" alignItems="center" gap={1}>
-          <KeyboardBackspaceOutlined
+          {/* <KeyboardBackspaceOutlined
             onClick={() => window.history.back()}
             sx={{ cursor: 'pointer', width: 24, height: 24 }}
-          />
+          /> */}
           <Typography fontSize={20} fontWeight={500}>
             Order Confirmation
           </Typography>
