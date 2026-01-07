@@ -6,6 +6,7 @@ import { RootState } from "../../redux/store";
 import Navbar from "../../component/organisms/layoutComponent/Navbar";
 import Sidebar from "../../component/organisms/layoutComponent/Sidebar";
 import SubHeader from "../../component/organisms/layoutComponent/SubHeader";
+import FloatingChat from "../../component/atoms/FloatingChat";
 
 // Import icons
 import companyIcon from '../../assets/bag.svg';
@@ -214,6 +215,9 @@ const AdminLayout: React.FC = () => {
           </Box>
         </>
       )}
+      
+      {/* Floating Chat - Only visible for distributors */}
+      <FloatingChat />
     </Box>
   );
 };

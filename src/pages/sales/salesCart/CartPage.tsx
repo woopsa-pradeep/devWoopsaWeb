@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Box, Grid, Tooltip, Typography, Button } from "@mui/material";
-// import FrequentlyBoughtTogether from "../../../component/molecules/FrequentlyBoughtTogether";
+import FrequentlyBoughtTogether from "../../../component/molecules/FrequentlyBoughtTogether";
 import ShippingDetails from "../../../component/molecules/ShippingDetails";
 import PriceDetails from "../../../components/PriceDetails";
+import ProductDetailsModal from "../../../component/molecules/ProductDetailsModal";
 import product1 from "../../../assets/Default-Product-Image.jpg";
 // import product2 from "../../../assets/product2.png";
 // import product3 from "../../../assets/product3.png";
@@ -11,7 +12,7 @@ import { TableColumn } from "../../../component/atoms/Table/CommonTable";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
 import deleteIcon from "../../../assets/icons/delete.svg";
-import { updateCartItem, removeFromCart, placeOrder, getSalesWarehouseProfile, getDeliveryCharge, addToCart, clearCart as clearCartApi } from '../../../redux/apis/sales/salesOrderApis';
+import { updateCartItem, removeFromCart, placeOrder, getSalesWarehouseProfile, getDeliveryCharge, addToCart, clearCart as clearCartApi, getRecommendations, getInventoryItems } from '../../../redux/apis/sales/salesOrderApis';
 import DeleteConfirmationModal from '../../../component/atoms/DeleteConfirmationModal';
 import PriceChangeModal from '../../../component/molecules/PriceChangeModal';
 import InactiveItemsModal from '../../../component/molecules/InactiveItemsModal';
@@ -122,6 +123,15 @@ const CartPage: React.FC = () => {
   const [inputValues, setInputValues] = useState<{ [key: number]: number }>({});
   const debounceTimeouts = useRef<{ [key: number]: NodeJS.Timeout }>({});
 
+  // Recommended products state
+  const [recommendedProducts, setRecommendedProducts] = useState<any[]>([]);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
+  const prevCartIdsRef = useRef<Set<string>>(new Set());
+
+  // Product details modal state
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
   // Get cart state from Redux
   const { items: cartItems, userLimitMinOrderAmount, totalAmountWithTax, totalAmount } = useSelector((state: RootState) => state.salesCart) as any;
   const { selectedCustomer, allowDiscount, discountLimit, allowDeliveryCharge, storeDetail, wareHouseDetail
@@ -196,6 +206,101 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
   useEffect(() => {
     loadWarehouseProfile();
   }, []);
+
+  // Load recommended products
+  const loadRecommendedProducts = useCallback(async () => {
+    if (cartItems.length === 0 || !selectedCustomer) {
+      setRecommendedProducts([]);
+      return;
+    }
+
+    setRecommendationsLoading(true);
+    try {
+      // Get user ID from selected customer
+      const userId = selectedCustomer?.C_Number?.toString() || null;
+      
+      // Get cart item numbers
+      const cartItemNumbers = cartItems.map((item: CartItem) => item.Item_Number.toString());
+      
+      // Fetch recommendations
+      const recommendedItemNumbers = await getRecommendations(userId, cartItemNumbers);
+      
+      if (!recommendedItemNumbers || recommendedItemNumbers.length === 0) {
+        setRecommendedProducts([]);
+        return;
+      }
+
+      // Fetch product details for recommended items using masterSearch
+      const masterSearch = recommendedItemNumbers.join(',');
+      const params = {
+        page: 1,
+        limit: recommendedItemNumbers.length,
+        masterSearch: masterSearch,
+      };
+      
+      const response: any = await getInventoryItems(selectedCustomer.C_Number.toString(), params);
+      
+      if (response?.data?.finalProductList) {
+        // Transform API products to match FrequentlyBoughtTogether Product interface
+        const transformedProducts = response.data.finalProductList.map((apiProduct: any) => ({
+          id: apiProduct.Item_Number?.toString() || '',
+          Item_Number: apiProduct.Item_Number || 0,
+          name: apiProduct.Description || '',
+          Description: apiProduct.Description || '',
+          price: apiProduct.price || apiProduct.Price1 || 0,
+          priceWithTax: apiProduct.priceWithTax || 0,
+          stock: apiProduct.showLowStock ? 'Out of Stock' : 'In Stock',
+          stockCount: apiProduct.Inventory_OnHand || 0,
+          size: apiProduct.UOM || '',
+          UOM: apiProduct.UOM || '',
+          image: apiProduct.masterImage || product1,
+          masterImage: apiProduct.masterImage,
+          distributorImage: apiProduct.distributorImage,
+          showDistributorImage: apiProduct.showDistributorImage || false,
+          isNewItem: apiProduct.isNewItem || false,
+          isDiscounted: apiProduct.isDiscounted || false,
+          hasQtyDiscount: apiProduct.hasQtyDiscount || false,
+          qtyDiscount: apiProduct.qtyDiscount || null,
+          allowToOrder: apiProduct.allowToOrderSalesRep !== false,
+          showWithOutPrice: apiProduct.showWithOutPriceToSalesRep || false,
+          Tax_Rate: apiProduct.Tax_Rate || 0,
+          prepaidTaxRate: apiProduct.prepaidTaxRate || 0,
+          hasProductLimit: apiProduct.hasProductLimit || false,
+          productLimit: apiProduct.productLimit || null,
+          Inventory_OnHand: apiProduct.Inventory_OnHand || 0,
+          showTheInventoryStock: apiProduct.showTheInventoryStockToSalesRep || false,
+          showLowStock: apiProduct.showLowStockToSalesRep || false,
+        }));
+        
+        setRecommendedProducts(transformedProducts);
+      } else {
+        setRecommendedProducts([]);
+      }
+    } catch (error) {
+      console.error('Failed to load recommended products:', error);
+      setRecommendedProducts([]);
+    } finally {
+      setRecommendationsLoading(false);
+    }
+  }, [cartItems, selectedCustomer]);
+
+  // Load recommendations when cart gains new items (avoid quantity-only updates)
+  useEffect(() => {
+    const currentIds = new Set<string>(cartItems.map((item: CartItem) => String(item.Item_Number)));
+    let hasNewItem = false;
+
+    currentIds.forEach((id) => {
+      if (!prevCartIdsRef.current.has(id)) {
+        hasNewItem = true;
+      }
+    });
+
+    if (hasNewItem || (currentIds.size > 0 && prevCartIdsRef.current.size === 0)) {
+      loadRecommendedProducts();
+    }
+
+    prevCartIdsRef.current = currentIds;
+  }, [cartItems, loadRecommendedProducts]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -1378,6 +1483,104 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
   //   setDiscountModalOpen(true);
   // };
 
+  // Handle clicking on recommended product to view details
+  const handleRecommendedProductClick = (product: any) => {
+    // Transform recommended product to match ProductDetailsModal interface
+    const productForModal = {
+      name: product.name || product.Description || '',
+      image: product.image || product.masterImage || product1,
+      itemNumber: product.Item_Number?.toString() || product.id || '',
+      pack: product.size || product.UOM || '',
+      case: product.size || product.UOM || '',
+      size: product.size || product.UOM || '',
+      UnitOunces: product.UOM || '',
+      price: product.price || product.priceWithTax || 0,
+      Tax_Rate: product.Tax_Rate || 0,
+      upc: '',
+      crv: '',
+      category: '',
+      subCategory: '',
+      stock: product.stock || 'in stock',
+    };
+    setSelectedProduct(productForModal);
+    setIsProductModalOpen(true);
+  };
+
+  // Handle adding recommended product to cart
+  const handleAddRecommendedProduct = async (product: any) => {
+    if (!product.allowToOrder) {
+      toast.error('This item cannot be ordered.');
+      return;
+    }
+
+    if (!selectedCustomer?.C_Number) {
+      toast.error('Please select a customer first.');
+      return;
+    }
+
+    try {
+      // Check if this is the first time adding this product and if it has quantity discount
+      if (product.hasQtyDiscount && product.qtyDiscount) {
+        // Open discount modal automatically for first-time additions
+        setSelectedDiscountProduct({
+          ...product,
+          Product: {
+            id: 0,
+            Customer_Number: selectedCustomer.C_Number,
+            Item_Number: product.Item_Number,
+            Price: product.price || 0,
+            Tax_Rate: product.Tax_Rate || 0,
+            Price_With_Tax: product.priceWithTax || 0,
+            TotalPriceWithTax: product.priceWithTax || 0,
+            Qty: 0,
+            TotalPrice: product.price || 0,
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+            originalPrice: product.price || 0,
+          },
+        } as CartItem);
+        setSelectedDiscountData(product.qtyDiscount);
+        setDiscountModalOpen(true);
+        
+        toast.success(`Quantity discount available for ${product.name || product.Description}! Please review discount options.`);
+        return; // Don't add to cart yet, wait for modal confirmation
+      }
+
+      // Calculate cart payload
+      const basePrice = Number(product.price || 0);
+      const prepaidTaxRate = Number(product.prepaidTaxRate || 0);
+      const taxRate = Number(product.Tax_Rate || 0);
+      const qty = 1;
+
+      // Calculate Price_With_Tax: (price + Tax_Rate) * (1 + prepaidTaxRate)
+      const basePriceWithTax = basePrice + taxRate;
+      const priceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
+      const totalPriceWithTax = priceWithTax * qty;
+
+      const payload = {
+        Item_Number: product.Item_Number,
+        Price: Number(Number(basePrice).toFixed(2)),
+        Price_With_Tax: Number(Number(priceWithTax).toFixed(2)),
+        Qty: qty,
+        Tax_Rate: Number(Number(taxRate).toFixed(2)),
+        TotalPrice: Number(Number(basePrice * qty).toFixed(2)),
+        TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
+        originalPrice: Number(Number(basePrice).toFixed(2)),
+        prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)),
+        TotalprepaidTaxRate: Number(Number((basePriceWithTax * prepaidTaxRate * qty).toFixed(2))),
+      };
+
+      await addToCart(selectedCustomer.C_Number.toString(), payload);
+      await loadCartItems(); // Refresh cart from server
+      toast.success(`Added ${product.name || product.Description} to cart!`);
+    } catch (error: any) {
+      console.error('Failed to add recommended product to cart:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to add product to cart. Please try again.';
+      toast.error(errorMessage);
+    }
+  };
+
   // Function to handle no discount selection - add 1 quantity without discount
   const handleNoDiscount = async () => {
     if (selectedDiscountProduct) {
@@ -1453,12 +1656,16 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, lg: 8 }}>
           <Grid container spacing={3}>
-            {/* <Grid size={12}>
-              <FrequentlyBoughtTogether
-                products={frequentlyBoughtProducts}
-                onAddProduct={handleAddProduct}
-              />
-            </Grid> */}
+            {recommendedProducts.length > 0 && (
+              <Grid size={12}>
+                <FrequentlyBoughtTogether
+                  products={recommendedProducts}
+                  onAddProduct={handleAddRecommendedProduct}
+                  onProductClick={handleRecommendedProductClick}
+                  loading={recommendationsLoading}
+                />
+              </Grid>
+            )}
             <Grid size={12}>
               <CommonTable
                 currentPage={1}
@@ -1556,6 +1763,16 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
         onConfirm={handleInactiveItemsClose}
         inactiveItems={inactiveItems}
         loading={inactiveItemsLoading}
+      />
+
+      {/* Product Details Modal */}
+      <ProductDetailsModal
+        open={isProductModalOpen}
+        onClose={() => {
+          setIsProductModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
       />
 
       {/* Order Celebration */}

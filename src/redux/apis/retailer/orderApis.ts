@@ -127,6 +127,35 @@ export const getOrderPdf = async (id: any, hasPrice: boolean = true) => {
     return response.data;
 }
 
+// Recommendation API
+const RECOMMENDER_API_BASE_URL = process.env.REACT_APP_RECOMMENDER_API_URL || 'https://apibytogether.woopsa.app';
+const RECOMMENDER_API_KEY = process.env.REACT_APP_RECOMMENDER_API_KEY || 'secret-api-key';
+
+export const getRecommendations = async (userId: string | null, cartItemNumbers: string[]) => {
+    try {
+        const response = await fetch(`${RECOMMENDER_API_BASE_URL}/recommend`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': RECOMMENDER_API_KEY
+            },
+            body: JSON.stringify({
+                user_id: userId || null,
+                cart: cartItemNumbers
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return data; // Array of item numbers
+    } catch (error) {
+        console.error('Error fetching recommendations:', error);
+        return [];
+    }
+}
 export const getInventoryShowPrepaidTax = async () => {
     const response = await axiosInstance.get('/retailer/getInventoryShowPrepaidTax');
     return response.data;

@@ -59,6 +59,10 @@ const AddRetailer: React.FC = () => {
   const [categoryAccordionExpanded, setCategoryAccordionExpanded] = useState(false);
   const [salesCategories, setSalesCategories] = useState<Array<{ Sales_Category: number; Category_Desc: string }>>([]);
   
+  // Geocoding states
+  const [coordinates, setCoordinates] = useState<{ lat: number | null; long: number | null }>({ lat: null, long: null });
+  const [geocodingLoading, setGeocodingLoading] = useState(false);
+  
   // Document upload states
   const [attachments, setAttachments] = useState<File[]>([]);
   const [salesTaxDoc, setSalesTaxDoc] = useState<File | null>(null);
@@ -193,6 +197,55 @@ const AddRetailer: React.FC = () => {
       fetchCustomerData();
     }
   }, [isEditMode, customerId]);
+
+  // Watch address fields and geocode when all are filled
+  const address = watch('C_Address');
+  const city = watch('C_City');
+  const state = watch('C_State');
+  const zip = watch('C_Zip');
+  const country = watch('C_Country');
+
+  useEffect(() => {
+    const geocodeAddressFields = async () => {
+      // Check if all required address fields are filled
+      if (address && city && state && zip) {
+        setGeocodingLoading(true);
+        try {
+          const geocodedResult = await geocodeAddress(
+            address,
+            city,
+            state,
+            country || '',
+            zip
+          );
+          
+          if (geocodedResult) {
+            setCoordinates({
+              lat: geocodedResult.lat,
+              long: geocodedResult.long,
+            });
+          } else {
+            setCoordinates({ lat: null, long: null });
+          }
+        } catch (error) {
+          console.error('Error geocoding address:', error);
+          setCoordinates({ lat: null, long: null });
+        } finally {
+          setGeocodingLoading(false);
+        }
+      } else {
+        // Reset coordinates if any required field is empty
+        setCoordinates({ lat: null, long: null });
+      }
+    };
+
+    // Debounce geocoding to avoid too many API calls
+    const timeoutId = setTimeout(() => {
+      geocodeAddressFields();
+    }, 1000); // Wait 1 second after user stops typing
+
+    return () => clearTimeout(timeoutId);
+  }, [address, city, state, zip, country]);
 
   const fetchCustomerData = async () => {
     try {
@@ -950,6 +1003,23 @@ const AddRetailer: React.FC = () => {
                               }}
                             />
                           )}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <TextInput
+                          label="Latitude / Longitude"
+                          value={
+                            geocodingLoading
+                              ? 'Loading...'
+                              : coordinates.lat !== null && coordinates.long !== null
+                              ? `${coordinates.lat.toFixed(6)}, ${coordinates.long.toFixed(6)}`
+                              : address && city && state && zip
+                              ? 'Unable to geocode address'
+                              : 'Fill all address fields to get coordinates'
+                          }
+                          disabled
+                          helperText={geocodingLoading ? 'Geocoding address...' : 'Auto-generated from address fields'}
+                          icon={geocodingLoading ? <CircularProgress size={20} /> : undefined}
                         />
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6, md: 4 }}>
