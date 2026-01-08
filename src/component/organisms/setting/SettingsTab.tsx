@@ -97,7 +97,8 @@ interface SettingsData {
     maxPromotedItems: number;
     promotedItems: string[];
   };
-
+  orderEmailNotification?: string | null;
+  warehouseImage?: string;
 }
 
 interface ContactUsData {
@@ -164,6 +165,7 @@ interface FormData {
     storePickup: boolean;
     allowShipping: boolean;
     timeSlots?: DayTimeSlots[];
+    orderEmailNotification?: string;
   };
   demandedItems: {
     showMostSale: boolean;
@@ -448,6 +450,7 @@ const SettingsTabs = () => {
               storePickup: data.warehouseProfile?.storePickup ?? false,
               allowShipping: data.warehouseProfile?.allowShipping ?? true,
               timeSlots: data.warehouseProfile?.timeSlots || [],
+              orderEmailNotification: data.orderEmailNotification ?? '',
             },
             demandedItems: {
               showMostSale: data.demandedItems?.showMostSale ?? true,
@@ -1191,6 +1194,18 @@ const SettingsTabs = () => {
                 />
               </Box>
             )}
+            
+            <Box sx={{ mb: 2 }}>
+              <Typography sx={{ fontSize: 14, mb: 1 }}>Order Email Notification</Typography>
+              <TextField
+                fullWidth
+                type="email"
+                value={formData.warehouseProfile.orderEmailNotification || ''}
+                onChange={(e) => handleFieldChange('warehouseProfile', 'orderEmailNotification', e.target.value)}
+                size="small"
+                placeholder="Enter email address for order notifications"
+              />
+            </Box>  
           </Box>
         );
 
