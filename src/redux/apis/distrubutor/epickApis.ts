@@ -130,7 +130,7 @@ export const getCompleteOrders = async () => {
 
 // Get complete order details
 export const getCompleteOrderDetails = async (orderNumber: number) => {
-    const response = await axiosInstance.get(`/checker/getOrderDetails/${orderNumber}`);
+    const response = await axiosInstance.get(`/epick/getOrderDetailsByOrderNumber/${orderNumber}`);
     return response.data;
 }
 

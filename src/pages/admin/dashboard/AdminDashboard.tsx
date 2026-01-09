@@ -89,8 +89,23 @@ interface DashboardData {
 interface EpickDashboardData {
   orderStatistics: {
     totalOrders: number;
+    totalOrdersFromHeader: number;
+    totalCompletedOrders: number;
     completedByEpick: number;
     pendingFromEpick: number;
+    totalCheckerOrders: number;
+    ordersCompletedByChecker: number;
+  };
+  scanningStatistics: {
+    totalScannedItems: number;
+    totalScannedLines: number;
+    totalTimeSeconds: number;
+    totalTimeFormatted: string;
+  };
+  overrideRequestStatistics: {
+    totalRequests: number;
+    totalAcceptedRequests: number;
+    totalRejectedRequests: number;
   };
   pickerWiseOrders: Array<{
     pickerId: number;
@@ -100,10 +115,20 @@ interface EpickDashboardData {
       averageTimeSeconds: number;
       averageTimeFormatted: string;
     };
+    averageTimePerQuantity: {
+      secondsPerQty: number;
+      formatted: string;
+    };
+    totalScannedQuantity: number;
+    totalOverrideRequests: number;
   }>;
   averageOrderTime: {
     averageTimeSeconds: number;
     averageTimeFormatted: string;
+    averageTimePerQuantity: {
+      secondsPerQty: number;
+      formatted: string;
+    };
   };
   dateRange: {
     fromDate: string;
@@ -128,6 +153,10 @@ const AdminDashboard = () => {
   const [highDemandViewMode, setHighDemandViewMode] = useState<"table" | "graph">("table");
   const [pickerViewMode, setPickerViewMode] = useState<"table" | "graph">("table");
   const [salesPerformanceViewMode, setSalesPerformanceViewMode] = useState<"table" | "graph">("table");
+  const [averageTimePerQtyViewMode, setAverageTimePerQtyViewMode] = useState<"table" | "graph">("graph");
+  const [scannedQtyViewMode, setScannedQtyViewMode] = useState<"table" | "graph">("graph");
+  const [scanningStatsViewMode, setScanningStatsViewMode] = useState<"table" | "graph">("graph");
+  const [overrideStatsViewMode, setOverrideStatsViewMode] = useState<"table" | "graph">("graph");
 
   useEffect(() => {
     if ((startDate && endDate) || (!startDate && !endDate)) {
@@ -232,6 +261,18 @@ const AdminDashboard = () => {
           value: epickData.averageOrderTime.averageTimeFormatted,
           color: "success" as const,
           icon: <AccessTimeIcon sx={{ width: 20, height: 20, color: theme.palette.info.main }} />,
+        },
+        {
+          title: "Orders Ready for Checker",
+          value: epickData.orderStatistics.totalCheckerOrders.toString(),
+          color: "warning" as const,
+          icon: <PersonIcon sx={{ width: 20, height: 20, color: theme.palette.warning.main }} />,
+        },
+        {
+          title: "Completed by Checker",
+          value: epickData.orderStatistics.ordersCompletedByChecker.toString(),
+          color: "success" as const,
+          icon: <CheckCircleIcon sx={{ width: 20, height: 20, color: theme.palette.success.main }} />,
         },
       ]
     : [];
@@ -417,6 +458,172 @@ const AdminDashboard = () => {
             {row.averageOrderTime.averageTimeFormatted}
           </Typography>
         </Box>
+      ),
+    },
+  ];
+
+  const averageTimePerQtyColumns: TableColumn[] = [
+    {
+      id: "name",
+      label: "Picker Name",
+      render: (row, rowIdx) => {
+        const colors = [
+          theme.palette.primary.main,
+          theme.palette.success.main,
+          theme.palette.warning.main,
+          theme.palette.error.main,
+          theme.palette.info.main,
+        ];
+        const color = colors[rowIdx % colors.length];
+        return (
+          <Box display="flex" alignItems="center" gap={1}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                background: color,
+              }}
+            />
+            <Typography fontSize={13} fontWeight={500} color="text.primary">
+              {row.pickerName}
+            </Typography>
+          </Box>
+        );
+      },
+    },
+    {
+      id: "averageTimePerQty",
+      label: "Average Time Per Quantity",
+      render: (row, rowIdx) => {
+        const colors = [
+          theme.palette.primary.main,
+          theme.palette.success.main,
+          theme.palette.warning.main,
+          theme.palette.error.main,
+          theme.palette.info.main,
+        ];
+        const color = colors[rowIdx % colors.length];
+        return (
+          <Box display="flex" alignItems="center" gap={0.5}>
+            <AccessTimeIcon sx={{ fontSize: 14, color: color }} />
+            <Typography fontSize={13} fontWeight={500} color={color}>
+              {row.averageTimePerQuantity.formatted}
+            </Typography>
+          </Box>
+        );
+      },
+    },
+  ];
+
+  const scannedQtyColumns: TableColumn[] = [
+    {
+      id: "name",
+      label: "Picker Name",
+      render: (row, rowIdx) => {
+        const colors = [
+          theme.palette.primary.main,
+          theme.palette.success.main,
+          theme.palette.warning.main,
+          theme.palette.error.main,
+          theme.palette.info.main,
+        ];
+        const color = colors[rowIdx % colors.length];
+        return (
+          <Box display="flex" alignItems="center" gap={1}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                background: color,
+              }}
+            />
+            <Typography fontSize={13} fontWeight={500} color="text.primary">
+              {row.pickerName}
+            </Typography>
+          </Box>
+        );
+      },
+    },
+    {
+      id: "scannedQuantity",
+      label: "Scanned Quantity",
+      render: (row, rowIdx) => {
+        const colors = [
+          theme.palette.primary.main,
+          theme.palette.success.main,
+          theme.palette.warning.main,
+          theme.palette.error.main,
+          theme.palette.info.main,
+        ];
+        const color = colors[rowIdx % colors.length];
+        return (
+          <Typography fontSize={13} fontWeight={500} color={color}>
+            {row.totalScannedQuantity.toLocaleString()}
+          </Typography>
+        );
+      },
+    },
+    {
+      id: "overrideRequests",
+      label: "Override Requests",
+      render: (row, rowIdx) => {
+        const colors = [
+          theme.palette.primary.main,
+          theme.palette.success.main,
+          theme.palette.warning.main,
+          theme.palette.error.main,
+          theme.palette.info.main,
+        ];
+        const color = colors[rowIdx % colors.length];
+        return (
+          <Typography fontSize={13} fontWeight={500} color={alpha(color, 0.8)}>
+            {row.totalOverrideRequests.toLocaleString()}
+          </Typography>
+        );
+      },
+    },
+  ];
+
+  const scanningStatsColumns: TableColumn[] = [
+    {
+      id: "metric",
+      label: "Metric",
+      render: (row: any) => (
+        <Typography fontSize={13} fontWeight={500} color="text.primary">
+          {row.metric}
+        </Typography>
+      ),
+    },
+    {
+      id: "value",
+      label: "Value",
+      render: (row: any) => (
+        <Typography fontSize={13} fontWeight={500} color="text.secondary">
+          {row.value}
+        </Typography>
+      ),
+    },
+  ];
+
+  const overrideStatsColumns: TableColumn[] = [
+    {
+      id: "type",
+      label: "Request Type",
+      render: (row: any) => (
+        <Typography fontSize={13} fontWeight={500} color="text.primary">
+          {row.type}
+        </Typography>
+      ),
+    },
+    {
+      id: "count",
+      label: "Count",
+      render: (row: any) => (
+        <Typography fontSize={13} fontWeight={500} color={row.color}>
+          {row.count.toLocaleString()}
+        </Typography>
       ),
     },
   ];
@@ -1086,7 +1293,7 @@ const AdminDashboard = () => {
           </Grid>
 
           {/* Picker Performance */}
-          <Grid container spacing={2}>
+          <Grid container spacing={2} mb={2}>
             <Grid size={{ xs: 12 }}>
               <Grow in={true} timeout={800}>
                 <Paper
@@ -1184,6 +1391,779 @@ const AdminDashboard = () => {
                             radius={[6, 6, 0, 0]}
                           />
                         </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+          </Grid>
+
+          {/* Donut Charts Section */}
+          <Grid container spacing={2}>
+            {/* Average Time Per Quantity Donut Chart */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Grow in={true} timeout={1000}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      Average Time Per Quantity
+                    </Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={() => setAverageTimePerQtyViewMode("graph")}
+                        variant={averageTimePerQtyViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setAverageTimePerQtyViewMode("table")}
+                        variant={averageTimePerQtyViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {averageTimePerQtyViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={epickData?.pickerWiseOrders || []}
+                      columns={averageTimePerQtyColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={epickData?.pickerWiseOrders.length || 0}
+                      stickyHeader={true}
+                      pageSize={epickData?.pickerWiseOrders.length || 0}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={epickLoading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No picker data</Typography>}
+                    />
+                  ) : (
+                    <Box sx={{ height: 300, width: "100%" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={epickData?.pickerWiseOrders.map((picker) => ({
+                              name: picker.pickerName,
+                              value: picker.averageTimePerQuantity.secondsPerQty,
+                              pickerId: picker.pickerId,
+                              formatted: picker.averageTimePerQuantity.formatted,
+                            })) || []}
+                            dataKey="value"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            startAngle={90}
+                            endAngle={-270}
+                            cornerRadius={8}
+                            stroke="none"
+                            paddingAngle={2}
+                            isAnimationActive
+                          >
+                            {(epickData?.pickerWiseOrders || []).map((picker, index) => {
+                              const colors = [
+                                theme.palette.primary.main,
+                                theme.palette.success.main,
+                                theme.palette.warning.main,
+                                theme.palette.error.main,
+                                theme.palette.info.main,
+                              ];
+                              return (
+                                <Cell key={picker.pickerId} fill={colors[index % colors.length]} />
+                              );
+                            })}
+                          </Pie>
+                          <text
+                            x="50%"
+                            y="50%"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: 500,
+                              fill: theme.palette.text.primary,
+                            }}
+                          >
+                            Time/Qty
+                          </text>
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as any;
+                                const picker = epickData?.pickerWiseOrders.find(
+                                  (p) => p.pickerId === data.pickerId
+                                );
+                                if (picker) {
+                                  return (
+                                    <Paper
+                                      elevation={8}
+                                      sx={{
+                                        p: 1.5,
+                                        background: theme.palette.mode === 'dark' 
+                                          ? alpha(theme.palette.background.paper, 0.95)
+                                          : theme.palette.background.paper,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        borderRadius: 2,
+                                      }}
+                                    >
+                                      <Typography fontSize={12} fontWeight={600} mb={0.5}>
+                                        {picker.pickerName}
+                                      </Typography>
+                                      <Typography fontSize={11} color="text.secondary">
+                                        Time/Qty: {picker.averageTimePerQuantity.formatted}
+                                      </Typography>
+                                    </Paper>
+                                  );
+                                }
+                              }
+                              return null;
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+
+            {/* Scanned Quantity & Override Requests Donut Chart */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Grow in={true} timeout={1200}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      Scanned Quantity & Override Requests
+                    </Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={() => setScannedQtyViewMode("graph")}
+                        variant={scannedQtyViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setScannedQtyViewMode("table")}
+                        variant={scannedQtyViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {scannedQtyViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={epickData?.pickerWiseOrders || []}
+                      columns={scannedQtyColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={epickData?.pickerWiseOrders.length || 0}
+                      stickyHeader={true}
+                      pageSize={epickData?.pickerWiseOrders.length || 0}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={epickLoading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No picker data</Typography>}
+                    />
+                  ) : (
+                    <Box sx={{ height: 300, width: "100%" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          {/* Outer ring for Scanned Quantity */}
+                          <Pie
+                            data={epickData?.pickerWiseOrders.map((picker) => ({
+                              name: picker.pickerName,
+                              value: picker.totalScannedQuantity,
+                              pickerId: picker.pickerId,
+                              type: 'scanned',
+                            })) || []}
+                            dataKey="value"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={80}
+                            outerRadius={100}
+                            startAngle={90}
+                            endAngle={-270}
+                            cornerRadius={8}
+                            stroke="none"
+                            paddingAngle={2}
+                            isAnimationActive
+                          >
+                            {(epickData?.pickerWiseOrders || []).map((picker, index) => {
+                              const colors = [
+                                theme.palette.primary.main,
+                                theme.palette.success.main,
+                                theme.palette.warning.main,
+                                theme.palette.error.main,
+                                theme.palette.info.main,
+                              ];
+                              return (
+                                <Cell key={`scanned-${picker.pickerId}`} fill={colors[index % colors.length]} />
+                              );
+                            })}
+                          </Pie>
+                          
+                          {/* Inner ring for Override Requests */}
+                          <Pie
+                            data={epickData?.pickerWiseOrders.map((picker) => ({
+                              name: picker.pickerName,
+                              value: picker.totalOverrideRequests,
+                              pickerId: picker.pickerId,
+                              type: 'override',
+                            })) || []}
+                            dataKey="value"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={75}
+                            startAngle={90}
+                            endAngle={-270}
+                            cornerRadius={6}
+                            stroke="none"
+                            paddingAngle={2}
+                            isAnimationActive
+                          >
+                            {(epickData?.pickerWiseOrders || []).map((picker, index) => {
+                              const colors = [
+                                theme.palette.primary.main,
+                                theme.palette.success.main,
+                                theme.palette.warning.main,
+                                theme.palette.error.main,
+                                theme.palette.info.main,
+                              ];
+                              return (
+                                <Cell key={`override-${picker.pickerId}`} fill={alpha(colors[index % colors.length], 0.7)} />
+                              );
+                            })}
+                          </Pie>
+                          
+                          <text
+                            x="50%"
+                            y="50%"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: 500,
+                              fill: theme.palette.text.primary,
+                            }}
+                          >
+                            Qty & Overrides
+                          </text>
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as any;
+                                const picker = epickData?.pickerWiseOrders.find(
+                                  (p) => p.pickerId === data.pickerId
+                                );
+                                if (picker) {
+                                  return (
+                                    <Paper
+                                      elevation={8}
+                                      sx={{
+                                        p: 1.5,
+                                        background: theme.palette.mode === 'dark' 
+                                          ? alpha(theme.palette.background.paper, 0.95)
+                                          : theme.palette.background.paper,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        borderRadius: 2,
+                                      }}
+                                    >
+                                      <Typography fontSize={12} fontWeight={600} mb={0.5}>
+                                        {picker.pickerName}
+                                      </Typography>
+                                      <Typography fontSize={11} color="text.secondary">
+                                        {data.type === 'scanned' ? 'Scanned Qty' : 'Override Requests'}: {data.value.toLocaleString()}
+                                      </Typography>
+                                    </Paper>
+                                  );
+                                }
+                              }
+                              return null;
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+          </Grid>
+
+          {/* Scanning Statistics & Override Request Statistics */}
+          <Grid container spacing={2} mt={2}>
+            {/* Scanning Statistics Chart */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Grow in={true} timeout={1400}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      Scanning Statistics
+                    </Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={() => setScanningStatsViewMode("graph")}
+                        variant={scanningStatsViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setScanningStatsViewMode("table")}
+                        variant={scanningStatsViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {scanningStatsViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={epickData?.scanningStatistics ? [
+                        {
+                          id: 1,
+                          metric: "Total Scanned Items",
+                          value: epickData.scanningStatistics.totalScannedItems.toLocaleString(),
+                        },
+                        {
+                          id: 2,
+                          metric: "Total Scanned Lines",
+                          value: epickData.scanningStatistics.totalScannedLines.toLocaleString(),
+                        },
+                        {
+                          id: 3,
+                          metric: "Total Scanning Time",
+                          value: epickData.scanningStatistics.totalTimeFormatted,
+                        },
+                      ] : []}
+                      columns={scanningStatsColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={epickData?.scanningStatistics ? 3 : 0}
+                      stickyHeader={true}
+                      pageSize={3}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={epickLoading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No scanning data</Typography>}
+                    />
+                  ) : (
+                    <>
+                      <Box sx={{ height: 300, width: "100%" }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={epickData?.scanningStatistics ? [
+                              {
+                                name: "Scanned Items",
+                                value: epickData.scanningStatistics.totalScannedItems,
+                                color: theme.palette.primary.main,
+                              },
+                              {
+                                name: "Scanned Lines",
+                                value: epickData.scanningStatistics.totalScannedLines,
+                                color: theme.palette.success.main,
+                              },
+                            ] : []}
+                          >
+                            <CartesianGrid 
+                              strokeDasharray="3 3" 
+                              stroke={alpha(theme.palette.divider, 0.5)}
+                              vertical={false}
+                            />
+                            <XAxis 
+                              dataKey="name" 
+                              tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                              axisLine={false}
+                            />
+                            <YAxis 
+                              tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                              axisLine={false}
+                              tickFormatter={(value) => value.toLocaleString()}
+                            />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Bar 
+                              dataKey="value" 
+                              radius={[6, 6, 0, 0]}
+                            >
+                              {epickData?.scanningStatistics ? [
+                                <Cell key="items" fill={theme.palette.primary.main} />,
+                                <Cell key="lines" fill={theme.palette.success.main} />,
+                              ] : []}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 1,
+                          mt: 1.5,
+                        }}
+                      >
+                        {epickData?.scanningStatistics && (
+                          <>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1.5,
+                                py: 0.75,
+                                borderRadius: 1.5,
+                                background: alpha(theme.palette.primary.main, 0.1),
+                                border: `1px solid ${theme.palette.primary.main}`,
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 12,
+                                  height: 12,
+                                  borderRadius: '50%',
+                                  background: theme.palette.primary.main,
+                                }}
+                              />
+                              <Typography fontSize={12} fontWeight={500} flex={1}>
+                                Total Scanned Items
+                              </Typography>
+                              <Typography fontSize={12} fontWeight={500} color={theme.palette.primary.main}>
+                                {epickData.scanningStatistics.totalScannedItems.toLocaleString()}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1.5,
+                                py: 0.75,
+                                borderRadius: 1.5,
+                                background: alpha(theme.palette.success.main, 0.1),
+                                border: `1px solid ${theme.palette.success.main}`,
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 12,
+                                  height: 12,
+                                  borderRadius: '50%',
+                                  background: theme.palette.success.main,
+                                }}
+                              />
+                              <Typography fontSize={12} fontWeight={500} flex={1}>
+                                Total Scanned Lines
+                              </Typography>
+                              <Typography fontSize={12} fontWeight={500} color={theme.palette.success.main}>
+                                {epickData.scanningStatistics.totalScannedLines.toLocaleString()}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1.5,
+                                py: 0.75,
+                                borderRadius: 1.5,
+                                background: alpha(theme.palette.info.main, 0.1),
+                                border: `1px solid ${theme.palette.info.main}`,
+                              }}
+                            >
+                              <AccessTimeIcon sx={{ fontSize: 16, color: theme.palette.info.main }} />
+                              <Typography fontSize={12} fontWeight={500} flex={1}>
+                                Total Scanning Time
+                              </Typography>
+                              <Typography fontSize={12} fontWeight={500} color={theme.palette.info.main}>
+                                {epickData.scanningStatistics.totalTimeFormatted}
+                              </Typography>
+                            </Box>
+                          </>
+                        )}
+                      </Box>
+                    </>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+
+            {/* Override Request Statistics Chart */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Grow in={true} timeout={1600}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      Override Request Statistics
+                    </Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={() => setOverrideStatsViewMode("graph")}
+                        variant={overrideStatsViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setOverrideStatsViewMode("table")}
+                        variant={overrideStatsViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {overrideStatsViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={epickData?.overrideRequestStatistics ? [
+                        {
+                          id: 1,
+                          type: "Total Requests",
+                          count: epickData.overrideRequestStatistics.totalRequests,
+                          color: theme.palette.warning.main,
+                        },
+                        {
+                          id: 2,
+                          type: "Accepted Requests",
+                          count: epickData.overrideRequestStatistics.totalAcceptedRequests,
+                          color: theme.palette.success.main,
+                        },
+                        {
+                          id: 3,
+                          type: "Rejected Requests",
+                          count: epickData.overrideRequestStatistics.totalRejectedRequests,
+                          color: theme.palette.error.main,
+                        },
+                      ] : []}
+                      columns={overrideStatsColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={epickData?.overrideRequestStatistics ? 3 : 0}
+                      stickyHeader={true}
+                      pageSize={3}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={epickLoading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No override data</Typography>}
+                    />
+                  ) : (
+                    <Box sx={{ height: 300, width: "100%" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={epickData?.overrideRequestStatistics ? [
+                              {
+                                name: "Total Requests",
+                                value: epickData.overrideRequestStatistics.totalRequests,
+                                color: theme.palette.warning.main,
+                              },
+                              {
+                                name: "Accepted",
+                                value: epickData.overrideRequestStatistics.totalAcceptedRequests,
+                                color: theme.palette.success.main,
+                              },
+                              {
+                                name: "Rejected",
+                                value: epickData.overrideRequestStatistics.totalRejectedRequests,
+                                color: theme.palette.error.main,
+                              },
+                            ].filter(item => item.value > 0) : []}
+                            dataKey="value"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            startAngle={90}
+                            endAngle={-270}
+                            cornerRadius={8}
+                            stroke="none"
+                            paddingAngle={2}
+                            isAnimationActive
+                          >
+                            {epickData?.overrideRequestStatistics ? [
+                              <Cell key="total" fill={theme.palette.warning.main} />,
+                              <Cell key="accepted" fill={theme.palette.success.main} />,
+                              <Cell key="rejected" fill={theme.palette.error.main} />,
+                            ] : []}
+                          </Pie>
+                          <text
+                            x="50%"
+                            y="50%"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: 500,
+                              fill: theme.palette.text.primary,
+                            }}
+                          >
+                            Requests
+                          </text>
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as any;
+                                return (
+                                  <Paper
+                                    elevation={8}
+                                    sx={{
+                                      p: 1.5,
+                                      background: theme.palette.mode === 'dark' 
+                                        ? alpha(theme.palette.background.paper, 0.95)
+                                        : theme.palette.background.paper,
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      borderRadius: 2,
+                                    }}
+                                  >
+                                    <Typography fontSize={12} fontWeight={600} mb={0.5}>
+                                      {data.name}
+                                    </Typography>
+                                    <Typography fontSize={11} color="text.secondary">
+                                      Requests: {data.value.toLocaleString()}
+                                    </Typography>
+                                  </Paper>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                        </PieChart>
                       </ResponsiveContainer>
                     </Box>
                   )}

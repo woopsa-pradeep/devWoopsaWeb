@@ -65,11 +65,14 @@ interface Customer {
 interface EpickReport {
   orderNumber: number;
   customerNumber: number;
-  pickerUserNumber: number;
+  pickerUserNumber?: number;
+  pickerId?: number;
   picker: Picker;
   customer: Customer;
   startedAt: string;
   completedAt: string;
+  pickerName?: string;
+  pickerEmail?: string;
 }
 
 interface OverrideRequest {
@@ -77,6 +80,7 @@ interface OverrideRequest {
   orderNumber: number;
   itemNumber: number;
   itemDescription: string;
+  pickerId?: number;
   pickerUserNumber: number;
   userName: string;
   userEmail: string;
@@ -109,6 +113,23 @@ interface OrderItem {
   masterImage: string;
   distributorImage: string | null;
   isDistributorImageShow: boolean;
+  pickerId?: number;
+  pickerUserNumber?: number | string;
+}
+
+interface PickerInfo {
+  pickerId: number;
+  pickerName: string;
+  pickerEmail?: string;
+  pickerUserNumber?: number | string;
+  startedAt?: string;
+  completedAt?: string;
+  totalLines?: number;
+  totalQty?: number;
+  scannedLines?: number;
+  scannedQty?: number;
+  orderItems?: OrderItem[];
+  overrideRequests?: OverrideRequest[];
 }
 
 interface CompleteOrderDetails {
@@ -134,6 +155,8 @@ interface CompleteOrderDetails {
     };
     startedAt: string;
     completedAt: string;
+    allPicker?: PickerInfo[];
+    allPickers?: PickerInfo[];
   };
   orderItems: OrderItem[];
   overrideRequests: OverrideRequest[];
@@ -142,6 +165,13 @@ interface CompleteOrderDetails {
     totalItemsShipped: number;
     totalItems: number;
   };
+  salesCategorySummary?: Array<{
+    salesCategory: number;
+    salesCategoryName: string;
+    totalItems: number;
+    totalQty: number;
+    scannedQty: number;
+  }>;
 }
 
 
@@ -224,17 +254,78 @@ const EpickReportsTab: React.FC = () => {
       const response: any = await getEpickReports(params);
       console.log('Epick Reports API Response:', response);
       
-      let reportsData: EpickReport[] = [];
+      let ordersData: any[] = [];
       let total = 0;
       
       if (response?.data) {
         if (response.data.data && Array.isArray(response.data.data)) {
-          reportsData = response.data.data;
+          ordersData = response.data.data;
           total = response.data.totalCount || 0;
         } else if (Array.isArray(response.data)) {
-          reportsData = response.data;
+          ordersData = response.data;
         }
       }
+      
+      // Transform data to show picker-wise: if order has allPickers, create one row per picker
+      const reportsData: EpickReport[] = [];
+      
+      ordersData.forEach((order: any) => {
+        const allPickers = order.allPickers || order.allPicker;
+        const customer = order.customer || {};
+        
+        if (allPickers && Array.isArray(allPickers) && allPickers.length > 0) {
+          // Create one row per picker
+          allPickers.forEach((picker: any) => {
+            reportsData.push({
+              orderNumber: order.orderNumber,
+              customerNumber: customer.customerNumber || customer.C_Number || 0,
+              pickerId: picker.pickerId,
+              pickerUserNumber: picker.pickerUserNumber,
+              pickerName: picker.pickerName,
+              pickerEmail: picker.pickerEmail,
+              picker: {
+                id: picker.pickerId,
+                userNumber: picker.pickerUserNumber,
+                name: picker.pickerName || '',
+                email: picker.pickerEmail || '',
+              },
+              customer: {
+                customerNumber: customer.customerNumber || customer.C_Number || 0,
+                customerName: customer.customerName || customer.C_Name || 'N/A',
+                route: customer.route || customer.Routes?.[0]?.Route_Number || null,
+                stop: customer.stop || customer.Routes?.[0]?.Stop_Number || null,
+              },
+              startedAt: picker.startedAt || order.startedAt || '',
+              completedAt: picker.completedAt || order.completedAt || '',
+            });
+          });
+        } else {
+          // Single picker or no picker info - use order level data
+          const picker = order.picker || {};
+          reportsData.push({
+            orderNumber: order.orderNumber,
+            customerNumber: customer.customerNumber || customer.C_Number || 0,
+            pickerId: picker.id || order.pickerId,
+            pickerUserNumber: picker.userNumber || order.pickerUserNumber,
+            pickerName: picker.name || order.pickerName,
+            pickerEmail: picker.email || order.pickerEmail,
+            picker: {
+              id: picker.id || order.pickerId || 0,
+              userNumber: picker.userNumber || order.pickerUserNumber || 0,
+              name: picker.name || order.pickerName || 'N/A',
+              email: picker.email || order.pickerEmail || '',
+            },
+            customer: {
+              customerNumber: customer.customerNumber || customer.C_Number || 0,
+              customerName: customer.customerName || customer.C_Name || 'N/A',
+              route: customer.route || customer.Routes?.[0]?.Route_Number || null,
+              stop: customer.stop || customer.Routes?.[0]?.Stop_Number || null,
+            },
+            startedAt: order.startedAt || '',
+            completedAt: order.completedAt || '',
+          });
+        }
+      });
       
       setReports(reportsData);
       setTotalCount(total);
@@ -328,6 +419,13 @@ const EpickReportsTab: React.FC = () => {
       const order = response.data;
       const distributor = order.distributor || {};
       const logoUrl = order.logo;
+      
+      // Get allPickers once at the start to avoid redeclaration
+      // Check both orderInfo.allPickers and top-level allPickers
+      const allPickers = order.orderInfo?.allPickers || order.orderInfo?.allPicker || order.allPickers || order.allPicker;
+      
+      // Get order info - prefer orderInfo structure
+      const orderInfo = order.orderInfo || order;
 
       // Load logos - distributor logo for header, rabbit logo for footer
       const [distributorLogoDataUrl, rabbitLogoDataUrl] = await Promise.all([
@@ -432,18 +530,45 @@ const EpickReportsTab: React.FC = () => {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(60, 60, 60);
-      doc.text(`Order #${order.orderNumber || ''}`, margin, orderLeftY);
+      doc.text(`Order #${orderInfo.orderNumber || order.orderNumber || ''}`, margin, orderLeftY);
       let leftY = orderLeftY + 6;
 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
+      
+      // Calculate totals from all pickers if available
+      let totalQty = 0;
+      let scannedQty = 0;
+      let totalLines = 0;
+      let scannedLines = 0;
+      let overrideRequestCount = 0;
+      
+      if (allPickers && Array.isArray(allPickers) && allPickers.length > 0) {
+        allPickers.forEach((picker: any) => {
+          totalQty += picker.totalQty || 0;
+          scannedQty += picker.scannedQty || 0;
+          totalLines += picker.totalLines || 0;
+          scannedLines += picker.scannedLines || 0;
+          if (picker.overrideRequests && Array.isArray(picker.overrideRequests)) {
+            overrideRequestCount += picker.overrideRequests.length;
+          }
+        });
+      } else {
+        // Fallback to order-level data
+        totalQty = typeof order.totalQty === 'string' ? parseFloat(order.totalQty) || 0 : (order.totalQty || 0);
+        scannedQty = typeof order.scannedQty === 'string' ? parseFloat(order.scannedQty) || 0 : (order.scannedQty || 0);
+        totalLines = order.totalLines || 0;
+        scannedLines = order.scannedLines || 0;
+        overrideRequestCount = order.overrideRequestCount || (order.overrideRequests?.length || 0);
+      }
+      
       const orderLeftInfo = [
-        `Total Qty Ordered: ${order.totalQty || 0}`,
-        `Scanned Qty: ${order.scannedQty || 0}`,
-        `Total Lines: ${order.totalLines || 0}`,
-        `Scanned Lines: ${order.scannedLines || 0}`,
-        `Out of Stock Items: ${order.OutOfStockItem || 0}`,
-        `Override Requests: ${order.overrideRequestCount || 0}`,
+        `Total Qty Ordered: ${totalQty}`,
+        `Scanned Qty: ${scannedQty}`,
+        `Total Lines: ${totalLines}`,
+        `Scanned Lines: ${scannedLines}`,
+        `Out of Stock Items: ${order.OutOfStockItem || order.outOfStockItems || 0}`,
+        `Override Requests: ${overrideRequestCount}`,
       ];
 
       orderLeftInfo.forEach((text) => {
@@ -452,32 +577,80 @@ const EpickReportsTab: React.FC = () => {
       });
 
       // Center: Picking Time (only time value, centered)
-      const pickingTime = order.pickingTimeFormatted || 'N/A';
+      // Calculate total picking time from all pickers
+      let pickingTime = 'N/A';
+      if (allPickers && Array.isArray(allPickers) && allPickers.length > 0) {
+        // Calculate total time from all pickers
+        let totalSeconds = 0;
+        allPickers.forEach((picker: any) => {
+          if (picker.startedAt && picker.completedAt) {
+            const start = moment(picker.startedAt);
+            const end = moment(picker.completedAt);
+            if (start.isValid() && end.isValid()) {
+              totalSeconds += end.diff(start, 'seconds');
+            }
+          }
+        });
+        if (totalSeconds > 0) {
+          const hours = Math.floor(totalSeconds / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          pickingTime = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        }
+      } else {
+        pickingTime = order.pickingTimeFormatted || 'N/A';
+      }
+      
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(60, 60, 60);
       doc.text(pickingTime, centerX, orderLeftY + 8, { align: 'center' });
 
-      // Right side: Picker and Customer details
-      const pickerName = order.picker 
-        ? `${order.picker.firstName || ''} ${order.picker.lastName || ''}`.trim() || order.picker.email || 'N/A'
-        : 'N/A';
-      const customerName = order.customer?.C_Name || order.customer?.customerName || 'N/A';
-      const customerNumber = order.customer?.C_Number || order.customer?.customerNumber || 'N/A';
-      const routeInfo = order.customer?.Routes?.[0]
-        ? `Route: ${order.customer.Routes[0].Route_Number || ''}, Stop: ${order.customer.Routes[0].Stop_Number || ''}`
-        : '';
+      // Right side: Picker(s) and Customer details
+      const customer = orderInfo.customer || order.customer || {};
+      const customerName = customer.C_Name || customer.customerName || 'N/A';
+      const customerNumber = customer.C_Number || customer.customerNumber || 'N/A';
+      const routeInfo = customer.Routes?.[0]
+        ? `Route: ${customer.Routes[0].Route_Number || ''}, Stop: ${customer.Routes[0].Stop_Number || ''}`
+        : (customer.route && customer.stop ? `Route: ${customer.route}, Stop: ${customer.stop}` : '');
 
       const orderRightX = pageWidth - margin;
       let rightY = orderRightY;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Picker:', orderRightX, rightY, { align: 'right' });
-      rightY += 5;
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(pickerName, orderRightX, rightY, { align: 'right' });
-      rightY += 6;
+      
+      // Handle multiple pickers if allPickers exists, otherwise use single picker
+      if (allPickers && Array.isArray(allPickers) && allPickers.length > 0) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Pickers (${allPickers.length}):`, orderRightX, rightY, { align: 'right' });
+        rightY += 5;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        allPickers.forEach((picker: any, index: number) => {
+          const pickerName = picker.pickerName || 
+            (picker.firstName && picker.lastName ? `${picker.firstName} ${picker.lastName}`.trim() : '') ||
+            picker.email || 
+            'N/A';
+          doc.text(`${index + 1}. ${pickerName}`, orderRightX, rightY, { align: 'right' });
+          rightY += 4;
+          if (picker.pickerUserNumber) {
+            doc.text(`   User #${picker.pickerUserNumber}`, orderRightX, rightY, { align: 'right' });
+            rightY += 3;
+          }
+        });
+        rightY += 2;
+      } else {
+        // Single picker (backward compatibility)
+        const pickerName = order.picker 
+          ? `${order.picker.firstName || ''} ${order.picker.lastName || ''}`.trim() || order.picker.email || 'N/A'
+          : 'N/A';
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Picker:', orderRightX, rightY, { align: 'right' });
+        rightY += 5;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(pickerName, orderRightX, rightY, { align: 'right' });
+        rightY += 6;
+      }
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
@@ -497,147 +670,491 @@ const EpickReportsTab: React.FC = () => {
 
       yPosition = Math.max(leftY, rightY) + 8;
 
-      // Process order items for category summary
+      // Process order items for category summary (aggregated across all pickers)
       const categoryGroups: { [key: string]: any[] } = {};
 
-      // Order Items Table
-      if (order.orderItems && Array.isArray(order.orderItems) && order.orderItems.length > 0) {
-        const orderItemsHeaders = ['Line #', 'Item #', 'Description', 'Qty Ordered', 'Qty Shipped'];
-        const orderItemsData: any[][] = [];
+      // Group by Picker if allPickers exists
+      if (allPickers && Array.isArray(allPickers) && allPickers.length > 0) {
+        // Process each picker
+        allPickers.forEach((picker: any, pickerIndex: number) => {
+          // Use picker's own orderItems and overrideRequests if available, otherwise filter by pickerId
+          const pickerItems = picker.orderItems || order.orderItems?.filter((item: any) => 
+            item.pickerId === picker.pickerId
+          ) || [];
 
-        order.orderItems.forEach((item: any) => {
-          const lineNumber = item.Line_Number || item.lineNumber || '';
-          const itemNumber = item.Item_Number || item.itemNumber || '';
-          const description = item.inventory?.Description || item.itemDescription || item.ItemDescription || '';
-          const qtyOrdered = item.Quantity_Ordered || item.quantityOrdered || 0;
-          const qtyShipped = item.Quantity_Shipped || item.quantityShipped || 0;
+          // Use picker's overrideRequests if it exists and has items, otherwise filter from order.overrideRequests
+          const pickerRequests = (picker.overrideRequests && picker.overrideRequests.length > 0)
+            ? picker.overrideRequests
+            : order.overrideRequests?.filter((req: any) => {
+                // Match by pickerId - this is the primary matching criteria
+                if (req.pickerId !== undefined && picker.pickerId !== undefined) {
+                  return req.pickerId === picker.pickerId;
+                }
+                // Fallback to pickerUserNumber matching if pickerId is not available
+                return req.pickerUserNumber === picker.pickerUserNumber;
+              }) || [];
 
-          orderItemsData.push([
-            lineNumber.toString(),
-            itemNumber.toString(),
-            description,
-            qtyOrdered.toString(),
-            qtyShipped.toString(),
-          ]);
-
-          // Group by sales category
-          const categoryName = 
-            item.inventory?.SalesCategory?.Category_Desc ||
-            item.inventory?.salesCategory?.Category_Desc ||
-            item.salesCategory ||
-            item.SalesCategory ||
-            'Uncategorized';
-          
-          if (!categoryGroups[categoryName]) {
-            categoryGroups[categoryName] = [];
+          // Check if we need a new page
+          if (yPosition > pageHeight - 60) {
+            doc.addPage();
+            yPosition = margin;
           }
-          categoryGroups[categoryName].push(item);
+
+          // Picker Header - Clear section heading
+          if (yPosition > pageHeight - 60) {
+            doc.addPage();
+            yPosition = margin;
+          }
+          
+          // Dark divider before picker section
+          doc.setDrawColor(80, 80, 80);
+          doc.setLineWidth(1);
+          doc.line(margin, yPosition, pageWidth - margin, yPosition);
+          yPosition += 6;
+          
+          doc.setFontSize(13);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(60, 60, 60);
+          doc.text(`Picker ${pickerIndex + 1}: ${picker.pickerName || 'N/A'}`, margin, yPosition);
+          yPosition += 6;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`ID: ${picker.pickerId} | User #: ${picker.pickerUserNumber || 'N/A'}`, margin, yPosition);
+          yPosition += 4;
+          if (picker.pickerEmail) {
+            doc.text(`Email: ${picker.pickerEmail}`, margin, yPosition);
+            yPosition += 4;
+          }
+          if (picker.startedAt) {
+            doc.text(`Started: ${moment(picker.startedAt).format('MM/DD/YYYY HH:mm')}`, margin, yPosition);
+            yPosition += 4;
+          }
+          if (picker.completedAt) {
+            doc.text(`Completed: ${moment(picker.completedAt).format('MM/DD/YYYY HH:mm')}`, margin, yPosition);
+            yPosition += 4;
+          }
+          if (picker.totalLines !== undefined || picker.scannedLines !== undefined) {
+            doc.text(`Lines: ${picker.scannedLines || 0}/${picker.totalLines || 0} | Qty: ${picker.scannedQty || 0}/${picker.totalQty || 0}`, margin, yPosition);
+            yPosition += 4;
+          }
+
+          // Divider
+          doc.setDrawColor(200, 200, 200);
+          doc.setLineWidth(0.5);
+          doc.line(margin, yPosition, pageWidth - margin, yPosition);
+          yPosition += 6;
+
+          // Order Items Table for this picker
+          if (pickerItems.length > 0) {
+            const orderItemsHeaders = ['Line #', 'Item #', 'Description', 'Qty Ordered', 'Qty Shipped'];
+            const orderItemsData: any[][] = [];
+
+            pickerItems.forEach((item: any) => {
+              const lineNumber = item.Line_Number || item.lineNumber || '';
+              const itemNumber = item.Item_Number || item.itemNumber || '';
+              const description = item.inventory?.Description || item.itemDescription || item.ItemDescription || '';
+              const qtyOrdered = item.Quantity_Ordered || item.quantityOrdered || 0;
+              const qtyShipped = item.Quantity_Shipped || item.quantityShipped || 0;
+
+              orderItemsData.push([
+                lineNumber.toString(),
+                itemNumber.toString(),
+                description,
+                qtyOrdered.toString(),
+                qtyShipped.toString(),
+              ]);
+
+              // Group by sales category
+              const categoryName = 
+                item.inventory?.SalesCategory?.Category_Desc ||
+                item.inventory?.salesCategory?.Category_Desc ||
+                item.salesCategory?.Category_Desc ||
+                item.SalesCategory?.Category_Desc ||
+                item.salesCategory ||
+                item.SalesCategory ||
+                'Uncategorized';
+              
+              if (!categoryGroups[categoryName]) {
+                categoryGroups[categoryName] = [];
+              }
+              categoryGroups[categoryName].push(item);
+            });
+
+            // Calculate full width for table
+            const tableWidth = pageWidth - (margin * 2);
+            
+            autoTableFn(doc, {
+              head: [orderItemsHeaders],
+              body: orderItemsData,
+              startY: yPosition,
+              margin: { left: margin, right: margin },
+              tableWidth: tableWidth,
+              styles: { 
+                fontSize: 8, 
+                cellPadding: 2, 
+                lineWidth: 0.1,
+                lineColor: [220, 220, 220],
+                textColor: [50, 50, 50]
+              },
+              headStyles: { 
+                fillColor: [60, 60, 60], 
+                textColor: [255, 255, 255], 
+                fontStyle: 'bold', 
+                lineWidth: 0.1,
+                fontSize: 8
+              },
+              alternateRowStyles: { fillColor: [250, 250, 250] },
+              columnStyles: {
+                0: { cellWidth: tableWidth * 0.08, halign: 'center' }, // Line #
+                1: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Item #
+                2: { cellWidth: tableWidth * 0.55, halign: 'left' }, // Description
+                3: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Ordered
+                4: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Shipped
+              },
+              didDrawPage: (data: any) => {
+                addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
+              },
+            });
+
+            yPosition = (doc as any).lastAutoTable.finalY + 8;
+          }
+
+          // Override Requests Table for this picker
+          if (pickerRequests.length > 0) {
+            if (yPosition > pageHeight - 40) {
+              doc.addPage();
+              yPosition = margin;
+            }
+
+            // Create a map of itemNumber to description from all orderItems
+            const itemDescriptionMap: { [key: number]: string } = {};
+            // Check picker's items first
+            if (pickerItems && Array.isArray(pickerItems)) {
+              pickerItems.forEach((item: any) => {
+                const itemNum = item.Item_Number || item.itemNumber;
+                if (itemNum && !itemDescriptionMap[itemNum]) {
+                  const desc = item.inventory?.Description || item.itemDescription || item.ItemDescription || 'N/A';
+                  itemDescriptionMap[itemNum] = desc;
+                }
+              });
+            }
+            // Also check all order items as fallback
+            const allOrderItems = order.orderItems || orderInfo.orderItems || [];
+            if (Array.isArray(allOrderItems)) {
+              allOrderItems.forEach((item: any) => {
+                const itemNum = item.Item_Number || item.itemNumber;
+                if (itemNum && !itemDescriptionMap[itemNum]) {
+                  const desc = item.inventory?.Description || item.itemDescription || item.ItemDescription || 'N/A';
+                  itemDescriptionMap[itemNum] = desc;
+                }
+              });
+            }
+
+            const overrideHeaders = ['Item #', 'Description', 'Status', 'Note', 'Rejection Reason'];
+            const overrideData: any[][] = [];
+
+            pickerRequests.forEach((override: any) => {
+              const itemNumber = override.itemNumber || '';
+              const description = override.itemDescription || itemDescriptionMap[itemNumber] || 'N/A';
+              const status = override.status || 'N/A';
+              const note = override.note || 'N/A';
+              const rejectionReason = override.rejectionReason || '';
+
+              overrideData.push([
+                itemNumber.toString(),
+                description,
+                status.toUpperCase(),
+                note,
+                rejectionReason || '-',
+              ]);
+            });
+
+            const tableWidth = pageWidth - (margin * 2);
+
+            autoTableFn(doc, {
+              head: [overrideHeaders],
+              body: overrideData,
+              startY: yPosition,
+              margin: { left: margin, right: margin },
+              tableWidth: tableWidth,
+              styles: { 
+                fontSize: 8, 
+                cellPadding: 2, 
+                lineWidth: 0.1,
+                lineColor: [220, 220, 220],
+                textColor: [50, 50, 50]
+              },
+              headStyles: { 
+                fillColor: [60, 60, 60], 
+                textColor: [255, 255, 255], 
+                fontStyle: 'bold', 
+                lineWidth: 0.1,
+                fontSize: 8
+              },
+              alternateRowStyles: { fillColor: [250, 250, 250] },
+              columnStyles: {
+                0: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Item #
+                1: { cellWidth: tableWidth * 0.30, halign: 'left' }, // Description
+                2: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Status
+                3: { cellWidth: tableWidth * 0.23, halign: 'left' }, // Note
+                4: { cellWidth: tableWidth * 0.23, halign: 'left' }, // Rejection Reason
+              },
+              didDrawPage: (data: any) => {
+                addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
+              },
+            });
+
+            yPosition = (doc as any).lastAutoTable.finalY + 10;
+          }
+
+          // Add spacing between pickers
+          yPosition += 8;
         });
+      } else {
+        // Original logic for single picker (backward compatibility)
+        // Order Items Table
+        if (order.orderItems && Array.isArray(order.orderItems) && order.orderItems.length > 0) {
+          const orderItemsHeaders = ['Line #', 'Item #', 'Description', 'Qty Ordered', 'Qty Shipped'];
+          const orderItemsData: any[][] = [];
 
-        // Calculate full width for table
-        const tableWidth = pageWidth - (margin * 2);
-        
-        autoTableFn(doc, {
-          head: [orderItemsHeaders],
-          body: orderItemsData,
-          startY: yPosition,
-          margin: { left: margin, right: margin },
-          tableWidth: tableWidth,
-          styles: { 
-            fontSize: 8, 
-            cellPadding: 2, 
-            lineWidth: 0.1,
-            lineColor: [220, 220, 220],
-            textColor: [50, 50, 50]
-          },
-          headStyles: { 
-            fillColor: [60, 60, 60], 
-            textColor: [255, 255, 255], 
-            fontStyle: 'bold', 
-            lineWidth: 0.1,
-            fontSize: 8
-          },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
-          columnStyles: {
-            0: { cellWidth: tableWidth * 0.08, halign: 'center' }, // Line #
-            1: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Item #
-            2: { cellWidth: tableWidth * 0.55, halign: 'left' }, // Description
-            3: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Ordered
-            4: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Shipped
-          },
-          didDrawPage: (data: any) => {
-            addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
-          },
-        });
+          order.orderItems.forEach((item: any) => {
+            const lineNumber = item.Line_Number || item.lineNumber || '';
+            const itemNumber = item.Item_Number || item.itemNumber || '';
+            const description = item.inventory?.Description || item.itemDescription || item.ItemDescription || '';
+            const qtyOrdered = item.Quantity_Ordered || item.quantityOrdered || 0;
+            const qtyShipped = item.Quantity_Shipped || item.quantityShipped || 0;
 
-        yPosition = (doc as any).lastAutoTable.finalY + 8;
-      }
+            orderItemsData.push([
+              lineNumber.toString(),
+              itemNumber.toString(),
+              description,
+              qtyOrdered.toString(),
+              qtyShipped.toString(),
+            ]);
 
-      // Override Requests Table
-      if (order.overrideRequests && Array.isArray(order.overrideRequests) && order.overrideRequests.length > 0) {
-        if (yPosition > pageHeight - 40) {
-          doc.addPage();
-          yPosition = margin;
+            // Group by sales category
+            const categoryName = 
+              item.inventory?.SalesCategory?.Category_Desc ||
+              item.inventory?.salesCategory?.Category_Desc ||
+              item.salesCategory?.Category_Desc ||
+              item.SalesCategory?.Category_Desc ||
+              item.salesCategory ||
+              item.SalesCategory ||
+              'Uncategorized';
+            
+            if (!categoryGroups[categoryName]) {
+              categoryGroups[categoryName] = [];
+            }
+            categoryGroups[categoryName].push(item);
+          });
+
+          // Calculate full width for table
+          const tableWidth = pageWidth - (margin * 2);
+          
+          autoTableFn(doc, {
+            head: [orderItemsHeaders],
+            body: orderItemsData,
+            startY: yPosition,
+            margin: { left: margin, right: margin },
+            tableWidth: tableWidth,
+            styles: { 
+              fontSize: 8, 
+              cellPadding: 2, 
+              lineWidth: 0.1,
+              lineColor: [220, 220, 220],
+              textColor: [50, 50, 50]
+            },
+            headStyles: { 
+              fillColor: [60, 60, 60], 
+              textColor: [255, 255, 255], 
+              fontStyle: 'bold', 
+              lineWidth: 0.1,
+              fontSize: 8
+            },
+            alternateRowStyles: { fillColor: [250, 250, 250] },
+            columnStyles: {
+              0: { cellWidth: tableWidth * 0.08, halign: 'center' }, // Line #
+              1: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Item #
+              2: { cellWidth: tableWidth * 0.55, halign: 'left' }, // Description
+              3: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Ordered
+              4: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Qty Shipped
+            },
+            didDrawPage: (data: any) => {
+              addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
+            },
+          });
+
+          yPosition = (doc as any).lastAutoTable.finalY + 8;
         }
 
-        const overrideHeaders = ['Item #', 'Qty', 'Status', 'Note', 'Rejection Reason'];
-        const overrideData: any[][] = [];
+        // Override Requests Table
+        if (order.overrideRequests && Array.isArray(order.overrideRequests) && order.overrideRequests.length > 0) {
+          if (yPosition > pageHeight - 40) {
+            doc.addPage();
+            yPosition = margin;
+          }
 
-        order.overrideRequests.forEach((override: any) => {
-          const itemNumber = override.itemNumber || '';
-          const qty = override.qty || 0;
-          const status = override.status || 'N/A';
-          const note = override.note || 'N/A';
-          const rejectionReason = override.rejectionReason || '';
+          // Create a map of itemNumber to description from orderItems
+          const itemDescriptionMap: { [key: number]: string } = {};
+          if (order.orderItems && Array.isArray(order.orderItems)) {
+            order.orderItems.forEach((item: any) => {
+              const itemNum = item.Item_Number || item.itemNumber;
+              if (itemNum && !itemDescriptionMap[itemNum]) {
+                const desc = item.inventory?.Description || item.itemDescription || item.ItemDescription || 'N/A';
+                itemDescriptionMap[itemNum] = desc;
+              }
+            });
+          }
 
-          overrideData.push([
-            itemNumber.toString(),
-            qty.toString(),
-            status.toUpperCase(),
-            note,
-            rejectionReason || '-',
-          ]);
-        });
+          const overrideHeaders = ['Item #', 'Description', 'Status', 'Note', 'Rejection Reason'];
+          const overrideData: any[][] = [];
 
-        const tableWidth = pageWidth - (margin * 2);
+          order.overrideRequests.forEach((override: any) => {
+            const itemNumber = override.itemNumber || '';
+            const description = override.itemDescription || itemDescriptionMap[itemNumber] || 'N/A';
+            const status = override.status || 'N/A';
+            const note = override.note || 'N/A';
+            const rejectionReason = override.rejectionReason || '';
 
-        autoTableFn(doc, {
-          head: [overrideHeaders],
-          body: overrideData,
-          startY: yPosition,
-          margin: { left: margin, right: margin },
-          tableWidth: tableWidth,
-          styles: { 
-            fontSize: 8, 
-            cellPadding: 2, 
-            lineWidth: 0.1,
-            lineColor: [220, 220, 220],
-            textColor: [50, 50, 50]
-          },
-          headStyles: { 
-            fillColor: [60, 60, 60], 
-            textColor: [255, 255, 255], 
-            fontStyle: 'bold', 
-            lineWidth: 0.1,
-            fontSize: 8
-          },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
-          columnStyles: {
-            0: { cellWidth: tableWidth * 0.15, halign: 'center' }, // Item #
-            1: { cellWidth: tableWidth * 0.10, halign: 'center' }, // Qty
-            2: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Status
-            3: { cellWidth: tableWidth * 0.30, halign: 'left' }, // Note
-            4: { cellWidth: tableWidth * 0.33, halign: 'left' }, // Rejection Reason
-          },
-          didDrawPage: (data: any) => {
-            addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
-          },
-        });
+            overrideData.push([
+              itemNumber.toString(),
+              description,
+              status.toUpperCase(),
+              note,
+              rejectionReason || '-',
+            ]);
+          });
 
-        yPosition = (doc as any).lastAutoTable.finalY + 10;
+          const tableWidth = pageWidth - (margin * 2);
+
+          autoTableFn(doc, {
+            head: [overrideHeaders],
+            body: overrideData,
+            startY: yPosition,
+            margin: { left: margin, right: margin },
+            tableWidth: tableWidth,
+            styles: { 
+              fontSize: 8, 
+              cellPadding: 2, 
+              lineWidth: 0.1,
+              lineColor: [220, 220, 220],
+              textColor: [50, 50, 50]
+            },
+            headStyles: { 
+              fillColor: [60, 60, 60], 
+              textColor: [255, 255, 255], 
+              fontStyle: 'bold', 
+              lineWidth: 0.1,
+              fontSize: 8
+            },
+            alternateRowStyles: { fillColor: [250, 250, 250] },
+            columnStyles: {
+              0: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Item #
+              1: { cellWidth: tableWidth * 0.30, halign: 'left' }, // Description
+              2: { cellWidth: tableWidth * 0.12, halign: 'center' }, // Status
+              3: { cellWidth: tableWidth * 0.23, halign: 'left' }, // Note
+              4: { cellWidth: tableWidth * 0.23, halign: 'left' }, // Rejection Reason
+            },
+            didDrawPage: (data: any) => {
+              addFooterToPage(doc, rabbitLogoDataUrl || undefined, data.pageNumber, doc.getNumberOfPages());
+            },
+          });
+
+          yPosition = (doc as any).lastAutoTable.finalY + 10;
+        }
       }
 
       // Sales Category Summary
+      // Use salesCategorySummary from API if available, otherwise calculate from items
+      const categorySummaryData: any[][] = [];
+      
+      if (order.salesCategorySummary && Array.isArray(order.salesCategorySummary) && order.salesCategorySummary.length > 0) {
+        // Use API data directly
+        const sortedCategories = [...order.salesCategorySummary].sort((a, b) => 
+          (a.salesCategoryName || '').localeCompare(b.salesCategoryName || '')
+        );
+        
+        sortedCategories.forEach((category) => {
+          categorySummaryData.push([
+            category.salesCategoryName || 'Uncategorized',
+            category.totalItems.toString(),
+            category.totalQty.toString(),
+            category.scannedQty.toString(),
+          ]);
+        });
+      } else {
+        // Fallback: Calculate from order items (backward compatibility)
+        // Rebuild categoryGroups from all orderItems if we grouped by picker
+        if (allPickers && Array.isArray(allPickers) && allPickers.length > 0) {
+          const allCategoryGroups: { [key: string]: any[] } = {};
+          // Collect items from all pickers
+          allPickers.forEach((picker: any) => {
+            if (picker.orderItems && Array.isArray(picker.orderItems)) {
+              picker.orderItems.forEach((item: any) => {
+                const categoryName = 
+                  item.inventory?.SalesCategory?.Category_Desc ||
+                  item.inventory?.salesCategory?.Category_Desc ||
+                  item.salesCategory?.Category_Desc ||
+                  item.SalesCategory?.Category_Desc ||
+                  item.salesCategory ||
+                  item.SalesCategory ||
+                  'Uncategorized';
+                
+                if (!allCategoryGroups[categoryName]) {
+                  allCategoryGroups[categoryName] = [];
+                }
+                allCategoryGroups[categoryName].push(item);
+              });
+            }
+          });
+          // Also include items from top-level orderItems if they exist (and weren't already included)
+          const allOrderItems = order.orderItems || orderInfo.orderItems || [];
+          allOrderItems.forEach((item: any) => {
+            const categoryName = 
+              item.inventory?.SalesCategory?.Category_Desc ||
+              item.inventory?.salesCategory?.Category_Desc ||
+              item.salesCategory?.Category_Desc ||
+              item.SalesCategory?.Category_Desc ||
+              item.salesCategory ||
+              item.SalesCategory ||
+              'Uncategorized';
+            
+            if (!allCategoryGroups[categoryName]) {
+              allCategoryGroups[categoryName] = [];
+            }
+            allCategoryGroups[categoryName].push(item);
+          });
+          // Merge into categoryGroups
+          Object.keys(allCategoryGroups).forEach(key => {
+            if (!categoryGroups[key]) {
+              categoryGroups[key] = [];
+            }
+            categoryGroups[key].push(...allCategoryGroups[key]);
+          });
+        }
+
+        const sortedCategories = Object.keys(categoryGroups).sort();
+        
+        sortedCategories.forEach((categoryName) => {
+          const categoryItems = categoryGroups[categoryName];
+          const totalItems = categoryItems.length;
+          const totalQty = categoryItems.reduce((sum, item) => {
+            return sum + Number(item.Quantity_Ordered || item.quantityOrdered || 0);
+          }, 0);
+          const scannedQty = categoryItems.reduce((sum, item) => {
+            return sum + Number(item.Quantity_Shipped || item.quantityShipped || 0);
+          }, 0);
+          
+          categorySummaryData.push([
+            categoryName,
+            totalItems.toString(),
+            totalQty.toString(),
+            scannedQty.toString(),
+          ]);
+        });
+      }
+
+      // Sales Category Summary Section
       if (yPosition > pageHeight - 40) {
         doc.addPage();
         yPosition = margin;
@@ -648,27 +1165,6 @@ const EpickReportsTab: React.FC = () => {
       doc.setLineWidth(1);
       doc.line(margin, yPosition, pageWidth - margin, yPosition);
       yPosition += 8;
-
-      const sortedCategories = Object.keys(categoryGroups).sort();
-      const categorySummaryData: any[][] = [];
-
-      sortedCategories.forEach((categoryName) => {
-        const categoryItems = categoryGroups[categoryName];
-        const totalItems = categoryItems.length;
-        const totalQty = categoryItems.reduce((sum, item) => {
-          return sum + Number(item.Quantity_Ordered || item.quantityOrdered || 0);
-        }, 0);
-        const scannedQty = categoryItems.reduce((sum, item) => {
-          return sum + Number(item.Quantity_Shipped || item.quantityShipped || 0);
-        }, 0);
-        
-        categorySummaryData.push([
-          categoryName,
-          totalItems.toString(),
-          totalQty.toString(),
-          scannedQty.toString(),
-        ]);
-      });
 
       if (categorySummaryData.length > 0) {
         doc.setFontSize(12);
@@ -1100,6 +1596,9 @@ const EpickReportsTab: React.FC = () => {
 
       // Process each order
       reportData.forEach((order: any) => {
+        // Get allPickers for this order once at the start
+        const orderAllPickers = order.allPickers || order.allPicker;
+        
         // Check if we need a new page before starting a new order
         if (yPosition > pageHeight - 60) {
           doc.addPage();
@@ -1141,10 +1640,7 @@ const EpickReportsTab: React.FC = () => {
         doc.setTextColor(60, 60, 60);
         doc.text(pickingTime, centerX, orderLeftY + 8, { align: 'center' });
 
-        // Right side: Picker and Customer details
-        const pickerName = order.picker 
-          ? `${order.picker.firstName || ''} ${order.picker.lastName || ''}`.trim() || order.picker.email || 'N/A'
-          : 'N/A';
+        // Right side: Picker(s) and Customer details
         const customerName = order.customer?.C_Name || order.customer?.customerName || 'N/A';
         const customerNumber = order.customer?.C_Number || order.customer?.customerNumber || 'N/A';
         const routeInfo = order.customer?.Routes?.[0]
@@ -1153,14 +1649,42 @@ const EpickReportsTab: React.FC = () => {
 
         const orderRightX = pageWidth - margin;
         let rightY = orderRightY;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Picker:', orderRightX, rightY, { align: 'right' });
-        rightY += 5;
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text(pickerName, orderRightX, rightY, { align: 'right' });
-        rightY += 6;
+        
+        // Handle multiple pickers if allPickers exists, otherwise use single picker
+        if (orderAllPickers && Array.isArray(orderAllPickers) && orderAllPickers.length > 0) {
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Pickers (${orderAllPickers.length}):`, orderRightX, rightY, { align: 'right' });
+          rightY += 5;
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          orderAllPickers.forEach((picker: any, index: number) => {
+            const pickerName = picker.pickerName || 
+              (picker.firstName && picker.lastName ? `${picker.firstName} ${picker.lastName}`.trim() : '') ||
+              picker.email || 
+              'N/A';
+            doc.text(`${index + 1}. ${pickerName}`, orderRightX, rightY, { align: 'right' });
+            rightY += 4;
+            if (picker.pickerUserNumber) {
+              doc.text(`   User #${picker.pickerUserNumber}`, orderRightX, rightY, { align: 'right' });
+              rightY += 3;
+            }
+          });
+          rightY += 2;
+        } else {
+          // Single picker (backward compatibility)
+          const pickerName = order.picker 
+            ? `${order.picker.firstName || ''} ${order.picker.lastName || ''}`.trim() || order.picker.email || 'N/A'
+            : 'N/A';
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Picker:', orderRightX, rightY, { align: 'right' });
+          rightY += 5;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'normal');
+          doc.text(pickerName, orderRightX, rightY, { align: 'right' });
+          rightY += 6;
+        }
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
@@ -1619,9 +2143,20 @@ const EpickReportsTab: React.FC = () => {
       const summaryData: any[][] = [];
 
       reportData.forEach((order: any) => {
-        const pickerName = order.picker 
-          ? `${order.picker.firstName || ''} ${order.picker.lastName || ''}`.trim() || order.picker.email || 'N/A'
-          : 'N/A';
+        // Handle multiple pickers if allPicker exists, otherwise use single picker
+        let pickerName = 'N/A';
+        if (order.allPicker && Array.isArray(order.allPicker) && order.allPicker.length > 0) {
+          const pickerNames = order.allPicker.map((p: any, idx: number) => {
+            const name = p.pickerName || 
+              (p.firstName && p.lastName ? `${p.firstName} ${p.lastName}`.trim() : '') ||
+              p.email || 
+              `Picker ${idx + 1}`;
+            return name;
+          });
+          pickerName = pickerNames.join(', ');
+        } else if (order.picker) {
+          pickerName = `${order.picker.firstName || ''} ${order.picker.lastName || ''}`.trim() || order.picker.email || 'N/A';
+        }
         const customerName = order.customer?.C_Name || order.customer?.customerName || 'N/A';
         const pickingTime = order.pickingTimeFormatted || 'N/A';
         const totalOverrideRequests = order.overrideRequestCount || 0;
@@ -2096,10 +2631,10 @@ const EpickReportsTab: React.FC = () => {
       render: (row) => (
         <Box>
           <Typography fontSize={14} fontWeight={400}>
-            {row.picker?.name || 'N/A'}
+            {row.pickerName || row.picker?.name || 'N/A'}
           </Typography>
           <Typography fontSize={12} color="text.secondary">
-            #{row.picker?.userNumber || 'N/A'}
+            ID: {row.pickerId || row.picker?.id || 'N/A'} | User #: {row.pickerUserNumber || row.picker?.userNumber || 'N/A'}
           </Typography>
         </Box>
       ),
@@ -2110,7 +2645,7 @@ const EpickReportsTab: React.FC = () => {
       minWidth: 180,
       render: (row) => (
         <Typography fontSize={14} fontWeight={400}>
-          {row.picker?.email || 'N/A'}
+          {row.pickerEmail || row.picker?.email || 'N/A'}
         </Typography>
       ),
     },
@@ -2434,16 +2969,16 @@ const EpickReportsTab: React.FC = () => {
         </Typography>
       ),
     },
-    {
-      id: 'pickerUserNumber',
-      label: 'Picker User #',
-      minWidth: 120,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.pickerUserNumber}
-        </Typography>
-      ),
-    },
+    // {
+    //   id: 'pickerUserNumber',
+    //   label: 'Picker User #',
+    //   minWidth: 120,
+    //   render: (row) => (
+    //     <Typography fontSize={14} fontWeight={400}>
+    //       {row.pickerUserNumber}
+    //     </Typography>
+    //   ),
+    // },
     {
       id: 'userName',
       label: 'User Name',
@@ -2642,27 +3177,27 @@ const EpickReportsTab: React.FC = () => {
           setViewModalOpen(false);
           setOrderDetails(null);
         }}
-        size="xl"
+        size="xxl"
         title="Order Details"
       >
-        <Box>
+        <Box sx={{ p: 0 }}>
           {loadingDetails ? (
-            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+            <Box display="flex" justifyContent="center" alignItems="center" py={2}>
               <Typography>Loading order details...</Typography>
             </Box>
           ) : !orderDetails ? (
-            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+            <Box display="flex" justifyContent="center" alignItems="center" py={2}>
               <Typography color="text.secondary">No order details found</Typography>
             </Box>
           ) : (
             <Box>
-              <Box sx={{ maxHeight: '70vh', overflow: 'auto', pr: 2 }}>
+              <Box sx={{ maxHeight: '80vh', overflow: 'auto' }}>
                 {/* Order Info */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography fontSize={16} fontWeight={600} sx={{ mb: 2 }}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography fontSize={15} fontWeight={600} sx={{ mb: 1 }}>
                     Order Information
                   </Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mb: 2 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 1 }}>
                     <Typography fontSize={13} color="text.secondary">
                       Order Number: <strong>{orderDetails.orderInfo.orderNumber}</strong>
                     </Typography>
@@ -2675,12 +3210,42 @@ const EpickReportsTab: React.FC = () => {
                     <Typography fontSize={13} color="text.secondary">
                       Invoice Total: <strong>{formatCurrency(orderDetails.orderInfo.invoiceTotal)}</strong>
                     </Typography>
-                    <Typography fontSize={13} color="text.secondary">
-                      Picker ID: <strong>{orderDetails.orderInfo.pickerId || 'N/A'}</strong>
-                    </Typography>
-                    <Typography fontSize={13} color="text.secondary">
-                      Picker Name: <strong>{orderDetails.orderInfo.pickerName || 'N/A'}</strong>
-                    </Typography>
+                    {(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker) && (orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.length > 0 ? (
+                      <>
+                        <Typography fontSize={13} color="text.secondary" sx={{ gridColumn: '1 / -1', mb: 0.5 }}>
+                          <strong>Pickers ({(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.length}):</strong>
+                        </Typography>
+                        {(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.map((picker, index) => (
+                          <Box key={picker.pickerId || index} sx={{ gridColumn: '1 / -1', pl: 1, mb: 0.5, pb: 0.5, borderLeft: '2px solid', borderColor: 'divider' }}>
+                            <Typography fontSize={13} color="text.secondary">
+                              Picker {index + 1}: <strong>{picker.pickerName || 'N/A'}</strong>
+                            </Typography>
+                            <Typography fontSize={12} color="text.secondary">
+                              ID: {picker.pickerId} | User #: {picker.pickerUserNumber || 'N/A'} | Email: {picker.pickerEmail || 'N/A'}
+                            </Typography>
+                            {picker.startedAt && (
+                              <Typography fontSize={12} color="text.secondary">
+                                Started: {formatDateTime(picker.startedAt)} | Completed: {picker.completedAt ? formatDateTime(picker.completedAt) : 'N/A'}
+                              </Typography>
+                            )}
+                            {(picker.totalLines !== undefined || picker.scannedLines !== undefined) && (
+                              <Typography fontSize={12} color="text.secondary">
+                                Lines: {picker.scannedLines || 0}/{picker.totalLines || 0} | Qty: {picker.scannedQty || 0}/{picker.totalQty || 0}
+                              </Typography>
+                            )}
+                          </Box>
+                        ))}
+                      </>
+                    ) : (
+                      <>
+                        <Typography fontSize={13} color="text.secondary">
+                          Picker ID: <strong>{orderDetails.orderInfo.pickerId || 'N/A'}</strong>
+                        </Typography>
+                        <Typography fontSize={13} color="text.secondary">
+                          Picker Name: <strong>{orderDetails.orderInfo.pickerName || 'N/A'}</strong>
+                        </Typography>
+                      </>
+                    )}
                     <Typography fontSize={13} color="text.secondary">
                       Bundles: <strong>{orderDetails.orderInfo.bundles}</strong>
                     </Typography>
@@ -2698,10 +3263,10 @@ const EpickReportsTab: React.FC = () => {
                     </Typography>
                   </Box>
                   
-                  <Typography fontSize={14} fontWeight={600} sx={{ mb: 1, mt: 2 }}>
+                  <Typography fontSize={15} fontWeight={600} sx={{ mb: 1, mt: 1.5 }}>
                     Customer Information
                   </Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mb: 2 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 1 }}>
                     <Typography fontSize={13} color="text.secondary">
                       Customer Number: <strong>{orderDetails.orderInfo.customer.customerNumber}</strong>
                     </Typography>
@@ -2723,10 +3288,10 @@ const EpickReportsTab: React.FC = () => {
                   {/* Summary */}
                   {orderDetails.summary && (
                     <>
-                      <Typography fontSize={14} fontWeight={600} sx={{ mb: 1, mt: 2 }}>
+                      <Typography fontSize={15} fontWeight={600} sx={{ mb: 1, mt: 1.5 }}>
                         Summary
                       </Typography>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1.5, mb: 2 }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, mb: 1 }}>
                         <Typography fontSize={13} color="text.secondary">
                           Total Items Ordered: <strong>{orderDetails.summary.totalItemsOrdered}</strong>
                         </Typography>
@@ -2741,75 +3306,196 @@ const EpickReportsTab: React.FC = () => {
                   )}
                 </Box>
 
-                <Divider sx={{ my: 3 }} />
+                <Divider sx={{ my: 1.5 }} />
 
-                {/* Override Requests Table */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography fontSize={16} fontWeight={600} sx={{ mb: 2 }}>
-                    Override Requests ({orderDetails.overrideRequests?.length || 0})
-                  </Typography>
-                  {orderDetails.overrideRequests && orderDetails.overrideRequests.length > 0 ? (
-                    <CommonTable
-                      data={orderDetails.overrideRequests}
-                      columns={overrideRequestsViewColumns}
-                      currentPage={1}
-                      totalPages={1}
-                      totalItems={orderDetails.overrideRequests.length}
-                      pageSize={orderDetails.overrideRequests.length}
-                      onPageChange={() => {}}
-                      onPageSizeChange={() => {}}
-                      loading={false}
-                      isPagination={false}
-                      stickyLastColumn={true}
-                      containerHeight="auto"
-                      emptyStateComponent={
-                        <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                {/* Group by Picker if allPickers or allPicker exists */}
+                {(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker) && (orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.length > 0 ? (
+                  <>
+                    {(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.map((picker, pickerIndex) => {
+                      // Use picker's own orderItems and overrideRequests if available, otherwise filter by pickerId
+                      const pickerItems = picker.orderItems || orderDetails.orderItems?.filter((item) => 
+                        item.pickerId === picker.pickerId
+                      ) || [];
+                      
+                      // Use picker's overrideRequests if it exists and has items, otherwise filter from orderDetails
+                      const pickerRequests = (picker.overrideRequests && picker.overrideRequests.length > 0) 
+                        ? picker.overrideRequests 
+                        : orderDetails.overrideRequests?.filter((req) => {
+                            // Match by pickerId - this is the primary matching criteria
+                            if (req.pickerId !== undefined && picker.pickerId !== undefined) {
+                              return req.pickerId === picker.pickerId;
+                            }
+                            // Fallback to pickerUserNumber matching if pickerId is not available
+                            return req.pickerUserNumber === picker.pickerUserNumber;
+                          }) || [];
+
+                      return (
+                        <Box key={picker.pickerId || pickerIndex} sx={{ mb: 2 }}>
+                          {/* Picker Header Section */}
+                          <Box sx={{ 
+                            p: 1, 
+                            mb: 1.5, 
+                            borderLeft: '3px solid',
+                            borderColor: 'primary.main'
+                          }}>
+                            <Typography fontSize={16} fontWeight={600} sx={{ mb: 0.25 }}>
+                              Picker {pickerIndex + 1}: {picker.pickerName || 'N/A'}
+                            </Typography>
+                            <Typography fontSize={12} color="text.secondary" sx={{ mb: 0.25 }}>
+                              ID: {picker.pickerId} | User #: {picker.pickerUserNumber || 'N/A'} | Email: {picker.pickerEmail || 'N/A'}
+                            </Typography>
+                            {picker.startedAt && (
+                              <Typography fontSize={12} color="text.secondary" sx={{ mb: 0.25 }}>
+                                Started: {formatDateTime(picker.startedAt)} | Completed: {picker.completedAt ? formatDateTime(picker.completedAt) : 'N/A'}
+                              </Typography>
+                            )}
+                            {(picker.totalLines !== undefined || picker.scannedLines !== undefined) && (
+                              <Typography fontSize={12} color="text.secondary">
+                                Lines: {picker.scannedLines || 0}/{picker.totalLines || 0} | Qty: {picker.scannedQty || 0}/{picker.totalQty || 0}
+                              </Typography>
+                            )}
+                          </Box>
+
+                          {/* Override Requests for this picker */}
+                          <Box sx={{ mb: 2 }}>
+                            <Typography fontSize={14} fontWeight={600} sx={{ mb: 1 }}>
+                              Override Requests ({pickerRequests.length})
+                            </Typography>
+                            {pickerRequests.length > 0 ? (
+                              <CommonTable
+                                data={pickerRequests}
+                                columns={overrideRequestsViewColumns}
+                                currentPage={1}
+                                totalPages={1}
+                                totalItems={pickerRequests.length}
+                                pageSize={pickerRequests.length}
+                                onPageChange={() => {}}
+                                onPageSizeChange={() => {}}
+                                loading={false}
+                                isPagination={false}
+                                stickyLastColumn={true}
+                                containerHeight="auto"
+                                emptyStateComponent={
+                                  <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                                    <Typography color="text.secondary">No override requests found</Typography>
+                                  </Box>
+                                }
+                              />
+                            ) : (
+                              <Box display="flex" justifyContent="center" alignItems="center" py={1}>
+                                <Typography color="text.secondary">No override requests found for this picker</Typography>
+                              </Box>
+                            )}
+                          </Box>
+
+                          <Divider sx={{ my: 1 }} />
+
+                          {/* Order Items for this picker */}
+                          <Box sx={{ mb: 2 }}>
+                            <Typography fontSize={14} fontWeight={600} sx={{ mb: 1 }}>
+                              Order Items ({pickerItems.length})
+                            </Typography>
+                            {pickerItems.length > 0 ? (
+                              <CommonTable
+                                data={pickerItems}
+                                columns={orderItemsColumns}
+                                currentPage={1}
+                                totalPages={1}
+                                totalItems={pickerItems.length}
+                                pageSize={pickerItems.length}
+                                onPageChange={() => {}}
+                                onPageSizeChange={() => {}}
+                                loading={false}
+                                isPagination={false}
+                                stickyLastColumn={true}
+                                containerHeight="auto"
+                                emptyStateComponent={
+                                  <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                                    <Typography color="text.secondary">No order items found</Typography>
+                                  </Box>
+                                }
+                              />
+                            ) : (
+                              <Box display="flex" justifyContent="center" alignItems="center" py={1}>
+                                <Typography color="text.secondary">No order items found for this picker</Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <>
+                    {/* Override Requests Table - All */}
+                    <Box sx={{ mb: 2 }}>
+                      <Typography fontSize={15} fontWeight={600} sx={{ mb: 1 }}>
+                        Override Requests ({orderDetails.overrideRequests?.length || 0})
+                      </Typography>
+                      {orderDetails.overrideRequests && orderDetails.overrideRequests.length > 0 ? (
+                        <CommonTable
+                          data={orderDetails.overrideRequests}
+                          columns={overrideRequestsViewColumns}
+                          currentPage={1}
+                          totalPages={1}
+                          totalItems={orderDetails.overrideRequests.length}
+                          pageSize={orderDetails.overrideRequests.length}
+                          onPageChange={() => {}}
+                          onPageSizeChange={() => {}}
+                          loading={false}
+                          isPagination={false}
+                          stickyLastColumn={true}
+                          containerHeight="auto"
+                          emptyStateComponent={
+                            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                              <Typography color="text.secondary">No override requests found</Typography>
+                            </Box>
+                          }
+                        />
+                      ) : (
+                        <Box display="flex" justifyContent="center" alignItems="center" py={1}>
                           <Typography color="text.secondary">No override requests found</Typography>
                         </Box>
-                      }
-                    />
-                  ) : (
-                    <Box display="flex" justifyContent="center" alignItems="center" py={2}>
-                      <Typography color="text.secondary">No override requests found</Typography>
+                      )}
                     </Box>
-                  )}
-                </Box>
 
-                <Divider sx={{ my: 3 }} />
+                    <Divider sx={{ my: 1.5 }} />
 
-                {/* Order Items Table */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography fontSize={16} fontWeight={600} sx={{ mb: 2 }}>
-                    Order Items ({orderDetails.orderItems?.length || 0})
-                  </Typography>
-                  {orderDetails.orderItems && orderDetails.orderItems.length > 0 ? (
-                    <CommonTable
-                      data={orderDetails.orderItems}
-                      columns={orderItemsColumns}
-                      currentPage={1}
-                      totalPages={1}
-                      totalItems={orderDetails.orderItems.length}
-                      pageSize={orderDetails.orderItems.length}
-                      onPageChange={() => {}}
-                      onPageSizeChange={() => {}}
-                      loading={false}
-                      isPagination={false}
-                      stickyLastColumn={true}
-                      containerHeight="auto"
-                      emptyStateComponent={
-                        <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                    {/* Order Items Table - All */}
+                    <Box sx={{ mb: 2 }}>
+                      <Typography fontSize={15} fontWeight={600} sx={{ mb: 1 }}>
+                        Order Items ({orderDetails.orderItems?.length || 0})
+                      </Typography>
+                      {orderDetails.orderItems && orderDetails.orderItems.length > 0 ? (
+                        <CommonTable
+                          data={orderDetails.orderItems}
+                          columns={orderItemsColumns}
+                          currentPage={1}
+                          totalPages={1}
+                          totalItems={orderDetails.orderItems.length}
+                          pageSize={orderDetails.orderItems.length}
+                          onPageChange={() => {}}
+                          onPageSizeChange={() => {}}
+                          loading={false}
+                          isPagination={false}
+                          stickyLastColumn={true}
+                          containerHeight="auto"
+                          emptyStateComponent={
+                            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                              <Typography color="text.secondary">No order items found</Typography>
+                            </Box>
+                          }
+                        />
+                      ) : (
+                        <Box display="flex" justifyContent="center" alignItems="center" py={1}>
                           <Typography color="text.secondary">No order items found</Typography>
                         </Box>
-                      }
-                    />
-                  ) : (
-                    <Box display="flex" justifyContent="center" alignItems="center" py={2}>
-                      <Typography color="text.secondary">No order items found</Typography>
+                      )}
                     </Box>
-                  )}
-                </Box>
+                  </>
+                )}
               </Box>
-              <Box display="flex" gap={2} justifyContent="flex-end" sx={{ mt: 3 }}>
+              <Box display="flex" gap={2} justifyContent="flex-end" sx={{ mt: 1.5 }}>
                 <CustomButton
                   appearance="outlined"
                   buttonType="cancel"
@@ -3295,4 +3981,6 @@ const EpickReportsTab: React.FC = () => {
 };
 
 export default EpickReportsTab;
+
+
 
