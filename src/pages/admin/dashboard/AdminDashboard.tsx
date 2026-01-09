@@ -264,13 +264,13 @@ const AdminDashboard = () => {
         },
         {
           title: "Orders Ready for Checker",
-          value: epickData.orderStatistics.totalCheckerOrders.toString(),
+          value: epickData?.orderStatistics.totalCheckerOrders?.toString(),
           color: "warning" as const,
           icon: <PersonIcon sx={{ width: 20, height: 20, color: theme.palette.warning.main }} />,
         },
         {
           title: "Completed by Checker",
-          value: epickData.orderStatistics.ordersCompletedByChecker.toString(),
+          value: epickData?.orderStatistics.ordersCompletedByChecker?.toString(),
           color: "success" as const,
           icon: <CheckCircleIcon sx={{ width: 20, height: 20, color: theme.palette.success.main }} />,
         },

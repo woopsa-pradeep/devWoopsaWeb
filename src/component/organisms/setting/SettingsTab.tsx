@@ -165,8 +165,8 @@ interface FormData {
     storePickup: boolean;
     allowShipping: boolean;
     timeSlots?: DayTimeSlots[];
-    orderEmailNotification?: string;
   };
+  orderEmailNotification?: string;
   demandedItems: {
     showMostSale: boolean;
     showAsPerCustomer: boolean;
@@ -450,8 +450,8 @@ const SettingsTabs = () => {
               storePickup: data.warehouseProfile?.storePickup ?? false,
               allowShipping: data.warehouseProfile?.allowShipping ?? true,
               timeSlots: data.warehouseProfile?.timeSlots || [],
-              orderEmailNotification: data.orderEmailNotification ?? '',
             },
+            orderEmailNotification: data.orderEmailNotification ?? '',
             demandedItems: {
               showMostSale: data.demandedItems?.showMostSale ?? true,
               showAsPerCustomer: data.demandedItems?.showAsPerCustomer ?? true,
@@ -483,6 +483,18 @@ const SettingsTabs = () => {
         return {
           ...prev,
           showWithPerpaidTax: value
+        };
+      });
+      return;
+    }
+
+    // Handle orderEmailNotification as a top-level field
+    if (field === 'orderEmailNotification') {
+      setFormData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          orderEmailNotification: value
         };
       });
       return;
@@ -934,7 +946,10 @@ const SettingsTabs = () => {
           showSuccessToast('Retailer settings updated successfully!');
           break;
         case 'warehouseProfile':
-          await updateWarehouseProfileSetting({ warehouseProfile: formData.warehouseProfile });
+          await updateWarehouseProfileSetting({ 
+            warehouseProfile: formData.warehouseProfile,
+            orderEmailNotification: formData.orderEmailNotification 
+          });
           showSuccessToast('Warehouse Profile settings updated successfully!');
           break;
         case 'demandedItems':
@@ -1200,8 +1215,8 @@ const SettingsTabs = () => {
               <TextField
                 fullWidth
                 type="email"
-                value={formData.warehouseProfile.orderEmailNotification || ''}
-                onChange={(e) => handleFieldChange('warehouseProfile', 'orderEmailNotification', e.target.value)}
+                value={formData.orderEmailNotification || ''}
+                onChange={(e) => handleFieldChange('', 'orderEmailNotification', e.target.value)}
                 size="small"
                 placeholder="Enter email address for order notifications"
               />
