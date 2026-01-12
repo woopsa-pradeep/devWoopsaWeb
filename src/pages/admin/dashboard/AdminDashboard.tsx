@@ -121,7 +121,12 @@ interface EpickDashboardData {
       formatted: string;
     };
     totalScannedQuantity: number;
+    totalScannedLines?: number;
     totalOverrideRequests: number;
+    totalRequests?: number;
+    totalAcceptedRequests?: number;
+    totalRejectedRequests?: number;
+    totalTimeFormatted?: string;
   }>;
   averageOrderTime: {
     averageTimeSeconds: number;
@@ -323,7 +328,7 @@ const AdminDashboard = () => {
     uom: product.inventory.UOM,
   })) || [];
 
-  const pickerBarData = epickData?.pickerWiseOrders.map((picker) => ({
+  const pickerBarData = epickData?.pickerWiseOrders.map((picker: any) => ({
     name: picker.pickerName,
     completedOrders: picker.totalCompletedOrders,
     averageTime: picker.averageOrderTime.averageTimeSeconds / 3600, // Convert to hours
@@ -331,7 +336,12 @@ const AdminDashboard = () => {
     averageTimePerQty: picker.averageTimePerQuantity.secondsPerQty,
     averageTimePerQtyFormatted: picker.averageTimePerQuantity.formatted,
     scannedQuantity: picker.totalScannedQuantity,
-    overrideRequests: picker.totalOverrideRequests,
+    scannedLines: picker.totalScannedLines || 0,
+    overrideRequests: picker.totalOverrideRequests || 0,
+    totalRequests: picker.totalRequests || picker.totalOverrideRequests || 0,
+    acceptedRequests: picker.totalAcceptedRequests || 0,
+    rejectedRequests: picker.totalRejectedRequests || 0,
+    totalTimeFormatted: picker.totalTimeFormatted || "00:00:00",
   })) || [];
 
   // Table Columns
@@ -487,11 +497,50 @@ const AdminDashboard = () => {
       ),
     },
     {
+      id: "scannedLines",
+      label: "Scanned Lines",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="info.main">
+          {row.totalScannedLines?.toLocaleString() || 0}
+        </Typography>
+      ),
+    },
+    {
+      id: "totalTime",
+      label: "Total Time",
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={0.5}>
+          <AccessTimeIcon sx={{ fontSize: 14, color: theme.palette.info.main }} />
+          <Typography fontSize={13} fontWeight={500} color="text.secondary">
+            {row.totalTimeFormatted || "00:00:00"}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
       id: "overrideRequests",
-      label: "Override Requests",
+      label: "Total Override Requests",
       render: (row) => (
         <Typography fontSize={13} fontWeight={500} color={row.totalOverrideRequests > 0 ? "warning.main" : "text.secondary"}>
-          {row.totalOverrideRequests}
+          {row.totalOverrideRequests || 0}
+        </Typography>
+      ),
+    },
+    {
+      id: "acceptedRequests",
+      label: "Accepted Requests",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="success.main">
+          {row.totalAcceptedRequests || 0}
+        </Typography>
+      ),
+    },
+    {
+      id: "rejectedRequests",
+      label: "Rejected Requests",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="error.main">
+          {row.totalRejectedRequests || 0}
         </Typography>
       ),
     },
@@ -1433,7 +1482,7 @@ const AdminDashboard = () => {
                                         : theme.palette.background.paper,
                                       border: `1px solid ${theme.palette.divider}`,
                                       borderRadius: 2,
-                                      maxWidth: 280,
+                                      maxWidth: 300,
                                     }}
                                   >
                                     <Typography fontSize={12} fontWeight={600} mb={1}>
@@ -1449,10 +1498,22 @@ const AdminDashboard = () => {
                                       Avg Time/Qty: <strong>{data.averageTimePerQtyFormatted}</strong>
                                     </Typography>
                                     <Typography fontSize={11} mb={0.5}>
+                                      Total Time: <strong>{data.totalTimeFormatted}</strong>
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
                                       Scanned Qty: <strong>{data.scannedQuantity.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong>
                                     </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Scanned Lines: <strong>{data.scannedLines.toLocaleString()}</strong>
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Total Override Requests: <strong>{data.overrideRequests}</strong>
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Accepted: <strong style={{ color: theme.palette.success.main }}>{data.acceptedRequests}</strong>
+                                    </Typography>
                                     <Typography fontSize={11}>
-                                      Override Requests: <strong>{data.overrideRequests}</strong>
+                                      Rejected: <strong style={{ color: theme.palette.error.main }}>{data.rejectedRequests}</strong>
                                     </Typography>
                                   </Paper>
                                 );
