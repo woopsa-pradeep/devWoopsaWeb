@@ -27,6 +27,7 @@ import {
   Cell,
   PieChart,
   Pie,
+  Legend,
 } from "recharts";
 import DashboardCard from "../../../component/atoms/dashboard/DashboardCard";
 import CommonTable, {
@@ -327,6 +328,10 @@ const AdminDashboard = () => {
     completedOrders: picker.totalCompletedOrders,
     averageTime: picker.averageOrderTime.averageTimeSeconds / 3600, // Convert to hours
     averageTimeFormatted: picker.averageOrderTime.averageTimeFormatted,
+    averageTimePerQty: picker.averageTimePerQuantity.secondsPerQty,
+    averageTimePerQtyFormatted: picker.averageTimePerQuantity.formatted,
+    scannedQuantity: picker.totalScannedQuantity,
+    overrideRequests: picker.totalOverrideRequests,
   })) || [];
 
   // Table Columns
@@ -458,6 +463,36 @@ const AdminDashboard = () => {
             {row.averageOrderTime.averageTimeFormatted}
           </Typography>
         </Box>
+      ),
+    },
+    {
+      id: "averageTimePerQty",
+      label: "Avg Time/Qty",
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={0.5}>
+          <AccessTimeIcon sx={{ fontSize: 14, color: theme.palette.warning.main }} />
+          <Typography fontSize={13} fontWeight={500} color="text.secondary">
+            {row.averageTimePerQuantity.formatted}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      id: "scannedQuantity",
+      label: "Scanned Quantity",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="primary.main">
+          {row.totalScannedQuantity.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+        </Typography>
+      ),
+    },
+    {
+      id: "overrideRequests",
+      label: "Override Requests",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color={row.totalOverrideRequests > 0 ? "warning.main" : "text.secondary"}>
+          {row.totalOverrideRequests}
+        </Typography>
       ),
     },
   ];
@@ -1384,11 +1419,68 @@ const AdminDashboard = () => {
                             axisLine={false}
                             tickFormatter={(value) => value.toLocaleString()}
                           />
-                          <Tooltip content={<CustomTooltip />} />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <Paper
+                                    elevation={8}
+                                    sx={{
+                                      p: 1.5,
+                                      background: theme.palette.mode === 'dark' 
+                                        ? alpha(theme.palette.background.paper, 0.95)
+                                        : theme.palette.background.paper,
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      borderRadius: 2,
+                                      maxWidth: 280,
+                                    }}
+                                  >
+                                    <Typography fontSize={12} fontWeight={600} mb={1}>
+                                      {data.name}
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Completed Orders: <strong>{data.completedOrders}</strong>
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Avg Time: <strong>{data.averageTimeFormatted}</strong>
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Avg Time/Qty: <strong>{data.averageTimePerQtyFormatted}</strong>
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Scanned Qty: <strong>{data.scannedQuantity.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong>
+                                    </Typography>
+                                    <Typography fontSize={11}>
+                                      Override Requests: <strong>{data.overrideRequests}</strong>
+                                    </Typography>
+                                  </Paper>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Legend 
+                            wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                            iconType="rect"
+                          />
                           <Bar 
                             dataKey="completedOrders" 
                             fill={theme.palette.success.main}
                             radius={[6, 6, 0, 0]}
+                            name="Completed Orders"
+                          />
+                          <Bar 
+                            dataKey="scannedQuantity" 
+                            fill={theme.palette.primary.main}
+                            radius={[6, 6, 0, 0]}
+                            name="Scanned Quantity"
+                          />
+                          <Bar 
+                            dataKey="overrideRequests" 
+                            fill={theme.palette.warning.main}
+                            radius={[6, 6, 0, 0]}
+                            name="Override Requests"
                           />
                         </BarChart>
                       </ResponsiveContainer>
@@ -2089,11 +2181,6 @@ const AdminDashboard = () => {
                           <Pie
                             data={epickData?.overrideRequestStatistics ? [
                               {
-                                name: "Total Requests",
-                                value: epickData.overrideRequestStatistics.totalRequests,
-                                color: theme.palette.warning.main,
-                              },
-                              {
                                 name: "Accepted",
                                 value: epickData.overrideRequestStatistics.totalAcceptedRequests,
                                 color: theme.palette.success.main,
@@ -2117,7 +2204,6 @@ const AdminDashboard = () => {
                             isAnimationActive
                           >
                             {epickData?.overrideRequestStatistics ? [
-                              <Cell key="total" fill={theme.palette.warning.main} />,
                               <Cell key="accepted" fill={theme.palette.success.main} />,
                               <Cell key="rejected" fill={theme.palette.error.main} />,
                             ] : []}
