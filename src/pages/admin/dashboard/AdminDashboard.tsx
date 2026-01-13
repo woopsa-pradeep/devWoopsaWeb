@@ -228,6 +228,9 @@ const AdminDashboard = () => {
       setLossQtyLoading(false);
     }
   };
+  useEffect(() => {
+    fetchLossQtyData();
+  }, [startDate, endDate]);
 
   const handleLossQtyClick = () => {
     navigate('/admin/reports-analytics?tab=loss-qty', {
@@ -351,7 +354,7 @@ const AdminDashboard = () => {
   };
 
   const salesPersonData = dashboardData
-    ? dashboardData.result.map((person) => ({
+    ? dashboardData?.result?.map((person) => ({
         name: person.S_Desc,
         Sales: person.totalInvoiceTotal,
         Orders: person.totalOrders,
@@ -1067,9 +1070,9 @@ const AdminDashboard = () => {
                       columns={salesPersonColumns}
                       currentPage={1}
                       totalPages={1}
-                      totalItems={dashboardData?.result.length || 0}
+                      totalItems={dashboardData?.result?.length || 0}
                       stickyHeader={true}
-                      pageSize={dashboardData?.result.length || 0}
+                      pageSize={dashboardData?.result?.length || 0}
                       onPageChange={() => {}}
                       onPageSizeChange={() => {}}
                       showPageSizeSelector={false}
