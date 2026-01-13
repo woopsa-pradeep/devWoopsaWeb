@@ -13,6 +13,9 @@ import {
   Grow,
   // useMediaQuery,
   alpha,
+  Select,
+  MenuItem,
+  FormControl,
 } from "@mui/material";
 import {
   ResponsiveContainer,
@@ -78,12 +81,11 @@ interface DashboardData {
       UOM: string;
     };
   }>;
-  salesPersonPerformance: Array<{
-    salesRepNumber: number;
-    salesRepName: string;
-    totalSales: number;
-    orderCount: number;
-    totalQuantity: number;
+  result: Array<{
+    S_Number: number;
+    S_Desc: string;
+    totalOrders: number;
+    totalInvoiceTotal: number;
   }>;
 }
 
@@ -156,6 +158,7 @@ const AdminDashboard = () => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(
     new Set(["Mobile", "Web", "ERP"])
   );
+  const [costType, setCostType] = useState<string>("base");
   const [highDemandViewMode, setHighDemandViewMode] = useState<"table" | "graph">("table");
   const [pickerViewMode, setPickerViewMode] = useState<"table" | "graph">("table");
   const [salesPerformanceViewMode, setSalesPerformanceViewMode] = useState<"table" | "graph">("table");
@@ -168,7 +171,7 @@ const AdminDashboard = () => {
     if ((startDate && endDate) || (!startDate && !endDate)) {
       fetchDashboardData();
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, costType]);
 
   const fetchDashboardData = async () => {
     try {
@@ -178,6 +181,7 @@ const AdminDashboard = () => {
         getDistributorDashboard({
           fromDate: startDate?.format("YYYY-MM-DD") || "",
           toDate: endDate?.format("YYYY-MM-DD") || "",
+          costType: costType,
         }),
         getEpickDashboard({
           fromDate: startDate?.format("YYYY-MM-DD") || "",
@@ -307,11 +311,10 @@ const AdminDashboard = () => {
   };
 
   const salesPersonData = dashboardData
-    ? dashboardData.salesPersonPerformance.map((person) => ({
-        name: person.salesRepName,
-        Sales: person.totalSales,
-        Orders: person.orderCount,
-        Quantity: person.totalQuantity,
+    ? dashboardData.result.map((person) => ({
+        name: person.S_Desc,
+        Sales: person.totalInvoiceTotal,
+        Orders: person.totalOrders,
       }))
     : [];
 
@@ -408,7 +411,7 @@ const AdminDashboard = () => {
       label: "Sales Person",
       render: (row) => (
         <Typography fontSize={13} fontWeight={500} color="text.primary">
-          {row.salesRepName}
+          {row.S_Desc}
         </Typography>
       ),
     },
@@ -417,7 +420,7 @@ const AdminDashboard = () => {
       label: "Total Sales",
       render: (row) => (
         <Typography fontSize={13} fontWeight={500} color="text.secondary">
-          ${row.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          ${row.totalInvoiceTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Typography>
       ),
     },
@@ -426,16 +429,7 @@ const AdminDashboard = () => {
       label: "Order Count",
       render: (row) => (
         <Typography fontSize={13} color="text.secondary">
-          {row.orderCount}
-        </Typography>
-      ),
-    },
-    {
-      id: "quantity",
-      label: "Total Quantity",
-      render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
-          {row.totalQuantity.toLocaleString()}
+          {row.totalOrders}
         </Typography>
       ),
     },
@@ -906,11 +900,28 @@ const AdminDashboard = () => {
                     border: `1px solid ${theme.palette.divider}`,
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
                     <Typography fontSize={14} fontWeight={500} color="text.primary">
                       Sales Performance
                     </Typography>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <FormControl size="small" sx={{ minWidth: 100 }}>
+                        <Select
+                          value={costType}
+                          onChange={(e) => setCostType(e.target.value)}
+                          sx={{
+                            fontSize: 11,
+                            height: 28,
+                            '& .MuiSelect-select': {
+                              py: 0.5,
+                            },
+                          }}
+                        >
+                          <MenuItem value="base">Base</MenuItem>
+                          <MenuItem value="avg">Avg</MenuItem>
+                          <MenuItem value="net">Net</MenuItem>
+                        </Select>
+                      </FormControl>
                       <Button
                         size="small"
                         onClick={() => setSalesPerformanceViewMode("graph")}
@@ -948,13 +959,13 @@ const AdminDashboard = () => {
                   {salesPerformanceViewMode === "table" ? (
                     <CommonTable
                       padding={0}
-                      data={dashboardData?.salesPersonPerformance || []}
+                      data={dashboardData?.result || []}
                       columns={salesPersonColumns}
                       currentPage={1}
                       totalPages={1}
-                      totalItems={dashboardData?.salesPersonPerformance.length || 0}
+                      totalItems={dashboardData?.result.length || 0}
                       stickyHeader={true}
-                      pageSize={dashboardData?.salesPersonPerformance.length || 0}
+                      pageSize={dashboardData?.result.length || 0}
                       onPageChange={() => {}}
                       onPageSizeChange={() => {}}
                       showPageSizeSelector={false}

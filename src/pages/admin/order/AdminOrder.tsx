@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Box, Typography, useMediaQuery, Paper, IconButton, CircularProgress } from "@mui/material";
 import CommonTable, {
   TableColumn,
@@ -28,10 +28,74 @@ const AdminOrder = () => {
   const [selectedStartDate, setSelectedStartDate] = useState<any>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<any>(null);
   const [printingOrder, setPrintingOrder] = useState<string | null>(null);
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const handleViewOrder = (orderId: string) => {
     navigate(`/admin/order/details/${orderId}`);
   };
+
+  // Handle column sorting
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Toggle sort direction if same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new sort field and default to ascending
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sort data based on current sort field and direction
+  const sortedData = useMemo(() => {
+    if (!sortField) return data;
+    
+    return [...data].sort((a, b) => {
+      // Handle Picklist column - sort by Picklist_Printed
+      let actualField = sortField;
+      if (sortField === 'Picklist') {
+        actualField = 'Picklist_Printed';
+      }
+      
+      let aValue = a[actualField];
+      let bValue = b[actualField];
+      
+      // Handle null/undefined values
+      if (aValue == null) aValue = '';
+      if (bValue == null) bValue = '';
+      
+      // Handle boolean values (for Picklist_Printed)
+      if (sortField === 'Picklist') {
+        aValue = aValue ? 1 : 0;
+        bValue = bValue ? 1 : 0;
+      }
+      
+      // Handle numeric values
+      if (actualField === 'totalQuantityOrdered' || actualField === 'route' || actualField === 'stop') {
+        aValue = Number(aValue) || 0;
+        bValue = Number(bValue) || 0;
+      }
+      
+      // Handle date values
+      if (actualField === 'Order_Date') {
+        aValue = aValue ? new Date(aValue).getTime() : 0;
+        bValue = bValue ? new Date(bValue).getTime() : 0;
+      }
+      
+      // Convert to string for comparison if not numeric/date/boolean
+      if (typeof aValue !== 'number') {
+        aValue = String(aValue).toLowerCase();
+        bValue = String(bValue).toLowerCase();
+      }
+      
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [data, sortField, sortDirection]);
 
   const handlePrintPicklist = async (orderNumber: string, picklistPrinted: boolean = false) => {
     setPrintingOrder(orderNumber);
@@ -301,49 +365,88 @@ const AdminOrder = () => {
   };
 
   const columns: TableColumn<any>[] = [
-    { id: "Order_Number", label: "Order Number", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Number}</Typography>
-      </Box>
-    )  },
-    { id: "Order_Date", label: "Date", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Date}</Typography>
-      </Box>
-    )  },
-    { id: "customerName", label: "Customer Name", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.customerName}</Typography>
-      </Box>
-    )  },
-    { id: "address", label: "Address", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.address || "-"}</Typography>
-      </Box>
-    )  },
-    { id: "route", label: "Route", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.route || "-"}</Typography>
-      </Box>
-    )  },
-    { id: "stop", label: "Stop", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.stop || "-"}</Typography>
-      </Box>
-    )  },
-    { id: "totalQuantityOrdered", label: "Item (Qty)", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{Number(row.totalQuantityOrdered).toFixed(0)}</Typography>
-      </Box>
-    )  },
-    { id: "Order_Source_Name", label: "Platforms", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Source_Name}</Typography>
-      </Box>
-    )  },
+    { 
+      id: "Order_Number", 
+      label: "Order Number", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Number}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "Order_Date", 
+      label: "Date", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Date}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "customerName", 
+      label: "Customer Name", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.customerName}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "address", 
+      label: "Address", 
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.address || "-"}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "route", 
+      label: "Route", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.route || "-"}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "stop", 
+      label: "Stop", 
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.stop || "-"}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "totalQuantityOrdered", 
+      label: "Item (Qty)", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{Number(row.totalQuantityOrdered).toFixed(0)}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "Order_Source_Name", 
+      label: "Platforms", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Source_Name}</Typography>
+        </Box>
+      )  
+    },
     {
       id: "Picklist",
       label: "Picklist",
+      sortable: true,
       render: (row) => (
         <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
           <IconButton
@@ -463,7 +566,7 @@ const AdminOrder = () => {
 
         {/* Table */}
         <CommonTable
-          data={data}
+          data={sortedData}
           containerHeight="calc(100vh - 380px)"
           columns={columns}
           // Pagination props
@@ -483,6 +586,10 @@ const AdminOrder = () => {
           // Other props
           loading={loading}
           filterComponent={null}
+          // Sorting props
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       </Paper>
     </Box>

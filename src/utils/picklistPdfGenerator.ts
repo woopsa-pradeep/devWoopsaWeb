@@ -789,7 +789,8 @@ export const generatePicklistPDF = async (
   const logoDataUrl = await loadLogoAsDataUrl();
   const selectedFieldKeys = Object.keys(template.selectedFields).filter(key => template.selectedFields[key]);
   const totalFields = selectedFieldKeys.length;
-  const isLandscape = totalFields > 7;
+  const hasSectionOrLocation = selectedFieldKeys.includes('section') || selectedFieldKeys.includes('location');
+  const isLandscape = totalFields > 7 && !hasSectionOrLocation;
   
   const doc = new jsPDF(isLandscape ? 'landscape' : 'portrait', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();

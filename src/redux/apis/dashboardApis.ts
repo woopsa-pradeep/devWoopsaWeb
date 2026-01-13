@@ -40,7 +40,7 @@ export const getPopularItems = async (role: string, c_number: string) => {
     return response.data;
 };
 
-export const getDistributorDashboard = async (params: { fromDate?: string; toDate?: string }) => {
+export const getDistributorDashboard = async (params: { fromDate?: string; toDate?: string; costType?: string }) => {
     const response = await axiosInstance.post('/dashboard/distributorDashboard', params);
     return response.data;
 };

@@ -1062,7 +1062,8 @@ const PicklistTemplateTab: React.FC = () => {
     const logoDataUrl = await loadLogoAsDataUrl();
     const selectedFieldKeys = Object.keys(selectedFields).filter(key => selectedFields[key]);
     const totalFields = selectedFieldKeys.length;
-    const isLandscape = totalFields > 7;
+    const hasSectionOrLocation = selectedFieldKeys.includes('section') || selectedFieldKeys.includes('location');
+    const isLandscape = totalFields > 7 && !hasSectionOrLocation;
     
     const doc = new jsPDF(isLandscape ? 'landscape' : 'portrait', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1419,6 +1420,8 @@ const PicklistTemplateTab: React.FC = () => {
 
   const selectedFieldKeys = Object.keys(selectedFields).filter(key => selectedFields[key]);
   const totalFields = selectedFieldKeys.length;
+  const hasSectionOrLocation = selectedFieldKeys.includes('section') || selectedFieldKeys.includes('location');
+  const isLandscape = totalFields > 7 && !hasSectionOrLocation;
 
   return (
     <Box sx={{ 
@@ -1564,7 +1567,7 @@ const PicklistTemplateTab: React.FC = () => {
                   Select Fields
                 </Typography>
                 <Typography variant="caption" sx={{ mb: 0.6, pl: 0.5, fontSize: '0.65rem', display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
-                  {totalFields <= 7 ? 'Portrait A4' : 'Landscape A4'} ({totalFields} fields selected)
+                  {isLandscape ? 'Landscape A4' : 'Portrait A4'} ({totalFields} fields selected)
                 </Typography>
                 <Box sx={{ 
                   maxHeight: 'calc(100vh - 260px)',
