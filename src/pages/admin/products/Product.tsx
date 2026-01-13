@@ -48,6 +48,8 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 // import CardContent from '@mui/material/CardContent';
 import Pagination from '@mui/material/Pagination';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+// import AssessmentIcon from '@mui/icons-material/Assessment';
+import LossQtyReportModal from '../../../component/molecules/LossQtyReportModal';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const JsBarcode = require('jsbarcode');
 
@@ -115,6 +117,10 @@ const Product = () => {
   const [loadingSalesCategory, setLoadingSalesCategory] = useState(false);
   const [loadingPriceClass, setLoadingPriceClass] = useState(false);
   
+  // Filter states for I_Inactive and ShortOrderForm
+  const [iInactive, setIInactive] = useState<boolean>(false);
+  const [shortOrderForm, setShortOrderForm] = useState<boolean>(true);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -160,13 +166,14 @@ const Product = () => {
   });
   const [individualPrintLoading, setIndividualPrintLoading] = useState(false);
 
+  // Loss Qty Report Modal state
+  const [lossQtyReportModalOpen, setLossQtyReportModalOpen] = useState(false);
+
   // Detailed view state
   const [viewMode, setViewMode] = useState<'table' | 'detailed'>('detailed');
   const [expandedCards, setExpandedCards] = useState<{ [key: string]: boolean }>({});
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: { [section: string]: boolean } }>({});
   
-  // Track which card was opened first (for default open behavior)
-  const [firstOpenedCard, setFirstOpenedCard] = useState<string | null>(null);
   const [detailedData, setDetailedData] = useState<any[]>([]);
   const [detailedLoading, setDetailedLoading] = useState(false);
   const [detailedCurrentPage, setDetailedCurrentPage] = useState(1);
@@ -244,7 +251,7 @@ const Product = () => {
     if (viewMode === 'detailed') {
       setDetailedCurrentPage(1);
     }
-  }, [debouncedSearch, salesCategory, priceClass, viewMode]);
+  }, [debouncedSearch, salesCategory, priceClass, viewMode, iInactive, shortOrderForm]);
 
   useEffect(() => {
     if (viewMode === 'table') {
@@ -258,6 +265,8 @@ const Product = () => {
             limit: pageSize,
             salesCategoryId: salesCategory.map(cat => Number(cat.value)),
             priceClassId: priceClass.map(pc => Number(pc.value)),
+            I_Inactive: iInactive,
+            ShortOrderForm: shortOrderForm,
           };
           const res = await productList(params) as any;
           // Adjust this line based on your API response structure
@@ -276,7 +285,7 @@ const Product = () => {
       fetchProducts();
       return () => { ignore = true; };
     }
-  }, [currentPage, pageSize, debouncedSearch, salesCategory, priceClass, viewMode]);
+  }, [currentPage, pageSize, debouncedSearch, salesCategory, priceClass, viewMode, iInactive, shortOrderForm]);
 
   // Store detailed product data with full details
   const [detailedProductsWithFullData, setDetailedProductsWithFullData] = useState<any[]>([]);
@@ -295,6 +304,8 @@ const Product = () => {
             limit: detailedPageSize,
             salesCategoryId: salesCategory.map(cat => Number(cat.value)),
             priceClassId: priceClass.map(pc => Number(pc.value)),
+            I_Inactive: iInactive,
+            ShortOrderForm: shortOrderForm,
           };
           
           const res = await productList(params) as any;
@@ -320,7 +331,7 @@ const Product = () => {
       fetchDetailedProducts();
       return () => { ignore = true; };
     }
-  }, [detailedCurrentPage, detailedPageSize, debouncedSearch, salesCategory, priceClass, viewMode]);
+  }, [detailedCurrentPage, detailedPageSize, debouncedSearch, salesCategory, priceClass, viewMode, iInactive, shortOrderForm]);
 
   // Fetch full details for each product in the current page
   useEffect(() => {
@@ -401,6 +412,8 @@ const Product = () => {
         limit: pageSize,
         salesCategoryId: salesCategory.map(cat => Number(cat.value)),
         priceClassId: priceClass.map(pc => Number(pc.value)),
+        I_Inactive: iInactive,
+        ShortOrderForm: shortOrderForm,
       };
       const res = await productList(params) as any;
       const list = res?.data?.data?.finalProductList || [];
@@ -1406,6 +1419,8 @@ const Product = () => {
         priceClassId: printLabelForm.priceClass.length > 0
           ? printLabelForm.priceClass.map(pc => Number(pc.value))
           : [],
+        I_Inactive: iInactive,
+        ShortOrderForm: shortOrderForm,
       };
       
       const res: any = await productList(params);
@@ -1725,35 +1740,25 @@ const Product = () => {
     const productData = fullDetails || item;
     const cardId = `card-${item.Item_Number}`;
     
-    // Default: only first card open, but allow multiple to be open
-    const isFirstCard = index === 0;
-    const shouldBeExpandedByDefault = isFirstCard && firstOpenedCard === null;
-    const isCardExpanded = expandedCards[cardId] !== undefined 
-      ? expandedCards[cardId] 
-      : shouldBeExpandedByDefault;
+    // All cards closed by default - only open when user clicks
+    const isCardExpanded = expandedCards[cardId] || false;
     
-    // Set first opened card on mount
-    if (isFirstCard && firstOpenedCard === null) {
-      setFirstOpenedCard(cardId);
-      setExpandedCards(prev => ({ ...prev, [cardId]: true }));
-    }
-    
-    // Initialize expanded sections for this card if not exists
+    // Initialize expanded sections for this card if not exists (all closed by default)
     if (!expandedSections[cardId]) {
       setExpandedSections(prev => ({
         ...prev,
         [cardId]: {
-          pricing: true,
-          cost: true,
-          product: true,
-          inventory: true,
-          caseDimensions: true,
-          quantity: true,
-          vendor: true,
-          jurisdiction: true,
-          flags: true,
-          additional: true,
-          dates: true,
+          pricing: false,
+          cost: false,
+          product: false,
+          inventory: false,
+          caseDimensions: false,
+          quantity: false,
+          vendor: false,
+          jurisdiction: false,
+          flags: false,
+          additional: false,
+          dates: false,
         }
       }));
     }
@@ -1766,9 +1771,6 @@ const Product = () => {
         expanded={isCardExpanded}
         onChange={(_, expanded) => {
           setExpandedCards(prev => ({ ...prev, [cardId]: expanded }));
-          if (expanded && firstOpenedCard === null) {
-            setFirstOpenedCard(cardId);
-          }
         }}
         sx={{ 
           mb: 1.5, 
@@ -2057,14 +2059,13 @@ const Product = () => {
             {/* Pricing Information */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex', maxWidth: '100%' }}>
               <Accordion
-                expanded={sectionExpanded.pricing !== false}
+                expanded={sectionExpanded.pricing === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], pricing: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2175,14 +2176,13 @@ const Product = () => {
             {/* Cost Information */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.cost !== false}
+                expanded={sectionExpanded.cost === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], cost: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2273,14 +2273,13 @@ const Product = () => {
             {/* Product Details */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.product !== false}
+                expanded={sectionExpanded.product === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], product: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2372,14 +2371,13 @@ const Product = () => {
             {/* Inventory & Location */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.inventory !== false}
+                expanded={sectionExpanded.inventory === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], inventory: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2466,14 +2464,13 @@ const Product = () => {
             {/* Case Dimensions */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.caseDimensions !== false}
+                expanded={sectionExpanded.caseDimensions === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], caseDimensions: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2526,14 +2523,13 @@ const Product = () => {
             {/* Quantity Limits */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.quantity !== false}
+                expanded={sectionExpanded.quantity === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], quantity: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2607,14 +2603,13 @@ const Product = () => {
             {/* Vendor & Manufacturer */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.vendor !== false}
+                expanded={sectionExpanded.vendor === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], vendor: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2679,14 +2674,13 @@ const Product = () => {
             {/* Jurisdiction & Cigarette */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.jurisdiction !== false}
+                expanded={sectionExpanded.jurisdiction === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], jurisdiction: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2821,14 +2815,13 @@ const Product = () => {
             {/* Flags & Status */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.flags !== false}
+                expanded={sectionExpanded.flags === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], flags: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2977,14 +2970,13 @@ const Product = () => {
             {/* Additional Information */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.additional !== false}
+                expanded={sectionExpanded.additional === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], additional: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -3148,14 +3140,13 @@ const Product = () => {
             {/* Dates & Tracking */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.dates !== false}
+                expanded={sectionExpanded.dates === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], dates: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -3371,6 +3362,23 @@ const Product = () => {
               <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Print Label</Box>
               <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Print</Box>
             </CustomButton>
+            {/* <CustomButton 
+              fullWidth={false}
+              onClick={() => setLossQtyReportModalOpen(true)}
+              icon={<AssessmentIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
+              iconPosition="left"
+              sx={{ 
+                mt: 0,
+                fontSize: { xs: '0.75rem', md: '0.875rem' },
+                px: { xs: 1, md: 1.5 },
+                '& .MuiButton-startIcon': {
+                  mr: { xs: 0.5, md: 1 }
+                }
+              }} 
+            >
+              <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Loss Qty Report</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Report</Box>
+            </CustomButton> */}
             <CustomButton 
               fullWidth={false}
               onClick={() => navigate('/admin/product/add')}
@@ -3420,6 +3428,55 @@ const Product = () => {
               placeholder="Select sub category"
               sx={{ mb: 0, width: '100%', fontSize: "14px" }}
             />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 12, md: 12 }}>
+            <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+              <Typography fontSize={13} color="text.secondary" sx={{ mr: 0.5 }}>
+                Filters:
+              </Typography>
+              <Chip
+                label="Inactive"
+                onClick={() => {
+                  setIInactive(!iInactive);
+                  setCurrentPage(1);
+                  if (viewMode === 'detailed') {
+                    setDetailedCurrentPage(1);
+                  }
+                }}
+                color={iInactive ? 'primary' : 'default'}
+                variant={iInactive ? 'filled' : 'outlined'}
+                sx={{ 
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  height: '28px',
+                  color: iInactive ? 'white' : 'inherit',
+                  '&:hover': {
+                    bgcolor: iInactive ? 'primary.dark' : 'action.hover'
+                  }
+                }}
+              />
+              <Chip
+                label="Short Order Form"
+                onClick={() => {
+                  setShortOrderForm(!shortOrderForm);
+                  setCurrentPage(1);
+                  if (viewMode === 'detailed') {
+                    setDetailedCurrentPage(1);
+                  }
+                }}
+                color={shortOrderForm ? 'primary' : 'default'}
+                variant={shortOrderForm ? 'filled' : 'outlined'}
+                sx={{ 
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  height: '28px',
+                  color: shortOrderForm ? 'white' : 'inherit',
+                  '&:hover': {
+                    bgcolor: shortOrderForm ? 'primary.dark' : 'action.hover'
+                  }
+                }}
+              />
+            </Box>
           </Grid>
         </Grid>
       </Box>
@@ -4133,6 +4190,13 @@ const Product = () => {
           </Box>
         </Box>
       </CommonModal>
+
+      {/* Loss Qty Report Modal */}
+      <LossQtyReportModal
+        open={lossQtyReportModalOpen}
+        onClose={() => setLossQtyReportModalOpen(false)}
+        groupBy="item"
+      />
     </Box>
   );
 };

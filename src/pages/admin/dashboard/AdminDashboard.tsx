@@ -40,6 +40,8 @@ import RetailersIcon from "../../../assets/retailerGlobalActive.svg";
 import ItemsIcon from "../../../assets/Menu Icon (2).svg";
 import OrdersIcon from "../../../assets/orderItems.svg";
 import { getDistributorDashboard, getEpickDashboard } from "../../../redux/apis/dashboardApis";
+import { getShortShipmentReport } from "../../../redux/apis/distrubutor/listApis";
+import { useNavigate } from "react-router-dom";
 import CustomDatePicker from "../../../component/atoms/CustomDatePicker";
 import dayjs from "dayjs";
 import LoadingSpinner from "../../../component/atoms/loader/LoadingSpinner";
@@ -162,6 +164,10 @@ const AdminDashboard = () => {
   const [highDemandViewMode, setHighDemandViewMode] = useState<"table" | "graph">("table");
   const [pickerViewMode, setPickerViewMode] = useState<"table" | "graph">("table");
   const [salesPerformanceViewMode, setSalesPerformanceViewMode] = useState<"table" | "graph">("table");
+  const [lossQtyViewMode, setLossQtyViewMode] = useState<"table" | "graph">("table");
+  const [lossQtyData, setLossQtyData] = useState<any[]>([]);
+  const [lossQtyLoading, setLossQtyLoading] = useState(false);
+  const navigate = useNavigate();
   const [averageTimePerQtyViewMode, setAverageTimePerQtyViewMode] = useState<"table" | "graph">("graph");
   const [scannedQtyViewMode, setScannedQtyViewMode] = useState<"table" | "graph">("graph");
   const [scanningStatsViewMode, setScanningStatsViewMode] = useState<"table" | "graph">("graph");
@@ -196,6 +202,40 @@ const AdminDashboard = () => {
       setLoading(false);
       setEpickLoading(false);
     }
+  };
+
+  const fetchLossQtyData = async () => {
+    try {
+      setLossQtyLoading(true);
+      const params: any = {};
+      
+      // Only add dates if both are selected
+      if (startDate && endDate) {
+        params.fromDate = startDate.format("MM-DD-YYYY");
+        params.toDate = endDate.format("MM-DD-YYYY");
+      }
+      
+      const response = await getShortShipmentReport(params) as any;
+      
+      // Handle API response structure: { success: true, message: "...", data: { rows: [...] } }
+      const rows = response?.data?.data?.rows || response?.data?.rows || response?.rows || [];
+      // Get top 10 by Ext_Loss
+      const sorted = rows.sort((a: any, b: any) => (b.Ext_Loss || 0) - (a.Ext_Loss || 0));
+      setLossQtyData(sorted.slice(0, 10));
+    } catch (error) {
+      console.error("Error fetching loss quantity data:", error);
+    } finally {
+      setLossQtyLoading(false);
+    }
+  };
+
+  const handleLossQtyClick = () => {
+    navigate('/admin/reports-analytics?tab=loss-qty', {
+      state: {
+        fromDate: startDate?.format("YYYY-MM-DD"),
+        toDate: endDate?.format("YYYY-MM-DD"),
+      },
+    });
   };
 
   const handleStartDateChange = (date: dayjs.Dayjs | null) => {
@@ -705,6 +745,70 @@ const AdminDashboard = () => {
       ),
     },
   ];
+
+  const lossQtyColumns: TableColumn[] = [
+    {
+      id: "item",
+      label: "Item",
+      render: (row) => (
+        <Box>
+          <Typography fontSize={13} fontWeight={500} color="text.primary">
+            {row.Description || '-'}
+          </Typography>
+          <Typography fontSize={11} color="text.secondary">
+            #{row.Item_Number}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      id: "customer",
+      label: "Customer",
+      render: (row) => (
+        <Typography fontSize={13} color="text.secondary">
+          {row.C_Name || '-'}
+        </Typography>
+      ),
+    },
+    {
+      id: "date",
+      label: "Date",
+      render: (row) => (
+        <Typography fontSize={13} color="text.secondary">
+          {row.Invoice_Date ? dayjs(row.Invoice_Date).format('MM/DD/YYYY') : '-'}
+        </Typography>
+      ),
+    },
+    {
+      id: "lossQty",
+      label: "Loss Qty",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="error.main">
+          {row.Loss_Qty || 0}
+        </Typography>
+      ),
+    },
+    {
+      id: "extLoss",
+      label: "Ext $$$ Lost",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="error.main">
+          ${(row.Ext_Loss || 0).toFixed(2)}
+        </Typography>
+      ),
+    },
+  ];
+
+  const lossQtyBarData = lossQtyData.map((row) => ({
+    name: row.Description?.length > 20 
+      ? row.Description.substring(0, 20) + "..." 
+      : row.Description || `Item ${row.Item_Number}`,
+    fullName: row.Description || `Item ${row.Item_Number}`,
+    lossQty: row.Loss_Qty || 0,
+    extLoss: row.Ext_Loss || 0,
+    itemNumber: row.Item_Number,
+    customer: row.C_Name,
+  }));
 
   // Custom Tooltip Component
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -1228,6 +1332,182 @@ const AdminDashboard = () => {
             </Grid>
           </Grid>
 
+
+          {/* Loss Quantity Report */}
+          <Grid container spacing={2} mb={2}>
+            <Grid size={{ xs: 12 }}>
+              <Grow in={true} timeout={1400}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      borderColor: theme.palette.primary.main,
+                    },
+                  }}
+                  onClick={handleLossQtyClick}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Box>
+                      <Typography fontSize={14} fontWeight={500} color="text.primary">
+                        Loss Quantity Report (Top 10)
+                      </Typography>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLossQtyClick();
+                        }}
+                        sx={{
+                          textTransform: 'none',
+                          fontSize: 11,
+                          px: 0,
+                          py: 0.25,
+                          mt: 0.5,
+                          minWidth: 'auto',
+                          color: theme.palette.primary.main,
+                          '&:hover': {
+                            backgroundColor: 'transparent',
+                            textDecoration: 'underline',
+                          },
+                        }}
+                      >
+                        View All →
+                      </Button>
+                    </Box>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLossQtyViewMode("graph");
+                        }}
+                        variant={lossQtyViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLossQtyViewMode("table");
+                        }}
+                        variant={lossQtyViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {lossQtyViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={lossQtyData}
+                      columns={lossQtyColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={lossQtyData.length}
+                      stickyHeader={true}
+                      pageSize={lossQtyData.length}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={lossQtyLoading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No loss quantity data</Typography>}
+                    />
+                  ) : (
+                    <Box sx={{ height: 320, width: "100%" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={lossQtyBarData} layout="vertical">
+                          <CartesianGrid 
+                            strokeDasharray="3 3" 
+                            stroke={alpha(theme.palette.divider, 0.5)}
+                          />
+                          <XAxis type="number" tick={{ fill: theme.palette.text.secondary, fontSize: 10 }} />
+                          <YAxis 
+                            type="category" 
+                            dataKey="name" 
+                            width={130}
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <Paper
+                                    elevation={8}
+                                    sx={{
+                                      p: 1.5,
+                                      background: theme.palette.mode === 'dark' 
+                                        ? alpha(theme.palette.background.paper, 0.95)
+                                        : theme.palette.background.paper,
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      borderRadius: 2,
+                                      maxWidth: 280,
+                                    }}
+                                  >
+                                    <Typography fontSize={12} fontWeight={600} mb={1}>
+                                      {data.fullName}
+                                    </Typography>
+                                    <Typography fontSize={11} color="text.secondary" mb={0.5}>
+                                      Item Number: {data.itemNumber}
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Customer: {data.customer}
+                                    </Typography>
+                                    <Typography fontSize={11} mb={0.5}>
+                                      Loss Qty: {data.lossQty}
+                                    </Typography>
+                                    <Typography fontSize={11}>
+                                      Ext Loss: ${data.extLoss.toFixed(2)}
+                                    </Typography>
+                                  </Paper>
+                                );
+                              }
+                              return null;
+                            }}
+                            cursor={{ fill: "rgba(0,0,0,0.1)" }}
+                          />
+                          <Bar 
+                            dataKey="extLoss" 
+                            fill={theme.palette.error.main}
+                            radius={[0, 6, 6, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+          </Grid>
 
           {/* High Demand Products */}
           <Grid container spacing={2}>

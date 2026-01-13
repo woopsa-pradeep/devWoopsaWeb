@@ -25,6 +25,8 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import CustomButton from '../../../component/atoms/CustomButton';
 import Tooltip from '@mui/material/Tooltip';
+// import AssessmentIcon from '@mui/icons-material/Assessment';
+import LossQtyReportModal from '../../../component/molecules/LossQtyReportModal';
 
 function ActionMenu({ row, onView, onSetLimit, onEdit }: { row: any; onView: (row: any) => void; onSetLimit: (row: any) => void; onEdit: (row: any) => void }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -76,6 +78,12 @@ const Retailer = () => {
   const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [selectedLimitRetailer, setSelectedLimitRetailer] = useState<any>(null);
   const [savingLimit, setSavingLimit] = useState(false);
+  
+  // Filter state for Inactive
+  const [inactiveFilter, setInactiveFilter] = useState<boolean | null>(null); // null = all, true = inactive, false = active
+  
+  // Loss Qty Report Modal state
+  const [lossQtyReportModalOpen, setLossQtyReportModalOpen] = useState(false);
 
   // Detailed view state
   const [viewMode, setViewMode] = useState<'table' | 'detailed'>('detailed');
@@ -87,7 +95,6 @@ const Retailer = () => {
   const [detailedTotalPages, setDetailedTotalPages] = useState(0);
   const [expandedCards, setExpandedCards] = useState<{ [key: string]: boolean }>({});
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: { [section: string]: boolean } }>({});
-  const [firstOpenedCard, setFirstOpenedCard] = useState<string | null>(null);
   
   // Full details state - stores detailed data per customer
   const [detailedCustomersWithFullData, setDetailedCustomersWithFullData] = useState<{ [key: number]: any }>({});
@@ -134,11 +141,15 @@ const Retailer = () => {
   const fetchRetailers = async () => {
     setLoading(true);
     try {
-      const params = {
+      const params: any = {
         search: debouncedSearch,
         page: currentPage,
         limit: pageSize
       };
+      // Add Inactive filter if set (not null)
+      if (inactiveFilter !== null) {
+        params.Inactive = inactiveFilter;
+      }
       const res = await customerList(params) as any;
       setRetailers(res?.data?.customerList || []);
       setTotalItems(res?.data?.totalCount || 0);
@@ -154,7 +165,7 @@ const Retailer = () => {
     if (viewMode === 'table') {
       fetchRetailers();
     }
-  }, [currentPage, pageSize, debouncedSearch, viewMode]);
+  }, [currentPage, pageSize, debouncedSearch, viewMode, inactiveFilter]);
 
   // Store all fetched data and filtered data
   const [allFetchedData, setAllFetchedData] = useState<any[]>([]);
@@ -167,11 +178,15 @@ const Retailer = () => {
       const fetchDetailedRetailers = async () => {
         setDetailedLoading(true);
         try {
-          const params = {
+          const params: any = {
             search: debouncedSearch,
             page: detailedCurrentPage,
             limit: detailedPageSize
           };
+          // Add Inactive filter if set (not null)
+          if (inactiveFilter !== null) {
+            params.Inactive = inactiveFilter;
+          }
           const res = await customerList(params) as any;
           
           // Handle customerList response format
@@ -210,7 +225,7 @@ const Retailer = () => {
       fetchDetailedRetailers();
       return () => { ignore = true; };
     }
-  }, [viewMode, debouncedSearch, detailedCurrentPage, detailedPageSize]);
+  }, [viewMode, debouncedSearch, detailedCurrentPage, detailedPageSize, inactiveFilter]);
 
 
   // Set filtered data from fetched data
@@ -1032,31 +1047,21 @@ const Retailer = () => {
           customerLimit: customerLimitData,
         };
     
-    // Default: only first card open, but allow multiple to be open
-    const isFirstCard = index === 0;
-    const shouldBeExpandedByDefault = isFirstCard && firstOpenedCard === null;
-    const isCardExpanded = expandedCards[cardId] !== undefined 
-      ? expandedCards[cardId] 
-      : shouldBeExpandedByDefault;
+    // All cards closed by default - only open when user clicks
+    const isCardExpanded = expandedCards[cardId] || false;
     
-    // Set first opened card on mount
-    if (isFirstCard && firstOpenedCard === null) {
-      setFirstOpenedCard(cardId);
-      setExpandedCards(prev => ({ ...prev, [cardId]: true }));
-    }
-    
-    // Initialize expanded sections for this card if not exists
+    // Initialize expanded sections for this card if not exists (all closed by default)
     if (!expandedSections[cardId]) {
       setExpandedSections(prev => ({
         ...prev,
         [cardId]: {
-          profile: true,
-          contact: true,
-          business: true,
-          financial: true,
-          routes: true,
-          documents: true,
-          additional: true,
+          profile: false,
+          contact: false,
+          business: false,
+          financial: false,
+          routes: false,
+          documents: false,
+          additional: false,
         }
       }));
     }
@@ -1069,9 +1074,6 @@ const Retailer = () => {
         expanded={isCardExpanded}
         onChange={(_, expanded) => {
           setExpandedCards(prev => ({ ...prev, [cardId]: expanded }));
-          if (expanded && firstOpenedCard === null) {
-            setFirstOpenedCard(cardId);
-          }
         }}
         sx={{ 
           mb: 1.5, 
@@ -1260,14 +1262,13 @@ const Retailer = () => {
             {/* Customer Profile Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex', maxWidth: '100%' }}>
               <Accordion
-                expanded={sectionExpanded.profile !== false}
+                expanded={sectionExpanded.profile === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], profile: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -1367,14 +1368,13 @@ const Retailer = () => {
             {/* Contact Details Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.contact !== false}
+                expanded={sectionExpanded.contact === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], contact: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -1524,14 +1524,13 @@ const Retailer = () => {
             {/* Business Details Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.business !== false}
+                expanded={sectionExpanded.business === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], business: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -1725,14 +1724,13 @@ const Retailer = () => {
             {/* Financial Details Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.financial !== false}
+                expanded={sectionExpanded.financial === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], financial: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -1835,14 +1833,13 @@ const Retailer = () => {
             {/* Routes Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.routes !== false}
+                expanded={sectionExpanded.routes === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], routes: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -1895,14 +1892,13 @@ const Retailer = () => {
             {/* Documents Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.documents !== false}
+                expanded={sectionExpanded.documents === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], documents: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2059,14 +2055,13 @@ const Retailer = () => {
             {/* POS Settings Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.pos !== false}
+                expanded={sectionExpanded.pos === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], pos: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2136,14 +2131,13 @@ const Retailer = () => {
             {/* Email Settings Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.email !== false}
+                expanded={sectionExpanded.email === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], email: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2213,14 +2207,13 @@ const Retailer = () => {
             {/* Category Allow Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.categoryAllow !== false}
+                expanded={sectionExpanded.categoryAllow === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], categoryAllow: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2296,14 +2289,13 @@ const Retailer = () => {
             {/* Additional Information Section */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.additional !== false}
+                expanded={sectionExpanded.additional === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], additional: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2518,6 +2510,23 @@ const Retailer = () => {
               <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Detailed</Box>
             </ToggleButton>
           </ToggleButtonGroup>
+          {/* <CustomButton 
+            fullWidth={false}
+            onClick={() => setLossQtyReportModalOpen(true)}
+            icon={<AssessmentIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
+            iconPosition="left"
+            sx={{ 
+              mt: 0,
+              fontSize: { xs: '0.75rem', md: '0.875rem' },
+              px: { xs: 1, md: 1.5 },
+              '& .MuiButton-startIcon': {
+                mr: { xs: 0.5, md: 1 }
+              }
+            }} 
+          >
+            <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Loss Qty Report</Box>
+            <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Report</Box>
+          </CustomButton> */}
           <CustomButton 
             fullWidth={false}
             onClick={() => navigate('/admin/retailer/add')}
@@ -2547,13 +2556,40 @@ const Retailer = () => {
         p={{ xs: 1, md: 2 }}
         sx={{ maxWidth: '100%', overflow: 'hidden' }}
       >
-        <Box display="flex" alignItems="center" gap={2} sx={{ width: '100%' }}>
+        <Box display="flex" alignItems="center" gap={2} sx={{ width: '100%', flexWrap: 'wrap' }}>
           <TextInput
             placeholder="Search Customer"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             sx={{ width: { xs: '100%', md: 220 } }}
           />
+          <ToggleButtonGroup
+            value={inactiveFilter === null ? 'all' : inactiveFilter ? 'inactive' : 'active'}
+            exclusive
+            onChange={(_, newValue) => {
+              if (newValue !== null) {
+                setInactiveFilter(newValue === 'all' ? null : newValue === 'inactive');
+                setCurrentPage(1);
+                if (viewMode === 'detailed') {
+                  setDetailedCurrentPage(1);
+                }
+              }
+            }}
+            size="small"
+            sx={{ 
+              height: { xs: '32px', md: '36px' },
+              '& .MuiToggleButton-root': {
+                fontSize: { xs: '0.75rem', md: '0.875rem' },
+                px: { xs: 1.5, md: 2 },
+                border: '1px solid',
+                borderColor: 'divider',
+              },
+            }}
+          >
+            <ToggleButton value="all">All</ToggleButton>
+            <ToggleButton value="active">Active</ToggleButton>
+            <ToggleButton value="inactive">Inactive</ToggleButton>
+          </ToggleButtonGroup>
         </Box>
       </Box>
       {viewMode === 'table' ? (
@@ -2731,6 +2767,13 @@ const Retailer = () => {
         }}
         onSubmit={handleLimitSubmit}
         loading={savingLimit}
+      />
+
+      {/* Loss Qty Report Modal */}
+      <LossQtyReportModal
+        open={lossQtyReportModalOpen}
+        onClose={() => setLossQtyReportModalOpen(false)}
+        groupBy="retailer"
       />
     </Box>
   );

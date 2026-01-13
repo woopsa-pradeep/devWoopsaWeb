@@ -39,3 +39,23 @@ export const getListForInventory = async () => {
     return axiosInstance.get('/list/listForInventory');
 };
 
+export const getListOfLossQuantityReport = async () => {
+    return axiosInstance.get('/list/listofLossQuantityReport');
+};
+
+export const getShortShipmentReport = async (params: { fromDate?: string; toDate?: string; [key: string]: any }) => {
+    const queryParams = new URLSearchParams();
+    if (params.fromDate) queryParams.append('fromDate', params.fromDate);
+    if (params.toDate) queryParams.append('toDate', params.toDate);
+    
+    // Add other filter parameters
+    Object.keys(params).forEach(key => {
+        if (key !== 'fromDate' && key !== 'toDate' && params[key] !== undefined && params[key] !== null && params[key] !== '') {
+            queryParams.append(key, String(params[key]));
+        }
+    });
+    
+    const queryString = queryParams.toString();
+    return axiosInstance.get(`/distrubutor/getShortShipmentReport${queryString ? `?${queryString}` : ''}`);
+};
+

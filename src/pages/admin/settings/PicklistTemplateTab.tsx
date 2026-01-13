@@ -870,9 +870,38 @@ const PicklistTemplateTab: React.FC = () => {
     return 0;
   };
 
+  // Sort by description with priority: space, symbolic, numeric, alphabetic
+  const sortByDescription = (a: typeof SAMPLE_ITEMS[0], b: typeof SAMPLE_ITEMS[0]): number => {
+    const descA = String(a.description || '').trim();
+    const descB = String(b.description || '').trim();
+    
+    // Get first character of each description
+    const firstCharA = descA.charAt(0);
+    const firstCharB = descB.charAt(0);
+    
+    // Get priority for first character: space (0), symbolic (1), numeric (2), alphabetic (3)
+    const getPriority = (char: string): number => {
+      if (char === ' ') return 0; // Space
+      if (/[0-9]/.test(char)) return 2; // Numeric
+      if (/[a-zA-Z]/.test(char)) return 3; // Alphabetic
+      return 1; // Symbolic (everything else)
+    };
+    
+    const priorityA = getPriority(firstCharA);
+    const priorityB = getPriority(firstCharB);
+    
+    // Sort by priority first
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    // If same priority, sort alphabetically
+    return descA.localeCompare(descB);
+  };
+
   // Group items based on selected grouping
   const groupItems = (items: typeof SAMPLE_ITEMS) => {
-    if (!groupBy) return [{ key: 'all', items }];
+    if (!groupBy) return [{ key: 'all', items: items.sort(sortByDescription) }];
     
     // Handle hierarchical grouping (Sales Category first, then Section/Location/Sequence)
     if (groupBy === 'sequenceSalesCategory') {
@@ -906,7 +935,7 @@ const PicklistTemplateTab: React.FC = () => {
         const sortedSeqs = Object.keys(secondaryGrouped).sort((a, b) => parseInt(a) - parseInt(b));
         const subGroups = sortedSeqs.map(seq => ({
           key: seq,
-          items: secondaryGrouped[seq]
+          items: secondaryGrouped[seq].sort(sortByDescription)
         }));
         
         result.push({
@@ -947,7 +976,7 @@ const PicklistTemplateTab: React.FC = () => {
         const sortedSections = Object.keys(secondaryGrouped).sort(naturalSort);
         const subGroups = sortedSections.map(section => ({
           key: section,
-          items: secondaryGrouped[section]
+          items: secondaryGrouped[section].sort(sortByDescription)
         }));
         
         result.push({
@@ -996,7 +1025,7 @@ const PicklistTemplateTab: React.FC = () => {
         });
         const subGroups = sortedLocations.map(location => ({
           key: location,
-          items: secondaryGrouped[location]
+          items: secondaryGrouped[location].sort(sortByDescription)
         }));
         
         result.push({
@@ -1053,7 +1082,7 @@ const PicklistTemplateTab: React.FC = () => {
     
     return sortedKeys.map(key => ({
       key,
-      items: grouped[key]
+      items: grouped[key].sort(sortByDescription)
     }));
   };
 

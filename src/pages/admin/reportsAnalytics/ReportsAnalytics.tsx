@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -13,18 +14,32 @@ import {
   Inventory as InventoryIcon,
   People as PeopleIcon,
   Label as LabelIcon,
+  TrendingDown as TrendingDownIcon,
   ChevronLeft,
   ChevronRight,
 } from '@mui/icons-material';
 import InventoryReportTab from './InventoryReportTab';
 import CustomerReportTab from './CustomerReportTab';
 import InventoryLabelTab from './InventoryLabelTab';
+import LossQtyReportTab from './LossQtyReportTab';
 
 const ReportsAnalytics: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery("(max-width: 899px)");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [tab, setTab] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'loss-qty') return 3;
+    return 0;
+  });
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'loss-qty') {
+      setTab(3);
+    }
+  }, [searchParams]);
 
 
   const sidebarWidth = sidebarOpen ? 250 : 72;
@@ -38,6 +53,8 @@ const ReportsAnalytics: React.FC = () => {
         return <CustomerReportTab />;
       case 2:
         return <InventoryLabelTab />;
+      case 3:
+        return <LossQtyReportTab />;
       default:
         return <InventoryReportTab />;
     }
@@ -130,7 +147,14 @@ const ReportsAnalytics: React.FC = () => {
           orientation={isMobile ? "horizontal" : "vertical"}
           variant={isMobile ? "scrollable" : "standard"}
           value={tab}
-          onChange={(_, v) => setTab(v)}
+          onChange={(_, v) => {
+            setTab(v);
+            if (v === 3) {
+              setSearchParams({ tab: 'loss-qty' });
+            } else {
+              setSearchParams({});
+            }
+          }}
           sx={{
             flexGrow: 1,
             height: isMobile ? 'auto' : 'calc(100% - 56px)',
@@ -241,6 +265,49 @@ const ReportsAnalytics: React.FC = () => {
               height: 48,
               width: sidebarOpen ? 'auto' : '100%',
               fontWeight: tab === 2 ? 500 : 400,
+              gap: sidebarOpen ? 1.5 : 0,
+              px: sidebarOpen ? 2 : 0,
+              mx: sidebarOpen ? 0.5 : 0,
+              borderRadius: 1.5,
+              color: theme.palette.text.secondary,
+              transition: 'all 0.2s ease-in-out',
+              '& .MuiTab-iconWrapper': {
+                margin: sidebarOpen ? '0' : '0 auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+              '&:hover': {
+                backgroundColor: theme.palette.action.hover,
+                color: theme.palette.text.primary,
+              },
+              "&.Mui-selected": {
+                color: theme.palette.primary.main,
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(25, 118, 210, 0.16)'
+                  : 'rgba(25, 118, 210, 0.08)',
+                fontWeight: 600,
+                borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(25, 118, 210, 0.2)'
+                    : 'rgba(25, 118, 210, 0.12)',
+                },
+              },
+            }}
+          />
+          <Tab
+            label={sidebarOpen ? "Loss Qty Report" : ""}
+            icon={<TrendingDownIcon sx={{ fontSize: 20 }} />}
+            iconPosition="start"
+            sx={{
+              alignItems: "center",
+              justifyContent: sidebarOpen ? "flex-start" : "center",
+              textTransform: "none",
+              minHeight: 48,
+              height: 48,
+              width: sidebarOpen ? 'auto' : '100%',
+              fontWeight: tab === 3 ? 500 : 400,
               gap: sidebarOpen ? 1.5 : 0,
               px: sidebarOpen ? 2 : 0,
               mx: sidebarOpen ? 0.5 : 0,
