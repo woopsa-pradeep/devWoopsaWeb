@@ -148,7 +148,7 @@ const Product = () => {
   // Print Label states
   const [printLabelDrawerOpen, setPrintLabelDrawerOpen] = useState(false);
   const [printLabelForm, setPrintLabelForm] = useState({
-    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4",
+    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4" | "A4-30",
     orientation: 'landscape' as "landscape" | "portrait",
     salesCategory: [] as FilterOption[],
     priceClass: [] as FilterOption[],
@@ -159,7 +159,7 @@ const Product = () => {
   const [individualPrintModalOpen, setIndividualPrintModalOpen] = useState(false);
   const [individualPrintProduct, setIndividualPrintProduct] = useState<Product | null>(null);
   const [individualPrintForm, setIndividualPrintForm] = useState({
-    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4",
+    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4" | "A4-30",
     orientation: 'landscape' as "landscape" | "portrait",
     rows: 1 as number,
     columns: 1 as number,
@@ -188,6 +188,10 @@ const Product = () => {
 
   // Reset rows when column count changes for A4 layouts
   useEffect(() => {
+    if (printLabelForm.size === 'A4-30') {
+      // A4-30 is fixed at 10 rows, no need to reset
+      return;
+    }
     if (printLabelForm.size.startsWith('A4-')) {
       const columnCount = parseInt(printLabelForm.size.split('-')[1]) || 1;
       const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
@@ -198,6 +202,10 @@ const Product = () => {
   }, [printLabelForm.size]);
 
   useEffect(() => {
+    if (individualPrintForm.size === 'A4-30') {
+      // A4-30 is fixed at 10 rows, no need to reset
+      return;
+    }
     if (individualPrintForm.size.startsWith('A4-')) {
       const columnCount = parseInt(individualPrintForm.size.split('-')[1]) || 1;
       const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
@@ -573,7 +581,8 @@ const Product = () => {
     // Handle A4 sizes differently
     let pageWidth, pageHeight;
     const isA4Column = size.startsWith('A4-');
-    const columnCount = isA4Column ? parseInt(size.split('-')[1]) : 1;
+    const isA430 = size === 'A4-30';
+    const columnCount = isA430 ? 3 : (isA4Column ? parseInt(size.split('-')[1]) : 1);
     
     if (size === 'A4' || isA4Column) {
       pageWidth = '8.27in';
@@ -588,9 +597,13 @@ const Product = () => {
 
     // Calculate responsive sizes based on label dimensions, orientation, and rows
     const getSize = (base: number) => {
-      if (isA4Column) {
+      if (isA4Column || isA430) {
         // Calculate size multiplier based on column count and rows
         // Fewer rows = larger labels (more space per label)
+        if (isA430) {
+          // A4-30: 3 columns x 10 rows, very compact labels
+          return `${base * 0.35}px`;
+        }
         const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
         const rowMultiplier = maxRows / rows; // More rows selected = smaller multiplier
         
@@ -810,16 +823,17 @@ const Product = () => {
         width: ${pageWidth};
         height: ${pageHeight};
         margin: 0;
-        padding: 0.1in;
+        padding: ${isA430 ? '0.2in 0.15in' : '0.1in'};
         display: grid;
-        grid-template-columns: ${isA4Column && columnCount === 4 ? 'repeat(4, 1fr)' : 
+        grid-template-columns: ${isA430 ? 'repeat(3, 1fr)' :
+                                isA4Column && columnCount === 4 ? 'repeat(4, 1fr)' : 
                                 isA4Column && columnCount === 3 ? 'repeat(3, 1fr)' : 
                                 isA4Column && columnCount === 2 ? 'repeat(2, 1fr)' : 
                                 isA4Column && columnCount === 1 ? '1fr' : '1fr'};
-        grid-template-rows: ${isA4Column ? `repeat(${rows}, 1fr)` : '1fr'};
+        grid-template-rows: ${isA430 ? 'repeat(10, 1fr)' : (isA4Column ? `repeat(${rows}, 1fr)` : '1fr')};
         grid-auto-rows: 0;
         overflow: hidden;
-        gap: 0.1in;
+        gap: ${isA430 ? '0.01in' : '0.1in'};
         page-break-after: always;
         page-break-inside: avoid;
         box-sizing: border-box;
@@ -866,6 +880,60 @@ const Product = () => {
         align-items: center;
         justify-content: center;
         margin-top: auto;
+      }
+      .label-item-a4-30 {
+        border: 1px solid #ccc;
+        padding: 0.02in;
+        display: flex;
+        flex-direction: column;
+        gap: 0.02in;
+        font-size: ${getSize(6)}px;
+        height: 100%;
+        width: 100%;
+        justify-content: space-between;
+        box-sizing: border-box;
+      }
+      .label-item-a4-30 .label-item-header {
+        line-height: 1.2;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .label-item-a4-30 .label-item-number {
+        font-weight: bold;
+        font-size: ${getSize(8)}px;
+        line-height: 1.2;
+        white-space: nowrap;
+        flex-shrink: 0;
+        margin-right: 0.05in;
+      }
+      .label-item-a4-30 .label-item-description {
+        font-size: ${getSize(6)}px;
+        line-height: 1.2;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .label-item-a4-30 .label-item-header::after {
+        content: '';
+        flex-basis: 100%;
+        width: 0;
+        height: 0;
+      }
+      .label-item-a4-30 .label-item-barcode {
+        width: 100%;
+        max-height: 0.3in;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: auto;
+      }
+      .label-item-a4-30 .label-item-barcode img {
+        max-height: 0.3in;
+        width: 100%;
+        height: auto;
+        object-fit: contain;
       }
       .label-item-a4-3 {
         border: 1px solid #ccc;
@@ -1115,8 +1183,19 @@ const Product = () => {
       const isSquareSize = size === '4x4' || size === '3x3';
 
       // Handle A4 column layouts
-      if (isA4Column) {
-        if (columnCount === 4) {
+      if (isA4Column || isA430) {
+        if (isA430) {
+          // A4-30: 3 columns x 10 rows, very compact address label style - item number and description side by side, barcode below
+          return `
+            <div class="label-item-a4-30" data-upc="${upc}">
+              <div class="label-item-header">
+                <div class="label-item-number">${itemNumber}</div>
+                <div class="label-item-description">${productName}</div>
+              </div>
+              <div class="label-item-barcode" data-barcode-placeholder="${upc}"></div>
+            </div>
+          `;
+        } else if (columnCount === 4) {
           // 4 columns: small font, itemNumber, description (flex), pack, case, small barcode
           return `
             <div class="label-item-a4-4" data-upc="${upc}">
@@ -1285,7 +1364,7 @@ const Product = () => {
     let currentIndex = 0;
     const totalProducts = products.length;
     // Calculate items per page: columns * rows
-    const itemsPerPage = isA4Column ? (columnCount * rows) : 1;
+    const itemsPerPage = isA430 ? 30 : (isA4Column ? (columnCount * rows) : 1);
     
     // For A4 columns, we need to track items across chunks to create proper pages
     const pageBuffer: Product[] = [];
@@ -1297,7 +1376,7 @@ const Product = () => {
       // Generate HTML without barcodes (fast)
       let chunkHTML = '';
       
-      if (isA4Column) {
+      if (isA4Column || isA430) {
         // Add chunk items to page buffer
         pageBuffer.push(...chunk);
         
@@ -1331,7 +1410,7 @@ const Product = () => {
         setTimeout(processChunk, 0);
       } else {
         // Process any remaining items in buffer (last incomplete page)
-        if (isA4Column && pageBuffer.length > 0) {
+        if ((isA4Column || isA430) && pageBuffer.length > 0) {
           let finalPageHTML = `<div class="label-container-a4-multi">`;
           for (let j = 0; j < pageBuffer.length; j++) {
             finalPageHTML += generateLabelWithoutBarcode(pageBuffer[j]);
@@ -2851,7 +2930,7 @@ const Product = () => {
                 <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box display="flex" flexDirection="column" gap={0.75}>
                     <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography fontSize={11} color="text.secondary">Short Order Form:</Typography>
+                      <Typography fontSize={11} color="text.secondary">Web Allow:</Typography>
                       <Chip 
                         label={productData.ShortOrderForm ? 'Yes' : 'No'} 
                         size="small" 
@@ -3456,7 +3535,7 @@ const Product = () => {
                 }}
               />
               <Chip
-                label="Short Order Form"
+                label="Web Allow"
                 onClick={() => {
                   setShortOrderForm(!shortOrderForm);
                   setCurrentPage(1);
@@ -3945,13 +4024,21 @@ const Product = () => {
               value={printLabelForm.size}
               onChange={(e) => {
                 const newSize = e.target.value as any;
-                const newColumnCount = newSize.startsWith('A4-') ? parseInt(newSize.split('-')[1]) || 1 : 0;
-                const maxRows = newColumnCount === 4 ? 7 : newColumnCount === 3 ? 5 : newColumnCount === 2 ? 4 : newColumnCount === 1 ? 4 : 1;
-                setPrintLabelForm({
-                  ...printLabelForm,
-                  size: newSize,
-                  rows: newColumnCount > 0 && printLabelForm.rows > maxRows ? maxRows : printLabelForm.rows,
-                });
+                if (newSize === 'A4-30') {
+                  setPrintLabelForm({
+                    ...printLabelForm,
+                    size: newSize,
+                    rows: 10, // Fixed at 10 rows for A4-30
+                  });
+                } else {
+                  const newColumnCount = newSize.startsWith('A4-') ? parseInt(newSize.split('-')[1]) || 1 : 0;
+                  const maxRows = newColumnCount === 4 ? 7 : newColumnCount === 3 ? 5 : newColumnCount === 2 ? 4 : newColumnCount === 1 ? 4 : 1;
+                  setPrintLabelForm({
+                    ...printLabelForm,
+                    size: newSize,
+                    rows: newColumnCount > 0 && printLabelForm.rows > maxRows ? maxRows : printLabelForm.rows,
+                  });
+                }
               }}
               label="Label Size"
             >
@@ -3970,10 +4057,11 @@ const Product = () => {
               <MenuItem value="A4-2">A4 (2 Columns)</MenuItem>
               <MenuItem value="A4-3">A4 (3 Columns)</MenuItem>
               <MenuItem value="A4-4">A4 (4 Columns)</MenuItem>
+              <MenuItem value="A4-30">A4 (30 Labels - 3x10)</MenuItem>
             </Select>
           </FormControl>
 
-          {(printLabelForm.size.startsWith('A4-')) && (() => {
+          {(printLabelForm.size.startsWith('A4-') && printLabelForm.size !== 'A4-30') && (() => {
             const columnCount = parseInt(printLabelForm.size.split('-')[1]) || 1;
             const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
             const rowOptions = [];

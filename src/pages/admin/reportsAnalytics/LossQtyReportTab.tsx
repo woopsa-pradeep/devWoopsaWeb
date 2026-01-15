@@ -1081,9 +1081,25 @@ const LossQtyReportTab: React.FC = () => {
   };
 
   // Get all available fields from the data
+  // Exclude fields with red arrows: S_Number, Promo_Number, Unit_Code, OrderDetail_Code, 
+  // OTP_Amount_State, Delivered, Credit_ReturnToStock, OTP_Amount_County, OTP_Amount_City, Cig_Sticks
   const availableFields = useMemo(() => {
     if (reportData.length === 0) return [];
-    return Object.keys(reportData[0]).filter(key => key !== 'Item_Number' && key !== 'Description');
+    const excludedFields = [
+      'Item_Number',
+      'Description',
+      'S_Number',           // Sales Rep Number
+      'Promo_Number',       // Promo Number
+      'Unit_Code',          // Unit_Code
+      'OrderDetail_Code',   // OrderDetail_Code
+      'OTP_Amount_State',   // OTP Amount State
+      'Delivered',          // Delivered
+      'Credit_ReturnToStock', // Credit_ReturnToStock
+      'OTP_Amount_County',  // OTP Amount County
+      'OTP_Amount_City',    // OTP Amount City
+      'Cig_Sticks',         // Cig Sticks
+    ];
+    return Object.keys(reportData[0]).filter(key => !excludedFields.includes(key));
   }, [reportData]);
 
   return (

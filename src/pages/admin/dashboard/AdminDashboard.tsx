@@ -1024,9 +1024,9 @@ const AdminDashboard = () => {
                             },
                           }}
                         >
-                          <MenuItem value="base">Base</MenuItem>
-                          <MenuItem value="avg">Avg</MenuItem>
-                          <MenuItem value="net">Net</MenuItem>
+                          <MenuItem value="base">Base Cost</MenuItem>
+                          <MenuItem value="avg">Avg Cost</MenuItem>
+                          <MenuItem value="net">Net Cost</MenuItem>
                         </Select>
                       </FormControl>
                       <Button

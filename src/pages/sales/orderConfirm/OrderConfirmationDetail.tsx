@@ -21,6 +21,7 @@ import {
 } from '../../../redux/slices/orderConfirmSlice';
 import toast from 'react-hot-toast';
 import image from '../../../assets/Default-Product-Image.jpg';
+import beepSound from '../../../assets/wsdist.mp3';
 import dayjs from 'dayjs';
 import type { LabelSize } from '../../../utils/labelGenerator';
 import { generateBarcode } from '../../../utils/labelGenerator';
@@ -112,6 +113,19 @@ const OrderConfirmationDetail = () => {
   const currentOrderNumberRef = useRef(currentOrderNumber);
   const currentOrderlineRef = useRef(currentOrderline);
   const isOrderCompletedRef = useRef(isOrderCompleted);
+  const beepAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize beep audio
+  useEffect(() => {
+    beepAudioRef.current = new Audio(beepSound);
+    beepAudioRef.current.volume = 0.5; // Set volume to 50%
+    return () => {
+      if (beepAudioRef.current) {
+        beepAudioRef.current.pause();
+        beepAudioRef.current = null;
+      }
+    };
+  }, []);
 
   // Enable scanning by default (unless in review mode)
   useEffect(() => {
@@ -755,6 +769,14 @@ const OrderConfirmationDetail = () => {
       }
 
       if (!matchingLine) {
+        // Product not found in order - play beep sound for wrong UPC
+        if (beepAudioRef.current) {
+          beepAudioRef.current.currentTime = 0; // Reset to start
+          beepAudioRef.current.play().catch((error) => {
+            console.error('Error playing beep sound:', error);
+          });
+        }
+        
         // Product not found in order - search for it in inventory
         if (!orderHeader?.customer?.C_Number) {
           setScanMessage({ text: 'Customer information not available', type: 'error' });
