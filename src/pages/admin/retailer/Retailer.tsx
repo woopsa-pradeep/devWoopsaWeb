@@ -328,11 +328,11 @@ const Retailer = () => {
   };
 
   const onEditRetailer = (retailer: any) => {
-    if (viewMode === 'detailed') {
-      handleEditRetailer(retailer.C_Number, retailer);
-    } else {
+    // if (viewMode === 'detailed') {
+    //   handleEditRetailer(retailer.C_Number, retailer);
+    // } else {
       navigate(`/admin/retailer/edit/${retailer.C_Number}`);
-    }
+    // }
   };
 
   // Fetch retailer dropdown options
@@ -621,7 +621,7 @@ const Retailer = () => {
       }
     }));
   };
-
+console.log(handleEditRetailer);
   const handleCancelEditRetailer = (customerNumber: string | number) => {
     setEditingRetailers(prev => {
       const newState = { ...prev };
