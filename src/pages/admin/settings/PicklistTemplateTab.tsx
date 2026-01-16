@@ -286,9 +286,16 @@ const PicklistTemplateTab: React.FC = () => {
             setGroupBy(templateData.groupBy === 'none' ? '' : templateData.groupBy);
           }
           
-          // Set all other fields
+          // Set all other fields - filter out invalid fields (like unitCost, extendedCost, retail)
           if (templateData.selectedFields) {
-            setSelectedFields(templateData.selectedFields);
+            const validFieldKeys = PICKLIST_FIELDS.map(f => f.key);
+            const cleanedSelectedFields: { [key: string]: boolean } = {};
+            Object.keys(templateData.selectedFields).forEach(key => {
+              if (validFieldKeys.includes(key)) {
+                cleanedSelectedFields[key] = templateData.selectedFields[key];
+              }
+            });
+            setSelectedFields(cleanedSelectedFields);
           }
           if (templateData.newCategoryOnNewPage !== undefined) {
             setNewCategoryOnNewPage(templateData.newCategoryOnNewPage);
@@ -374,9 +381,17 @@ const PicklistTemplateTab: React.FC = () => {
     setSaving(true);
     try {
       const templateName = getTemplateName(groupBy || '');
+      // Clean selectedFields to only include valid fields
+      const validFieldKeys = PICKLIST_FIELDS.map(f => f.key);
+      const cleanedSelectedFields: { [key: string]: boolean } = {};
+      Object.keys(selectedFields).forEach(key => {
+        if (validFieldKeys.includes(key)) {
+          cleanedSelectedFields[key] = selectedFields[key];
+        }
+      });
       const templateData = {
         name: templateName,
-        selectedFields,
+        selectedFields: cleanedSelectedFields,
         groupBy: groupBy || 'none',
         newCategoryOnNewPage: newCategoryOnNewPage || false, // Explicitly include false
         headerPosition: 'topRight', // Always top right

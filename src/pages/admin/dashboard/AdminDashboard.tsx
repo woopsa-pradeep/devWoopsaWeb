@@ -50,6 +50,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PendingIcon from "@mui/icons-material/Pending";
 import PersonIcon from "@mui/icons-material/Person";
+import CommonModal from "../../../component/atoms/CommonModal";
 // import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 // import StoreIcon from "@mui/icons-material/Store";
 // import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
@@ -166,7 +167,9 @@ const AdminDashboard = () => {
   const [salesPerformanceViewMode, setSalesPerformanceViewMode] = useState<"table" | "graph">("table");
   const [lossQtyViewMode, setLossQtyViewMode] = useState<"table" | "graph">("table");
   const [lossQtyData, setLossQtyData] = useState<any[]>([]);
+  const [lossQtyFullData, setLossQtyFullData] = useState<any[]>([]);
   const [lossQtyLoading, setLossQtyLoading] = useState(false);
+  const [lossQtyModalOpen, setLossQtyModalOpen] = useState(false);
   const navigate = useNavigate();
   const [averageTimePerQtyViewMode, setAverageTimePerQtyViewMode] = useState<"table" | "graph">("graph");
   const [scannedQtyViewMode, setScannedQtyViewMode] = useState<"table" | "graph">("graph");
@@ -219,8 +222,10 @@ const AdminDashboard = () => {
       
       // Handle API response structure: { success: true, message: "...", data: { rows: [...] } }
       const rows = response?.data?.data?.rows || response?.data?.rows || response?.rows || [];
-      // Get top 10 by Ext_Loss
-      const sorted = rows.sort((a: any, b: any) => (b.Ext_Loss || 0) - (a.Ext_Loss || 0));
+      // Store full data for modal
+      setLossQtyFullData(rows);
+      // Get top 10 by Loss_Qty (max loss qty first)
+      const sorted = rows.sort((a: any, b: any) => (b.Loss_Qty || 0) - (a.Loss_Qty || 0));
       setLossQtyData(sorted.slice(0, 10));
     } catch (error) {
       console.error("Error fetching loss quantity data:", error);
@@ -232,13 +237,17 @@ const AdminDashboard = () => {
     fetchLossQtyData();
   }, [startDate, endDate]);
 
-  const handleLossQtyClick = () => {
+  const handleLossQtyGenerateReport = () => {
     navigate('/admin/reports-analytics?tab=loss-qty', {
       state: {
         fromDate: startDate?.format("YYYY-MM-DD"),
         toDate: endDate?.format("YYYY-MM-DD"),
       },
     });
+  };
+
+  const handleLossQtyViewAll = () => {
+    setLossQtyModalOpen(true);
   };
 
   const handleStartDateChange = (date: dayjs.Dayjs | null) => {
@@ -354,11 +363,13 @@ const AdminDashboard = () => {
   };
 
   const salesPersonData = dashboardData
-    ? dashboardData?.result?.map((person) => ({
-        name: person.S_Desc,
-        Sales: person.totalInvoiceTotal,
-        Orders: person.totalOrders,
-      }))
+    ? [...(dashboardData?.result || [])]
+        .sort((a, b) => (b.totalInvoiceTotal || 0) - (a.totalInvoiceTotal || 0))
+        .map((person) => ({
+          name: person.S_Desc,
+          Sales: person.totalInvoiceTotal,
+          Orders: person.totalOrders,
+        }))
     : [];
 
   const highDemandBarData = dashboardData?.highDemandProducts.map((product) => ({
@@ -765,21 +776,38 @@ const AdminDashboard = () => {
       ),
     },
     {
-      id: "customer",
-      label: "Customer",
+      id: "lossQty",
+      label: "Loss Qty",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
-          {row.C_Name || '-'}
+        <Typography fontSize={13} fontWeight={500} color="error.main">
+          {row.Loss_Qty || 0}
         </Typography>
       ),
     },
     {
-      id: "date",
-      label: "Date",
+      id: "extLoss",
+      label: "Ext Lost",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
-          {row.Invoice_Date ? dayjs(row.Invoice_Date).format('MM/DD/YYYY') : '-'}
+        <Typography fontSize={13} fontWeight={500} color="error.main">
+          ${(row.Ext_Loss || 0).toFixed(2)}
         </Typography>
+      ),
+    },
+  ];
+
+  const lossQtyModalColumns: TableColumn[] = [
+    {
+      id: "item",
+      label: "Item",
+      render: (row) => (
+        <Box>
+          <Typography fontSize={13} fontWeight={500} color="text.primary">
+            {row.Description || '-'}
+          </Typography>
+          <Typography fontSize={11} color="text.secondary">
+            #{row.Item_Number}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -793,7 +821,7 @@ const AdminDashboard = () => {
     },
     {
       id: "extLoss",
-      label: "Ext $$$ Lost",
+      label: "Ext Lost",
       render: (row) => (
         <Typography fontSize={13} fontWeight={500} color="error.main">
           ${(row.Ext_Loss || 0).toFixed(2)}
@@ -1066,7 +1094,7 @@ const AdminDashboard = () => {
                   {salesPerformanceViewMode === "table" ? (
                     <CommonTable
                       padding={0}
-                      data={dashboardData?.result || []}
+                      data={[...(dashboardData?.result || [])].sort((a, b) => (b.totalInvoiceTotal || 0) - (a.totalInvoiceTotal || 0))}
                       columns={salesPersonColumns}
                       currentPage={1}
                       totalPages={1}
@@ -1349,40 +1377,57 @@ const AdminDashboard = () => {
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
                     border: `1px solid ${theme.palette.divider}`,
-                    cursor: 'pointer',
-                    '&:hover': {
-                      borderColor: theme.palette.primary.main,
-                    },
                   }}
-                  onClick={handleLossQtyClick}
                 >
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
                     <Box>
                       <Typography fontSize={14} fontWeight={500} color="text.primary">
                         Loss Quantity Report (Top 10)
                       </Typography>
-                      <Button
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleLossQtyClick();
-                        }}
-                        sx={{
-                          textTransform: 'none',
-                          fontSize: 11,
-                          px: 0,
-                          py: 0.25,
-                          mt: 0.5,
-                          minWidth: 'auto',
-                          color: theme.palette.primary.main,
-                          '&:hover': {
-                            backgroundColor: 'transparent',
-                            textDecoration: 'underline',
-                          },
-                        }}
-                      >
-                        View All →
-                      </Button>
+                      <Box display="flex" gap={1.5} mt={0.5}>
+                        <Button
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLossQtyViewAll();
+                          }}
+                          sx={{
+                            textTransform: 'none',
+                            fontSize: 11,
+                            px: 0,
+                            py: 0.25,
+                            minWidth: 'auto',
+                            color: theme.palette.primary.main,
+                            '&:hover': {
+                              backgroundColor: 'transparent',
+                              textDecoration: 'underline',
+                            },
+                          }}
+                        >
+                          View All →
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLossQtyGenerateReport();
+                          }}
+                          sx={{
+                            textTransform: 'none',
+                            fontSize: 11,
+                            px: 0,
+                            py: 0.25,
+                            minWidth: 'auto',
+                            color: theme.palette.primary.main,
+                            '&:hover': {
+                              backgroundColor: 'transparent',
+                              textDecoration: 'underline',
+                            },
+                          }}
+                        >
+                          Generate Report →
+                        </Button>
+                      </Box>
                     </Box>
                     <Stack direction="row" spacing={0.5}>
                       <Button
@@ -1481,9 +1526,6 @@ const AdminDashboard = () => {
                                     </Typography>
                                     <Typography fontSize={11} color="text.secondary" mb={0.5}>
                                       Item Number: {data.itemNumber}
-                                    </Typography>
-                                    <Typography fontSize={11} mb={0.5}>
-                                      Customer: {data.customer}
                                     </Typography>
                                     <Typography fontSize={11} mb={0.5}>
                                       Loss Qty: {data.lossQty}
@@ -2614,6 +2656,42 @@ const AdminDashboard = () => {
           </Grid>
         </Box>
       </Fade>
+
+      {/* Loss Quantity View All Modal */}
+      <CommonModal
+        open={lossQtyModalOpen}
+        onClose={() => setLossQtyModalOpen(false)}
+        size="xl"
+        title="Loss Quantity Report - Full Data"
+        maxWidth="95vw"
+      >
+        <CommonTable
+          padding={0}
+          data={[...lossQtyFullData].sort((a: any, b: any) => {
+            // Sort by date first (newest first), then by loss qty (descending)
+            const dateA = a.Invoice_Date ? new Date(a.Invoice_Date).getTime() : 0;
+            const dateB = b.Invoice_Date ? new Date(b.Invoice_Date).getTime() : 0;
+            if (dateA !== dateB) {
+              return dateB - dateA; // Newest first
+            }
+            return (b.Loss_Qty || 0) - (a.Loss_Qty || 0); // Then by loss qty descending
+          })}
+          columns={lossQtyModalColumns}
+          currentPage={1}
+          totalPages={1}
+          totalItems={lossQtyFullData.length}
+          stickyHeader={true}
+          pageSize={lossQtyFullData.length}
+          onPageChange={() => {}}
+          onPageSizeChange={() => {}}
+          showPageSizeSelector={false}
+          showTotalItems={true}
+          showPageNumbers={false}
+          loading={lossQtyLoading}
+          containerHeight="70vh"
+          emptyStateComponent={<Typography>No loss quantity data</Typography>}
+        />
+      </CommonModal>
     </Box>
   );
 };

@@ -509,6 +509,65 @@ const sortByDescription = (a: any, b: any): number => {
   return descA.localeCompare(descB);
 };
 
+// Helper function to safely get field value from item (handles both direct and nested inventory properties)
+const getItemField = (item: any, field: string): any => {
+  // Try direct property first (lowercase)
+  if (item[field] !== undefined && item[field] !== null) {
+    return item[field];
+  }
+  
+  // For specific fields, handle nested objects in inventory
+  if (field === 'salesCategory') {
+    if (item.inventory?.SalesCategory?.Category_Desc) {
+      return item.inventory.SalesCategory.Category_Desc;
+    }
+    // Fallback to direct property
+    return item.salesCategory || null;
+  }
+  if (field === 'priceClass') {
+    if (item.inventory?.PriceClass?.Class_Desc) {
+      return item.inventory.PriceClass.Class_Desc;
+    }
+    // Fallback to direct property
+    return item.priceClass || null;
+  }
+  if (field === 'section') {
+    // Try inventory.Section (capital S) first, then fallback to direct property
+    if (item.inventory?.Section !== undefined && item.inventory?.Section !== null) {
+      return item.inventory.Section;
+    }
+    return item.section || null;
+  }
+  if (field === 'location') {
+    // Try inventory.Location (capital L) first, then fallback to direct property
+    if (item.inventory?.Location !== undefined && item.inventory?.Location !== null) {
+      return item.inventory.Location;
+    }
+    return item.location || null;
+  }
+  if (field === 'sequence') {
+    // Try inventory.Sequence first, then fallback to direct property
+    if (item.inventory?.Sequence !== undefined && item.inventory?.Sequence !== null) {
+      return item.inventory.Sequence;
+    }
+    return item.sequence || null;
+  }
+  if (field === 'vendorItem') {
+    // Try inventory.Vendor_ItemNumberAlpha first, then fallback to direct property
+    if (item.inventory?.Vendor_ItemNumberAlpha !== undefined && item.inventory?.Vendor_ItemNumberAlpha !== null) {
+      return item.inventory.Vendor_ItemNumberAlpha;
+    }
+    return item.vendorItem || null;
+  }
+  
+  // Fallback to inventory object if available (case-sensitive match)
+  if (item.inventory && item.inventory[field] !== undefined && item.inventory[field] !== null) {
+    return item.inventory[field];
+  }
+  
+  return null;
+};
+
 // Group items based on selected grouping
 const groupItems = (items: any[], groupBy: string) => {
   if (!groupBy) return [{ key: 'all', items: items.sort(sortByDescription) }];
@@ -519,7 +578,7 @@ const groupItems = (items: any[], groupBy: string) => {
     const primaryGrouped: { [key: string]: any[] } = {};
     
     items.forEach(item => {
-      const salesCat = item.salesCategory || 'No Category';
+      const salesCat = getItemField(item, 'salesCategory') || item.salesCategory || 'No Category';
       if (!primaryGrouped[salesCat]) {
         primaryGrouped[salesCat] = [];
       }
@@ -534,7 +593,8 @@ const groupItems = (items: any[], groupBy: string) => {
     sortedPrimaryKeys.forEach(primaryKey => {
       const secondaryGrouped: { [key: string]: any[] } = {};
       primaryGrouped[primaryKey].forEach(item => {
-        const seq = String(item.sequence || 0);
+        const seqValue = getItemField(item, 'sequence') || item.sequence || 0;
+        const seq = String(seqValue);
         if (!secondaryGrouped[seq]) {
           secondaryGrouped[seq] = [];
         }
@@ -560,7 +620,7 @@ const groupItems = (items: any[], groupBy: string) => {
     const primaryGrouped: { [key: string]: any[] } = {};
     
     items.forEach(item => {
-      const salesCat = item.salesCategory || 'No Category';
+      const salesCat = getItemField(item, 'salesCategory') || item.salesCategory || 'No Category';
       if (!primaryGrouped[salesCat]) {
         primaryGrouped[salesCat] = [];
       }
@@ -575,7 +635,7 @@ const groupItems = (items: any[], groupBy: string) => {
     sortedPrimaryKeys.forEach(primaryKey => {
       const secondaryGrouped: { [key: string]: any[] } = {};
       primaryGrouped[primaryKey].forEach(item => {
-        const section = item.section || '';
+        const section = getItemField(item, 'section') || item.section || item.inventory?.Section || '';
         if (!secondaryGrouped[section]) {
           secondaryGrouped[section] = [];
         }
@@ -601,7 +661,7 @@ const groupItems = (items: any[], groupBy: string) => {
     const primaryGrouped: { [key: string]: any[] } = {};
     
     items.forEach(item => {
-      const salesCat = item.salesCategory || 'No Category';
+      const salesCat = getItemField(item, 'salesCategory') || item.salesCategory || 'No Category';
       if (!primaryGrouped[salesCat]) {
         primaryGrouped[salesCat] = [];
       }
@@ -617,7 +677,10 @@ const groupItems = (items: any[], groupBy: string) => {
       const secondaryGrouped: { [key: string]: any[] } = {};
       primaryGrouped[primaryKey].forEach(item => {
         // Show "0" instead of "No Location" when location is empty or 0
-        const location = item.location && item.location !== '' ? String(item.location) : '0';
+        const locationValue = getItemField(item, 'location') || item.location || item.inventory?.Location;
+        const location = locationValue && locationValue !== '' && locationValue !== 0 
+          ? String(locationValue) 
+          : '0';
         if (!secondaryGrouped[location]) {
           secondaryGrouped[location] = [];
         }
@@ -654,16 +717,20 @@ const groupItems = (items: any[], groupBy: string) => {
     let groupKey = '';
     
     if (groupBy === 'salesCategory') {
-      groupKey = item.salesCategory || '';
+      groupKey = getItemField(item, 'salesCategory') || item.salesCategory || '';
     } else if (groupBy === 'priceClass') {
-      groupKey = item.priceClass || '';
+      groupKey = getItemField(item, 'priceClass') || item.priceClass || '';
     } else if (groupBy === 'section') {
-      groupKey = item.section || '';
+      groupKey = getItemField(item, 'section') || item.section || item.inventory?.Section || '';
     } else if (groupBy === 'location') {
       // Show "0" instead of "No Location" when location is empty or 0
-      groupKey = item.location && item.location !== '' ? String(item.location) : '0';
+      const locationValue = getItemField(item, 'location') || item.location || item.inventory?.Location;
+      groupKey = locationValue && locationValue !== '' && locationValue !== 0 
+        ? String(locationValue) 
+        : '0';
     } else if (groupBy === 'sequence') {
-      groupKey = String(item.sequence || 0);
+      const seqValue = getItemField(item, 'sequence') || item.sequence || item.inventory?.Sequence || 0;
+      groupKey = String(seqValue);
     }
     
     if (!grouped[groupKey]) {
@@ -816,7 +883,9 @@ export const generatePicklistPDF = async (
   }
 
   const logoDataUrl = await loadLogoAsDataUrl();
-  const selectedFieldKeys = Object.keys(template.selectedFields).filter(key => template.selectedFields[key]);
+  // Filter to only include valid fields that exist in FIELD_LABELS (exclude removed fields like unitCost, extendedCost, retail)
+  const selectedFieldKeys = Object.keys(template.selectedFields)
+    .filter(key => template.selectedFields[key] && FIELD_LABELS.hasOwnProperty(key));
   const totalFields = selectedFieldKeys.length;
   const hasSectionOrLocation = selectedFieldKeys.includes('section') || selectedFieldKeys.includes('location');
   const isLandscape = totalFields > 7 && !hasSectionOrLocation;
@@ -930,10 +999,10 @@ export const generatePicklistPDF = async (
         yPosition += 5.5;
         
         // Table data - use finalFieldKeys to match column order
-        // Table data - use finalFieldKeys to match column order
         const tableData = subGroup.items.map(item => 
           finalFieldKeys.map(key => {
-            const value = (item as any)[key];
+            // Use helper function to get value (handles both direct and nested inventory properties)
+            const value = getItemField(item, key) || (item as any)[key];
             // Handle different value types properly
             if (value === null || value === undefined) {
               return '-';
@@ -1037,7 +1106,8 @@ export const generatePicklistPDF = async (
       // Table data - use finalFieldKeys to match column order
       const tableData = group.items.map(item => 
         finalFieldKeys.map(key => {
-          const value = (item as any)[key];
+          // Use helper function to get value (handles both direct and nested inventory properties)
+          const value = getItemField(item, key) || (item as any)[key];
           // Handle different value types properly
           if (value === null || value === undefined) {
             return '-';

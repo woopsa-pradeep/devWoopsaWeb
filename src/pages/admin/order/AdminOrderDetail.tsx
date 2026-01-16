@@ -207,15 +207,9 @@ const AdminOrderDetail = () => {
           ? Number(item.Retail)
           : (item.Retail_Price !== undefined && item.Retail_Price !== null
             ? Number(item.Retail_Price)
-            : (item.Price !== undefined && item.Price !== null
+              : (item.Price !== undefined && item.Price !== null
               ? Number(item.Price)
               : 0));
-        
-        const sequence = item.Sequence !== undefined && item.Sequence !== null
-          ? Number(item.Sequence)
-          : (item.Line_Number !== undefined && item.Line_Number !== null
-            ? Number(item.Line_Number)
-            : index + 1);
         
         // Sales Category - from inventory.SalesCategory.Category_Desc or Sales_Category
         const salesCategory = item.inventory?.SalesCategory?.Category_Desc || 
@@ -223,6 +217,46 @@ const AdminOrderDetail = () => {
                             item.SalesCategory || 
                             (item.Sales_Category !== undefined && item.Sales_Category !== null ? String(item.Sales_Category) : '') ||
                             '';
+        
+        // Price Class - from inventory.PriceClass.Class_Desc
+        const priceClass = item.inventory?.PriceClass?.Class_Desc || 
+                          item.Price_Class_Desc || 
+                          item.PriceClass || 
+                          item.Price_Class || 
+                          item.inventory?.Price_Class_Desc ||
+                          '';
+        
+        // Section - from inventory.Section
+        const section = item.inventory?.Section || 
+                       item.Section || 
+                       item.inventory?.Section2 ||
+                       '';
+        
+        // Location - from inventory.Location (may be 0, convert to string)
+        const location = item.inventory?.Location !== undefined && item.inventory?.Location !== null
+          ? (item.inventory.Location === 0 ? '' : String(item.inventory.Location))
+          : (item.Location !== undefined && item.Location !== null
+            ? (item.Location === 0 ? '' : String(item.Location))
+            : (item.inventory?.Location2 !== undefined && item.inventory?.Location2 !== null
+              ? (item.inventory.Location2 === 0 ? '' : String(item.inventory.Location2))
+              : ''));
+        
+        // Sequence - from inventory.Sequence
+        const sequence = item.inventory?.Sequence !== undefined && item.inventory?.Sequence !== null
+          ? Number(item.inventory.Sequence)
+          : (item.Sequence !== undefined && item.Sequence !== null
+            ? Number(item.Sequence)
+            : (item.Line_Number !== undefined && item.Line_Number !== null
+              ? Number(item.Line_Number)
+              : index + 1));
+        
+        // Vendor Item - from inventory.Vendor_ItemNumberAlpha
+        const vendorItem = item.inventory?.Vendor_ItemNumberAlpha || 
+                          item.inventory?.Vendor_Item || 
+                          item.Vendor_Item || 
+                          item.VendorItem || 
+                          item.inventory?.VendorItem ||
+                          '';
         
         return {
           lineNumber,
@@ -235,13 +269,13 @@ const AdminOrderDetail = () => {
           upc: String(upc || ''),
           onhand: Number(onhand || 0),
           salesCategory: String(salesCategory),
-          priceClass: String(item.Price_Class_Desc || item.PriceClass || item.Price_Class || ''),
+          priceClass: String(priceClass),
           unitCost,
           extendedCost,
           retail,
-          section: String(item.Section || ''),
-          location: String(item.Location || ''),
-          vendorItem: String(item.Vendor_Item || item.VendorItem || ''),
+          section: String(section),
+          location: String(location),
+          vendorItem: String(vendorItem),
           sequence,
         };
       });
