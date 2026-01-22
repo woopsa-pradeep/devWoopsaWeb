@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Box, Typography, useMediaQuery, Paper, IconButton, CircularProgress } from "@mui/material";
+import { Box, Typography, useMediaQuery, Paper, IconButton, CircularProgress, SelectChangeEvent } from "@mui/material";
 import CommonTable, {
   TableColumn,
 } from "../../../component/atoms/Table/CommonTable";
@@ -10,6 +10,7 @@ import { getCustomerList } from "../../../redux/apis/distrubutor/listApis";
 import { makePickListPrinted } from "../../../redux/apis/distrubutor/settingApis";
 import CustomAutoComplete from '../../../component/atoms/CustomAutoComplete';
 import CustomDateRangePicker from "../../../component/atoms/CustomDateRangePicker";
+import SelectInput from "../../../component/atoms/SelectInput";
 import { generatePicklistPDF } from "../../../utils/picklistPdfGenerator";
 import toast from 'react-hot-toast';
 
@@ -22,19 +23,25 @@ const AdminOrder = () => {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [selectedStartDate, setSelectedStartDate] = useState<any>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<any>(null);
   const [printingOrder, setPrintingOrder] = useState<string | null>(null);
   
+  // Filter state
+  const [filterType, setFilterType] = useState<string>(''); // 'isDeleted', 'updated', 'currentStatus', or ''
+  const [currentStatus, setCurrentStatus] = useState<string>('all');
+  
   // Sorting state
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const handleViewOrder = (orderId: string) => {
-    navigate(`/admin/order/details/${orderId}`);
+  const handleViewOrder = (orderId: string, isConfirmed?: boolean) => {
+    navigate(`/admin/order/details/${orderId}`, {
+      state: { isConfirmed }
+    });
   };
 
   // Handle column sorting
@@ -444,6 +451,16 @@ const AdminOrder = () => {
       )  
     },
     {
+      id: "isConfirmed",
+      label: "isConfirmed",
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.isConfirmed ? "Yes" : "No"}</Typography>
+        </Box>
+      )  
+    },
+    {
       id: "Picklist",
       label: "Picklist",
       sortable: true,
@@ -452,7 +469,7 @@ const AdminOrder = () => {
           <IconButton
             size="small"
             onClick={() => handlePrintPicklist(row.Order_Number, row.Picklist_Printed)}
-            disabled={printingOrder === row.Order_Number}
+            disabled={row.isConfirmed === true || printingOrder === row.Order_Number}
             sx={{ p: 0.5 }}
             title={row.Picklist_Printed ? "Reprint Picklist" : "Print Picklist"}
           >
@@ -477,7 +494,7 @@ const AdminOrder = () => {
         <Box display="flex" alignItems="center" gap={1}>
           <VisibilityOutlined 
             sx={{ cursor: "pointer", color: "primary.main" }} 
-            onClick={() => handleViewOrder(row.Order_Number)}
+            onClick={() => handleViewOrder(row.Order_Number, row.isConfirmed)}
           />
         </Box>
       ),
@@ -495,10 +512,23 @@ const AdminOrder = () => {
   };
 
   // Fetch data with pagination
-  const fetchData = async (page: number, size: number, customerId: string, startDate: any, endDate: any) => {
+  const fetchData = async (page: number, size: number, customerId: string, startDate: any, endDate: any, filterType: string, currentStatus: string) => {
     setLoading(true);
     try {
-      const response: any = await getOrderHistory(page, size, customerId, startDate, endDate);
+      // Determine which filter to send based on filterType
+      let isDeleted: boolean | undefined = undefined;
+      let updated: boolean | undefined = undefined;
+      let status: string | undefined = undefined;
+      
+      if (filterType === 'isDeleted') {
+        isDeleted = true;
+      } else if (filterType === 'updated') {
+        updated = true;
+      } else if (filterType === 'currentStatus' && currentStatus) {
+        status = currentStatus; // Pass 'all' or any other selected status
+      }
+      
+      const response: any = await getOrderHistory(page, size, customerId, startDate, endDate, isDeleted, updated, status);
       setData(response?.data?.orderList || []);
       setTotalItems(response?.data?.totalCount || 0);
       setTotalPages(response?.data?.totalPages || 0);
@@ -526,42 +556,94 @@ const AdminOrder = () => {
     setCurrentPage(1); // Reset to first page when changing customer
   };
 
+  // Handle filter changes
+  const handleFilterTypeChange = (event: SelectChangeEvent<unknown>) => {
+    const newFilterType = event.target.value as string;
+    setFilterType(newFilterType);
+    // Reset currentStatus when switching away from currentStatus filter
+    if (newFilterType !== 'currentStatus') {
+      setCurrentStatus('all');
+    }
+    setCurrentPage(1); // Reset to first page when changing filter
+  };
+
+  const handleCurrentStatusChange = (event: SelectChangeEvent<unknown>) => {
+    setCurrentStatus(event.target.value as string);
+    setCurrentPage(1); // Reset to first page when changing filter
+  };
+
   // Fetch customers on component mount
   useEffect(() => {
     fetchCustomers();
   }, []);
 
-  // Fetch data when page, pageSize, or customer changes
+  // Fetch data when page, pageSize, customer, or filters change
   useEffect(() => {
-    fetchData(currentPage, pageSize, selectedCustomer?.C_Number || '', selectedStartDate, selectedEndDate);
-  }, [currentPage, pageSize, selectedCustomer, selectedStartDate, selectedEndDate]);
+    fetchData(currentPage, pageSize, selectedCustomer?.C_Number || '', selectedStartDate, selectedEndDate, filterType, currentStatus);
+  }, [currentPage, pageSize, selectedCustomer, selectedStartDate, selectedEndDate, filterType, currentStatus]);
 
   return (
     <Box sx={{ padding: "10px 20px" }}>
       <Paper sx={{ p: 2, mb: 2 }}>
         {/* Filter Bar */}
-        <Box display={useMediaQuery("(max-width: 600px)") ? "block" : "flex"} justifyContent="space-between" alignItems="center" mb={1} px={2}>
-          <Box display="flex" gap={2} flexWrap="wrap" width={useMediaQuery("(max-width: 600px)") ? "100%" : "300px"}>
-            <CustomAutoComplete
-              fullWidth
-              options={customers}
-              getOptionLabel={(option) => option.C_Name || option.C_CoName || ''}
-              value={selectedCustomer}
-              onChange={handleCustomerChange}
-              label="Search Customer"
-              size="small"
-              placeholder="Type to search customers..."
+        <Box display="flex" flexDirection="column" gap={2} mb={1} px={2}>
+          {/* First Row: Customer, Filters, and Date Range */}
+          <Box display={useMediaQuery("(max-width: 600px)") ? "block" : "flex"} justifyContent="space-between" alignItems="center" gap={2}>
+            <Box display="flex" gap={2} flexWrap="wrap" alignItems="center">
+              <CustomAutoComplete
+                fullWidth={false}
+                options={customers}
+                getOptionLabel={(option) => option.C_Name || option.C_CoName || ''}
+                value={selectedCustomer}
+                onChange={handleCustomerChange}
+                label="Search Customer"
+                size="small"
+                placeholder="Type to search customers..."
+              />
+              
+              {/* First Dropdown: Filter Type */}
+              <SelectInput
+                options={[
+                  { label: 'None', value: '' },
+                  { label: 'Is Deleted', value: 'isDeleted' },
+                  { label: 'Updated', value: 'updated' },
+                  { label: 'Current Status', value: 'currentStatus' },
+                ]}
+                value={filterType}
+                onChange={handleFilterTypeChange}
+                marginBottom="0"
+              />
+              
+              {/* Second Dropdown: Current Status (only shown when Current Status is selected) */}
+              {filterType === 'currentStatus' && (
+                <SelectInput
+                  options={[
+                    { label: 'All', value: 'all' },
+                    { label: 'Orders in Progress', value: 'recordLocks' },
+                    { label: 'Order Confirmation', value: 'orderConfirmation' },
+                    { label: 'Invoiced', value: 'invoices' },
+                    { label: 'Non Invoiced', value: 'non_invoices' },
+                    { label: 'Picklist', value: 'picklist' },
+                    { label: 'Epick Confirmed', value: 'EpickStatusFromPicker' },
+                  ]}
+                  value={currentStatus}
+                  onChange={handleCurrentStatusChange}
+                  marginBottom="0"
+                />
+              )}
+            </Box>
+
+            <CustomDateRangePicker 
+              startDate={selectedStartDate}
+              endDate={selectedEndDate}
+              onStartDateChange={setSelectedStartDate}
+              onEndDateChange={setSelectedEndDate}
+              isLabel={false}
+              sx={{mb: 0, width: {xs: "100%", md: "auto"}}}
             />
           </Box>
 
-          <CustomDateRangePicker 
-            startDate={selectedStartDate}
-            endDate={selectedEndDate}
-            onStartDateChange={setSelectedStartDate}
-            onEndDateChange={setSelectedEndDate}
-            isLabel={false}
-            sx={{mb: 0, width: {xs: "100%", md: "auto"}}}
-          />
+          
         </Box>
 
         {/* Table */}

@@ -65,6 +65,32 @@ const toPositiveAmount = (amount: string | number) => {
   return Math.abs(num || 0).toString();
 };
 
+// Helper function to format date - keep mm/dd/yyyy as is, convert others to mm/dd/yyyy
+const formatDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return "-";
+  
+  const trimmedDate = dateString.trim();
+  
+  // Check if date is already in mm/dd/yyyy format (e.g., "12/31/2023")
+  const mmddyyyyPattern = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+  if (mmddyyyyPattern.test(trimmedDate)) {
+    return trimmedDate;
+  }
+  
+  // Parse and convert to mm/dd/yyyy format (handles ISO format like "2025-11-29T00:00:00.000Z")
+  try {
+    const date = dayjs(trimmedDate);
+    if (date.isValid()) {
+      return date.format("MM/DD/YYYY");
+    }
+  } catch (error) {
+    console.error('Error formatting date:', error);
+  }
+  
+  // If parsing fails, return original string
+  return trimmedDate;
+};
+
 // Columns for Charges and Refunds tabs
 const defaultColumns: TableColumn<AccountReceivableItem>[] = [
   {
@@ -122,7 +148,7 @@ const defaultColumns: TableColumn<AccountReceivableItem>[] = [
     align: 'center',
     render: (row) => (
       <Typography fontSize={14} fontWeight={400} color="text.secondary">
-        {row.invoiceDate ? dayjs(row.invoiceDate).format("YYYY/MM/DD") : "-"}
+        {formatDate(row.invoiceDate)}
       </Typography>
     ),
   },
@@ -185,7 +211,7 @@ const paymentColumns: TableColumn<AccountReceivableItem>[] = [
     align: 'center',
     render: (row) => (
       <Typography fontSize={14} fontWeight={400} color="text.secondary">
-        {row.postingDate ? dayjs(row.postingDate).format("YYYY/MM/DD") : "-"}
+        {formatDate(row.postingDate)}
       </Typography>
     ),
   },
@@ -198,7 +224,7 @@ const AccountReceivable = () => {
   const [horizontalTab, setHorizontalTab] = useState("Charges");
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   // const [summary, setSummary] = useState<any>({});
@@ -220,11 +246,15 @@ const AccountReceivable = () => {
     setCustomerLoading(true);
     try {
       const response: any = await getCustomerList();
-      const customerOptions: CustomerDropdownOption[] = (response?.data?.data || []).map((customer: any) => ({
-        label: customer.C_Name || customer.name || 'Unknown Customer',
-        value: customer.C_Number?.toString() || customer.id?.toString() || '',
-        fullData: customer // Store the full customer data
-      }));
+      const customerOptions: CustomerDropdownOption[] = (response?.data?.data || []).map((customer: any) => {
+        const customerName = customer.C_Name || customer.name || 'Unknown Customer';
+        const customerNumber = customer.C_Number?.toString() || customer.id?.toString() || '';
+        return {
+          label: `${customerName} (${customerNumber})`,
+          value: customerNumber,
+          fullData: customer // Store the full customer data
+        };
+      });
       setCustomers(customerOptions);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -325,6 +355,15 @@ const AccountReceivable = () => {
           }}
         >
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '11px' }}>
+                Customer Number:
+              </Typography>
+              <Typography variant="caption" sx={{ fontSize: '11px' }}>
+                {selectedCustomerInfo.C_Number}
+              </Typography>
+            </Box>
+            
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '11px' }}>
                 Customer Name:

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   TextField,
@@ -345,11 +345,132 @@ const MultiSearchableDropdown: React.FC<MultiSearchableDropdownProps> = ({
 }) => {
   const theme = useTheme();
   const [inputValue, setInputValue] = useState("");
-console.log('Options:', options);
-  const handleInputChange = (event: any, newInputValue: string) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const previousInputValueRef = useRef<string>("");
+  const autocompleteRef = useRef<any>(null);
+
+  const handleInputChange = (event: any, newInputValue: string, reason: string) => {
+    console.log('handleInputChange:', { newInputValue, reason });
+    // Update our state for onSearchChange callback
     setInputValue(newInputValue);
     onSearchChange?.(newInputValue);
+    
+    // Keep dropdown open when user is typing
+    if (reason === 'input') {
+      if (newInputValue.trim().length > 0) {
+        // Force dropdown to stay open when typing
+        if (!isOpen) {
+          setIsOpen(true);
+        }
+      }
+    }
   };
+
+  const handleOpen = (event: any) => {
+    console.log("handleOpen", event);
+    setIsOpen(true);
+    onOpen?.();
+    
+    // If there's an input value, scroll to first match after opening
+    if (inputValue && inputValue.trim().length > 0) {
+      setTimeout(() => {
+        scrollToFirstMatch();
+      }, 150);
+    }
+  };
+
+  const handleClose = (event: any, reason: string) => {
+    // Only allow closing on blur or escape
+    // Don't close when selecting options (for multi-select)
+    if (reason === 'blur' || reason === 'escape') {
+      setIsOpen(false);
+      onClose?.();
+    }
+    // For other reasons (like 'toggleInput'), keep it open if there's input
+    else if (reason === 'toggleInput' && inputValue && inputValue.trim().length > 0) {
+      // Keep it open if user is typing
+      setIsOpen(true);
+    }
+  };
+
+  // Filter options based on input value - CRITICAL: This must use state.inputValue from Material-UI
+  const filterOptions = (options: Option[], state: { inputValue: string }) => {
+    const searchText = state.inputValue || '';
+    
+    console.log('🔍 filterOptions called:', { 
+      searchText, 
+      searchTextLength: searchText.length,
+      optionsCount: options.length,
+      firstFewOptions: options.slice(0, 3).map(o => o.label)
+    });
+    
+    // Return all options if no search text
+    if (!searchText || searchText.trim() === '') {
+      console.log('No search text, returning all', options.length, 'options');
+      return options;
+    }
+    
+    // Filter options that match the search text (case-insensitive, substring match)
+    const searchLower = searchText.toLowerCase().trim();
+    console.log('Searching for:', searchLower);
+    
+    const filtered = options.filter((option) => {
+      if (!option || !option.label) return false;
+      const labelLower = option.label.toLowerCase();
+      const matches = labelLower.includes(searchLower);
+      if (matches) {
+        console.log('✅ Match:', option.label);
+      }
+      return matches;
+    });
+    
+    console.log('📊 Filtered results:', filtered.length, 'out of', options.length, 'options');
+    if (filtered.length > 0) {
+      console.log('First 5 matches:', filtered.slice(0, 5).map(f => f.label));
+    } else {
+      console.log('❌ No matches found for:', searchText);
+    }
+    
+    return filtered;
+  };
+
+  // Helper function to scroll to first match
+  const scrollToFirstMatch = () => {
+    const paperElement = document.querySelector('.MuiAutocomplete-paper');
+    if (paperElement) {
+      const listboxElement = paperElement.querySelector('.MuiAutocomplete-listbox') as HTMLElement;
+      if (listboxElement) {
+        const listItems = listboxElement.querySelectorAll('li');
+        if (listItems.length > 0) {
+          const firstItem = listItems[0] as HTMLElement;
+          firstItem.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+        }
+      }
+    }
+  };
+
+  // Scroll to first matching option when input changes and ensure dropdown stays open
+  useEffect(() => {
+    if (inputValue && inputValue.trim() !== '' && inputValue !== previousInputValueRef.current) {
+      previousInputValueRef.current = inputValue;
+      
+      // Ensure dropdown is open when typing
+      if (!isOpen) {
+        setIsOpen(true);
+      }
+      
+      // Small delay to ensure the filtered list is rendered, then scroll
+      const timeoutId = setTimeout(() => {
+        if (isOpen) {
+          scrollToFirstMatch();
+        }
+      }, 50);
+      
+      return () => clearTimeout(timeoutId);
+    } else if (!inputValue || inputValue.trim() === '') {
+      previousInputValueRef.current = '';
+    }
+  }, [inputValue, isOpen]);
 
   return (
     <Box sx={sx}>
@@ -367,12 +488,14 @@ console.log('Options:', options);
         options={options?.length > 0 ? options : []}
         value={value}
         onChange={(_, newValue) => onChange(newValue || [])}
-        inputValue={inputValue}
         onInputChange={handleInputChange}
-        onOpen={onOpen}
-        onClose={onClose}
+        open={isOpen}
+        onOpen={handleOpen}
+        onClose={handleClose}
         getOptionLabel={(option) => option.label}
         isOptionEqualToValue={(option, value) => option.value === value.value}
+        filterOptions={filterOptions}
+        disableListWrap={false}
         disableClearable={false} 
         blurOnSelect={false}
         selectOnFocus
@@ -382,6 +505,20 @@ console.log('Options:', options);
         disableCloseOnSelect={true}
         loading={loading}
         noOptionsText={noOptionsText}
+        ref={autocompleteRef}
+        // Don't control inputValue - let Material-UI handle it internally for proper filtering
+        // inputValue={inputValue} // REMOVED - let Material-UI handle it
+        componentsProps={{
+          popper: {
+            style: { zIndex: 1300 },
+            modifiers: [
+              {
+                name: 'preventOverflow',
+                enabled: true,
+              },
+            ],
+          }
+        }}
         renderInput={(params) => (
           <TextField
             {...params}
@@ -489,11 +626,14 @@ console.log('Options:', options);
           />
         )}
         renderOption={(props, option, { selected }) => {
+          // Always use option.value as key to ensure uniqueness (labels can be duplicate like "N/A")
+          // Omit key from props since we use option.value instead
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { key, ...otherProps } = props;
           return (
             <Box
               component="li"
-              key={key || option.value}
+              key={option.value}
               {...otherProps}
               sx={{
                 padding: "16px",

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Grid, Paper, Button, CircularProgress } from "@mui/material";
 import { KeyboardBackspaceOutlined, Print as PrintIcon } from "@mui/icons-material";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import CommonTable, {
   TableColumn,
 } from "../../../component/atoms/Table/CommonTable";
@@ -24,8 +24,15 @@ import rabbitLogo from '../../../assets/Rabbit.svg';
 
 const AdminOrderDetail = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { orderId } = useParams();
   const [orderHistory, setOrderHistory] = useState<any[]>([]);
+  
+  // Check if we came from calendar view
+  const fromCalendar = location.state?.fromCalendar;
+  const calendarState = location.state?.calendarState;
+  // Get isConfirmed from parent page (AdminOrder)
+  const isConfirmed = location.state?.isConfirmed;
   const [orderHeader, setOrderHeader] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -1086,7 +1093,15 @@ const AdminOrderDetail = () => {
       {/* Header */}
       <Box display="flex" alignItems="center" gap={1} mb={3}>
         <KeyboardBackspaceOutlined
-          onClick={() => navigate("/admin/order")}
+          onClick={() => {
+            if (fromCalendar && calendarState) {
+              // Navigate back to calendar view with the original state
+              navigate('/admin/calender/view', { state: calendarState });
+            } else {
+              // Default navigation to order list
+              navigate("/admin/order");
+            }
+          }}
           sx={{ cursor: "pointer" }}
         />
         <Typography fontSize={20} fontWeight={500}>
@@ -1122,7 +1137,7 @@ const AdminOrderDetail = () => {
                   startIcon={picklistLoading ? <CircularProgress size={16} color="inherit" /> : <PrintIcon />}
                   onClick={handlePrintPicklist}
                   size="small"
-                  disabled={picklistLoading || pdfLoading}
+                  disabled={picklistLoading || pdfLoading || isConfirmed === true}
                   sx={{ backgroundColor: "primary.main", color: "white" }}
                 >
                   {picklistLoading ? "Generating..." : "Print Picklist"}

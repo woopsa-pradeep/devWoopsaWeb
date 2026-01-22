@@ -6,6 +6,7 @@ import {
   Paper,
   Chip,
   Tooltip,
+  useTheme,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -71,6 +72,7 @@ interface LocationState {
 }
 
 const DistributorStatusView: React.FC = () => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LocationState;
@@ -81,7 +83,7 @@ const DistributorStatusView: React.FC = () => {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100);
   const [loading, setLoading] = useState(false);
   const [customerOrderData, setCustomerOrderData] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -158,12 +160,16 @@ const DistributorStatusView: React.FC = () => {
       });
       
       if (response.success && response.data) {
-        setOrderDetails(response.data);
+        // Extract orders array from response.data.orders
+        setOrderDetails(response.data.orders || []);
         setSelectedCustomerForOrder(customers.find(c => c.C_Number === customerId));
         setOpenOrderDetailsModal(true);
+      } else {
+        setOrderDetails([]);
       }
     } catch (error) {
       console.error('Error fetching order details:', error);
+      setOrderDetails([]);
     } finally {
       setOrderDetailsLoading(false);
     }
@@ -254,19 +260,25 @@ const DistributorStatusView: React.FC = () => {
       label: 'Status',
       minWidth: 80,
       align: 'center',
-      render: (row: any) => (
-        <Chip 
-          label={row.status?.toUpperCase() || 'UNKNOWN'} 
-          size="small"
-          color={row.status === 'pending' ? 'warning' : row.status === 'completed' ? 'success' : 'default'}
-          variant="outlined"
-          sx={{ 
-            fontSize: '9px',
-            height: '20px',
-            fontWeight: 500
-          }}
-        />
-      ),
+      render: (row: any) => {
+        const status = row.status?.toLowerCase();
+        const isDone = status === 'done' || status === 'completed';
+        return (
+          <Chip 
+            label={row.status?.toUpperCase() || 'UNKNOWN'} 
+            size="small"
+            sx={{
+              backgroundColor: isDone
+                ? `${theme.palette.success.main}33`
+                : `${theme.palette.warning.main}33`,
+              border: `1px solid ${isDone ? theme.palette.success.main : theme.palette.warning.main}`,
+              color: isDone ? theme.palette.success.main : theme.palette.warning.main,
+              fontSize: '0.75rem',
+              fontWeight: 400
+            }}
+          />
+        );
+      },
     },
     {
       id: 'actions',
@@ -294,34 +306,6 @@ const DistributorStatusView: React.FC = () => {
     },
   ];
 
-  const orderDetailsColumns: TableColumn[] = [
-    {
-      id: 'Product_Name',
-      label: 'Product Name',
-      minWidth: 180,
-      align: 'left',
-    },
-    {
-      id: 'Quantity',
-      label: 'Qty',
-      minWidth: 60,
-      align: 'center',
-    },
-    {
-      id: 'Unit_Price',
-      label: 'Unit Price',
-      minWidth: 100,
-      align: 'right',
-      render: (row: any) => `$${row.Unit_Price?.toFixed(2) || '0.00'}`,
-    },
-    {
-      id: 'Total_Price',
-      label: 'Total',
-      minWidth: 100,
-      align: 'right',
-      render: (row: any) => `$${row.Total_Price?.toFixed(2) || '0.00'}`,
-    },
-  ];
 
   return (
     <Box p={2}>
@@ -364,6 +348,12 @@ const DistributorStatusView: React.FC = () => {
                 variant="outlined"
                 size="small"
               />
+              <Chip
+                label={`${customerTotalOrder?.customerOrder} Customers Ordered`}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
             </Box>
           </Grid>
         </Grid>
@@ -387,6 +377,17 @@ const DistributorStatusView: React.FC = () => {
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
             pageSizeOptions={[10, 25, 50, 100]}
+            getRowStyle={(row) => {
+              const status = row.status?.toLowerCase();
+              if (status === 'done' || status === 'completed') {
+                return {
+                  backgroundColor: `${theme.palette.success.main}33`, // Light green background
+                  borderLeft: `4px solid ${theme.palette.success.main}`,
+                };
+              }
+              // Pending rows should be white (no background color)
+              return {};
+            }}
           />
 
         </Box>
@@ -588,21 +589,129 @@ const DistributorStatusView: React.FC = () => {
         open={openOrderDetailsModal} 
         onClose={() => setOpenOrderDetailsModal(false)}
         size="lg"
-        title={`Order Details - ${selectedCustomerForOrder?.C_Name}`}
+        title={`Order Details - ${selectedCustomerForOrder?.C_Name} (${selectedCustomerForOrder?.C_CoName})`}
       >
-        <CommonTable
-          columns={orderDetailsColumns}
-          data={orderDetails}
-          loading={orderDetailsLoading}
-          isPagination={false}
-          currentPage={1}
-          totalPages={1}
-          totalItems={orderDetails.length}
-          pageSize={10}
-          onPageChange={() => {}}
-          onPageSizeChange={() => {}}
-          pageSizeOptions={[10, 25, 50, 100]}
-        />
+        {orderDetailsLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <Typography>Loading order details...</Typography>
+          </Box>
+        ) : orderDetails.length > 0 ? (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Orders for {moment(selectedDate).format('MMMM D, YYYY')}
+            </Typography>
+            <Box sx={{ 
+              border: `1px solid ${theme.palette.divider}`, 
+              borderRadius: 1, 
+              overflow: 'hidden',
+              maxHeight: '400px',
+              overflowY: 'auto'
+            }}>
+              {/* Table Header - Sticky */}
+              <Box sx={{
+                position: 'sticky',
+                top: 0,
+                backgroundColor: theme.palette.background.paper,
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                zIndex: 1
+              }}>
+                <Grid container sx={{ 
+                  p: 1, 
+                  backgroundColor: '#3c7795',
+                  fontWeight: 600,
+                  fontSize: '0.875rem'
+                }}>
+                  <Grid size={{ xs: 12, md: 2.4 }}>
+                    <Typography variant="subtitle2" color="white" sx={{ fontWeight: 600 }}>
+                      Order Number
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2.4 }}>
+                    <Typography variant="subtitle2" color="white" sx={{ fontWeight: 600 }}>
+                      Order Date
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2.4 }}>
+                    <Typography variant="subtitle2" color="white" sx={{ fontWeight: 600 }}>
+                      Total Price
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2.4 }}>
+                    <Typography variant="subtitle2" color="white" sx={{ fontWeight: 600 }}>
+                      Total Quantity
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2.4 }}>
+                    <Typography variant="subtitle2" color="white" sx={{ fontWeight: 600 }}>
+                      Action
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* Table Body */}
+              {orderDetails.map((order, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    '&:last-child': { borderBottom: 'none' },
+                    '&:hover': { backgroundColor: theme.palette.action.hover }
+                  }}
+                >
+                  <Grid container spacing={1} alignItems="center" sx={{ p: 1.5 }}>
+                    <Grid size={{ xs: 12, md: 2.4 }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        #{order.Order_Number}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 2.4 }}>
+                      <Typography variant="body2">
+                        {moment(order.Order_Date).format('MMM DD, YYYY')}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 2.4 }}>
+                      <Typography variant="body2" color="primary.main" fontWeight={500}>
+                        ${order.totals?.totalPrice?.toFixed(2) || '0.00'}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 2.4 }}>
+                      <Typography variant="body2">
+                        {order.totals?.totalQty || 0} items
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 2.4 }}>
+                      <CustomButton
+                        appearance="outlined"
+                        size="small"
+                        fullWidth={false}
+                        icon={<VisibilityIcon sx={{ fontSize: '1rem' }} />}
+                        onClick={() => navigate(`/admin/order/details/${order.Order_Number}`, {
+                          state: { fromCalendar: true, calendarState: state }
+                        })}
+                        sx={{
+                          padding: '4px 8px',
+                          minWidth: 'auto',
+                          height: '28px',
+                          fontSize: '0.75rem',
+                          mt: 0
+                        }}
+                      >
+                        View
+                      </CustomButton>
+                    </Grid>
+                  </Grid>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}>
+            <Typography variant="body1" color="text.secondary">
+              No orders found for this customer on the selected date.
+            </Typography>
+          </Box>
+        )}
         <Box display="flex" justifyContent="flex-end" mt={2}>
           <CustomButton 
             onClick={() => setOpenOrderDetailsModal(false)}

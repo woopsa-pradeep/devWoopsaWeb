@@ -19,8 +19,8 @@ import {
 } from "@mui/material";
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  // AreaChart,
+  // Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -31,6 +31,8 @@ import {
   PieChart,
   Pie,
   Legend,
+  ComposedChart,
+  Line,
 } from "recharts";
 import DashboardCard from "../../../component/atoms/dashboard/DashboardCard";
 import CommonTable, {
@@ -88,6 +90,11 @@ interface DashboardData {
     S_Number: number;
     S_Desc: string;
     totalOrders: number;
+    totalInvoiceTotal: number;
+  }>;
+  userPerformance?: Array<{
+    userName: string;
+    order_Count: number;
     totalInvoiceTotal: number;
   }>;
 }
@@ -170,6 +177,7 @@ const AdminDashboard = () => {
   const [lossQtyFullData, setLossQtyFullData] = useState<any[]>([]);
   const [lossQtyLoading, setLossQtyLoading] = useState(false);
   const [lossQtyModalOpen, setLossQtyModalOpen] = useState(false);
+  const [userPerformanceViewMode, setUserPerformanceViewMode] = useState<"table" | "graph">("table");
   const navigate = useNavigate();
   const [averageTimePerQtyViewMode, setAverageTimePerQtyViewMode] = useState<"table" | "graph">("graph");
   const [scannedQtyViewMode, setScannedQtyViewMode] = useState<"table" | "graph">("graph");
@@ -830,6 +838,36 @@ const AdminDashboard = () => {
     },
   ];
 
+  const userPerformanceColumns: TableColumn[] = [
+    {
+      id: "userName",
+      label: "User Name",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="text.primary">
+          {row.userName}
+        </Typography>
+      ),
+    },
+    {
+      id: "totalSales",
+      label: "Total Sales",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="primary.main">
+          ${(row.totalInvoiceTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </Typography>
+      ),
+    },
+    {
+      id: "orderCount",
+      label: "Order Count",
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="text.secondary">
+          {row.order_Count || 0}
+        </Typography>
+      ),
+    },
+  ];
+
   const lossQtyBarData = lossQtyData.map((row) => ({
     name: row.Description?.length > 20 
       ? row.Description.substring(0, 20) + "..." 
@@ -839,6 +877,21 @@ const AdminDashboard = () => {
     extLoss: row.Ext_Loss || 0,
     itemNumber: row.Item_Number,
     customer: row.C_Name,
+  }));
+
+  // User Performance Data
+  const userPerformanceData = dashboardData?.userPerformance
+    ? [...dashboardData.userPerformance]
+        .sort((a, b) => (b.totalInvoiceTotal || 0) - (a.totalInvoiceTotal || 0))
+    : [];
+
+  const userPerformanceBarData = userPerformanceData.map((user) => ({
+    name: user.userName?.length > 20 
+      ? user.userName.substring(0, 20) + "..." 
+      : user.userName || "Unknown",
+    fullName: user.userName || "Unknown",
+    totalSales: user.totalInvoiceTotal || 0,
+    orderCount: user.order_Count || 0,
   }));
 
   // Custom Tooltip Component
@@ -1018,136 +1071,6 @@ const AdminDashboard = () => {
           {/* Charts Section */}
           <Grid container spacing={2} mb={2}>
             {/* Platform Orders */}
-            
-
-            {/* Sales Performance */}
-            <Grid size={{ xs: 12, md: 8 }}>
-              <Grow in={true} timeout={1000}>
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    height: '100%',
-                    background: theme.palette.mode === 'dark'
-                      ? alpha(theme.palette.background.paper, 0.8)
-                      : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                  }}
-                >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
-                      Sales Performance
-                    </Typography>
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <FormControl size="small" sx={{ minWidth: 100 }}>
-                        <Select
-                          value={costType}
-                          onChange={(e) => setCostType(e.target.value)}
-                          sx={{
-                            fontSize: 11,
-                            height: 28,
-                            '& .MuiSelect-select': {
-                              py: 0.5,
-                            },
-                          }}
-                        >
-                          <MenuItem value="base">Base Cost</MenuItem>
-                          <MenuItem value="avg">Avg Cost</MenuItem>
-                          <MenuItem value="net">Net Cost</MenuItem>
-                        </Select>
-                      </FormControl>
-                      <Button
-                        size="small"
-                        onClick={() => setSalesPerformanceViewMode("graph")}
-                        variant={salesPerformanceViewMode === "graph" ? "contained" : "outlined"}
-                        sx={{
-                          textTransform: 'none',
-                          minWidth: 65,
-                          fontSize: 11,
-                          py: 0.5,
-                          '&.MuiButton-contained': {
-                            color: '#fff',
-                          },
-                        }}
-                      >
-                        Chart
-                      </Button>
-                      <Button
-                        size="small"
-                        onClick={() => setSalesPerformanceViewMode("table")}
-                        variant={salesPerformanceViewMode === "table" ? "contained" : "outlined"}
-                        sx={{
-                          textTransform: 'none',
-                          minWidth: 65,
-                          fontSize: 11,
-                          py: 0.5,
-                          '&.MuiButton-contained': {
-                            color: '#fff',
-                          },
-                        }}
-                      >
-                        Table
-                      </Button>
-                    </Stack>
-                  </Box>
-                  {salesPerformanceViewMode === "table" ? (
-                    <CommonTable
-                      padding={0}
-                      data={[...(dashboardData?.result || [])].sort((a, b) => (b.totalInvoiceTotal || 0) - (a.totalInvoiceTotal || 0))}
-                      columns={salesPersonColumns}
-                      currentPage={1}
-                      totalPages={1}
-                      totalItems={dashboardData?.result?.length || 0}
-                      stickyHeader={true}
-                      pageSize={dashboardData?.result?.length || 0}
-                      onPageChange={() => {}}
-                      onPageSizeChange={() => {}}
-                      showPageSizeSelector={false}
-                      showTotalItems={false}
-                      showPageNumbers={false}
-                      loading={loading}
-                      containerHeight="260px"
-                      emptyStateComponent={<Typography>No sales data</Typography>}
-                    />
-                  ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <AreaChart data={salesPersonData}>
-                        <defs>
-                          <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.3} />
-                            <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.05} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid 
-                          strokeDasharray="3 3" 
-                          stroke={alpha(theme.palette.divider, 0.5)}
-                          vertical={false}
-                        />
-                        <XAxis 
-                          dataKey="name" 
-                          tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
-                          axisLine={false}
-                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                        />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Area
-                          type="monotone"
-                          dataKey="Sales"
-                          stroke={theme.palette.primary.main}
-                          strokeWidth={2}
-                          fill="url(#salesGradient)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  )}
-                </Paper>
-              </Grow>
-            </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <Grow in={true} timeout={800}>
                 <Paper
@@ -1361,25 +1284,23 @@ const AdminDashboard = () => {
                 </Paper>
               </Grow>
             </Grid>
-          </Grid>
 
-
-          {/* Loss Quantity Report */}
-          <Grid container spacing={2} mb={2}>
-            <Grid size={{ xs: 12 }}>
-              <Grow in={true} timeout={1400}>
+            {/* Loss Quantity Report */}
+            <Grid size={{ xs: 12, md: 8 }}>
+              <Grow in={true} timeout={1000}>
                 <Paper
                   elevation={0}
                   sx={{
                     p: 1.5,
                     borderRadius: 2,
+                    height: '100%',
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
                     border: `1px solid ${theme.palette.divider}`,
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
                     <Box>
                       <Typography fontSize={14} fontWeight={500} color="text.primary">
                         Loss Quantity Report (Top 10)
@@ -1490,19 +1411,52 @@ const AdminDashboard = () => {
                       emptyStateComponent={<Typography>No loss quantity data</Typography>}
                     />
                   ) : (
-                    <Box sx={{ height: 320, width: "100%" }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={lossQtyBarData} layout="vertical">
+                    <Box 
+                      sx={{ 
+                        width: "100%", 
+                        // height: 280,
+                        overflowX: "auto",
+                        overflowY: "hidden",
+                        "&::-webkit-scrollbar": {
+                          height: 6,
+                        },
+                        "&::-webkit-scrollbar-track": {
+                          background: alpha(theme.palette.divider, 0.1),
+                          borderRadius: 3,
+                        },
+                        "&::-webkit-scrollbar-thumb": {
+                          background: alpha(theme.palette.error.main, 0.3),
+                          borderRadius: 3,
+                          "&:hover": {
+                            background: alpha(theme.palette.error.main, 0.5),
+                          },
+                        },
+                      }}
+                    >
+                      <ResponsiveContainer width="100%" height={280} minWidth={Math.max(600, lossQtyBarData.length * 80)}>
+                        <BarChart data={lossQtyBarData} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
+                          <defs>
+                            <linearGradient id="lossGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={theme.palette.error.main} stopOpacity={1} />
+                              <stop offset="100%" stopColor={theme.palette.error.dark} stopOpacity={0.8} />
+                            </linearGradient>
+                          </defs>
                           <CartesianGrid 
                             strokeDasharray="3 3" 
-                            stroke={alpha(theme.palette.divider, 0.5)}
+                            stroke={alpha(theme.palette.divider, 0.3)}
+                            vertical={false}
                           />
-                          <XAxis type="number" tick={{ fill: theme.palette.text.secondary, fontSize: 10 }} />
+                          <XAxis 
+                            dataKey="itemNumber" 
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            interval={0}
+                          />
                           <YAxis 
-                            type="category" 
-                            dataKey="name" 
-                            width={130}
-                            tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
+                            width={60}
                           />
                           <Tooltip
                             content={({ active, payload }) => {
@@ -1516,36 +1470,480 @@ const AdminDashboard = () => {
                                       background: theme.palette.mode === 'dark' 
                                         ? alpha(theme.palette.background.paper, 0.95)
                                         : theme.palette.background.paper,
-                                      border: `1px solid ${theme.palette.divider}`,
+                                      border: `1px solid ${theme.palette.error.main}`,
                                       borderRadius: 2,
                                       maxWidth: 280,
                                     }}
                                   >
-                                    <Typography fontSize={12} fontWeight={600} mb={1}>
+                                    <Typography fontSize={12} fontWeight={600} mb={1} color="error.main">
                                       {data.fullName}
                                     </Typography>
                                     <Typography fontSize={11} color="text.secondary" mb={0.5}>
-                                      Item Number: {data.itemNumber}
+                                      Item #{data.itemNumber}
+                                    </Typography>
+                                    <Box 
+                                      sx={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        mb: 0.5,
+                                        p: 0.75,
+                                        borderRadius: 1,
+                                        background: alpha(theme.palette.error.main, 0.1),
+                                      }}
+                                    >
+                                      <Typography fontSize={11} fontWeight={500}>
+                                        Loss Qty:
+                                      </Typography>
+                                      <Typography fontSize={11} fontWeight={600} color="error.main">
+                                        {data.lossQty}
+                                      </Typography>
+                                    </Box>
+                                    <Box 
+                                      sx={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        p: 0.75,
+                                        borderRadius: 1,
+                                        background: alpha(theme.palette.error.main, 0.1),
+                                      }}
+                                    >
+                                      <Typography fontSize={11} fontWeight={500}>
+                                        Ext Loss:
+                                      </Typography>
+                                      <Typography fontSize={11} fontWeight={600} color="error.main">
+                                        ${data.extLoss.toFixed(2)}
+                                      </Typography>
+                                    </Box>
+                                  </Paper>
+                                );
+                              }
+                              return null;
+                            }}
+                            cursor={{ fill: alpha(theme.palette.error.main, 0.1) }}
+                          />
+                          <Bar 
+                            dataKey="extLoss" 
+                            fill="url(#lossGradient)"
+                            radius={[4, 4, 0, 0]}
+                          >
+                            {lossQtyBarData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={index % 2 === 0 
+                                  ? theme.palette.error.main 
+                                  : alpha(theme.palette.error.main, 0.8)
+                                } 
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+          </Grid>
+
+          
+
+          <Grid container spacing={2} mb={2}>
+            {/* Sales Performance - Full Width */}
+            <Grid size={{ xs: 12, lg: 6 }}>
+              <Grow in={true} timeout={1000}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      Sales Performance
+                    </Typography>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <FormControl size="small" sx={{ minWidth: 100 }}>
+                        <Select
+                          value={costType}
+                          onChange={(e) => setCostType(e.target.value)}
+                          sx={{
+                            fontSize: 11,
+                            height: 28,
+                            '& .MuiSelect-select': {
+                              py: 0.5,
+                            },
+                          }}
+                        >
+                          <MenuItem value="base">Base Cost</MenuItem>
+                          <MenuItem value="avg">Avg Cost</MenuItem>
+                          <MenuItem value="net">Net Cost</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Button
+                        size="small"
+                        onClick={() => setSalesPerformanceViewMode("graph")}
+                        variant={salesPerformanceViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setSalesPerformanceViewMode("table")}
+                        variant={salesPerformanceViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {salesPerformanceViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={[...(dashboardData?.result || [])].sort((a, b) => (b.totalInvoiceTotal || 0) - (a.totalInvoiceTotal || 0))}
+                      columns={salesPersonColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={dashboardData?.result?.length || 0}
+                      stickyHeader={true}
+                      pageSize={dashboardData?.result?.length || 0}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={loading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No sales data</Typography>}
+                    />
+                  ) : (
+                    <Box 
+                      sx={{ 
+                        width: "100%", 
+                        // height: 280,
+                        overflowX: "auto",
+                        overflowY: "hidden",
+                        "&::-webkit-scrollbar": {
+                          height: 6,
+                        },
+                        "&::-webkit-scrollbar-track": {
+                          background: alpha(theme.palette.divider, 0.1),
+                          borderRadius: 3,
+                        },
+                        "&::-webkit-scrollbar-thumb": {
+                          background: alpha(theme.palette.primary.main, 0.3),
+                          borderRadius: 3,
+                          "&:hover": {
+                            background: alpha(theme.palette.primary.main, 0.5),
+                          },
+                        },
+                      }}
+                    >
+                      <ResponsiveContainer width="100%" height={340} minWidth={Math.max(600, salesPersonData.length * 80)}>
+                        <ComposedChart data={salesPersonData} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
+                          <defs>
+                            <linearGradient id="salesBarGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={1} />
+                              <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.6} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid 
+                            strokeDasharray="3 3" 
+                            stroke={alpha(theme.palette.divider, 0.3)}
+                            vertical={false}
+                          />
+                          <XAxis 
+                            dataKey="name" 
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            interval={0}
+                          />
+                          <YAxis 
+                            yAxisId="left"
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                            width={60}
+                          />
+                          <YAxis 
+                            yAxisId="right"
+                            orientation="right"
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            width={50}
+                          />
+                        <Tooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const salesData = payload.find(p => p.dataKey === 'Sales');
+                              const ordersData = payload.find(p => p.dataKey === 'Orders');
+                              return (
+                                <Paper
+                                  elevation={8}
+                                  sx={{
+                                    p: 1.5,
+                                    background: theme.palette.mode === 'dark' 
+                                      ? alpha(theme.palette.background.paper, 0.95)
+                                      : theme.palette.background.paper,
+                                    border: `1px solid ${theme.palette.divider}`,
+                                    borderRadius: 2,
+                                  }}
+                                >
+                                  <Typography fontSize={12} fontWeight={600} mb={1}>
+                                    {salesData?.payload.name}
+                                  </Typography>
+                                  <Typography fontSize={11} mb={0.5}>
+                                    <Box component="span" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
+                                      Sales: 
+                                    </Box>{' '}
+                                    ${salesData?.value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </Typography>
+                                  <Typography fontSize={11}>
+                                    <Box component="span" sx={{ color: theme.palette.success.main, fontWeight: 600 }}>
+                                      Orders: 
+                                    </Box>{' '}
+                                    {ordersData?.value?.toLocaleString()}
+                                  </Typography>
+                                </Paper>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar 
+                          yAxisId="left"
+                          dataKey="Sales" 
+                          fill="url(#salesBarGradient)"
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Line 
+                          yAxisId="right"
+                          type="monotone" 
+                          dataKey="Orders" 
+                          stroke={theme.palette.success.main}
+                          strokeWidth={2.5}
+                          dot={{ fill: theme.palette.success.main, r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                    </Box>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
+
+            {/* User Performance Report */}
+            <Grid size={{ xs: 12, lg: 6 }}>
+              <Grow in={true} timeout={1600}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      User Performance
+                    </Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUserPerformanceViewMode("graph");
+                        }}
+                        variant={userPerformanceViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUserPerformanceViewMode("table");
+                        }}
+                        variant={userPerformanceViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {userPerformanceViewMode === "table" ? (
+                    <CommonTable
+                      padding={0}
+                      data={userPerformanceData}
+                      columns={userPerformanceColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={userPerformanceData.length}
+                      stickyHeader={true}
+                      pageSize={userPerformanceData.length}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={loading}
+                      containerHeight="350px"
+                      emptyStateComponent={<Typography>No user performance data</Typography>}
+                    />
+                  ) : (
+                    <Box 
+                      sx={{ 
+                        width: "100%", 
+                        // height: 280,
+                        overflowX: "auto",
+                        overflowY: "hidden",
+                        "&::-webkit-scrollbar": {
+                          height: 6,
+                        },
+                        "&::-webkit-scrollbar-track": {
+                          background: alpha(theme.palette.divider, 0.1),
+                          borderRadius: 3,
+                        },
+                        "&::-webkit-scrollbar-thumb": {
+                          background: alpha(theme.palette.primary.main, 0.3),
+                          borderRadius: 3,
+                          "&:hover": {
+                            background: alpha(theme.palette.primary.main, 0.5),
+                          },
+                        },
+                      }}
+                    >
+                      <ResponsiveContainer width="100%" height={340} minWidth={Math.max(600, userPerformanceBarData.length * 80)}>
+                        <ComposedChart data={userPerformanceBarData} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
+                          <defs>
+                            <linearGradient id="userSalesBarGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={1} />
+                              <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.6} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid 
+                            strokeDasharray="3 3" 
+                            stroke={alpha(theme.palette.divider, 0.3)}
+                            vertical={false}
+                          />
+                          <XAxis 
+                            dataKey="name" 
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            interval={0}
+                          />
+                          <YAxis 
+                            yAxisId="left"
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                            width={60}
+                          />
+                          <YAxis 
+                            yAxisId="right"
+                            orientation="right"
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            width={50}
+                          />
+                          <Tooltip 
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const salesData = payload.find(p => p.dataKey === 'totalSales');
+                                const ordersData = payload.find(p => p.dataKey === 'orderCount');
+                                return (
+                                  <Paper
+                                    elevation={8}
+                                    sx={{
+                                      p: 1.5,
+                                      background: theme.palette.mode === 'dark' 
+                                        ? alpha(theme.palette.background.paper, 0.95)
+                                        : theme.palette.background.paper,
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      borderRadius: 2,
+                                    }}
+                                  >
+                                    <Typography fontSize={12} fontWeight={600} mb={1}>
+                                      {salesData?.payload.fullName}
                                     </Typography>
                                     <Typography fontSize={11} mb={0.5}>
-                                      Loss Qty: {data.lossQty}
+                                      <Box component="span" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
+                                        Total Sales: 
+                                      </Box>{' '}
+                                      ${salesData?.value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </Typography>
                                     <Typography fontSize={11}>
-                                      Ext Loss: ${data.extLoss.toFixed(2)}
+                                      <Box component="span" sx={{ color: theme.palette.success.main, fontWeight: 600 }}>
+                                        Order Count: 
+                                      </Box>{' '}
+                                      {ordersData?.value?.toLocaleString()}
                                     </Typography>
                                   </Paper>
                                 );
                               }
                               return null;
                             }}
-                            cursor={{ fill: "rgba(0,0,0,0.1)" }}
                           />
                           <Bar 
-                            dataKey="extLoss" 
-                            fill={theme.palette.error.main}
-                            radius={[0, 6, 6, 0]}
+                            yAxisId="left"
+                            dataKey="totalSales" 
+                            fill="url(#userSalesBarGradient)"
+                            radius={[4, 4, 0, 0]}
                           />
-                        </BarChart>
+                          <Line 
+                            yAxisId="right"
+                            type="monotone" 
+                            dataKey="orderCount" 
+                            stroke={theme.palette.success.main}
+                            strokeWidth={2.5}
+                            dot={{ fill: theme.palette.success.main, r: 4 }}
+                            activeDot={{ r: 6 }}
+                          />
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </Box>
                   )}

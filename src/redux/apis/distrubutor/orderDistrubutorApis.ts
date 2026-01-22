@@ -1,6 +1,6 @@
 import axiosInstance from "../../../config/axios";
 
-export const getOrderHistory = async (page: number = 1, limit: number = 10, customerId?: string, startDate?: any, endDate?: any) => {
+export const getOrderHistory = async (page: number = 1, limit: number = 10, customerId?: string, startDate?: any, endDate?: any, isDeleted?: boolean, updated?: boolean, currentStatus?: string) => {
     let url = `/distrubutor/orderHistory?page=${page}&limit=${limit}`;
     if (customerId) {
         url += `&customerNumber=${customerId}`;
@@ -10,6 +10,15 @@ export const getOrderHistory = async (page: number = 1, limit: number = 10, cust
     }
     if (endDate) {
         url += `&endDate=${endDate}`;
+    }
+    if (isDeleted !== undefined) {
+        url += `&isDeleted=${isDeleted}`;
+    }
+    if (updated !== undefined) {
+        url += `&updated=${updated}`;
+    }
+    if (currentStatus) {
+        url += `&currentStatus=${currentStatus}`;
     }
     const response = await axiosInstance.get(url);
     return response.data;
