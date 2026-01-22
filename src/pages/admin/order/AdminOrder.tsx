@@ -526,6 +526,8 @@ const AdminOrder = () => {
         updated = true;
       } else if (filterType === 'currentStatus' && currentStatus) {
         status = currentStatus; // Pass 'all' or any other selected status
+        isDeleted = false;
+        updated = false;
       }
       
       const response: any = await getOrderHistory(page, size, customerId, startDate, endDate, isDeleted, updated, status);
@@ -593,7 +595,11 @@ const AdminOrder = () => {
               <CustomAutoComplete
                 fullWidth={false}
                 options={customers}
-                getOptionLabel={(option) => option.C_Name || option.C_CoName || ''}
+                getOptionLabel={(option) => {
+                  const name = option.C_Name || option.C_CoName || '';
+                  const number = option.C_Number ? ` (${option.C_Number})` : '';
+                  return `${name}${number}`;
+                }}
                 value={selectedCustomer}
                 onChange={handleCustomerChange}
                 label="Search Customer"
@@ -604,10 +610,10 @@ const AdminOrder = () => {
               {/* First Dropdown: Filter Type */}
               <SelectInput
                 options={[
-                  { label: 'None', value: '' },
-                  { label: 'Is Deleted', value: 'isDeleted' },
+                  { label: 'All', value: '' },
+                  { label: 'Deleted', value: 'isDeleted' },
                   { label: 'Updated', value: 'updated' },
-                  { label: 'Current Status', value: 'currentStatus' },
+                  { label: 'Current', value: 'currentStatus' },
                 ]}
                 value={filterType}
                 onChange={handleFilterTypeChange}
@@ -618,7 +624,7 @@ const AdminOrder = () => {
               {filterType === 'currentStatus' && (
                 <SelectInput
                   options={[
-                    { label: 'All', value: 'all' },
+                    { label: 'All Orders', value: 'all' },
                     { label: 'Orders in Progress', value: 'recordLocks' },
                     { label: 'Order Confirmation', value: 'orderConfirmation' },
                     { label: 'Invoiced', value: 'invoices' },

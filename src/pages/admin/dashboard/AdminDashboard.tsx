@@ -65,6 +65,7 @@ interface DashboardData {
     totalInactiveCustomer: number;
     totalOrder: number;
   };
+  returnOrder?: number;
   orderByUser: {
     sales: number;
     retailer: number;
@@ -166,7 +167,7 @@ const AdminDashboard = () => {
   const [startDate, setStartDate] = useState<dayjs.Dayjs | null>(dayjs().subtract(7, 'day'));
   const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(dayjs());
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(
-    new Set(["Mobile", "Web", "ERP"])
+    new Set(["Mobile", "Web", "ERP", "Return Order"])
   );
   const [costType, setCostType] = useState<string>("base");
   const [highDemandViewMode, setHighDemandViewMode] = useState<"table" | "graph">("table");
@@ -353,6 +354,7 @@ const AdminDashboard = () => {
         { name: "Mobile", value: dashboardData.orderPlatform.Mobile, color: "#FF9800" },
         { name: "Web", value: dashboardData.orderPlatform.Web, color: "#4CAF50" },
         { name: "ERP", value: dashboardData.orderPlatform.ERP, color: "#3C50E0" },
+        { name: "Return Order", value: dashboardData.returnOrder || 0, color: "#F44336" },
       ]
     : [];
 
@@ -1070,220 +1072,7 @@ const AdminDashboard = () => {
 
           {/* Charts Section */}
           <Grid container spacing={2} mb={2}>
-            {/* Platform Orders */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <Grow in={true} timeout={800}>
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    height: '100%',
-                    background: theme.palette.mode === 'dark'
-                      ? alpha(theme.palette.background.paper, 0.8)
-                      : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                  }}
-                >
-                  <Box
-                    display="flex"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    flexWrap="wrap"
-                    gap={1}
-                    mb={1.5}
-                  >
-                    <Typography 
-                      fontSize={14} 
-                      fontWeight={500} 
-                      color="text.primary"
-                      sx={{
-                        fontSize: { lg: 14 },
-                      }}
-                    >
-                      <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>
-                        Orders by Platform
-                      </Box>
-                      <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>
-                        Platform
-                      </Box>
-                    </Typography>
-                    {dashboardData?.orderByUser && (
-                      <Box
-                        sx={{
-                          display: { xs: 'block', xl: 'flex' },
-                          flexDirection: { xl: 'row' },
-                          gap: { xl: 1 },
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                            px: 1.5,
-                            py: 0.75,
-                            borderRadius: 1.5,
-                            background: alpha(theme.palette.success.main, 0.1),
-                            border: `1px solid ${theme.palette.success.main}`,
-                            mb: { xs: 0.75, xl: 0 },
-                          }}
-                        >
-                          <Typography fontSize={12} fontWeight={500}>
-                            Sales
-                          </Typography>
-                          <Typography fontSize={13} fontWeight={500} color="success.main">
-                            {dashboardData.orderByUser.sales}
-                          </Typography>
-                        </Box>
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                            px: 1.5,
-                            py: 0.75,
-                            borderRadius: 1.5,
-                            background: alpha(theme.palette.info.main, 0.1),
-                            border: `1px solid ${theme.palette.info.main}`,
-                          }}
-                        >
-                          <Typography fontSize={12} fontWeight={500}>
-                            Retailer
-                          </Typography>
-                          <Typography fontSize={13} fontWeight={500} color="info.main">
-                            {dashboardData.orderByUser.retailer}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                  <Box sx={{ height: 220, width: "100%", mb: 1.5 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        {allPlatformData.map((entry, index) => {
-                          const total = allPlatformData.reduce((sum, p) => sum + p.value, 0) || 1;
-                          const percent = entry.value / total;
-                          const ringWidth = 8;
-                          const spacing = 3;
-                          const baseInner = 40;
-                          const innerRadius = baseInner + index * (ringWidth + spacing);
-                          const outerRadius = innerRadius + ringWidth;
-                          const startAngle = 90;
-                          const endAngle = 90 - percent * 360;
-                          const isSelected = selectedPlatforms.has(entry.name);
-                          const progressColor = isSelected ? entry.color : theme.palette.grey[400];
-                          const backgroundColor = alpha(theme.palette.divider, 0.2);
-
-                          return (
-                            <React.Fragment key={entry.name}>
-                              <Pie
-                                data={[{ value: 1 }]}
-                                dataKey="value"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={innerRadius}
-                                outerRadius={outerRadius}
-                                startAngle={90}
-                                endAngle={-270}
-                                stroke="none"
-                                isAnimationActive={false}
-                                onClick={() => handlePlatformToggle(entry.name)}
-                                style={{ cursor: 'pointer' }}
-                              >
-                                <Cell fill={backgroundColor} />
-                              </Pie>
-                              <Pie
-                                data={[{ value: entry.value }]}
-                                dataKey="value"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={innerRadius}
-                                outerRadius={outerRadius}
-                                startAngle={startAngle}
-                                endAngle={endAngle}
-                                cornerRadius={ringWidth / 2}
-                                stroke="none"
-                                paddingAngle={0}
-                                isAnimationActive
-                                onClick={() => handlePlatformToggle(entry.name)}
-                                style={{ cursor: 'pointer' }}
-                              >
-                                <Cell fill={progressColor} />
-                              </Pie>
-                            </React.Fragment>
-                          );
-                        })}
-                        <text
-                          x="50%"
-                          y="50%"
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          style={{
-                            fontSize: "18px",
-                            fontWeight: 500,
-                            fill: theme.palette.text.primary,
-                          }}
-                        >
-                          {platformData.reduce((sum, item) => sum + item.value, 0).toLocaleString()}
-                        </text>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </Box>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'row',
-                      justifyContent: 'center',
-                      gap: 1,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    {allPlatformData.map((item) => {
-                      const isSelected = selectedPlatforms.has(item.name);
-                      return (
-                        <Box
-                          key={item.name}
-                          onClick={() => handlePlatformToggle(item.name)}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                            px: 1.5,
-                            py: 0.75,
-                            borderRadius: 1.5,
-                            background: isSelected ? alpha(item.color, 0.15) : alpha(theme.palette.divider, 0.1),
-                            border: `1px solid ${isSelected ? item.color : theme.palette.divider}`,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            mb: { lg: 0.75 },
-                            '&:hover': {
-                              background: isSelected ? alpha(item.color, 0.2) : alpha(item.color, 0.1),
-                            },
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: '50%',
-                              background: isSelected ? item.color : theme.palette.text.disabled,
-                            }}
-                          />
-                          <Typography 
-                            fontSize={12} 
-                            fontWeight={500}
-                            color={isSelected ? item.color : theme.palette.text.secondary}
-                          >
-                            {item.name} ({item.value.toLocaleString()})
-                          </Typography>
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                </Paper>
-              </Grow>
-            </Grid>
+            
 
             {/* Loss Quantity Report */}
             <Grid size={{ xs: 12, md: 8 }}>
@@ -1542,6 +1331,220 @@ const AdminDashboard = () => {
                       </ResponsiveContainer>
                     </Box>
                   )}
+                </Paper>
+              </Grow>
+            </Grid>
+            {/* Platform Orders */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Grow in={true} timeout={800}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    height: '100%',
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <Box
+                    display="flex"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    flexWrap="wrap"
+                    gap={1}
+                    mb={1.5}
+                  >
+                    <Typography 
+                      fontSize={14} 
+                      fontWeight={500} 
+                      color="text.primary"
+                      sx={{
+                        fontSize: { lg: 14 },
+                      }}
+                    >
+                      <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>
+                        Orders by Platform
+                      </Box>
+                      <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>
+                        Platform
+                      </Box>
+                    </Typography>
+                    {dashboardData?.orderByUser && (
+                      <Box
+                        sx={{
+                          display: { xs: 'block', xl: 'flex' },
+                          flexDirection: { xl: 'row' },
+                          gap: { xl: 1 },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            px: 1.5,
+                            py: 0.75,
+                            borderRadius: 1.5,
+                            background: alpha(theme.palette.success.main, 0.1),
+                            border: `1px solid ${theme.palette.success.main}`,
+                            mb: { xs: 0.75, xl: 0 },
+                          }}
+                        >
+                          <Typography fontSize={12} fontWeight={500}>
+                            Sales
+                          </Typography>
+                          <Typography fontSize={13} fontWeight={500} color="success.main">
+                            {dashboardData.orderByUser.sales}
+                          </Typography>
+                        </Box>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            px: 1.5,
+                            py: 0.75,
+                            borderRadius: 1.5,
+                            background: alpha(theme.palette.info.main, 0.1),
+                            border: `1px solid ${theme.palette.info.main}`,
+                          }}
+                        >
+                          <Typography fontSize={12} fontWeight={500}>
+                            Retailer
+                          </Typography>
+                          <Typography fontSize={13} fontWeight={500} color="info.main">
+                            {dashboardData.orderByUser.retailer}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                  <Box sx={{ height: 220, width: "100%", mb: 1.5 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        {allPlatformData.map((entry, index) => {
+                          const total = allPlatformData.reduce((sum, p) => sum + p.value, 0) || 1;
+                          const percent = entry.value / total;
+                          const ringWidth = 8;
+                          const spacing = 3;
+                          const baseInner = 40;
+                          const innerRadius = baseInner + index * (ringWidth + spacing);
+                          const outerRadius = innerRadius + ringWidth;
+                          const startAngle = 90;
+                          const endAngle = 90 - percent * 360;
+                          const isSelected = selectedPlatforms.has(entry.name);
+                          const progressColor = isSelected ? entry.color : theme.palette.grey[400];
+                          const backgroundColor = alpha(theme.palette.divider, 0.2);
+
+                          return (
+                            <React.Fragment key={entry.name}>
+                              <Pie
+                                data={[{ value: 1 }]}
+                                dataKey="value"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={innerRadius}
+                                outerRadius={outerRadius}
+                                startAngle={90}
+                                endAngle={-270}
+                                stroke="none"
+                                isAnimationActive={false}
+                                onClick={() => handlePlatformToggle(entry.name)}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <Cell fill={backgroundColor} />
+                              </Pie>
+                              <Pie
+                                data={[{ value: entry.value }]}
+                                dataKey="value"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={innerRadius}
+                                outerRadius={outerRadius}
+                                startAngle={startAngle}
+                                endAngle={endAngle}
+                                cornerRadius={ringWidth / 2}
+                                stroke="none"
+                                paddingAngle={0}
+                                isAnimationActive
+                                onClick={() => handlePlatformToggle(entry.name)}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <Cell fill={progressColor} />
+                              </Pie>
+                            </React.Fragment>
+                          );
+                        })}
+                        <text
+                          x="50%"
+                          y="50%"
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          style={{
+                            fontSize: "18px",
+                            fontWeight: 500,
+                            fill: theme.palette.text.primary,
+                          }}
+                        >
+                          {platformData.reduce((sum, item) => sum + item.value, 0).toLocaleString()}
+                        </text>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      gap: 1,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {allPlatformData.map((item) => {
+                      const isSelected = selectedPlatforms.has(item.name);
+                      return (
+                        <Box
+                          key={item.name}
+                          onClick={() => handlePlatformToggle(item.name)}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            px: 1.5,
+                            py: 0.75,
+                            borderRadius: 1.5,
+                            background: isSelected ? alpha(item.color, 0.15) : alpha(theme.palette.divider, 0.1),
+                            border: `1px solid ${isSelected ? item.color : theme.palette.divider}`,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            mb: { lg: 0.75 },
+                            '&:hover': {
+                              background: isSelected ? alpha(item.color, 0.2) : alpha(item.color, 0.1),
+                            },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: '50%',
+                              background: isSelected ? item.color : theme.palette.text.disabled,
+                            }}
+                          />
+                          <Typography 
+                            fontSize={12} 
+                            fontWeight={500}
+                            color={isSelected ? item.color : theme.palette.text.secondary}
+                          >
+                            {item.name} ({item.value.toLocaleString()})
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
                 </Paper>
               </Grow>
             </Grid>
