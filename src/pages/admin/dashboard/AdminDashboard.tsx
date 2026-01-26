@@ -41,7 +41,7 @@ import CommonTable, {
 import RetailersIcon from "../../../assets/retailerGlobalActive.svg";
 import ItemsIcon from "../../../assets/Menu Icon (2).svg";
 import OrdersIcon from "../../../assets/orderItems.svg";
-import { getDistributorDashboard, getEpickDashboard } from "../../../redux/apis/dashboardApis";
+import { getDistributorDashboard, getEpickDashboard, getHighDemandItems } from "../../../redux/apis/dashboardApis";
 import { getShortShipmentReport } from "../../../redux/apis/distrubutor/listApis";
 import { useNavigate } from "react-router-dom";
 import CustomDatePicker from "../../../component/atoms/CustomDatePicker";
@@ -53,6 +53,15 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PendingIcon from "@mui/icons-material/Pending";
 import PersonIcon from "@mui/icons-material/Person";
 import CommonModal from "../../../component/atoms/CommonModal";
+import { PictureAsPdf as PdfIcon } from "@mui/icons-material";
+import { useSelector } from "react-redux";
+import { RootState } from "../../../redux/store";
+import jsPDF from "jspdf";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const jspdfAutoTable = require("jspdf-autotable");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import rabbitLogo from "../../../assets/Rabbit.svg";
+import toast from "react-hot-toast";
 // import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 // import StoreIcon from "@mui/icons-material/Store";
 // import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
@@ -178,12 +187,24 @@ const AdminDashboard = () => {
   const [lossQtyFullData, setLossQtyFullData] = useState<any[]>([]);
   const [lossQtyLoading, setLossQtyLoading] = useState(false);
   const [lossQtyModalOpen, setLossQtyModalOpen] = useState(false);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [lossQtyModalPage, setLossQtyModalPage] = useState(1);
+  const [lossQtyModalPageSize, setLossQtyModalPageSize] = useState(50);
+  const wareHouseDetail = useSelector((state: RootState) => state.auth.wareHouseDetail);
   const [userPerformanceViewMode, setUserPerformanceViewMode] = useState<"table" | "graph">("table");
   const navigate = useNavigate();
   const [averageTimePerQtyViewMode, setAverageTimePerQtyViewMode] = useState<"table" | "graph">("graph");
   const [scannedQtyViewMode, setScannedQtyViewMode] = useState<"table" | "graph">("graph");
   const [scanningStatsViewMode, setScanningStatsViewMode] = useState<"table" | "graph">("graph");
   const [overrideStatsViewMode, setOverrideStatsViewMode] = useState<"table" | "graph">("graph");
+  const [highDemandFullData, setHighDemandFullData] = useState<any[]>([]);
+  const [highDemandLoading, setHighDemandLoading] = useState(false);
+  const [highDemandModalOpen, setHighDemandModalOpen] = useState(false);
+  const [highDemandModalPage, setHighDemandModalPage] = useState(1);
+  const [highDemandModalPageSize, setHighDemandModalPageSize] = useState(50);
+  const [generatingHighDemandPDF, setGeneratingHighDemandPDF] = useState(false);
+  const [highDemandSortField, setHighDemandSortField] = useState<string | null>('quantity');
+  const [highDemandSortDirection, setHighDemandSortDirection] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     if ((startDate && endDate) || (!startDate && !endDate)) {
@@ -256,7 +277,591 @@ const AdminDashboard = () => {
   };
 
   const handleLossQtyViewAll = () => {
+    setLossQtyModalPage(1); // Reset to first page when opening modal
     setLossQtyModalOpen(true);
+  };
+
+  // Get paginated data for modal
+  const getPaginatedLossQtyData = () => {
+    const sorted = [...lossQtyFullData].sort((a: any, b: any) => {
+      // Sort by date first (newest first), then by loss qty (descending)
+      const dateA = a.Invoice_Date ? new Date(a.Invoice_Date).getTime() : 0;
+      const dateB = b.Invoice_Date ? new Date(b.Invoice_Date).getTime() : 0;
+      if (dateA !== dateB) {
+        return dateB - dateA; // Newest first
+      }
+      return (b.Loss_Qty || 0) - (a.Loss_Qty || 0); // Then by loss qty descending
+    });
+
+    const startIndex = (lossQtyModalPage - 1) * lossQtyModalPageSize;
+    const endIndex = startIndex + lossQtyModalPageSize;
+    return sorted.slice(startIndex, endIndex);
+  };
+
+  const lossQtyModalTotalPages = Math.ceil(lossQtyFullData.length / lossQtyModalPageSize);
+
+  const handleLossQtyModalPageChange = (page: number) => {
+    setLossQtyModalPage(page);
+  };
+
+  const handleLossQtyModalPageSizeChange = (newPageSize: number) => {
+    setLossQtyModalPageSize(newPageSize);
+    setLossQtyModalPage(1); // Reset to first page when changing page size
+  };
+
+  const fetchHighDemandItems = async () => {
+    try {
+      setHighDemandLoading(true);
+      
+      const params: any = {};
+      
+      // Add dates if both are selected (format: MM-DD-YYYY)
+      if (startDate && endDate) {
+        params.fromDate = startDate.format("MM-DD-YYYY");
+        params.toDate = endDate.format("MM-DD-YYYY");
+      }
+      
+      const response = await getHighDemandItems(params) as any;
+      
+      // Handle API response structure
+      const items = response?.data?.data || response?.data || response || [];
+      
+      // Ensure items is an array (don't sort here - let getSortedHighDemandData handle it)
+      const itemsArray = Array.isArray(items) ? items : [];
+      
+      setHighDemandFullData(itemsArray);
+    } catch (error) {
+      console.error("Error fetching high demand items:", error);
+      toast.error("Failed to fetch high demand items");
+    } finally {
+      setHighDemandLoading(false);
+    }
+  };
+
+  const handleHighDemandViewAll = async () => {
+    setHighDemandModalPage(1); // Reset to first page when opening modal
+    setHighDemandSortField('quantity'); // Reset to default sort
+    setHighDemandSortDirection('desc'); // Reset to descending
+    setHighDemandModalOpen(true);
+    await fetchHighDemandItems();
+  };
+
+  // Get sorted high demand data (used for both display and PDF)
+  const getSortedHighDemandData = () => {
+    if (!highDemandFullData || highDemandFullData.length === 0) {
+      return [];
+    }
+    
+    const sortField = highDemandSortField || 'quantity';
+    const sortDirection = highDemandSortDirection || 'desc';
+    
+    return [...highDemandFullData].sort((a: any, b: any) => {
+      let aValue: number | string = 0;
+      let bValue: number | string = 0;
+      
+      // Get values based on sort field
+      switch (sortField) {
+        case 'quantity':
+          aValue = Number(a.totalQuantityOrdered) || 0;
+          bValue = Number(b.totalQuantityOrdered) || 0;
+          break;
+        case 'orders':
+          aValue = Number(a.orderCount) || 0;
+          bValue = Number(b.orderCount) || 0;
+          break;
+        case 'item':
+          aValue = (a.inventory?.Description || '').toLowerCase();
+          bValue = (b.inventory?.Description || '').toLowerCase();
+          break;
+        case 'itemNumber':
+          aValue = Number(a.Item_Number || a.inventory?.Item_Number) || 0;
+          bValue = Number(b.Item_Number || b.inventory?.Item_Number) || 0;
+          break;
+        default:
+          aValue = Number(a.totalQuantityOrdered) || 0;
+          bValue = Number(b.totalQuantityOrdered) || 0;
+      }
+      
+      // Compare values
+      let comparison = 0;
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        comparison = aValue.localeCompare(bValue);
+      } else {
+        comparison = (aValue as number) - (bValue as number);
+      }
+      
+      // Apply sort direction
+      return sortDirection === 'desc' ? -comparison : comparison;
+    });
+  };
+
+  // Handle sort change
+  const handleHighDemandSort = (field: string) => {
+    if (highDemandSortField === field) {
+      // Toggle direction if same field
+      setHighDemandSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with default descending
+      setHighDemandSortField(field);
+      setHighDemandSortDirection('desc');
+    }
+    setHighDemandModalPage(1); // Reset to first page when sorting changes
+  };
+
+  // Get paginated data for modal
+  const getPaginatedHighDemandData = () => {
+    const sorted = getSortedHighDemandData();
+    const startIndex = (highDemandModalPage - 1) * highDemandModalPageSize;
+    const endIndex = startIndex + highDemandModalPageSize;
+    return sorted.slice(startIndex, endIndex);
+  };
+
+  const highDemandModalTotalPages = Math.ceil(highDemandFullData.length / highDemandModalPageSize);
+
+  const handleHighDemandModalPageChange = (page: number) => {
+    setHighDemandModalPage(page);
+  };
+
+  const handleHighDemandModalPageSizeChange = (newPageSize: number) => {
+    setHighDemandModalPageSize(newPageSize);
+    setHighDemandModalPage(1); // Reset to first page when changing page size
+  };
+
+  // Load logo as data URL for PDF
+  const loadLogoAsDataUrl = async (): Promise<string | null> => {
+    try {
+      return new Promise<string | null>((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              canvas.width = img.width || 40;
+              canvas.height = img.height || 33;
+              ctx.drawImage(img, 0, 0);
+              const dataUrl = canvas.toDataURL('image/png');
+              resolve(dataUrl);
+            } else {
+              resolve(null);
+            }
+          } catch (error) {
+            console.error('Error converting logo to canvas:', error);
+            resolve(null);
+          }
+        };
+        
+        img.onerror = async () => {
+          try {
+            const logoPath = typeof rabbitLogo === 'string' ? rabbitLogo : rabbitLogo;
+            if (typeof logoPath === 'string' && !logoPath.startsWith('data:') && !logoPath.startsWith('http')) {
+              const response = await fetch(logoPath);
+              if (response.ok) {
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  if (typeof reader.result === 'string') {
+                    resolve(reader.result);
+                  } else {
+                    resolve(null);
+                  }
+                };
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(blob);
+                return;
+              }
+            }
+            resolve(null);
+          } catch (fetchError) {
+            console.error('Error fetching logo:', fetchError);
+            resolve(null);
+          }
+        };
+        
+        if (typeof rabbitLogo === 'string') {
+          img.src = rabbitLogo;
+        } else {
+          img.src = rabbitLogo as string;
+        }
+      });
+    } catch (error) {
+      console.error('Error loading logo:', error);
+      return null;
+    }
+  };
+
+  // Generate PDF for Loss Quantity Report
+  const handleGenerateLossQtyPDF = async () => {
+    if (lossQtyFullData.length === 0) {
+      toast.error('No data to generate PDF');
+      return;
+    }
+
+    setGeneratingPDF(true);
+    try {
+      const logoDataUrl = await loadLogoAsDataUrl();
+      
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      let yPosition = margin;
+
+      // Get distributor details
+      const distributor = wareHouseDetail?.[0];
+      const distributorName = distributor?.D_Name || '';
+      const distributorAddress = [
+        distributor?.D_Addr1,
+        distributor?.D_City,
+        distributor?.D_State
+      ].filter(Boolean).join(', ');
+      const distributorPhone = distributor?.D_Phone || '';
+
+      // Header Section: Distributor Details on Left
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      let leftY = yPosition;
+      
+      if (distributorName) {
+        doc.setFont('helvetica', 'bold');
+        doc.text(distributorName, margin, leftY);
+        leftY += 4;
+      }
+      
+      if (distributorAddress) {
+        doc.setFont('helvetica', 'normal');
+        doc.text(distributorAddress, margin, leftY);
+        leftY += 4;
+      }
+      
+      if (distributorPhone) {
+        doc.text(distributorPhone, margin, leftY);
+      }
+
+      // Title - Centered
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Loss Quantity Report', pageWidth / 2, yPosition + 4, { align: 'center' });
+
+      // Date Range - Right
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      let rightY = yPosition;
+      const date = dayjs().format('MM/DD/YYYY');
+      doc.text(`Generated on: ${date}`, pageWidth - margin, rightY, { align: 'right' });
+      rightY += 4;
+      
+      if (startDate && endDate) {
+        doc.text(
+          `Date Range: ${startDate.format('MM/DD/YYYY')} to ${endDate.format('MM/DD/YYYY')}`,
+          pageWidth - margin,
+          rightY,
+          { align: 'right' }
+        );
+      }
+
+      yPosition = 30;
+
+      // Calculate totals
+      const totalLossQty = lossQtyFullData.reduce((sum, item) => sum + (item.Loss_Qty || 0), 0);
+      const totalExtLoss = lossQtyFullData.reduce((sum, item) => sum + (item.Ext_Loss || 0), 0);
+
+      // Summary totals before table
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary:', margin, yPosition);
+      yPosition += 5;
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Total Loss Qty: ${totalLossQty.toLocaleString()}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`Total Ext Lost: $${totalExtLoss.toFixed(2)}`, margin, yPosition);
+      yPosition += 8;
+
+      // Prepare table data with 3 columns: Item, Loss Qty, Ext Lost
+      const tableData = lossQtyFullData
+        .sort((a: any, b: any) => {
+          const dateA = a.Invoice_Date ? new Date(a.Invoice_Date).getTime() : 0;
+          const dateB = b.Invoice_Date ? new Date(b.Invoice_Date).getTime() : 0;
+          if (dateA !== dateB) {
+            return dateB - dateA;
+          }
+          return (b.Loss_Qty || 0) - (a.Loss_Qty || 0);
+        })
+        .map((row: any) => [
+          `${row.Description || '-'} (Item #${row.Item_Number || '-'})`,
+          (row.Loss_Qty || 0).toString(),
+          `$${(row.Ext_Loss || 0).toFixed(2)}`
+        ]);
+
+      const headers = [['Item', 'Loss Qty', 'Ext Lost']];
+
+      // Handle both default export and named export
+      const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
+
+      const availableWidth = pageWidth - (margin * 2);
+      const itemColumnWidth = availableWidth - 70; // Leave space for Loss Qty and Ext Lost columns
+      
+      autoTableFn(doc, {
+        head: headers,
+        body: tableData,
+        startY: yPosition,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [25, 118, 210], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: itemColumnWidth, overflow: 'linebreak', halign: 'left' },
+          1: { cellWidth: 35, halign: 'right' },
+          2: { cellWidth: 35, halign: 'right' }
+        },
+        didParseCell: (data: any) => {
+          // Set header alignment per column: Item left, Loss Qty and Ext Lost right
+          if (data.section === 'head') {
+            if (data.column.index === 0) {
+              data.cell.styles.halign = 'left';
+            } else {
+              data.cell.styles.halign = 'right';
+            }
+          }
+          // Body cells alignment is handled by columnStyles
+        },
+        didDrawPage: (data: any) => {
+          // Add footer on each page
+          const footerY = pageHeight - 5;
+          doc.setFontSize(6);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(100, 100, 100);
+          const text = 'Report Generated by Woopsa';
+          doc.text(text, margin, footerY);
+          
+          if (logoDataUrl) {
+            try {
+              const textWidth = doc.getTextWidth(text);
+              doc.addImage(logoDataUrl, 'PNG', margin + textWidth + 1, footerY - 2.5, 3, 3);
+            } catch {
+              // Ignore logo errors
+            }
+          }
+          
+          doc.setFontSize(7);
+          doc.text(`Page ${data.pageNumber}`, pageWidth - margin, footerY, { align: 'right' });
+        },
+        showHead: 'everyPage',
+      });
+
+      // Add totals row at the end
+      const finalY = (doc as any).lastAutoTable?.finalY || yPosition + 10;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total:', margin, finalY + 5);
+      doc.text(totalLossQty.toLocaleString(), margin + 100, finalY + 5, { align: 'right' });
+      doc.text(`$${totalExtLoss.toFixed(2)}`, pageWidth - margin, finalY + 5, { align: 'right' });
+
+      const timestamp = dayjs().format('YYYY-MM-DD');
+      const filename = `loss-quantity-report-${timestamp}.pdf`;
+      doc.save(filename);
+
+      toast.success('PDF generated successfully');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
+  // Generate PDF for High Demand Items Report
+  const handleGenerateHighDemandPDF = async () => {
+    if (highDemandFullData.length === 0) {
+      toast.error('No data to generate PDF');
+      return;
+    }
+
+    setGeneratingHighDemandPDF(true);
+    try {
+      const logoDataUrl = await loadLogoAsDataUrl();
+      
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      let yPosition = margin;
+
+      // Get distributor details
+      const distributor = wareHouseDetail?.[0];
+      const distributorName = distributor?.D_Name || '';
+      const distributorAddress = [
+        distributor?.D_Addr1,
+        distributor?.D_City,
+        distributor?.D_State
+      ].filter(Boolean).join(', ');
+      const distributorPhone = distributor?.D_Phone || '';
+
+      // Header Section: Distributor Details on Left
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      let leftY = yPosition;
+      
+      if (distributorName) {
+        doc.setFont('helvetica', 'bold');
+        doc.text(distributorName, margin, leftY);
+        leftY += 4;
+      }
+      
+      if (distributorAddress) {
+        doc.setFont('helvetica', 'normal');
+        doc.text(distributorAddress, margin, leftY);
+        leftY += 4;
+      }
+      
+      if (distributorPhone) {
+        doc.text(distributorPhone, margin, leftY);
+      }
+
+      // Title - Centered
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('High Demand Products Report', pageWidth / 2, yPosition + 4, { align: 'center' });
+
+      // Date Range - Right
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      let rightY = yPosition;
+      const date = dayjs().format('MM/DD/YYYY');
+      doc.text(`Generated on: ${date}`, pageWidth - margin, rightY, { align: 'right' });
+      rightY += 4;
+      
+      if (startDate && endDate) {
+        doc.text(
+          `Date Range: ${startDate.format('MM/DD/YYYY')} to ${endDate.format('MM/DD/YYYY')}`,
+          pageWidth - margin,
+          rightY,
+          { align: 'right' }
+        );
+      }
+
+      yPosition = 30;
+
+      // Get sorted data (by quantity ordered descending)
+      const sortedData = getSortedHighDemandData();
+
+      // Calculate totals
+      const totalQuantity = sortedData.reduce((sum, item) => sum + (item.totalQuantityOrdered || 0), 0);
+      const totalOrders = sortedData.reduce((sum, item) => sum + (item.orderCount || 0), 0);
+
+      // Summary totals before table
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary:', margin, yPosition);
+      yPosition += 5;
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Total Quantity Ordered: ${totalQuantity.toLocaleString()}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`Total Orders: ${totalOrders.toLocaleString()}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`Total Items: ${sortedData.length}`, margin, yPosition);
+      yPosition += 8;
+
+      // Prepare table data with columns: Item, Item Number, Quantity Ordered, Order Count, Pack, Case Count
+      const tableData = sortedData.map((row: any) => [
+        row.inventory?.Description || '-',
+        (row.Item_Number || row.inventory?.Item_Number || '-').toString(),
+        (row.totalQuantityOrdered || 0).toString(),
+        (row.orderCount || 0).toString(),
+        (row.inventory?.Pack || '-').toString(),
+        `${row.inventory?.CaseCount || '-'} ${row.inventory?.UOM || ''}`.trim()
+      ]);
+
+      const headers = [['Item Name', 'Item Number', 'Quantity Ordered', 'Order Count', 'Pack', 'Case Count']];
+
+      // Handle both default export and named export
+      const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
+
+      const availableWidth = pageWidth - (margin * 2);
+      const columnWidths = [
+        availableWidth * 0.35, // Item Name
+        availableWidth * 0.15, // Item Number
+        availableWidth * 0.15, // Quantity Ordered
+        availableWidth * 0.12, // Order Count
+        availableWidth * 0.10, // Pack
+        availableWidth * 0.13, // Case Count
+      ];
+      
+      autoTableFn(doc, {
+        head: headers,
+        body: tableData,
+        startY: yPosition,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [25, 118, 210], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: columnWidths[0], overflow: 'linebreak', halign: 'left' },
+          1: { cellWidth: columnWidths[1], halign: 'center' },
+          2: { cellWidth: columnWidths[2], halign: 'right' },
+          3: { cellWidth: columnWidths[3], halign: 'right' },
+          4: { cellWidth: columnWidths[4], halign: 'center' },
+          5: { cellWidth: columnWidths[5], halign: 'left' },
+        },
+        didParseCell: (data: any) => {
+          // Set header alignment per column
+          if (data.section === 'head') {
+            if (data.column.index === 0 || data.column.index === 5) {
+              data.cell.styles.halign = 'left';
+            } else if (data.column.index === 1 || data.column.index === 4) {
+              data.cell.styles.halign = 'center';
+            } else {
+              data.cell.styles.halign = 'right';
+            }
+          }
+        },
+        didDrawPage: (data: any) => {
+          // Add footer on each page
+          const footerY = pageHeight - 5;
+          doc.setFontSize(6);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(100, 100, 100);
+          const text = 'Report Generated by Woopsa';
+          doc.text(text, margin, footerY);
+          
+          if (logoDataUrl) {
+            try {
+              const textWidth = doc.getTextWidth(text);
+              doc.addImage(logoDataUrl, 'PNG', margin + textWidth + 1, footerY - 2.5, 3, 3);
+            } catch {
+              // Ignore logo errors
+            }
+          }
+          
+          doc.setFontSize(7);
+          doc.text(`Page ${data.pageNumber}`, pageWidth - margin, footerY, { align: 'right' });
+        },
+        showHead: 'everyPage',
+      });
+
+      // Add totals row at the end
+      const finalY = (doc as any).lastAutoTable?.finalY || yPosition + 10;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total:', margin, finalY + 5);
+      doc.text(totalQuantity.toLocaleString(), margin + columnWidths[0] + columnWidths[1] + 5, finalY + 5, { align: 'right' });
+      doc.text(totalOrders.toLocaleString(), margin + columnWidths[0] + columnWidths[1] + columnWidths[2] + 5, finalY + 5, { align: 'right' });
+
+      const timestamp = dayjs().format('YYYY-MM-DD');
+      const filename = `high-demand-products-report-${timestamp}.pdf`;
+      doc.save(filename);
+
+      toast.success('PDF generated successfully');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setGeneratingHighDemandPDF(false);
+    }
   };
 
   const handleStartDateChange = (date: dayjs.Dayjs | null) => {
@@ -835,6 +1440,67 @@ const AdminDashboard = () => {
       render: (row) => (
         <Typography fontSize={13} fontWeight={500} color="error.main">
           ${(row.Ext_Loss || 0).toFixed(2)}
+        </Typography>
+      ),
+    },
+  ];
+
+  const highDemandModalColumns: TableColumn[] = [
+    {
+      id: "item",
+      label: "Item Name",
+      sortable: true,
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="text.primary">
+          {row.inventory?.Description || '-'}
+        </Typography>
+      ),
+    },
+    {
+      id: "itemNumber",
+      label: "Item Number",
+      sortable: true,
+      render: (row) => (
+        <Typography fontSize={13} color="text.secondary">
+          {row.Item_Number || row.inventory?.Item_Number || '-'}
+        </Typography>
+      ),
+    },
+    {
+      id: "quantity",
+      label: "Quantity Ordered",
+      sortable: true,
+      render: (row) => (
+        <Typography fontSize={13} fontWeight={500} color="primary.main">
+          {row.totalQuantityOrdered?.toLocaleString() || 0}
+        </Typography>
+      ),
+    },
+    {
+      id: "orders",
+      label: "Order Count",
+      sortable: true,
+      render: (row) => (
+        <Typography fontSize={13} color="text.secondary">
+          {row.orderCount || 0}
+        </Typography>
+      ),
+    },
+    {
+      id: "pack",
+      label: "Pack",
+      render: (row) => (
+        <Typography fontSize={13} color="text.secondary">
+          {row.inventory?.Pack || '-'}
+        </Typography>
+      ),
+    },
+    {
+      id: "caseCount",
+      label: "Case Count",
+      render: (row) => (
+        <Typography fontSize={13} color="text.secondary">
+          {row.inventory?.CaseCount || '-'} {row.inventory?.UOM || ''}
         </Typography>
       ),
     },
@@ -1568,9 +2234,49 @@ const AdminDashboard = () => {
                   }}
                 >
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
-                      Sales Performance
-                    </Typography>
+                    <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+                      <Typography fontSize={14} fontWeight={500} color="text.primary">
+                        Sales Performance
+                      </Typography>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.5,
+                          py: 0.75,
+                          borderRadius: 1.5,
+                          background: alpha(theme.palette.primary.main, 0.1),
+                          border: `1px solid ${theme.palette.primary.main}`,
+                        }}
+                      >
+                        <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                          Total Sales:
+                        </Typography>
+                        <Typography fontSize={13} fontWeight={600} color="primary.main">
+                          ${(dashboardData?.result?.reduce((sum, item) => sum + (item.totalInvoiceTotal || 0), 0) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.5,
+                          py: 0.75,
+                          borderRadius: 1.5,
+                          background: alpha(theme.palette.success.main, 0.1),
+                          border: `1px solid ${theme.palette.success.main}`,
+                        }}
+                      >
+                        <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                          Total Orders:
+                        </Typography>
+                        <Typography fontSize={13} fontWeight={600} color="success.main">
+                          {(dashboardData?.result?.reduce((sum, item) => sum + (item.totalOrders || 0), 0) || 0).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Box>
                     <Stack direction="row" spacing={0.5} alignItems="center">
                       <FormControl size="small" sx={{ minWidth: 100 }}>
                         <Select
@@ -1773,10 +2479,50 @@ const AdminDashboard = () => {
                     border: `1px solid ${theme.palette.divider}`,
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
-                      User Performance
-                    </Typography>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
+                    <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+                      <Typography fontSize={14} fontWeight={500} color="text.primary">
+                        User Performance
+                      </Typography>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.5,
+                          py: 0.75,
+                          borderRadius: 1.5,
+                          background: alpha(theme.palette.primary.main, 0.1),
+                          border: `1px solid ${theme.palette.primary.main}`,
+                        }}
+                      >
+                        <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                          Total Sales:
+                        </Typography>
+                        <Typography fontSize={13} fontWeight={600} color="primary.main">
+                          ${(dashboardData?.userPerformance?.reduce((sum, item) => sum + (item.totalInvoiceTotal || 0), 0) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.5,
+                          py: 0.75,
+                          borderRadius: 1.5,
+                          background: alpha(theme.palette.success.main, 0.1),
+                          border: `1px solid ${theme.palette.success.main}`,
+                        }}
+                      >
+                        <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                          Total Orders:
+                        </Typography>
+                        <Typography fontSize={13} fontWeight={600} color="success.main">
+                          {(dashboardData?.userPerformance?.reduce((sum, item) => sum + (item.order_Count || 0), 0) || 0).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Box>
                     <Stack direction="row" spacing={0.5}>
                       <Button
                         size="small"
@@ -1970,10 +2716,35 @@ const AdminDashboard = () => {
                     border: `1px solid ${theme.palette.divider}`,
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
-                      High Demand Products
-                    </Typography>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
+                    <Box>
+                      <Typography fontSize={14} fontWeight={500} color="text.primary">
+                        High Demand Products
+                      </Typography>
+                      <Box display="flex" gap={1.5} mt={0.5}>
+                        <Button
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleHighDemandViewAll();
+                          }}
+                          sx={{
+                            textTransform: 'none',
+                            fontSize: 11,
+                            px: 0,
+                            py: 0.25,
+                            minWidth: 'auto',
+                            color: theme.palette.primary.main,
+                            '&:hover': {
+                              backgroundColor: 'transparent',
+                              textDecoration: 'underline',
+                            },
+                          }}
+                        >
+                          View All →
+                        </Button>
+                      </Box>
+                    </Box>
                     <Stack direction="row" spacing={0.5}>
                       <Button
                         size="small"
@@ -3066,32 +3837,206 @@ const AdminDashboard = () => {
         title="Loss Quantity Report - Full Data"
         maxWidth="95vw"
       >
-        <CommonTable
-          padding={0}
-          data={[...lossQtyFullData].sort((a: any, b: any) => {
-            // Sort by date first (newest first), then by loss qty (descending)
-            const dateA = a.Invoice_Date ? new Date(a.Invoice_Date).getTime() : 0;
-            const dateB = b.Invoice_Date ? new Date(b.Invoice_Date).getTime() : 0;
-            if (dateA !== dateB) {
-              return dateB - dateA; // Newest first
-            }
-            return (b.Loss_Qty || 0) - (a.Loss_Qty || 0); // Then by loss qty descending
-          })}
-          columns={lossQtyModalColumns}
-          currentPage={1}
-          totalPages={1}
-          totalItems={lossQtyFullData.length}
-          stickyHeader={true}
-          pageSize={lossQtyFullData.length}
-          onPageChange={() => {}}
-          onPageSizeChange={() => {}}
-          showPageSizeSelector={false}
-          showTotalItems={true}
-          showPageNumbers={false}
-          loading={lossQtyLoading}
-          containerHeight="70vh"
-          emptyStateComponent={<Typography>No loss quantity data</Typography>}
-        />
+        <Box>
+          {/* Summary Totals and PDF Download Button */}
+          <Box 
+            display="flex" 
+            justifyContent="space-between" 
+            alignItems="center" 
+            mb={2}
+            flexWrap="wrap"
+            gap={1.5}
+          >
+            <Box display="flex" gap={1.5} flexWrap="wrap">
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  background: alpha(theme.palette.error.main, 0.1),
+                  border: `1px solid ${theme.palette.error.main}`,
+                }}
+              >
+                <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                  Total Loss Qty:
+                </Typography>
+                <Typography fontSize={13} fontWeight={600} color="error.main">
+                  {lossQtyFullData.reduce((sum, item) => sum + (item.Loss_Qty || 0), 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  background: alpha(theme.palette.error.main, 0.1),
+                  border: `1px solid ${theme.palette.error.main}`,
+                }}
+              >
+                <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                  Total Ext Lost:
+                </Typography>
+                <Typography fontSize={13} fontWeight={600} color="error.main">
+                  ${lossQtyFullData.reduce((sum, item) => sum + (item.Ext_Loss || 0), 0).toFixed(2)}
+                </Typography>
+              </Box>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={!generatingPDF ? <PdfIcon /> : undefined}
+              onClick={handleGenerateLossQtyPDF}
+              disabled={generatingPDF || lossQtyFullData.length === 0}
+              sx={{
+                textTransform: 'none',
+                minWidth: 150,
+                color: '#fff',
+              }}
+            >
+              {generatingPDF ? 'Generating PDF...' : 'Download PDF'}
+            </Button>
+          </Box>
+          <CommonTable
+            padding={0}
+            data={getPaginatedLossQtyData()}
+            columns={lossQtyModalColumns}
+            currentPage={lossQtyModalPage}
+            totalPages={lossQtyModalTotalPages}
+            totalItems={lossQtyFullData.length}
+            stickyHeader={true}
+            pageSize={lossQtyModalPageSize}
+            onPageChange={handleLossQtyModalPageChange}
+            onPageSizeChange={handleLossQtyModalPageSizeChange}
+            pageSizeOptions={[25, 50, 100, 200]}
+            showPageSizeSelector={true}
+            showTotalItems={true}
+            showPageNumbers={true}
+            loading={lossQtyLoading}
+            containerHeight="70vh"
+            emptyStateComponent={<Typography>No loss quantity data</Typography>}
+          />
+        </Box>
+      </CommonModal>
+
+      {/* High Demand Items View All Modal */}
+      <CommonModal
+        open={highDemandModalOpen}
+        onClose={() => setHighDemandModalOpen(false)}
+        size="xl"
+        title="High Demand Products - Full Data"
+        maxWidth="95vw"
+      >
+        <Box>
+          {/* Summary Totals */}
+          <Box 
+            display="flex" 
+            justifyContent="space-between" 
+            alignItems="center" 
+            mb={2}
+            flexWrap="wrap"
+            gap={1.5}
+          >
+            <Box display="flex" gap={1.5} flexWrap="wrap">
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  background: alpha(theme.palette.primary.main, 0.1),
+                  border: `1px solid ${theme.palette.primary.main}`,
+                }}
+              >
+                <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                  Total Quantity:
+                </Typography>
+                <Typography fontSize={13} fontWeight={600} color="primary.main">
+                  {highDemandFullData.reduce((sum, item) => sum + (item.totalQuantityOrdered || 0), 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  background: alpha(theme.palette.success.main, 0.1),
+                  border: `1px solid ${theme.palette.success.main}`,
+                }}
+              >
+                <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                  Total Orders:
+                </Typography>
+                <Typography fontSize={13} fontWeight={600} color="success.main">
+                  {highDemandFullData.reduce((sum, item) => sum + (item.orderCount || 0), 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  background: alpha(theme.palette.info.main, 0.1),
+                  border: `1px solid ${theme.palette.info.main}`,
+                }}
+              >
+                <Typography fontSize={12} fontWeight={500} color="text.secondary">
+                  Total Items:
+                </Typography>
+                <Typography fontSize={13} fontWeight={600} color="info.main">
+                  {highDemandFullData.length}
+                </Typography>
+              </Box>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={!generatingHighDemandPDF ? <PdfIcon /> : undefined}
+              onClick={handleGenerateHighDemandPDF}
+              disabled={generatingHighDemandPDF || highDemandFullData.length === 0}
+              sx={{
+                textTransform: 'none',
+                minWidth: 150,
+                color: '#fff',
+              }}
+            >
+              {generatingHighDemandPDF ? 'Generating PDF...' : 'Download PDF'}
+            </Button>
+          </Box>
+          <CommonTable
+            padding={0}
+            data={getPaginatedHighDemandData()}
+            columns={highDemandModalColumns}
+            currentPage={highDemandModalPage}
+            totalPages={highDemandModalTotalPages}
+            totalItems={highDemandFullData.length}
+            stickyHeader={true}
+            pageSize={highDemandModalPageSize}
+            onPageChange={handleHighDemandModalPageChange}
+            onPageSizeChange={handleHighDemandModalPageSizeChange}
+            pageSizeOptions={[25, 50, 100, 200]}
+            showPageSizeSelector={true}
+            showTotalItems={true}
+            showPageNumbers={true}
+            loading={highDemandLoading}
+            containerHeight="70vh"
+            emptyStateComponent={<Typography>No high demand products data</Typography>}
+            sortField={highDemandSortField}
+            sortDirection={highDemandSortDirection}
+            onSort={handleHighDemandSort}
+          />
+        </Box>
       </CommonModal>
     </Box>
   );

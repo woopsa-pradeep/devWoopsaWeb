@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -16,7 +16,6 @@ import {
   Select,
   MenuItem,
   FormControl,
-  Switch,
   Checkbox,
 } from '@mui/material';
 import {
@@ -38,117 +37,47 @@ import rabbitLogo from '../../../assets/Rabbit.svg';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../../redux/store';
 
-interface ARReportItem {
-  Deposit_ID: number;
-  Deposit_Date: string;
-  Deposit_Reference: string;
-  Deposit_Batch: number;
-  QB_Transfer: boolean;
-  QB_TransferDate: string;
-  Deposit_Deleted: boolean;
-  Deposit_DeleteDate: string;
-  Deposit_DeleteUser: number;
-  Payment_Total: number;
-  Adjustment_Total: number;
-  ReturnCheck_Total: number;
-  custReceivables?: any[]; // Nested array
-  // Flattened custReceivables fields (when data is flattened)
-  P_Number?: number;
-  C_Number?: number;
-  C_Number_Child?: number;
-  Invoice_Number?: number;
-  AR_Type?: string;
-  AR_SubType?: number;
-  AR_POS?: boolean;
-  AR_Date?: string;
-  AR_CheckDate?: string;
-  AR_Ref?: string;
-  AR_Amount?: number;
-  AR_Applied?: number;
-  Workstation_ID?: number;
-  User_Number?: number;
-  AR_Archived?: boolean;
-  AR_Reconcile?: boolean;
-  AR_Batch?: number;
-  C_Name?: string;
-  AR_SubTypeRef?: string;
+interface TransactionRow {
+  type: 'transaction' | 'subtype-total' | 'deposit-total' | 'deposit-header' | 'history-total';
+  Deposit_ID?: number;
+  Deposit_Date?: string;
+  Deposit_Reference?: string;
+  Type?: string;
+  Subtype?: string;
+  Reference?: string;
+  Customer_Number?: number;
+  Customer_Name?: string;
+  User?: number;
+  Lane_ID?: number;
+  Check_Date?: string;
+  Posting_Date?: string;
+  Amount?: number;
+  Payment_Total?: number;
+  Adjustment_Total?: number;
+  ReturnCheck_Total?: number;
+  label?: string;
 }
 
-// Fields to exclude from checkboxes (Deposit_ID is always included)
-const EXCLUDED_FIELDS = ['Deposit_ID', 'custReceivables'];
-
-// Field sequence for display - Deposit fields first, then custReceivables fields
-const FIELD_SEQUENCE: string[] = [
-  // Deposit fields
-  'Deposit_ID',
-  'Deposit_Date',
-  'Deposit_Reference',
-  'Deposit_Batch',
-  'QB_Transfer',
-  'QB_TransferDate',
-  'Deposit_Deleted',
-  'Deposit_DeleteDate',
-  'Deposit_DeleteUser',
-  'Payment_Total',
-  'Adjustment_Total',
-  'ReturnCheck_Total',
-  // CustReceivables fields
-  'C_Number',
-  'Invoice_Number',
-  'AR_Type',
-  'AR_Ref',
-  'AR_SubTypeRef',
-  'AR_POS',
-  'AR_Date',
-  'AR_CheckDate',
-  'AR_Amount',
-  'Workstation_ID',
-  'User_Number',
-  'AR_Batch',
-  'C_Name',
-];
-
-// Field labels mapping
-const FIELD_LABELS: { [key: string]: string } = {
-  // Deposit fields
-  Deposit_ID: 'Deposit ID',
-  Deposit_Date: 'Deposit Date',
-  Deposit_Reference: 'Deposit Reference',
-  Deposit_Batch: 'Deposit Batch',
-  QB_Transfer: 'QB Transfer',
-  QB_TransferDate: 'QB Transfer Date',
-  Deposit_Deleted: 'Deposit Deleted',
-  Deposit_DeleteDate: 'Deposit Delete Date',
-  Deposit_DeleteUser: 'Deposit Delete User',
-  Payment_Total: 'Payment Total',
-  Adjustment_Total: 'Adjustment Total',
-  ReturnCheck_Total: 'Return Check Total',
-  // CustReceivables fields
-  C_Number: 'C Number',
-  Invoice_Number: 'Invoice Number',
-  AR_Type: 'AR Type',
-  AR_POS: 'AR POS',
-  AR_Date: 'AR Date',
-  AR_CheckDate: 'AR Check Date',
-  AR_Ref: 'AR Ref',
-  AR_Amount: 'AR Amount',
-  Workstation_ID: 'Workstation ID',
-  User_Number: 'User Number',
-  AR_Batch: 'AR Batch',
-  C_Name: 'Customer Name',
-  AR_SubTypeRef: 'AR Subtype',
+// Format amounts: positive normal, negative in parentheses
+const formatAmount = (value: number | null | undefined): string => {
+  if (value === null || value === undefined) return '';
+  const numValue = Number(value);
+  if (isNaN(numValue)) return '';
+  if (numValue < 0) {
+    return `(${Math.abs(numValue).toFixed(2)})`;
+  }
+  return numValue.toFixed(2);
 };
 
-// Helper function to sort fields by sequence
-const sortFieldsBySequence = (fields: string[]): string[] => {
-  return [...fields].sort((a, b) => {
-    const indexA = FIELD_SEQUENCE.indexOf(a);
-    const indexB = FIELD_SEQUENCE.indexOf(b);
-    if (indexA === -1 && indexB === -1) return 0;
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
-  });
+// Format date
+const formatDate = (dateStr: string | null | undefined): string => {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+  } catch {
+    return '';
+  }
 };
 
 const ARReportTab: React.FC = () => {
@@ -158,11 +87,17 @@ const ARReportTab: React.FC = () => {
   // Report type selection
   const [reportType, setReportType] = useState<'ar-report' | 'ar-report-history'>('ar-report');
   
-  // Date filters (only for AR Report) - default to 1 week ago to today
+  // Date filters - default to 1 week ago to today
   const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().subtract(7, 'day'));
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
 
-  // Filter options and selected filters
+  // Filter states
+  const [selectedARTypes, setSelectedARTypes] = useState<string[]>([]);
+  const [selectedDepositIds, setSelectedDepositIds] = useState<number[]>([]);
+  const [selectedTransactionSources, setSelectedTransactionSources] = useState<boolean[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  
+  // Filter options
   const [filterOptions, setFilterOptions] = useState<{
     typeSelect: Array<{ AR_Type: string }>;
     depositeID: Array<{ Deposit_ID: number; Deposit_Date: string; Deposit_Reference: string }>;
@@ -174,29 +109,14 @@ const ARReportTab: React.FC = () => {
     transactionSource: [],
     users: [],
   });
-  const [selectedARTypes, setSelectedARTypes] = useState<string[]>([]);
-  const [selectedDepositIds, setSelectedDepositIds] = useState<number[]>([]);
-  const [selectedTransactionSources, setSelectedTransactionSources] = useState<boolean[]>([]);
-  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [loadingFilters, setLoadingFilters] = useState(false);
 
-  // Group By option
-  const [groupBy, setGroupBy] = useState<'none' | 'ar-date' | 'ar-check-date' | 'deposit-date' | 'deposit-id' | 'qb-transfer-date' | 'deposit-delete-date'>('none');
-
-  // Field selection states
-  const [selectedFields, setSelectedFields] = useState<{ [key: string]: boolean }>({});
-  const [hasCustReceivables, setHasCustReceivables] = useState(false);
-  const [showCustReceivables, setShowCustReceivables] = useState(false);
-
   // Data states
-  const [reportData, setReportData] = useState<ARReportItem[]>([]);
-  const [rawFetchedData, setRawFetchedData] = useState<any[]>([]); // Store raw data for re-processing
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [dateChangeLoading, setDateChangeLoading] = useState(false); // Loading state for date change API calls
   
   // Preview states
   const [showPreview, setShowPreview] = useState(false);
-  const [previewData, setPreviewData] = useState<ARReportItem[]>([]);
+  const [previewData, setPreviewData] = useState<TransactionRow[]>([]);
   const [previewPage, setPreviewPage] = useState(0);
   const PREVIEW_PAGE_SIZE = 500;
   
@@ -204,475 +124,413 @@ const ARReportTab: React.FC = () => {
   const [generatingReport, setGeneratingReport] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
 
-  // Fetch list of AR reports and filter options on mount
-  useEffect(() => {
-    const fetchARReportsList = async () => {
-      setLoadingFilters(true);
-      try {
-        const response = await getListOfARreports() as any;
-        const data = response?.data?.data || response?.data || {};
-        setFilterOptions({
-          typeSelect: data.typeSelect || [],
-          depositeID: data.depositeID || [],
-          transactionSource: data.transactionSource || [],
-          users: data.users || [],
-        });
-      } catch (error) {
-        console.error('Error fetching AR reports list:', error);
-        toast.error('Failed to load filter options');
-      } finally {
-        setLoadingFilters(false);
-      }
-    };
-    fetchARReportsList();
-  }, []);
-
-  // Load AR reports data (API doesn't support pagination - returns all data at once)
-  const loadARReportsData = async (startDateStr?: string, endDateStr?: string): Promise<any[]> => {
+  // Load AR reports data
+  const loadARReportsData = useCallback(async (startDateStr?: string, endDateStr?: string): Promise<any[]> => {
     try {
-      // API returns all data at once - no pagination support
-      // If no dates provided, returns all data
       const response = await getARreports(startDateStr, endDateStr) as any;
       const data = response?.data?.data?.data || response?.data?.data || response?.data || response || [];
-      const fetchedData = Array.isArray(data) ? data : [];
-      return fetchedData;
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Error loading AR reports data:', error);
       return [];
     }
-  };
+  }, []);
 
-  // Apply frontend filters to data
-  const applyFrontendFilters = useCallback((data: any[]): any[] => {
-    let filteredData = [...data];
+  // Load filter options from getListOfARreports API
+  const loadFilterOptions = useCallback(async () => {
+    if (reportType !== 'ar-report') return;
     
-    // Filter by AR Types
-    if (selectedARTypes.length > 0) {
-      const validARTypes = selectedARTypes.filter(type => type !== 'None' && type !== 'Date');
-      if (validARTypes.length > 0) {
-        filteredData = filteredData.filter((deposit: any) => {
-          if (!deposit.custReceivables || !Array.isArray(deposit.custReceivables)) {
-            return false;
-          }
-          return deposit.custReceivables.some((receivable: any) => 
-            validARTypes.includes(receivable.AR_Type)
-          );
-        });
+    setLoadingFilters(true);
+    try {
+      const response = await getListOfARreports() as any;
+      console.log('getListOfARreports response:', response);
+      console.log('getListOfARreports data:', response?.data);
+      
+      const responseData = response?.data?.data || response?.data || response || {};
+      
+      const options = {
+        typeSelect: [] as Array<{ AR_Type: string }>,
+        depositeID: [] as Array<{ Deposit_ID: number; Deposit_Date: string; Deposit_Reference: string }>,
+        transactionSource: [] as Array<{ AR_POS: boolean }>,
+        users: [] as Array<{ UserNumber: number; UserName: string }>,
+      };
+
+      // Extract typeSelect
+      if (responseData?.typeSelect && Array.isArray(responseData.typeSelect)) {
+        options.typeSelect = responseData.typeSelect.map((type: any) => ({
+          AR_Type: type.AR_Type || type
+        })).sort((a: { AR_Type: string }, b: { AR_Type: string }) => a.AR_Type.localeCompare(b.AR_Type));
       }
+
+      // Extract depositeID
+      if (responseData?.depositeID && Array.isArray(responseData.depositeID)) {
+        options.depositeID = responseData.depositeID.map((deposit: any) => ({
+          Deposit_ID: deposit.Deposit_ID || deposit.DepositID || deposit,
+          Deposit_Date: deposit.Deposit_Date || deposit.DepositDate || '',
+          Deposit_Reference: deposit.Deposit_Reference || deposit.DepositReference || '',
+        })).sort((a: { Deposit_ID: number }, b: { Deposit_ID: number }) => (b.Deposit_ID || 0) - (a.Deposit_ID || 0));
+      }
+
+      // Extract transactionSource
+      if (responseData?.transactionSource && Array.isArray(responseData.transactionSource)) {
+        options.transactionSource = responseData.transactionSource.map((source: any) => ({
+          AR_POS: source.AR_POS !== undefined ? source.AR_POS : source
+        }));
+      }
+
+      // Extract users
+      if (responseData?.users && Array.isArray(responseData.users)) {
+        options.users = responseData.users.map((user: any) => ({
+          UserNumber: user.UserNumber || user.User_Number || 0,
+          UserName: user.UserName || user.User_Name || `User ${user.UserNumber || user.User_Number || ''}`,
+        })).sort((a: { UserNumber: number }, b: { UserNumber: number }) => (a.UserNumber || 0) - (b.UserNumber || 0));
+      }
+
+      setFilterOptions(options);
+    } catch (error) {
+      console.error('Error loading filter options:', error);
+      toast.error('Failed to load filter options');
+    } finally {
+      setLoadingFilters(false);
     }
-    
-    // Filter by Deposit IDs
-    if (selectedDepositIds.length > 0) {
-      filteredData = filteredData.filter((deposit: any) => 
-        selectedDepositIds.includes(deposit.Deposit_ID)
-      );
-    }
-    
-    // Filter by Transaction Sources (AR_POS)
-    if (selectedTransactionSources.length > 0) {
-      filteredData = filteredData.filter((deposit: any) => {
-        if (!deposit.custReceivables || !Array.isArray(deposit.custReceivables)) {
-          return false;
-        }
-        return deposit.custReceivables.some((receivable: any) => {
-          // Normalize AR_POS to boolean (handle null/undefined/string/number)
-          const receivableAR_POS = Boolean(receivable.AR_POS === true || receivable.AR_POS === 'true' || receivable.AR_POS === 1);
-          // Check if this receivable's AR_POS matches any selected boolean value
-          return selectedTransactionSources.some(selected => {
-            return receivableAR_POS === Boolean(selected);
-          });
-        });
+  }, [reportType]);
+
+  // Load filter options when component mounts or when switching to AR Report
+  useEffect(() => {
+    if (reportType === 'ar-report') {
+      loadFilterOptions();
+    } else {
+      // Clear filter options when switching to history
+      setFilterOptions({
+        typeSelect: [],
+        depositeID: [],
+        transactionSource: [],
+        users: [],
       });
     }
-    
-    // Filter by User IDs
-    if (selectedUserIds.length > 0) {
-      filteredData = filteredData.filter((deposit: any) => {
-        if (!deposit.custReceivables || !Array.isArray(deposit.custReceivables)) {
-          return false;
-        }
-        return deposit.custReceivables.some((receivable: any) => 
-          selectedUserIds.includes(receivable.User_Number)
-        );
-      });
+  }, [reportType, loadFilterOptions]);
+
+  // Auto-update date filters when Deposit IDs are selected
+  useEffect(() => {
+    if (selectedDepositIds.length === 0) {
+      // If no deposits selected, don't modify dates (keep user's selection)
+      return;
     }
-    
-    // Filter by Deposit Date for AR Report History (frontend filtering)
-    if (reportType === 'ar-report-history' && startDate && endDate) {
+
+    // Get selected deposits from filter options
+    const selectedDeposits = filterOptions.depositeID.filter(deposit => 
+      selectedDepositIds.includes(deposit.Deposit_ID)
+    );
+
+    if (selectedDeposits.length === 0) {
+      return;
+    }
+
+    // Extract dates and convert to dayjs
+    const depositDates = selectedDeposits
+      .map(deposit => {
+        if (!deposit.Deposit_Date) return null;
+        return dayjs(deposit.Deposit_Date);
+      })
+      .filter((date): date is Dayjs => date !== null);
+
+    if (depositDates.length === 0) {
+      return;
+    }
+
+    // Find earliest and latest dates
+    const sortedDates = depositDates.sort((a, b) => a.valueOf() - b.valueOf());
+    const earliestDate = sortedDates[0];
+    const latestDate = sortedDates[sortedDates.length - 1];
+
+    // If only one deposit selected, set both dates to the same date
+    if (selectedDeposits.length === 1) {
+      setStartDate(earliestDate);
+      setEndDate(earliestDate);
+    } else {
+      // If multiple deposits selected, set start to earliest and end to latest
+      setStartDate(earliestDate);
+      setEndDate(latestDate);
+    }
+  }, [selectedDepositIds, filterOptions.depositeID]);
+
+  // Process data for AR Report History (simple table format)
+  const processHistoryData = useCallback((data: any[]): TransactionRow[] => {
+    // Filter by date if dates are selected
+    let filteredData = [...data];
+    if (startDate && endDate) {
       const startDateStr = startDate.format('YYYY-MM-DD');
       const endDateStr = endDate.format('YYYY-MM-DD');
       
       filteredData = filteredData.filter((deposit: any) => {
         if (!deposit.Deposit_Date) return false;
-        
         const depositDate = new Date(deposit.Deposit_Date);
         const depositDateStr = depositDate.toISOString().split('T')[0];
-        
         return depositDateStr >= startDateStr && depositDateStr <= endDateStr;
       });
     }
     
-    return filteredData;
-  }, [selectedARTypes, selectedDepositIds, selectedTransactionSources, selectedUserIds, reportType, startDate, endDate]);
-
-  // Auto-fetch data when dates change (only for AR Report, not History)
-  // Filters are applied on frontend, so they don't trigger API calls
-  useEffect(() => {
-    // Only auto-fetch for AR Report type when dates are selected
-    if (reportType !== 'ar-report' || !startDate || !endDate) {
-      // Reset custReceivables state if dates are not selected
-      if (reportType === 'ar-report' && (!startDate || !endDate)) {
-        setHasCustReceivables(false);
-        setShowCustReceivables(false);
-      }
-      return;
-    }
-
-    // Debounce the API call to avoid too many requests
-    const timeoutId = setTimeout(async () => {
-      setDateChangeLoading(true);
-      try {
-        const startDateStr = startDate.format('YYYY-MM-DD');
-        const endDateStr = endDate.format('YYYY-MM-DD');
-        
-        // Load data (API returns all data at once)
-        // Don't apply filters here - store raw data and apply filters separately
-        const fetchedData = await loadARReportsData(startDateStr, endDateStr);
-        
-        // Check if any deposit has custReceivables (on raw data, not filtered)
-        const hasReceivables = fetchedData.some((deposit: any) => 
-          deposit.custReceivables && Array.isArray(deposit.custReceivables) && deposit.custReceivables.length > 0
-        );
-        
-        setHasCustReceivables(hasReceivables);
-        
-        // Update toggle state based on receivables
-        setShowCustReceivables(prev => {
-          // If receivables found, turn on the toggle by default
-          if (hasReceivables && !prev) {
-            return true;
-          }
-          // If no receivables found, turn off the toggle
-          if (!hasReceivables && prev) {
-            return false;
-          }
-          return prev;
-        });
-        
-        // Store raw unfiltered data - filters will be applied separately
-        setRawFetchedData(fetchedData);
-      } catch (error) {
-        console.error('Error auto-fetching AR reports:', error);
-        // Don't show error toast for auto-fetch, just reset state
-        setHasCustReceivables(false);
-        setShowCustReceivables(false);
-      } finally {
-        setDateChangeLoading(false);
-      }
-    }, 500); // 500ms debounce
-
-    return () => clearTimeout(timeoutId);
-  }, [reportType, startDate, endDate]);
-
-  // Apply filters to existing data when filters change (no API call)
-  useEffect(() => {
-    // Only apply filters if we have raw data and preview is not shown
-    // When preview is shown, filters are applied in the preview handler
-    if (rawFetchedData.length === 0 || showPreview) {
-      return;
-    }
-
-    // Apply filters to raw data
-    const filteredData = applyFrontendFilters(rawFetchedData);
-    
-    // Check if any deposit has custReceivables (after filtering)
-    const hasReceivables = filteredData.some((deposit: any) => 
-      deposit.custReceivables && Array.isArray(deposit.custReceivables) && deposit.custReceivables.length > 0
-    );
-    
-    // Update hasCustReceivables based on filtered data
-    setHasCustReceivables(hasReceivables);
-    
-    // Update toggle state based on receivables
-    setShowCustReceivables(prev => {
-      if (hasReceivables && !prev) {
-        return true;
-      }
-      if (!hasReceivables && prev) {
-        return false;
-      }
-      return prev;
+    // Sort by Deposit Date descending, then Deposit ID descending
+    filteredData.sort((a: any, b: any) => {
+      const dateA = new Date(a.Deposit_Date || 0).getTime();
+      const dateB = new Date(b.Deposit_Date || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return (b.Deposit_ID || 0) - (a.Deposit_ID || 0);
     });
-  }, [rawFetchedData, applyFrontendFilters, showPreview]);
 
-  // CustReceivables fields list
-  const CUST_RECEIVABLES_FIELDS = [
-    'C_Number',
-    'Invoice_Number',
-    'AR_Type',
-    'AR_Ref',
-    'AR_SubTypeRef',
-    'AR_POS',
-    'AR_Date',
-    'AR_CheckDate',
-    'AR_Amount',
-    'Workstation_ID',
-    'User_Number',
-    'AR_Batch',
-    'C_Name',
-  ];
+    // Calculate totals
+    let totalPayments = 0;
+    let totalAdjustments = 0;
+    let totalReturnChecks = 0;
 
-  // Fields that should only be shown for ar-report-history
-  const HISTORY_ONLY_FIELDS = [
-    'Deposit_Date',
-    'Deposit_Reference',
-    'Deposit_Batch',
-    'QB_Transfer',
-    'QB_TransferDate',
-    'Deposit_Deleted',
-    'Deposit_DeleteDate',
-    'Deposit_DeleteUser',
-    'Payment_Total',
-    'Adjustment_Total',
-    'ReturnCheck_Total',
-  ];
+    const rows: TransactionRow[] = filteredData.map((deposit: any) => {
+      const paymentTotal = deposit.Payment_Total || 0;
+      const adjustmentTotal = deposit.Adjustment_Total || 0;
+      const returnCheckTotal = deposit.ReturnCheck_Total || 0;
 
-  // Get available deposit fields (excluding Deposit_ID which is always included)
-  const availableDepositFields = useMemo(() => {
-    return FIELD_SEQUENCE.filter(field => {
-      // Exclude excluded fields and custReceivables fields
-      if (EXCLUDED_FIELDS.includes(field) || CUST_RECEIVABLES_FIELDS.includes(field)) {
-        return false;
-      }
-      // For ar-report, exclude history-only fields
-      if (reportType === 'ar-report' && HISTORY_ONLY_FIELDS.includes(field)) {
-        return false;
-      }
-      return true;
+      totalPayments += paymentTotal;
+      totalAdjustments += adjustmentTotal;
+      totalReturnChecks += returnCheckTotal;
+
+      return {
+        type: 'transaction' as const,
+        Deposit_ID: deposit.Deposit_ID,
+        Deposit_Date: deposit.Deposit_Date,
+        Deposit_Reference: deposit.Deposit_Reference,
+        Payment_Total: paymentTotal,
+        Adjustment_Total: adjustmentTotal,
+        ReturnCheck_Total: returnCheckTotal,
+      };
     });
-  }, [reportType]);
 
-  // Get available custReceivables fields (only if toggle is enabled)
-  const availableCustReceivablesFields = useMemo(() => {
-    if (hasCustReceivables && showCustReceivables) {
-      return CUST_RECEIVABLES_FIELDS;
+    // Add total row at the end
+    rows.push({
+      type: 'history-total' as const,
+      label: 'Total:',
+      Payment_Total: totalPayments,
+      Adjustment_Total: totalAdjustments,
+      ReturnCheck_Total: totalReturnChecks,
+    });
+
+    return rows;
+  }, [startDate, endDate]);
+
+  // Apply filters to data
+  const applyFilters = useCallback((data: any[]): any[] => {
+    let filtered = [...data];
+
+    // Filter by Deposit ID
+    if (selectedDepositIds.length > 0) {
+      filtered = filtered.filter((deposit: any) => selectedDepositIds.includes(deposit.Deposit_ID));
     }
-    return [];
-  }, [hasCustReceivables, showCustReceivables]);
 
-  // Default selected fields
-  const DEFAULT_SELECTED_FIELDS = [
-    'C_Number',
-    'Invoice_Number',
-    'AR_Type',
-    'AR_Ref',
-    'AR_SubTypeRef',
-    'AR_Date',
-    'AR_CheckDate',
-    'AR_Amount',
-  ];
+    // Filter by AR Type, Transaction Source, and User (from custReceivables)
+    if (selectedARTypes.length > 0 || selectedTransactionSources.length > 0 || selectedUserIds.length > 0) {
+      filtered = filtered.map((deposit: any) => {
+        if (!deposit.custReceivables || !Array.isArray(deposit.custReceivables)) {
+          return deposit;
+        }
 
-  // Initialize all fields as selected by default, and update when availableFields change
-  useEffect(() => {
-    const allAvailableFields = [...availableDepositFields, ...availableCustReceivablesFields];
-    if (allAvailableFields.length > 0) {
-      const currentFieldKeys = Object.keys(selectedFields);
-      const availableFieldKeys = allAvailableFields;
-      
-      // Check if we need to update (new fields added or fields removed)
-      const needsUpdate = availableFieldKeys.some(field => !currentFieldKeys.includes(field)) ||
-                         currentFieldKeys.some(field => !availableFieldKeys.includes(field) && !EXCLUDED_FIELDS.includes(field));
-      
-      if (needsUpdate || currentFieldKeys.length === 0) {
-        const updatedSelectedFields: { [key: string]: boolean } = {};
-        availableFieldKeys.forEach(field => {
-          // Preserve existing selection if field still exists
-          if (selectedFields[field] !== undefined) {
-            updatedSelectedFields[field] = selectedFields[field];
-          } else {
-            // Set default fields to true, others to false
-            updatedSelectedFields[field] = DEFAULT_SELECTED_FIELDS.includes(field);
+        const filteredReceivables = deposit.custReceivables.filter((receivable: any) => {
+          // Filter by AR Type
+          if (selectedARTypes.length > 0) {
+            const arType = receivable.AR_Type;
+            if (!selectedARTypes.includes(arType)) {
+              return false;
+            }
           }
+
+          // Filter by Transaction Source (AR_POS)
+          if (selectedTransactionSources.length > 0) {
+            const arPos = receivable.AR_POS;
+            if (!selectedTransactionSources.includes(arPos)) {
+              return false;
+            }
+          }
+
+          // Filter by User
+          if (selectedUserIds.length > 0) {
+            const userId = receivable.User_Number;
+            if (!selectedUserIds.includes(userId)) {
+              return false;
+            }
+          }
+
+          return true;
         });
-        setSelectedFields(updatedSelectedFields);
-      }
+
+        return {
+          ...deposit,
+          custReceivables: filteredReceivables,
+        };
+      }).filter((deposit: any) => {
+        // Remove deposits with no matching receivables
+        return !deposit.custReceivables || deposit.custReceivables.length > 0;
+      });
     }
-  }, [availableDepositFields, availableCustReceivablesFields, selectedFields]);
 
-  // Handle field toggle
-  const handleFieldToggle = (field: string, checked: boolean) => {
-    setSelectedFields(prev => ({
-      ...prev,
-      [field]: checked
-    }));
-  };
+    return filtered;
+  }, [selectedARTypes, selectedDepositIds, selectedTransactionSources, selectedUserIds]);
 
-  // Re-process data when toggle changes
-  const reprocessData = (rawData: any[], shouldShowCustReceivables: boolean): number => {
-    const sortedFetchedData = [...rawData].sort((a: any, b: any) => 
-      (b.Deposit_ID || 0) - (a.Deposit_ID || 0)
-    );
+  // Process data for AR Report (detailed with transactions grouped by Deposit ID and subtype)
+  const processReportData = useCallback((data: any[]): TransactionRow[] => {
+    const rows: TransactionRow[] = [];
     
-    const flattenedData: ARReportItem[] = [];
+    // Apply filters
+    const filteredData = applyFilters(data);
     
-    if (shouldShowCustReceivables) {
-      // If toggle is ON, flatten with custReceivables
-      sortedFetchedData.forEach((deposit: any) => {
-        if (deposit.custReceivables && Array.isArray(deposit.custReceivables) && deposit.custReceivables.length > 0) {
-          // Create a row for each custReceivable
-          deposit.custReceivables.forEach((receivable: any) => {
-            flattenedData.push({
-              ...deposit,
-              P_Number: receivable.P_Number,
-              C_Number: receivable.C_Number,
-              C_Number_Child: receivable.C_Number_Child,
-              Invoice_Number: receivable.Invoice_Number,
-              AR_Type: receivable.AR_Type,
-              AR_SubType: receivable.AR_SubType,
-              AR_POS: receivable.AR_POS,
-              AR_Date: receivable.AR_Date,
-              AR_CheckDate: receivable.AR_CheckDate,
-              AR_Ref: receivable.AR_Ref,
-              AR_Amount: receivable.AR_Amount,
-              AR_Applied: receivable.AR_Applied,
-              Workstation_ID: receivable.Workstation_ID,
-              User_Number: receivable.User_Number,
-              AR_Archived: receivable.AR_Archived,
-              AR_Reconcile: receivable.AR_Reconcile,
-              AR_Batch: receivable.AR_Batch,
-              C_Name: receivable.customer?.C_Name,
-              AR_SubTypeRef: receivable.arDefinition?.AR_SubTypeRef,
+    // Sort by Deposit Date descending, then Deposit ID descending
+    const sortedData = [...filteredData].sort((a: any, b: any) => {
+      const dateA = new Date(a.Deposit_Date || 0).getTime();
+      const dateB = new Date(b.Deposit_Date || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return (b.Deposit_ID || 0) - (a.Deposit_ID || 0);
+    });
+
+    // Group by Deposit Date
+    const depositsByDate: { [key: string]: any[] } = {};
+    sortedData.forEach((deposit: any) => {
+      const dateKey = deposit.Deposit_Date ? formatDate(deposit.Deposit_Date) : 'No Date';
+      if (!depositsByDate[dateKey]) {
+        depositsByDate[dateKey] = [];
+      }
+      depositsByDate[dateKey].push(deposit);
+    });
+
+    // Process each date group
+    Object.keys(depositsByDate).sort((a, b) => {
+      if (a === 'No Date') return 1;
+      if (b === 'No Date') return -1;
+      return new Date(b).getTime() - new Date(a).getTime();
+    }).forEach((dateKey) => {
+      const deposits = depositsByDate[dateKey];
+      
+      // Group deposits by Deposit ID
+      const depositsById: { [key: number]: any[] } = {};
+      deposits.forEach((deposit: any) => {
+        const id = deposit.Deposit_ID;
+        if (!depositsById[id]) {
+          depositsById[id] = [];
+        }
+        depositsById[id].push(deposit);
+      });
+
+      // Process each deposit ID
+      Object.keys(depositsById)
+        .map(Number)
+        .sort((a, b) => b - a)
+        .forEach((depositId, depositIndex) => {
+          const depositGroup = depositsById[depositId];
+          const firstDeposit = depositGroup[0];
+          
+          // Add deposit header
+          rows.push({
+            type: 'deposit-header',
+            Deposit_ID: depositId,
+            Deposit_Date: firstDeposit.Deposit_Date,
+            Deposit_Reference: firstDeposit.Deposit_Reference,
+            label: `Deposit ID: ${depositId}`,
+          });
+
+          let lastSubtype = '';
+          
+          // Process each deposit in the group (in case of duplicates)
+          depositGroup.forEach((deposit: any) => {
+            if (!deposit.custReceivables || !Array.isArray(deposit.custReceivables) || deposit.custReceivables.length === 0) {
+              return;
+            }
+
+            // Group transactions by subtype
+            const transactionsBySubtype: { [key: string]: any[] } = {};
+            deposit.custReceivables.forEach((receivable: any) => {
+              const subtype = receivable.arDefinition?.AR_SubTypeRef || receivable.AR_SubTypeRef || 'UNKNOWN';
+              if (!transactionsBySubtype[subtype]) {
+                transactionsBySubtype[subtype] = [];
+              }
+              transactionsBySubtype[subtype].push(receivable);
+            });
+
+            // Process each subtype
+            Object.keys(transactionsBySubtype).sort().forEach((subtype) => {
+              const transactions = transactionsBySubtype[subtype];
+              let subtypeTotal = 0;
+
+              // Add spacing before new subtype (except first)
+              if (subtype !== lastSubtype && lastSubtype !== '') {
+                rows.push({
+                  type: 'transaction',
+                  Deposit_ID: depositId,
+                  Type: '',
+                  Subtype: '',
+                  Reference: '',
+                  Amount: undefined,
+                  label: '', // Empty row for spacing
+                } as TransactionRow);
+              }
+
+              // Add transaction rows
+              transactions.forEach((receivable: any) => {
+                const amount = receivable.AR_Amount || 0;
+                subtypeTotal += amount;
+
+                rows.push({
+                  type: 'transaction',
+                  Deposit_ID: depositId,
+                  Type: receivable.AR_Type || 'C',
+                  Subtype: subtype,
+                  Reference: receivable.AR_Ref || '',
+                  Customer_Number: receivable.C_Number,
+                  Customer_Name: receivable.customer?.C_Name || '',
+                  User: receivable.User_Number,
+                  Lane_ID: receivable.Workstation_ID,
+                  Check_Date: receivable.AR_CheckDate,
+                  Posting_Date: receivable.AR_Date,
+                  Amount: amount,
+                });
+              });
+
+              // Add subtype total
+              rows.push({
+                type: 'subtype-total',
+                label: `Total ${subtype}:`,
+                Amount: subtypeTotal,
+              });
+              
+              lastSubtype = subtype;
             });
           });
-        } else {
-          // If no custReceivables, just add the deposit row
-          flattenedData.push(deposit);
-        }
-      });
-    } else {
-      // If toggle is OFF, only show deposit-level data (one row per deposit)
-      sortedFetchedData.forEach((deposit: any) => {
-        flattenedData.push(deposit);
-      });
-    }
-    
-    // Sort flattened data by Deposit_ID (descending) to keep deposits grouped
-    flattenedData.sort((a, b) => (b.Deposit_ID || 0) - (a.Deposit_ID || 0));
-    
-    setReportData(flattenedData);
-    setPreviewData(flattenedData);
-    setPreviewPage(0);
-    
-    return flattenedData.length;
-  };
 
-  // Group data based on groupBy option
-  interface GroupedDataItem {
-    type: 'group-header' | 'row';
-    groupKey?: string;
-    data?: ARReportItem;
-    items?: ARReportItem[];
-  }
-
-  const groupData = useCallback((data: ARReportItem[]): GroupedDataItem[] => {
-    if (groupBy === 'none') {
-      return data.map(item => ({ type: 'row' as const, data: item }));
-    }
-
-    const result: GroupedDataItem[] = [];
-
-    // Helper function to format date
-    const formatDate = (dateStr: string | null | undefined): string => {
-      if (!dateStr) return 'No Date';
-      try {
-        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-      } catch {
-        return 'No Date';
-      }
-    };
-
-    // Helper function to group by date field
-    const groupByDateField = (fieldName: 'AR_Date' | 'AR_CheckDate' | 'Deposit_Date' | 'QB_TransferDate' | 'Deposit_DeleteDate', label: string) => {
-      const grouped: { [key: string]: ARReportItem[] } = {};
-      data.forEach(item => {
-        const dateValue = (item as any)[fieldName];
-        const dateKey = formatDate(dateValue);
-        if (!grouped[dateKey]) {
-          grouped[dateKey] = [];
-        }
-        grouped[dateKey].push(item);
-      });
-
-      // Sort dates descending
-      const sortedKeys = Object.keys(grouped).sort((a, b) => {
-        if (a === 'No Date') return 1;
-        if (b === 'No Date') return -1;
-        return new Date(b).getTime() - new Date(a).getTime();
-      });
-
-      sortedKeys.forEach(key => {
-        result.push({ type: 'group-header', groupKey: `${label}: ${key}`, items: grouped[key] });
-        grouped[key].forEach(item => {
-          result.push({ type: 'row', data: item });
+          // Add deposit total
+          const depositTotal = firstDeposit.Payment_Total || 0;
+          rows.push({
+            type: 'deposit-total',
+            label: 'Total:',
+            Amount: depositTotal,
+          });
+          
+          // Add divider after deposit (except last)
+          if (depositIndex < Object.keys(depositsById).length - 1) {
+            rows.push({
+              type: 'transaction',
+              Deposit_ID: depositId,
+              Type: '',
+              Subtype: '',
+              Reference: '',
+              Amount: undefined,
+              label: '', // Empty row for spacing
+            } as TransactionRow);
+          }
         });
-      });
-    };
+    });
 
-    if (groupBy === 'ar-date') {
-      // Group by AR_Date
-      groupByDateField('AR_Date', 'AR Date');
-    } else if (groupBy === 'ar-check-date') {
-      // Group by AR_CheckDate
-      groupByDateField('AR_CheckDate', 'AR Check Date');
-    } else if (groupBy === 'deposit-date') {
-      // Group by Deposit_Date
-      groupByDateField('Deposit_Date', 'Deposit Date');
-    } else if (groupBy === 'qb-transfer-date') {
-      // Group by QB_TransferDate
-      groupByDateField('QB_TransferDate', 'QB Transfer Date');
-    } else if (groupBy === 'deposit-delete-date') {
-      // Group by Deposit_DeleteDate
-      groupByDateField('Deposit_DeleteDate', 'Deposit Delete Date');
-    } else if (groupBy === 'deposit-id') {
-      // Group by Deposit_ID
-      const grouped: { [key: string]: ARReportItem[] } = {};
-      data.forEach(item => {
-        const depositKey = String(item.Deposit_ID || 'No Deposit ID');
-        if (!grouped[depositKey]) {
-          grouped[depositKey] = [];
-        }
-        grouped[depositKey].push(item);
-      });
+    return rows;
+  }, [applyFilters]);
 
-      // Sort deposit IDs descending
-      const sortedKeys = Object.keys(grouped).sort((a, b) => {
-        if (a === 'No Deposit ID') return 1;
-        if (b === 'No Deposit ID') return -1;
-        return Number(b) - Number(a);
-      });
 
-      sortedKeys.forEach(key => {
-        const firstItem = grouped[key][0];
-        const depositRef = firstItem.Deposit_Reference || 'No Reference';
-        const depositDate = formatDate(firstItem.Deposit_Date);
-        result.push({ 
-          type: 'group-header', 
-          groupKey: `Deposit ID: ${key} - ${depositRef} (${depositDate})`, 
-          items: grouped[key] 
-        });
-        grouped[key].forEach(item => {
-          result.push({ type: 'row', data: item });
-        });
-      });
-    }
-
-    return result;
-  }, [groupBy]);
 
   // Handle preview
   const handlePreview = async () => {
-    // Dates are required for AR Report
-    if (reportType === 'ar-report' && (!startDate || !endDate)) {
+    if (!startDate || !endDate) {
       toast.error('Please select both start date and end date');
       return;
     }
@@ -682,156 +540,122 @@ const ARReportTab: React.FC = () => {
       let fetchedData: any[] = [];
       
       if (reportType === 'ar-report-history') {
-        // Fetch AR Report History - no filters (only for history, not regular report)
+        // Fetch AR Report History
         const response = await getARreportsHistory() as any;
         const data = response?.data?.data?.data || response?.data?.data || response?.data || response || [];
         fetchedData = Array.isArray(data) ? data : [];
-        // Store raw data for history
-        setRawFetchedData(fetchedData);
       } else {
-        // For AR Report, use already-fetched data from useEffect (no API call needed)
-        if (rawFetchedData.length === 0) {
-          // Only fetch if we don't have data yet (shouldn't happen if dates are selected)
-          const startDateStr = startDate!.format('YYYY-MM-DD');
-          const endDateStr = endDate!.format('YYYY-MM-DD');
-          fetchedData = await loadARReportsData(startDateStr, endDateStr);
-          setRawFetchedData(fetchedData);
-        } else {
-          // Use existing fetched data
-          fetchedData = rawFetchedData;
-        }
+        // Fetch AR Report with date range
+        const startDateStr = startDate.format('YYYY-MM-DD');
+        const endDateStr = endDate.format('YYYY-MM-DD');
+        fetchedData = await loadARReportsData(startDateStr, endDateStr);
       }
 
-      // Apply frontend filters
-      const filteredData = applyFrontendFilters(fetchedData);
-      
-      // Check if any deposit has custReceivables (after filtering)
-      const hasReceivables = filteredData.some((deposit: any) => 
-        deposit.custReceivables && Array.isArray(deposit.custReceivables) && deposit.custReceivables.length > 0
-      );
-      setHasCustReceivables(hasReceivables);
-      
-      // Determine toggle state: if receivables found, turn on by default (user can turn it off if needed)
-      let shouldShowCustReceivables = showCustReceivables;
-      if (hasReceivables && !showCustReceivables) {
-        shouldShowCustReceivables = true;
-        setShowCustReceivables(true);
+      // Process data based on report type
+      let processedData: TransactionRow[] = [];
+      if (reportType === 'ar-report-history') {
+        processedData = processHistoryData(fetchedData);
+      } else {
+        processedData = processReportData(fetchedData);
       }
       
-      // If no receivables found, turn off the toggle
-      if (!hasReceivables && showCustReceivables) {
-        shouldShowCustReceivables = false;
-        setShowCustReceivables(false);
-      }
-      
-      // Process and flatten the filtered data based on toggle state
-      const recordCount = reprocessData(filteredData, shouldShowCustReceivables && hasReceivables);
-      
-      setShowPreview(true);
+      setPreviewData(processedData);
       setPreviewPage(0);
+      setShowPreview(true);
       
-      if (filteredData.length === 0) {
-        // Reset custReceivables state when no data found
-        setHasCustReceivables(false);
-        setShowCustReceivables(false);
+      if (processedData.length === 0) {
         toast.success('No data found for the selected criteria');
       } else {
-        toast.success(`Loaded ${recordCount} record(s)`);
+        toast.success(`Loaded ${processedData.length} record(s)`);
       }
     } catch (error: any) {
       console.error('Error generating preview:', error);
       toast.error(error?.response?.data?.message || 'Failed to generate preview');
-      setReportData([]);
       setPreviewData([]);
-      // Reset custReceivables state on error
-      setHasCustReceivables(false);
-      setShowCustReceivables(false);
     } finally {
       setPreviewLoading(false);
     }
   };
 
-  // Format field value for display
-  const formatFieldValue = (item: ARReportItem, field: string): string => {
-    const value = (item as any)[field];
-    
-    if (value === null || value === undefined) {
-      return '';
-    }
-    
-    if (field.includes('Date')) {
-      if (value) {
-        const date = new Date(value);
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-      }
-      return '';
-    }
-    
-    if (typeof value === 'boolean') {
-      return value ? 'Yes' : 'No';
-    }
-    
-    if (typeof value === 'number') {
-      if (field.includes('Total') || field.includes('Amount')) {
-        return value.toFixed(2);
-      }
-      return value.toString();
-    }
-    
-    return String(value);
-  };
-
-  // Get grouped and paginated preview data
-  const groupedPreviewData = useMemo(() => {
-    return groupData(previewData);
-  }, [previewData, groupData]);
-
+  // Get paginated preview data
   const paginatedPreviewData = useMemo(() => {
     const start = previewPage * PREVIEW_PAGE_SIZE;
     const end = start + PREVIEW_PAGE_SIZE;
-    return groupedPreviewData.slice(start, end);
-  }, [groupedPreviewData, previewPage]);
+    return previewData.slice(start, end);
+  }, [previewData, previewPage]);
 
-  const totalPreviewPages = Math.ceil(groupedPreviewData.length / PREVIEW_PAGE_SIZE);
+  const totalPreviewPages = Math.ceil(previewData.length / PREVIEW_PAGE_SIZE);
 
-  // Get selected field keys (Deposit_ID always included)
-  const getSelectedFieldKeys = useMemo(() => {
-    const selected = Object.keys(selectedFields).filter(key => selectedFields[key]);
-    return sortFieldsBySequence(['Deposit_ID', ...selected]);
-  }, [selectedFields]);
-
-  // Generate CSV with grouping support
+  // Generate CSV
   const handleGenerateCSV = () => {
-    if (reportData.length === 0) {
+    if (previewData.length === 0) {
       toast.error('No data to generate report');
       return;
     }
 
     setGeneratingReport(true);
     try {
-      const selectedFieldKeys = getSelectedFieldKeys;
-      const headers = selectedFieldKeys.map(field => FIELD_LABELS[field] || field);
-      const csvHeaders = headers.join(',');
-      
-      // Get grouped data
-      const groupedData = groupData(reportData);
-      
       const rows: string[] = [];
-      groupedData.forEach(item => {
-        if (item.type === 'group-header') {
-          // Add group header row
-          rows.push(`"${item.groupKey || ''}",${''.repeat(selectedFieldKeys.length - 1).split('').map(() => '""').join(',')}`);
-        } else if (item.data) {
-          // Add data row
-          const row = selectedFieldKeys.map(field => {
-            const value = formatFieldValue(item.data!, field);
-            return `"${value.replace(/"/g, '""')}"`;
-          }).join(',');
-          rows.push(row);
-        }
-      });
       
-      const csvContent = [csvHeaders, ...rows].join('\n');
+      if (reportType === 'ar-report-history') {
+        // History report headers
+        const headers = ['Deposit Date', 'Deposit ID', 'Deposit Reference', 'Payments', 'Adjustments', 'Returned Checks'];
+        rows.push(headers.join(','));
+        
+        previewData.forEach(row => {
+          if (row.type === 'transaction') {
+            const csvRow = [
+              formatDate(row.Deposit_Date),
+              row.Deposit_ID?.toString() || '',
+              row.Deposit_Reference || '',
+              formatAmount(row.Payment_Total),
+              formatAmount(row.Adjustment_Total),
+              formatAmount(row.ReturnCheck_Total),
+            ];
+            rows.push(csvRow.map(v => `"${v.replace(/"/g, '""')}"`).join(','));
+          } else if (row.type === 'history-total') {
+            const csvRow = [
+              row.label || 'Total:',
+              '',
+              '',
+              formatAmount(row.Payment_Total),
+              formatAmount(row.Adjustment_Total),
+              formatAmount(row.ReturnCheck_Total),
+            ];
+            rows.push(csvRow.map(v => `"${v.replace(/"/g, '""')}"`).join(','));
+          }
+        });
+      } else {
+        // Detailed report headers
+        const headers = ['Type', 'Subtype', 'Reference', 'Customer Number / Name', 'User', 'Lane/ID', 'Check Date', 'Posting Date', 'Amount'];
+        rows.push(headers.join(','));
+        
+        previewData.forEach(row => {
+          if (row.type === 'deposit-header') {
+            rows.push(`"Deposit ID: ${row.Deposit_ID} - ${row.Deposit_Reference || ''} (${formatDate(row.Deposit_Date)})"`);
+          } else if (row.type === 'transaction') {
+            const customerInfo = row.Customer_Number 
+              ? `${row.Customer_Number} - ${row.Customer_Name || ''}`.trim()
+              : '';
+            const csvRow = [
+              row.Type || '',
+              row.Subtype || '',
+              row.Reference || '',
+              customerInfo,
+              row.User?.toString() || '',
+              row.Lane_ID?.toString() || '',
+              formatDate(row.Check_Date),
+              formatDate(row.Posting_Date),
+              formatAmount(row.Amount),
+            ];
+            rows.push(csvRow.map(v => `"${v.replace(/"/g, '""')}"`).join(','));
+          } else if (row.type === 'subtype-total' || row.type === 'deposit-total') {
+            rows.push(`"${row.label || ''}",,,,,,,,"${formatAmount(row.Amount)}"`);
+          }
+        });
+      }
+      
+      const csvContent = rows.join('\n');
       const timestamp = new Date().toISOString().split('T')[0];
       const filename = `ar-report-${reportType === 'ar-report-history' ? 'history' : 'report'}-${timestamp}.csv`;
       
@@ -845,7 +669,7 @@ const ARReportTab: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       
-      toast.success(`CSV report generated successfully with ${reportData.length} records`);
+      toast.success(`CSV report generated successfully`);
     } catch (error) {
       console.error('Error generating CSV report:', error);
       toast.error('Failed to generate CSV report');
@@ -892,9 +716,9 @@ const ARReportTab: React.FC = () => {
     }
   };
 
-  // Generate PDF with improved UI using jspdf-autotable
+  // Generate PDF
   const handleGeneratePDF = async () => {
-    if (reportData.length === 0) {
+    if (previewData.length === 0) {
       toast.error('No data to generate report');
       return;
     }
@@ -902,12 +726,9 @@ const ARReportTab: React.FC = () => {
     setGeneratingPDF(true);
     try {
       const logoDataUrl = await loadLogoAsDataUrl();
-      const selectedFieldKeys = getSelectedFieldKeys;
       
-      // Use landscape for 8+ columns, portrait for less than 8
-      const numColumns = selectedFieldKeys.length;
-      const orientation = numColumns >= 8 ? 'landscape' : 'portrait';
-      const doc = new jsPDF(orientation, 'mm', 'a4');
+      // Use portrait for all reports
+      const doc = new jsPDF('portrait', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 8;
@@ -923,18 +744,12 @@ const ARReportTab: React.FC = () => {
       ].filter(Boolean).join(', ');
       const distributorPhone = distributor?.D_Phone || '';
       
-      // Headers
-      const headers = selectedFieldKeys.map(field => FIELD_LABELS[field] || field);
-      
-      // Generate table using autoTable (v5+ uses function call instead of method)
+      // Generate table using autoTable
       const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
       
-      // Common footer function with page count
+      // Common footer function
       const addFooter = (pageNum: number, totalPagesCount: number) => {
-        const currentPageHeight = doc.internal.pageSize.getHeight();
-        const footerY = currentPageHeight - 5;
-        
-        // Report generated text with logo on left
+        const footerY = pageHeight - 5;
         doc.setFontSize(6);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(100, 100, 100);
@@ -948,18 +763,12 @@ const ARReportTab: React.FC = () => {
             // Ignore logo errors
           }
         }
-        
-        // Page count on right
         doc.setFontSize(7);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        const pageText = `${pageNum} of ${totalPagesCount}`;
-        doc.text(pageText, pageWidth - margin, footerY, { align: 'right' });
+        doc.text(`${pageNum} of ${totalPagesCount}`, pageWidth - margin, footerY, { align: 'right' });
       };
       
-      // Draw header with distributor details on left
+      // Draw header
       const drawHeader = () => {
-        // Distributor details on left
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(0, 0, 0);
@@ -970,69 +779,43 @@ const ARReportTab: React.FC = () => {
           doc.text(distributorName, margin, leftY);
           leftY += 3.5;
         }
-        
         if (distributorAddress) {
           doc.setFont('helvetica', 'normal');
           doc.text(distributorAddress, margin, leftY);
           leftY += 3.5;
         }
-        
         if (distributorPhone) {
           doc.text(distributorPhone, margin, leftY);
         }
         
-        // Title - centered
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
         doc.text(
-          reportType === 'ar-report-history' ? 'AR Report History' : 'AR Report',
+          reportType === 'ar-report-history' ? 'A/R Deposit History' : 'A/R Deposits',
           pageWidth / 2,
           yPos + 5,
           { align: 'center' }
         );
         
-        // Date range and group by info on right
-        let rightY = yPos;
+        if (startDate && endDate) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
-        const rightX = pageWidth - margin;
-        
-        if (reportType === 'ar-report' && startDate && endDate) {
           doc.text(
-            `Date Range: ${startDate.format('MM/DD/YYYY')} - ${endDate.format('MM/DD/YYYY')}`,
-            rightX,
-            rightY,
+            `Date: ${startDate.format('MM/DD/YYYY')} - ${endDate.format('MM/DD/YYYY')}`,
+            pageWidth - margin,
+            yPos,
             { align: 'right' }
           );
-          rightY += 3.5;
-        }
-        
-        if (groupBy !== 'none') {
-          const groupByTextMap: { [key: string]: string } = {
-            'ar-date': 'AR Date',
-            'ar-check-date': 'AR Check Date',
-            'deposit-date': 'Deposit Date',
-            'deposit-id': 'Deposit ID',
-            'qb-transfer-date': 'QB Transfer Date',
-            'deposit-delete-date': 'Deposit Delete Date',
-          };
-          const groupByText = groupByTextMap[groupBy] || 'Grouped';
-          doc.text(`Grouped by: ${groupByText}`, rightX, rightY, { align: 'right' });
         }
       };
       
-      // Draw initial header
       drawHeader();
       yPos = 25;
       
-      // Common table styles - smaller fonts and padding
       const tableStyles = {
         fontSize: 6.5,
         cellPadding: { top: 2, bottom: 2, left: 1.5, right: 1.5 },
         overflow: 'linebreak' as const,
-        cellWidth: 'wrap' as const,
         lineColor: [200, 200, 200] as [number, number, number],
         lineWidth: 0.1,
         textColor: [0, 0, 0] as [number, number, number],
@@ -1044,147 +827,103 @@ const ARReportTab: React.FC = () => {
         textColor: [255, 255, 255] as [number, number, number],
         fontStyle: 'bold' as const,
         fontSize: 7,
-        lineColor: [50, 50, 50] as [number, number, number],
-        lineWidth: 0.2,
-        cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 },
       };
       
-      const alternateRowStyles = {
-        fillColor: [248, 248, 248] as [number, number, number],
-      };
-      
-      // Helper function to check if we need a new page
-      const checkPageBreak = (requiredHeight: number) => {
-        const bottomMargin = 12;
-        const availableHeight = pageHeight - yPos - bottomMargin;
+      if (reportType === 'ar-report-history') {
+        // History report - simple table
+        const headers = [['Deposit Date', 'Deposit ID', 'Deposit Reference', 'Payments', 'Adjustments', 'Returned Checks']];
+        const body: any[] = [];
         
-        if (requiredHeight > availableHeight && yPos > 15) {
-          doc.addPage();
-          yPos = 15;
-          drawHeader();
-          yPos = 25;
-          return true;
-        }
-        return false;
-      };
-      
-      // If grouping is enabled, generate grouped tables
-      if (groupBy !== 'none') {
-        const groupedData = groupData(reportData);
-        const groupedSections: { [key: string]: ARReportItem[] } = {};
-        let currentGroupKey = '';
-        
-        groupedData.forEach((item) => {
-          if (item.type === 'group-header') {
-            currentGroupKey = item.groupKey || '';
-            if (item.items) {
-              groupedSections[currentGroupKey] = item.items;
-            }
+        previewData.forEach(row => {
+          if (row.type === 'transaction') {
+            body.push([
+              formatDate(row.Deposit_Date),
+              row.Deposit_ID?.toString() || '',
+              row.Deposit_Reference || '',
+              formatAmount(row.Payment_Total),
+              formatAmount(row.Adjustment_Total),
+              formatAmount(row.ReturnCheck_Total),
+            ]);
+          } else if (row.type === 'history-total') {
+            body.push([{
+              content: row.label || 'Total:',
+              colSpan: 3,
+              styles: { halign: 'right', fontStyle: 'bold' }
+            }, {
+              content: formatAmount(row.Payment_Total),
+              styles: { halign: 'right', fontStyle: 'bold' }
+            }, {
+              content: formatAmount(row.Adjustment_Total),
+              styles: { halign: 'right', fontStyle: 'bold' }
+            }, {
+              content: formatAmount(row.ReturnCheck_Total),
+              styles: { halign: 'right', fontStyle: 'bold' }
+            }]);
           }
         });
-        
-        // Generate grouped tables with smart page breaks
-        Object.keys(groupedSections).forEach((groupKey, groupIdx) => {
-          if (groupIdx > 0) {
-            const groupHeaderHeight = 6;
-            const tableHeaderHeight = 5;
-            const minRowsHeight = 8;
-            const requiredHeight = groupHeaderHeight + tableHeaderHeight + minRowsHeight;
-            checkPageBreak(requiredHeight);
-          }
           
-          // Group header
-          const groupHeaderHeight = 6;
-          const headerBgColor = [235, 235, 235];
-          doc.setFillColor(headerBgColor[0], headerBgColor[1], headerBgColor[2]);
-          doc.rect(margin, yPos - 1.5, pageWidth - 2 * margin, groupHeaderHeight, 'F');
-          
-          doc.setDrawColor(180, 180, 180);
-          doc.setLineWidth(0.2);
-          doc.rect(margin, yPos - 1.5, pageWidth - 2 * margin, groupHeaderHeight, 'S');
-          
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(0, 0, 0);
-          doc.text(groupKey, margin + 2, yPos + 2);
-          yPos += groupHeaderHeight + 2;
-          
-          // Table for this group
-          const groupRows = groupedSections[groupKey].map(item => 
-            selectedFieldKeys.map(field => formatFieldValue(item, field))
-          );
-          
-          autoTableFn(doc, {
-            head: [headers],
-            body: groupRows,
-            startY: yPos,
-            margin: { left: margin, right: margin },
-            styles: tableStyles,
-            headStyles: headStyles,
-            alternateRowStyles: alternateRowStyles,
-            showHead: 'everyPage',
-            showFoot: 'never',
-            columnStyles: selectedFieldKeys.reduce((acc: any, field, idx) => {
-              // Set all columns to auto width, with right alignment for numeric fields
-              if (field.includes('Total') || field.includes('Amount') || field.includes('ID') && field !== 'Deposit_ID') {
-                acc[idx] = { cellWidth: 'auto', halign: 'right' };
-              } else {
-                acc[idx] = { cellWidth: 'auto' };
-              }
-              return acc;
-            }, {}),
-            didDrawPage: () => {
-              // Footer will be added at the end with correct total page count
-            },
-            didParseCell: (data: any) => {
-              if (data.section === 'head') {
-                data.cell.styles.fillColor = [70, 70, 70];
-                data.cell.styles.textColor = [255, 255, 255];
-              }
-            },
-          });
-          
-          yPos = (doc as any).lastAutoTable.finalY || yPos + 10;
-          yPos += 2;
-        });
-      } else {
-        // No grouping - generate single table
-        const tableBody = reportData.map(item => 
-          selectedFieldKeys.map(field => formatFieldValue(item, field))
-        );
-        
         autoTableFn(doc, {
-          head: [headers],
-          body: tableBody,
+          head: headers,
+          body: body,
           startY: yPos,
           margin: { left: margin, right: margin },
           styles: tableStyles,
           headStyles: headStyles,
-          alternateRowStyles: alternateRowStyles,
           showHead: 'everyPage',
-          showFoot: 'never',
-          columnStyles: selectedFieldKeys.reduce((acc: any, field, idx) => {
-            // Set all columns to auto width, with right alignment for numeric fields
-            if (field.includes('Total') || field.includes('Amount') || field.includes('ID') && field !== 'Deposit_ID') {
-              acc[idx] = { cellWidth: 'auto', halign: 'right' };
-            } else {
-              acc[idx] = { cellWidth: 'auto' };
-            }
-            return acc;
-          }, {}),
-          didDrawPage: () => {
-            // Footer will be added at the end with correct total page count
-          },
-          didParseCell: (data: any) => {
-            if (data.section === 'head') {
-              data.cell.styles.fillColor = [70, 70, 70];
-              data.cell.styles.textColor = [255, 255, 255];
-            }
-          },
+        });
+              } else {
+        // Detailed report - process row by row
+        const body: any[] = [];
+        previewData.forEach(row => {
+          if (row.type === 'deposit-header') {
+            const depositDate = formatDate(row.Deposit_Date);
+            body.push([{
+              content: `Deposit Date: ${depositDate} | Deposit ID: ${row.Deposit_ID} - ${row.Deposit_Reference || ''}`,
+              colSpan: 9,
+              styles: { fillColor: [235, 235, 235], fontStyle: 'bold' }
+            }]);
+          } else if (row.type === 'transaction' && row.Type && row.Subtype) {
+            // Skip spacing rows (empty transaction rows)
+            const customerInfo = row.Customer_Number 
+              ? `${row.Customer_Number} - ${row.Customer_Name || ''}`.trim()
+              : '';
+            body.push([
+              row.Type || '',
+              row.Subtype || '',
+              row.Reference || '',
+              customerInfo,
+              row.User?.toString() || '',
+              row.Lane_ID?.toString() || '',
+              formatDate(row.Check_Date),
+              formatDate(row.Posting_Date),
+              formatAmount(row.Amount),
+            ]);
+          } else if (row.type === 'subtype-total' || row.type === 'deposit-total') {
+            body.push([{
+              content: row.label || '',
+              colSpan: 8,
+              styles: { halign: 'right', fontStyle: 'bold' }
+            }, {
+              content: formatAmount(row.Amount),
+              styles: { halign: 'right', fontStyle: 'bold' }
+            }]);
+          }
+        });
+        
+        const headers = [['Type', 'Subtype', 'Reference', 'Customer Number / Name', 'User', 'Lane/ID', 'Check Date', 'Posting Date', 'Amount']];
+        
+        autoTableFn(doc, {
+          head: headers,
+          body: body,
+          startY: yPos,
+          margin: { left: margin, right: margin },
+          styles: tableStyles,
+          headStyles: headStyles,
+          showHead: 'everyPage',
         });
       }
       
-      // Get final page count and update all footers
+      // Add footers
       const finalPageCount = (doc as any).internal.pages.length;
       for (let i = 1; i <= finalPageCount; i++) {
         doc.setPage(i);
@@ -1195,7 +934,7 @@ const ARReportTab: React.FC = () => {
       const filename = `ar-report-${reportType === 'ar-report-history' ? 'history' : 'report'}-${timestamp}.pdf`;
       doc.save(filename);
       
-      toast.success(`PDF report generated successfully with ${reportData.length} records`);
+      toast.success(`PDF report generated successfully`);
     } catch (error) {
       console.error('Error generating PDF report:', error);
       toast.error('Failed to generate PDF report');
@@ -1211,7 +950,6 @@ const ARReportTab: React.FC = () => {
       flexDirection: 'column',
       overflow: 'hidden',
     }}>
-      {/* Scrollable Content Area */}
       <Box sx={{ 
         flexGrow: 1, 
         overflow: 'auto', 
@@ -1227,17 +965,16 @@ const ARReportTab: React.FC = () => {
 
         {!showPreview ? (
           <Paper sx={{ 
-            p: 0.75, 
+            p: 2, 
             borderRadius: 1,
             border: `1px solid ${theme.palette.divider}`,
             boxShadow: 'none',
             backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
           }}>
-            <Grid container spacing={3}>
-              {/* Report Type Selection */}
-              <Grid size={{ xs: 12, md: 3 }}>
-                <Box sx={{ mb: 1.25 }}>
-                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: reportType === 'ar-report' ? 3 : 4 }}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 500, fontSize: '0.75rem', display: 'block' }}>
                     Report Type
                   </Typography>
                   <FormControl fullWidth size="small">
@@ -1246,97 +983,79 @@ const ARReportTab: React.FC = () => {
                       onChange={(e) => {
                         const newReportType = e.target.value as 'ar-report' | 'ar-report-history';
                         setReportType(newReportType);
-                        setReportData([]);
                         setPreviewData([]);
-                        setRawFetchedData([]);
                         setShowPreview(false);
-                        
-                        // Set default dates (1 week) for AR Report, clear for History
-                        if (newReportType === 'ar-report') {
-                          setStartDate(dayjs().subtract(7, 'day'));
-                          setEndDate(dayjs());
-                        } else {
-                          setStartDate(null);
-                          setEndDate(null);
-                        }
-                        
-                        // Reset filters when switching report types
+                        setStartDate(dayjs().subtract(7, 'day'));
+                        setEndDate(dayjs());
+                        // Reset filters
                         setSelectedARTypes([]);
                         setSelectedDepositIds([]);
                         setSelectedTransactionSources([]);
                         setSelectedUserIds([]);
-                        // Reset custReceivables toggle
-                        setShowCustReceivables(false);
-                        setHasCustReceivables(false);
-                        // Clear selected fields when switching report types
-                        setSelectedFields({});
-                        
-                        // Reset groupBy if current option is not valid for new report type
-                        if (newReportType === 'ar-report') {
-                          // AR Report doesn't support qb-transfer-date or deposit-delete-date
-                          if (groupBy === 'qb-transfer-date' || groupBy === 'deposit-delete-date') {
-                            setGroupBy('none');
-                          }
-                        } else if (newReportType === 'ar-report-history') {
-                          // AR Report History doesn't support ar-date, ar-check-date, or deposit-id
-                          if (groupBy === 'ar-date' || groupBy === 'ar-check-date' || groupBy === 'deposit-id') {
-                            setGroupBy('none');
-                          }
-                        }
                       }}
                       disabled={previewLoading}
                       sx={{
-                        fontSize: '0.75rem',
+                        fontSize: '0.7rem',
+                        height: '32px',
                         '& .MuiSelect-select': {
-                          minHeight: 'auto',
+                          py: 0.5,
+                          minHeight: 'auto !important',
+                          fontSize: '0.7rem',
                         },
                         '& .MuiOutlinedInput-notchedOutline': {
                           borderWidth: '1px',
                         },
-                        '& .MuiSelect-icon': {
-                          color: 'primary.main',
+                      }}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: {
+                            '& .MuiMenuItem-root': {
+                              fontSize: '0.7rem',
+                              py: 0.5,
+                              minHeight: 'auto',
+                            },
+                          },
                         },
                       }}
                     >
-                      <MenuItem value="ar-report" sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}>
-                        AR Report
-                      </MenuItem>
-                      <MenuItem value="ar-report-history" sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}>
-                        AR Report History
-                      </MenuItem>
+                      <MenuItem value="ar-report" sx={{ fontSize: '0.7rem', py: 0.5 }}>AR Report</MenuItem>
+                      <MenuItem value="ar-report-history" sx={{ fontSize: '0.7rem', py: 0.5 }}>AR Report History</MenuItem>
                     </Select>
                   </FormControl>
                 </Box>
 
-                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 500, fontSize: '0.75rem', display: 'block' }}>
+                    Start Date
+                  </Typography>
+                  <CustomDatePicker
+                    value={startDate}
+                    onChange={(date) => setStartDate(date)}
+                    disabled={selectedDepositIds.length > 0}
+                  />
+                </Box>
 
-                {/* Date Filters for AR Report */}
-                {reportType === 'ar-report' && (
-                  <>
-                    <Box sx={{ mb: 1.25 }}>
-                      <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Start Date
-                      </Typography>
-                      <CustomDatePicker
-                        value={startDate}
-                        onChange={(date) => setStartDate(date)}
-                      />
-                    </Box>
-                    <Box sx={{ mb: 1.25 }}>
-                      <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        End Date
-                      </Typography>
-                      <CustomDatePicker
-                        value={endDate}
-                        onChange={(date) => setEndDate(date)}
-                        minDate={startDate || undefined}
-                      />
-                    </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 500, fontSize: '0.75rem', display: 'block' }}>
+                    End Date
+                  </Typography>
+                  <CustomDatePicker
+                    value={endDate}
+                    onChange={(date) => setEndDate(date)}
+                    minDate={startDate || undefined}
+                    disabled={selectedDepositIds.length > 0}
+                  />
+                </Box>
+              </Grid>
 
+              {/* Filters - Only for AR Report */}
+              {reportType === 'ar-report' && (
+                <Grid size={{ xs: 12, md: 9 }}>
+                  <Grid container spacing={2}>
                     {/* AR Type Filter */}
-                    {filterOptions.typeSelect.length > 0 && (
-                      <Box sx={{ mb: 1.25 }}>
-                        <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 500, fontSize: '0.75rem', display: 'block' }}>
                           AR Type
                         </Typography>
                         <FormControl fullWidth size="small">
@@ -1351,85 +1070,50 @@ const ARReportTab: React.FC = () => {
                             displayEmpty
                             renderValue={(selected) => {
                               if (selected.length === 0) {
-                                return <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>All Types</Typography>;
+                                return <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>All Types</Typography>;
                               }
-                              return (
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {selected.map((value) => (
-                                    <Typography key={value} sx={{ fontSize: '0.7rem' }}>
-                                      {value}
-                                    </Typography>
-                                  ))}
-                                </Box>
-                              );
+                              return <Typography sx={{ fontSize: '0.7rem' }}>{selected.length} selected</Typography>;
                             }}
                             sx={{
-                              fontSize: '0.75rem',
+                              fontSize: '0.7rem',
+                              height: '32px',
                               '& .MuiSelect-select': {
-                                minHeight: 'auto',
+                                py: 0.5,
+                                minHeight: 'auto !important',
+                                fontSize: '0.7rem',
                               },
                               '& .MuiOutlinedInput-notchedOutline': {
                                 borderWidth: '1px',
                               },
-                              '& .MuiSelect-icon': {
-                                color: 'primary.main',
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  maxHeight: 300,
+                                  '& .MuiMenuItem-root': {
+                                    fontSize: '0.7rem',
+                                    py: 0.5,
+                                    minHeight: 'auto',
+                                  },
+                                },
                               },
                             }}
                           >
-                            <MenuItem 
-                              value="None"
-                              sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                            >
-                              <Checkbox
-                                checked={selectedARTypes.includes('None')}
-                                size="small"
-                                sx={{ 
-                                  py: 0,
-                                  '& .MuiSvgIcon-root': { fontSize: '1rem' }
-                                }}
-                              />
-                              <em>None</em>
-                            </MenuItem>
-                            <MenuItem 
-                              value="Date"
-                              sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                            >
-                              <Checkbox
-                                checked={selectedARTypes.includes('Date')}
-                                size="small"
-                                sx={{ 
-                                  py: 0,
-                                  '& .MuiSvgIcon-root': { fontSize: '1rem' }
-                                }}
-                              />
-                              Date
-                            </MenuItem>
                             {filterOptions.typeSelect.map((type) => (
-                              <MenuItem 
-                                key={type.AR_Type} 
-                                value={type.AR_Type}
-                                sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                              >
-                                <Checkbox
-                                  checked={selectedARTypes.includes(type.AR_Type)}
-                                  size="small"
-                                  sx={{ 
-                                    py: 0,
-                                    '& .MuiSvgIcon-root': { fontSize: '1rem' }
-                                  }}
-                                />
-                                {type.AR_Type}
+                              <MenuItem key={type.AR_Type} value={type.AR_Type} sx={{ fontSize: '0.7rem', py: 0.5 }}>
+                                <Checkbox checked={selectedARTypes.includes(type.AR_Type)} size="small" sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '0.9rem' } }} />
+                                <Typography sx={{ fontSize: '0.7rem' }}>{type.AR_Type}</Typography>
                               </MenuItem>
                             ))}
                           </Select>
                         </FormControl>
                       </Box>
-                    )}
+                    </Grid>
 
                     {/* Deposit ID Filter */}
-                    {filterOptions.depositeID.length > 0 && (
-                      <Box sx={{ mb: 1.25 }}>
-                        <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 500, fontSize: '0.75rem', display: 'block' }}>
                           Deposit ID
                         </Typography>
                         <FormControl fullWidth size="small">
@@ -1444,55 +1128,50 @@ const ARReportTab: React.FC = () => {
                             displayEmpty
                             renderValue={(selected) => {
                               if (selected.length === 0) {
-                                return <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>All Deposits</Typography>;
+                                return <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>All Deposits</Typography>;
                               }
-                              return (
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  <Typography sx={{ fontSize: '0.7rem' }}>
-                                    {selected.length} selected
-                                  </Typography>
-                                </Box>
-                              );
+                              return <Typography sx={{ fontSize: '0.7rem' }}>{selected.length} selected</Typography>;
                             }}
                             sx={{
-                              fontSize: '0.75rem',
+                              fontSize: '0.7rem',
+                              height: '32px',
                               '& .MuiSelect-select': {
-                                minHeight: 'auto',
+                                py: 0.5,
+                                minHeight: 'auto !important',
+                                fontSize: '0.7rem',
                               },
                               '& .MuiOutlinedInput-notchedOutline': {
                                 borderWidth: '1px',
                               },
-                              '& .MuiSelect-icon': {
-                                color: 'primary.main',
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  maxHeight: 300,
+                                  '& .MuiMenuItem-root': {
+                                    fontSize: '0.7rem',
+                                    py: 0.5,
+                                    minHeight: 'auto',
+                                  },
+                                },
                               },
                             }}
                           >
                             {filterOptions.depositeID.map((deposit) => (
-                              <MenuItem 
-                                key={deposit.Deposit_ID} 
-                                value={String(deposit.Deposit_ID)}
-                                sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                              >
-                                <Checkbox
-                                  checked={selectedDepositIds.includes(deposit.Deposit_ID)}
-                                  size="small"
-                                  sx={{ 
-                                    py: 0,
-                                    '& .MuiSvgIcon-root': { fontSize: '1rem' }
-                                  }}
-                                />
-                                {deposit.Deposit_ID} - {deposit.Deposit_Reference || 'No Reference'} ({new Date(deposit.Deposit_Date).toLocaleDateString()})
+                              <MenuItem key={deposit.Deposit_ID} value={String(deposit.Deposit_ID)} sx={{ fontSize: '0.7rem', py: 0.5 }}>
+                                <Checkbox checked={selectedDepositIds.includes(deposit.Deposit_ID)} size="small" sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '0.9rem' } }} />
+                                <Typography sx={{ fontSize: '0.7rem' }}>{deposit.Deposit_ID} - {deposit.Deposit_Reference || 'No Ref'} ({formatDate(deposit.Deposit_Date)})</Typography>
                               </MenuItem>
                             ))}
                           </Select>
                         </FormControl>
                       </Box>
-                    )}
+                    </Grid>
 
                     {/* Transaction Source Filter */}
-                    {filterOptions.transactionSource.length > 0 && (
-                      <Box sx={{ mb: 1.25 }}>
-                        <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 500, fontSize: '0.75rem', display: 'block' }}>
                           Transaction Source
                         </Typography>
                         <FormControl fullWidth size="small">
@@ -1507,63 +1186,50 @@ const ARReportTab: React.FC = () => {
                             displayEmpty
                             renderValue={(selected) => {
                               if (selected.length === 0) {
-                                return <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>All Sources</Typography>;
+                                return <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>All Sources</Typography>;
                               }
-                              return (
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {selected.map((value) => (
-                                    <Typography key={value} sx={{ fontSize: '0.7rem' }}>
-                                      {value === 'true' ? 'POS' : 'Non-POS'}
-                                    </Typography>
-                                  ))}
-                                </Box>
-                              );
+                              return <Typography sx={{ fontSize: '0.7rem' }}>{selected.length} selected</Typography>;
                             }}
                             sx={{
-                              fontSize: '0.75rem',
+                              fontSize: '0.7rem',
+                              height: '32px',
                               '& .MuiSelect-select': {
-                                minHeight: 'auto',
+                                py: 0.5,
+                                minHeight: 'auto !important',
+                                fontSize: '0.7rem',
                               },
                               '& .MuiOutlinedInput-notchedOutline': {
                                 borderWidth: '1px',
                               },
-                              '& .MuiSelect-icon': {
-                                color: 'primary.main',
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  maxHeight: 300,
+                                  '& .MuiMenuItem-root': {
+                                    fontSize: '0.7rem',
+                                    py: 0.5,
+                                    minHeight: 'auto',
+                                  },
+                                },
                               },
                             }}
                           >
-                            {(() => {
-                              // Get unique transaction sources (true and false)
-                              const uniqueSources = Array.from(
-                                new Set(filterOptions.transactionSource.map(s => s.AR_POS))
-                              );
-                              return uniqueSources.map((arPos, idx) => (
-                                <MenuItem 
-                                  key={idx} 
-                                  value={String(arPos)}
-                                  sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                                >
-                                  <Checkbox
-                                    checked={selectedTransactionSources.includes(arPos)}
-                                    size="small"
-                                    sx={{ 
-                                      py: 0,
-                                      '& .MuiSvgIcon-root': { fontSize: '1rem' }
-                                    }}
-                                  />
-                                  {arPos ? 'POS' : 'Non-POS'}
-                                </MenuItem>
-                              ));
-                            })()}
+                            {filterOptions.transactionSource.map((source, idx) => (
+                              <MenuItem key={idx} value={String(source.AR_POS)} sx={{ fontSize: '0.7rem', py: 0.5 }}>
+                                <Checkbox checked={selectedTransactionSources.includes(source.AR_POS)} size="small" sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '0.9rem' } }} />
+                                <Typography sx={{ fontSize: '0.7rem' }}>{source.AR_POS ? 'POS' : 'Non-POS'}</Typography>
+                              </MenuItem>
+                            ))}
                           </Select>
                         </FormControl>
                       </Box>
-                    )}
+                    </Grid>
 
                     {/* User Filter */}
-                    {filterOptions.users.length > 0 && (
-                      <Box sx={{ mb: 1.25 }}>
-                        <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 500, fontSize: '0.75rem', display: 'block' }}>
                           User
                         </Typography>
                         <FormControl fullWidth size="small">
@@ -1578,411 +1244,48 @@ const ARReportTab: React.FC = () => {
                             displayEmpty
                             renderValue={(selected) => {
                               if (selected.length === 0) {
-                                return <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>All Users</Typography>;
+                                return <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>All Users</Typography>;
                               }
-                              return (
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  <Typography sx={{ fontSize: '0.7rem' }}>
-                                    {selected.length} selected
-                                  </Typography>
-                                </Box>
-                              );
+                              return <Typography sx={{ fontSize: '0.7rem' }}>{selected.length} selected</Typography>;
                             }}
                             sx={{
-                              fontSize: '0.75rem',
+                              fontSize: '0.7rem',
+                              height: '32px',
                               '& .MuiSelect-select': {
-                                minHeight: 'auto',
+                                py: 0.5,
+                                minHeight: 'auto !important',
+                                fontSize: '0.7rem',
                               },
                               '& .MuiOutlinedInput-notchedOutline': {
                                 borderWidth: '1px',
                               },
-                              '& .MuiSelect-icon': {
-                                color: 'primary.main',
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  maxHeight: 300,
+                                  '& .MuiMenuItem-root': {
+                                    fontSize: '0.7rem',
+                                    py: 0.5,
+                                    minHeight: 'auto',
+                                  },
+                                },
                               },
                             }}
                           >
                             {filterOptions.users.map((user) => (
-                              <MenuItem 
-                                key={user.UserNumber} 
-                                value={String(user.UserNumber)}
-                                sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                              >
-                                <Checkbox
-                                  checked={selectedUserIds.includes(user.UserNumber)}
-                                  size="small"
-                                  sx={{ 
-                                    py: 0,
-                                    '& .MuiSvgIcon-root': { fontSize: '1rem' }
-                                  }}
-                                />
-                                {user.UserName}
+                              <MenuItem key={user.UserNumber} value={String(user.UserNumber)} sx={{ fontSize: '0.7rem', py: 0.5 }}>
+                                <Checkbox checked={selectedUserIds.includes(user.UserNumber)} size="small" sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '0.9rem' } }} />
+                                <Typography sx={{ fontSize: '0.7rem' }}>{user.UserName}</Typography>
                               </MenuItem>
                             ))}
                           </Select>
                         </FormControl>
                       </Box>
-                    )}
-                  </>
-                )}
-                
-                {/* Date Filters for AR Report History - Frontend filtering by Deposit Date */}
-                {reportType === 'ar-report-history' && (
-                  <>
-                    <Box sx={{ mb: 1.25 }}>
-                      <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Start Date
-                      </Typography>
-                      <CustomDatePicker
-                        value={startDate}
-                        onChange={(date) => setStartDate(date)}
-                      />
-                    </Box>
-                    <Box sx={{ mb: 1.25 }}>
-                      <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        End Date
-                      </Typography>
-                      <CustomDatePicker
-                        value={endDate}
-                        onChange={(date) => setEndDate(date)}
-                        minDate={startDate || undefined}
-                      />
-                    </Box>
-                  </>
-                )}
-                
-                {/* Group By Option */}
-                <Box sx={{ mb: 1.25 }}>
-                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Group By
-                  </Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={groupBy || 'none'}
-                      onChange={(e) => {
-                        const newGroupBy = e.target.value as 'none' | 'ar-date' | 'ar-check-date' | 'deposit-date' | 'deposit-id' | 'qb-transfer-date' | 'deposit-delete-date';
-                        
-                        // Validate that the selected option is valid for current report type
-                        let isValid = true;
-                        
-                        if (reportType === 'ar-report') {
-                          // AR Report: Only allow ar-date, ar-check-date, deposit-date, deposit-id, none
-                          if (newGroupBy === 'qb-transfer-date' || newGroupBy === 'deposit-delete-date') {
-                            // Invalid option for AR Report, reset to none
-                            isValid = false;
-                          }
-                        } else if (reportType === 'ar-report-history') {
-                          // AR Report History: Only allow qb-transfer-date, deposit-delete-date, deposit-date, none (deposit-id is disabled)
-                          if (newGroupBy === 'ar-date' || newGroupBy === 'ar-check-date' || newGroupBy === 'deposit-id') {
-                            // Invalid option for AR Report History, reset to none
-                            isValid = false;
-                          }
-                        }
-                        
-                        // Set the valid groupBy value or reset to none if invalid
-                        setGroupBy(isValid ? newGroupBy : 'none');
-                        
-                        // If invalid, don't proceed with rest of logic
-                        if (!isValid) {
-                          return;
-                        }
-                        
-                        // Auto-enable custReceivables if AR Date or AR Check Date is selected
-                        // These fields are only available when custReceivables is enabled
-                        if (newGroupBy === 'ar-date' || newGroupBy === 'ar-check-date') {
-                          if (hasCustReceivables && !showCustReceivables) {
-                            setShowCustReceivables(true);
-                            // Re-process data if we have raw data and preview is shown
-                            if (rawFetchedData.length > 0 && showPreview) {
-                              const filteredData = applyFrontendFilters(rawFetchedData);
-                              reprocessData(filteredData, true);
-                            }
-                          }
-                          // If data is not loaded yet, the grouping will work once data is loaded and has custReceivables
-                        }
-                      }}
-                      disabled={previewLoading}
-                      displayEmpty={false}
-                      sx={{
-                        fontSize: '0.75rem',
-                        '& .MuiSelect-select': {
-                          minHeight: 'auto',
-                        },
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderWidth: '1px',
-                        },
-                        '& .MuiSelect-icon': {
-                          color: 'primary.main',
-                        },
-                      }}
-                    >
-                      <MenuItem key="none" value="none" sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}>
-                        None
-                      </MenuItem>
-                      <MenuItem 
-                        key="ar-date"
-                        value="ar-date" 
-                        disabled={reportType === 'ar-report-history'}
-                        sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                      >
-                        AR Date
-                      </MenuItem>
-                      <MenuItem 
-                        key="ar-check-date"
-                        value="ar-check-date" 
-                        disabled={reportType === 'ar-report-history'}
-                        sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                      >
-                        AR Check Date
-                      </MenuItem>
-                      <MenuItem key="deposit-date" value="deposit-date" sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}>
-                        Deposit Date
-                      </MenuItem>
-                      <MenuItem 
-                        key="qb-transfer-date" 
-                        value="qb-transfer-date" 
-                        disabled={reportType === 'ar-report'}
-                        sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                      >
-                        QB Transfer Date
-                      </MenuItem>
-                      <MenuItem 
-                        key="deposit-delete-date" 
-                        value="deposit-delete-date" 
-                        disabled={reportType === 'ar-report'}
-                        sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                      >
-                        Deposit Delete Date
-                      </MenuItem>
-                      <MenuItem 
-                        key="deposit-id" 
-                        value="deposit-id" 
-                        disabled={reportType === 'ar-report-history'}
-                        sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                      >
-                        Deposit ID
-                      </MenuItem>
-                    </Select>
-                  </FormControl>
-                </Box>
-              </Grid>
-
-              {/* Right Column - Field Selection */}
-              <Grid size={{ xs: 12, md: 9 }}>
-                {/* CustReceivables Section - Separate at top */}
-                {hasCustReceivables && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="caption" sx={{ mb: 0.5, pl: 0.5, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Cust Receivables
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        py: 0.75,
-                        px: 1,
-                        borderRadius: 1,
-                        backgroundColor: showCustReceivables
-                          ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.12)' : 'rgba(25, 118, 210, 0.06)')
-                          : 'transparent',
-                        border: `1px solid ${theme.palette.divider}`,
-                        transition: 'all 0.15s ease',
-                        '&:hover': {
-                          backgroundColor: theme.palette.mode === 'dark'
-                            ? 'rgba(255, 255, 255, 0.03)'
-                            : 'rgba(0, 0, 0, 0.02)',
-                        },
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          fontSize: '0.75rem',
-                          fontWeight: showCustReceivables ? 600 : 400,
-                          color: showCustReceivables ? 'primary.main' : 'text.secondary',
-                          transition: 'all 0.15s ease',
-                          flex: 1,
-                        }}
-                      >
-                        Show custReceivables fields
-                      </Typography>
-                      <Switch
-                        size="small"
-                        checked={showCustReceivables}
-                        onChange={(e) => {
-                          const newValue = e.target.checked;
-                          setShowCustReceivables(newValue);
-                          
-                          // When disabling, unselect all custReceivables fields
-                          if (!newValue) {
-                            setSelectedFields(prev => {
-                              const updated = { ...prev };
-                              CUST_RECEIVABLES_FIELDS.forEach(field => {
-                                delete updated[field];
-                              });
-                              return updated;
-                            });
-                          }
-                          
-                          // Re-process data if we have raw data and preview is shown
-                          if (rawFetchedData.length > 0 && showPreview) {
-                            // Apply frontend filters before reprocessing
-                            const filteredData = applyFrontendFilters(rawFetchedData);
-                            reprocessData(filteredData, newValue && hasCustReceivables);
-                          }
-                        }}
-                        disabled={previewLoading || !hasCustReceivables}
-                      />
-                    </Box>
-                    
-                    {/* CustReceivables Fields Section */}
-                    {showCustReceivables && availableCustReceivablesFields.length > 0 && (
-                      <Box sx={{ mt: 1.5, pl: 0.5 }}>
-                        <Box sx={{ 
-                          maxHeight: '200px',
-                          overflowY: 'auto',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '4px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
-                            borderRadius: '2px',
-                            '&:hover': {
-                              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)',
-                            },
-                          },
-                        }}>
-                          <Grid container spacing={0.4}>
-                            {availableCustReceivablesFields.map((field) => (
-                              <Grid size={{ xs: 12, sm: 6, md: 6, lg: 4, xl: 3}} key={field}>
-                                <Box
-                                  sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    py: 0.35,
-                                    px: 0.5,
-                                    borderRadius: 0.75,
-                                    transition: 'all 0.15s ease',
-                                    backgroundColor: selectedFields[field] 
-                                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.12)' : 'rgba(25, 118, 210, 0.06)')
-                                      : 'transparent',
-                                    '&:hover': {
-                                      backgroundColor: theme.palette.mode === 'dark' 
-                                        ? 'rgba(255, 255, 255, 0.03)' 
-                                        : 'rgba(0, 0, 0, 0.02)',
-                                    },
-                                  }}
-                                >
-                                  <Switch
-                                    size="small"
-                                    checked={selectedFields[field] || false}
-                                    onChange={(e) => handleFieldToggle(field, e.target.checked)}
-                                    disabled={previewLoading}
-                                  />
-                                  <Typography 
-                                    sx={{ 
-                                      fontSize: '0.7rem', 
-                                      fontWeight: selectedFields[field] ? 500 : 400,
-                                      color: selectedFields[field] ? 'primary.main' : 'text.secondary',
-                                      transition: 'all 0.15s ease',
-                                      flex: 1,
-                                      ml: 1,
-                                    }}
-                                  >
-                                    {FIELD_LABELS[field] || field}
-                                  </Typography>
-                                </Box>
-                              </Grid>
-                            ))}
-                          </Grid>
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                )}
-
-                {/* Regular Fields Section */}
-                {availableDepositFields.length > 0 ? (
-                  <>
-                    <Typography variant="caption" sx={{ mb: 0.5, pl: 0.5, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Select Fields
-                    </Typography>
-                    <Typography variant="caption" sx={{ mb: 0.6, pl: 0.5, fontSize: '0.65rem', display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
-                      Deposit ID always included
-                    </Typography>
-                    <Box sx={{ 
-                      maxHeight: 'calc(100vh - 260px)',
-                      overflowY: 'auto',
-                      pr: 0.5,
-                      '&::-webkit-scrollbar': {
-                        width: '4px',
-                      },
-                      '&::-webkit-scrollbar-track': {
-                        background: 'transparent',
-                      },
-                      '&::-webkit-scrollbar-thumb': {
-                        background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
-                        borderRadius: '2px',
-                        '&:hover': {
-                          background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)',
-                        },
-                      },
-                    }}>
-                      <Grid container spacing={0.4}>
-                        {availableDepositFields.map((field) => (
-                          <Grid size={{ xs: 12, sm: 6, md: 6, lg: 4, xl: 3}} key={field}>
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                py: 0.35,
-                                px: 0.5,
-                                borderRadius: 0.75,
-                                transition: 'all 0.15s ease',
-                                backgroundColor: selectedFields[field] 
-                                  ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.12)' : 'rgba(25, 118, 210, 0.06)')
-                                  : 'transparent',
-                                '&:hover': {
-                                  backgroundColor: theme.palette.mode === 'dark' 
-                                    ? 'rgba(255, 255, 255, 0.03)' 
-                                    : 'rgba(0, 0, 0, 0.02)',
-                                },
-                              }}
-                            >
-                              <Switch
-                                size="small"
-                                checked={selectedFields[field] || false}
-                                onChange={(e) => handleFieldToggle(field, e.target.checked)}
-                                disabled={previewLoading}
-                              />
-                              <Typography 
-                                sx={{ 
-                                  fontSize: '0.7rem', 
-                                  fontWeight: selectedFields[field] ? 500 : 400,
-                                  color: selectedFields[field] ? 'primary.main' : 'text.secondary',
-                                  transition: 'all 0.15s ease',
-                                  flex: 1,
-                                }}
-                              >
-                                {FIELD_LABELS[field] || field}
-                              </Typography>
-                            </Box>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    </Box>
-                  </>
-                ) : (
-                  <Typography variant="caption" sx={{ mb: 0.6, pl: 0.5, fontSize: '0.65rem', display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
-                    Deposit ID always included
-                  </Typography>
-                )}
-              </Grid>
+                    </Grid>
+                  </Grid>
+                </Grid>
+              )}
             </Grid>
           </Paper>
         ) : (
@@ -1994,12 +1297,12 @@ const ARReportTab: React.FC = () => {
             backgroundColor: theme.palette.background.paper,
           }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              {reportType === 'ar-report-history' ? 'AR Report History' : 'AR Report'} Preview
+              {reportType === 'ar-report-history' ? 'A/R Deposit History' : 'A/R Deposits'} Preview
             </Typography>
             
-            {reportType === 'ar-report' && startDate && endDate && (
+            {startDate && endDate && (
               <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-                Date Range: {startDate.format('MM/DD/YYYY')} - {endDate.format('MM/DD/YYYY')}
+                Date: {startDate.format('MM/DD/YYYY')} - {endDate.format('MM/DD/YYYY')}
               </Typography>
             )}
 
@@ -2018,82 +1321,146 @@ const ARReportTab: React.FC = () => {
                   overflow: 'auto',
                   position: 'relative',
                 }}>
-                  <Table stickyHeader size="small" sx={{
-                    '& .MuiTableHead-root': {
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 100,
-                    },
-                    '& .MuiTableHead-root .MuiTableRow-root': {
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 100,
-                    },
-                  }}>
+                  <Table stickyHeader size="small">
                     <TableHead>
                       <TableRow>
-                        {getSelectedFieldKeys.map((field) => (
-                          <TableCell
-                            key={field}
-                            sx={{
-                              backgroundColor: theme.palette.mode === 'dark' 
-                                ? '#2a2a2a' 
-                                : '#e0e0e0',
-                              fontWeight: 600,
-                              fontSize: '0.75rem',
-                              whiteSpace: 'nowrap',
-                              position: 'sticky',
-                              top: 0,
-                              zIndex: 100,
-                              boxShadow: theme.palette.mode === 'dark' 
-                                ? '0 2px 4px rgba(0, 0, 0, 0.5)' 
-                                : '0 2px 4px rgba(0, 0, 0, 0.2)',
-                            }}
-                          >
-                            {FIELD_LABELS[field] || field}
-                          </TableCell>
-                        ))}
+                        {reportType === 'ar-report-history' ? (
+                          <>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Deposit Date</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Deposit ID</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Deposit Reference</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }} align="right">Payments</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }} align="right">Adjustments</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }} align="right">Returned Checks</TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Type</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Subtype</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Reference</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Customer Number / Name</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>User</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Lane/ID</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Check Date</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Posting Date</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }} align="right">Amount</TableCell>
+                          </>
+                        )}
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {paginatedPreviewData.map((item, idx) => {
-                        if (item.type === 'group-header') {
+                      {paginatedPreviewData.map((row, idx) => {
+                        // Deposit header
+                        if (row.type === 'deposit-header') {
+                          const depositDate = formatDate(row.Deposit_Date);
                           return (
-                            <TableRow key={`group-${item.groupKey}-${idx}`}>
+                            <TableRow key={`header-${row.Deposit_ID}-${idx}`}>
                               <TableCell
-                                colSpan={getSelectedFieldKeys.length}
+                                colSpan={reportType === 'ar-report-history' ? 6 : 9}
                                 sx={{
-                                  backgroundColor: theme.palette.mode === 'dark' 
-                                    ? 'rgba(255, 255, 255, 0.08)' 
-                                    : 'rgba(0, 0, 0, 0.03)',
+                                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.03)',
                                   fontWeight: 600,
-                                  fontSize: '0.8rem',
+                                  fontSize: '0.875rem',
                                   py: 1,
-                                  borderBottom: theme.palette.mode === 'dark'
-                                    ? '2px solid rgba(255, 255, 255, 0.12)'
-                                    : '2px solid rgba(0, 0, 0, 0.08)',
+                                  pl: 2,
                                 }}
                               >
-                                {item.groupKey}
+                                Deposit Date: {depositDate} | Deposit ID: {row.Deposit_ID} - {row.Deposit_Reference || ''}
                               </TableCell>
                             </TableRow>
                           );
                         }
-                        return (
-                          <TableRow key={`${item.data?.Deposit_ID}-${item.data?.Invoice_Number || idx}-${idx}`} hover>
-                            {getSelectedFieldKeys.map((field) => (
+                        
+                        // Spacing row (empty Type and Subtype)
+                        if (row.type === 'transaction' && !row.Type && !row.Subtype && row.label === '') {
+                          return (
+                            <TableRow key={`spacer-${idx}`}>
                               <TableCell
-                                key={field}
-                                sx={{
-                                  fontSize: '0.75rem',
-                                  whiteSpace: 'nowrap',
-                                }}
+                                colSpan={reportType === 'ar-report-history' ? 6 : 9}
+                                sx={{ py: 0.5, borderBottom: `1px solid ${theme.palette.divider}` }}
                               >
-                                {formatFieldValue(item.data!, field)}
+                                &nbsp;
                               </TableCell>
-                            ))}
-                          </TableRow>
-                        );
+                            </TableRow>
+                          );
+                        }
+                        
+                        // Transaction row
+                        if (row.type === 'transaction') {
+                          if (reportType === 'ar-report-history') {
+                            return (
+                              <TableRow key={`row-${row.Deposit_ID}-${idx}`} hover>
+                                <TableCell>{formatDate(row.Deposit_Date)}</TableCell>
+                                <TableCell>{row.Deposit_ID}</TableCell>
+                                <TableCell>{row.Deposit_Reference || ''}</TableCell>
+                                <TableCell align="right">{formatAmount(row.Payment_Total)}</TableCell>
+                                <TableCell align="right">{formatAmount(row.Adjustment_Total)}</TableCell>
+                                <TableCell align="right">{formatAmount(row.ReturnCheck_Total)}</TableCell>
+                              </TableRow>
+                            );
+                          } else {
+                            const customerInfo = row.Customer_Number 
+                              ? `${row.Customer_Number} - ${row.Customer_Name || ''}`.trim()
+                              : '';
+                            return (
+                              <TableRow key={`row-${row.Deposit_ID}-${idx}`} hover>
+                                <TableCell>{row.Type || ''}</TableCell>
+                                <TableCell>{row.Subtype || ''}</TableCell>
+                                <TableCell>{row.Reference || ''}</TableCell>
+                                <TableCell>{customerInfo}</TableCell>
+                                <TableCell>{row.User || ''}</TableCell>
+                                <TableCell>{row.Lane_ID || ''}</TableCell>
+                                <TableCell>{formatDate(row.Check_Date)}</TableCell>
+                                <TableCell>{formatDate(row.Posting_Date)}</TableCell>
+                                <TableCell align="right">{formatAmount(row.Amount)}</TableCell>
+                              </TableRow>
+                            );
+                          }
+                        }
+                        
+                        // History total row
+                        if (row.type === 'history-total') {
+                          return (
+                            <TableRow key={`history-total-${idx}`}>
+                              <TableCell
+                                colSpan={3}
+                                align="right"
+                                sx={{ fontWeight: 600, pl: 2 }}
+                              >
+                                {row.label || 'Total:'}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                {formatAmount(row.Payment_Total)}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                {formatAmount(row.Adjustment_Total)}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                {formatAmount(row.ReturnCheck_Total)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        
+                        // Subtype total or deposit total
+                        if (row.type === 'subtype-total' || row.type === 'deposit-total') {
+                          return (
+                            <TableRow key={`total-${idx}`}>
+                              <TableCell
+                                colSpan={reportType === 'ar-report-history' ? 5 : 8}
+                                align="right"
+                                sx={{ fontWeight: 600, pl: 2 }}
+                              >
+                                {row.label || ''}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                {formatAmount(row.Amount)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        
+                        return null;
                       })}
                     </TableBody>
                   </Table>
@@ -2107,45 +1474,12 @@ const ARReportTab: React.FC = () => {
                       onChange={(_, page) => setPreviewPage(page - 1)}
                       color="primary"
                       size="small"
-                      sx={{
-                        '& .MuiPaginationItem-root.Mui-selected': {
-                          backgroundColor: 'primary.main',
-                          color: 'white',
-                          '&:hover': {
-                            backgroundColor: 'primary.dark',
-                          },
-                        },
-                      }}
                     />
                   </Box>
                 )}
 
                 <Typography variant="body2" sx={{ mt: 2, textAlign: 'center', color: 'text.secondary' }}>
-                  {(() => {
-                    // Count only actual data rows (not group headers) in the current page
-                    const dataRowsInCurrentPage = paginatedPreviewData.filter(item => item.type === 'row').length;
-                    
-                    // Count total data rows (not group headers) across all pages
-                    const totalDataRows = groupedPreviewData.filter(item => item.type === 'row').length;
-                    
-                    // Calculate the range of data rows shown
-                    // Count data rows before current page
-                    let dataRowsBeforeCurrentPage = 0;
-                    for (let i = 0; i < previewPage * PREVIEW_PAGE_SIZE; i++) {
-                      if (groupedPreviewData[i]?.type === 'row') {
-                        dataRowsBeforeCurrentPage++;
-                      }
-                    }
-                    
-                    const start = dataRowsBeforeCurrentPage + 1;
-                    const end = dataRowsBeforeCurrentPage + dataRowsInCurrentPage;
-                    
-                    if (totalDataRows === 0) {
-                      return 'Showing 0 records';
-                    }
-                    
-                    return `Showing ${start}-${end} of ${totalDataRows} records`;
-                  })()}
+                  Showing {previewPage * PREVIEW_PAGE_SIZE + 1}-{Math.min((previewPage + 1) * PREVIEW_PAGE_SIZE, previewData.length)} of {previewData.length} records
                 </Typography>
               </>
             )}
@@ -2172,8 +1506,8 @@ const ARReportTab: React.FC = () => {
               buttonType="primary"
               appearance="filled"
               onClick={handlePreview}
-              disabled={previewLoading || dateChangeLoading || !endDate || (reportType === 'ar-report' && !startDate)}
-              loading={previewLoading || dateChangeLoading}
+              disabled={previewLoading || !startDate || !endDate}
+              loading={previewLoading}
               icon={<PreviewIcon />}
               iconPosition="left"
               fullWidth={false}
@@ -2205,7 +1539,7 @@ const ARReportTab: React.FC = () => {
                 buttonType="primary"
                 appearance="filled"
                 onClick={handleGenerateCSV}
-                disabled={generatingReport || generatingPDF || reportData.length === 0}
+                disabled={generatingReport || generatingPDF || previewData.length === 0}
                 loading={generatingReport}
                 icon={<FileDownloadIcon />}
                 iconPosition="left"
@@ -2219,7 +1553,7 @@ const ARReportTab: React.FC = () => {
                 buttonType="primary"
                 appearance="filled"
                 onClick={handleGeneratePDF}
-                disabled={generatingReport || generatingPDF || reportData.length === 0}
+                disabled={generatingReport || generatingPDF || previewData.length === 0}
                 loading={generatingPDF}
                 icon={!generatingPDF ? <PdfIcon /> : undefined}
                 iconPosition="left"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Box,
@@ -19,7 +19,6 @@ import {
   Checkbox,
   Select,
   MenuItem,
-  Switch,
   Pagination,
 } from '@mui/material';
 import {
@@ -38,6 +37,8 @@ import toast from 'react-hot-toast';
 import dayjs, { Dayjs } from 'dayjs';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import rabbitLogo from '../../../assets/Rabbit.svg';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../redux/store';
 
 interface LossQtyReportRow {
   Document_Number: string;
@@ -109,15 +110,15 @@ interface FilterOptions {
 }
 
 const FIELD_LABELS: { [key: string]: string } = {
-  Document_Number: 'Document Number',
+  Document_Number: 'Invoice #',
   Invoice_Date: 'Invoice Date',
   Invoice_Number: 'Invoice Number',
-  C_Number: 'Customer Number',
+  C_Number: 'Customer #',
   S_Number: 'Sales Rep Number',
   Route_Number: 'Route Number',
   Order_Number: 'Order Number',
   Promo_Number: 'Promo Number',
-  Item_Number: 'Item Number',
+  Item_Number: 'Item #',
   Quantity_Ordered: 'Quantity Ordered',
   Quantity_Shipped: 'Quantity Shipped',
   Loss_Qty: 'Loss Qty',
@@ -161,84 +162,60 @@ const PDF_FIELD_LABELS: { [key: string]: string } = {
   Quantity_Shipped: 'Qty shipped',
 };
 
-// Field groups definition
-const FIELD_GROUPS: { [key: string]: { label: string; fields: string[] } } = {
-  basic: {
-    label: 'Basic Group',
-    fields: ['Order_Number', 'Quantity_Ordered', 'Quantity_Shipped', 'Loss_Qty', 'Ext_Price', 'Ext_Loss'],
-  },
-  document: {
-    label: 'Document Group',
-    fields: ['Document_Number', 'Invoice_Date', 'Invoice_Number', 'Order_Number'],
-  },
-  customer: {
-    label: 'Customer Group',
-    fields: ['C_Number', 'C_Name', 'c_address', 'c_city', 'c_state', 'c_zip', 'c_phone', 'c_Salesman', 'C_Country', 'C_ClassOfTrade'],
-  },
-  quantity: {
-    label: 'Quantity Group',
-    fields: ['Quantity_Ordered', 'Quantity_Shipped', 'Loss_Qty'],
-  },
-  price: {
-    label: 'Price Group',
-    fields: ['Price'],
-  },
-  costExtended: {
-    label: 'Cost & Extended Group',
-    fields: ['NetCost', 'BaseCost', 'AvgCost', 'Invoice_Cost', 'Ext_Price', 'Ext_Loss'],
-  },
-  product: {
-    label: 'Product Group',
-    fields: ['UOM', 'Pack', 'UnitOunces', 'Cig_Pack', 'OnHand'],
-  },
-  category: {
-    label: 'Category Group',
-    fields: ['Sales_Category', 'Price_Class', 'OTP_Number', 'Jurisdiction_County'],
-  },
-  route: {
-    label: 'Route Group',
-    fields: ['Route_Number'],
-  },
-};
 
-// Customer detail fields (only fields starting with C_ or c_)
-const customerFields = [
-  'C_Number', 'C_Name', 'c_address', 'c_city', 'c_state', 'c_zip', 'c_phone', 'c_Salesman'
-];
+// Custom alphabetical sort function: spaces -> symbols -> numbers -> letters (A-Z)
+const customAlphabeticalSort = (a: string, b: string): number => {
+    const aStr = (a || '').toString().trim();
+    const bStr = (b || '').toString().trim();
+    
+    // Get first character of each string
+    const aFirst = aStr.charAt(0);
+    const bFirst = bStr.charAt(0);
+    
+    // Define character type priorities: space=0, symbol=1, number=2, letter=3
+    const getCharType = (char: string): number => {
+      if (!char) return 3;
+      if (char === ' ') return 0;
+      if (/[0-9]/.test(char)) return 2;
+      if (/[a-zA-Z]/.test(char)) return 3;
+      return 1; // symbol
+    };
+    
+    const aType = getCharType(aFirst);
+    const bType = getCharType(bFirst);
+    
+    // If different types, sort by type priority
+    if (aType !== bType) {
+      return aType - bType;
+    }
+    
+    // Same type, use localeCompare for natural sorting
+    return aStr.localeCompare(bStr, undefined, { numeric: true, sensitivity: 'base' });
+};
 
 const LossQtyReportTab: React.FC = () => {
   const theme = useTheme();
   const location = useLocation();
+  const wareHouseDetail = useSelector((state: RootState) => state.auth.wareHouseDetail);
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState<LossQtyReportRow[]>([]);
   const [filteredData, setFilteredData] = useState<LossQtyReportRow[]>([]);
 
-  // Get default fields based on groupBy
-  const getDefaultFields = useCallback((groupByValue: 'item' | 'customer' | 'date' | 'none'): { [key: string]: boolean } => {
-    if (groupByValue === 'item') {
-      // When grouped by item, show customer detail fields
-      const defaults: { [key: string]: boolean } = {};
-      customerFields.forEach(field => {
-        defaults[field] = true;
-      });
-      return defaults;
+  // Fixed fields based on groupBy - no field selection needed
+  const getFixedFields = (groupByValue: 'item' | 'customer' | 'date'): string[] => {
+    if (groupByValue === 'customer') {
+      // Customer grouping: Item Number/Description, Document Date/Number, Order, Ship, On Hand, Lost, Ext $$$ Lost
+      return ['Item_Number', 'Description', 'Document_Number', 'Invoice_Date', 'Quantity_Ordered', 'Quantity_Shipped', 'OnHand', 'Loss_Qty', 'Ext_Loss'];
+    } else if (groupByValue === 'item') {
+      // Item grouping: Customer Number/Name, Document Date/Number, Order, Ship, Lost, Ext $$$ Lost
+      return ['C_Number', 'C_Name', 'Document_Number', 'Invoice_Date', 'Quantity_Ordered', 'Quantity_Shipped', 'Loss_Qty', 'Ext_Loss'];
     } else {
-      // For 'none', 'customer', or 'date': Only Item_Number, Description, Loss_Qty, Ext_Price, Ext_Loss
-      return {
-        Item_Number: true,
-        Description: true,
-        Loss_Qty: true,
-        Ext_Price: true,
-        Ext_Loss: true,
-      };
+      // Date grouping: Item #, Description, Customer #, Customer Name, Invoice #, Invoice Date, Quantity Ordered, Quantity Shipped, On Hand, Loss Qty, Ext Loss
+      return ['Item_Number', 'Description', 'C_Number', 'C_Name', 'Document_Number', 'Invoice_Date', 'Quantity_Ordered', 'Quantity_Shipped', 'OnHand', 'Loss_Qty', 'Ext_Loss'];
     }
-  }, []);
+  };
 
-  const [selectedFields, setSelectedFields] = useState<{ [key: string]: boolean }>(() => 
-    getDefaultFields('none')
-  );
-  const [selectedFieldGroup, setSelectedFieldGroup] = useState<string>('');
-  const [groupBy, setGroupBy] = useState<'item' | 'customer' | 'date' | 'none'>('none');
+  const [groupBy, setGroupBy] = useState<'item' | 'customer' | 'date'>('item');
   // Initialize dates from location.state if available (when coming from dashboard), otherwise default to 1 week ago to today
   const [fromDate, setFromDate] = useState<Dayjs | null>(() => {
     const stateFrom = location.state?.fromDate;
@@ -305,12 +282,6 @@ const LossQtyReportTab: React.FC = () => {
     }
   }, [fromDate, toDate]);
 
-  // Update selected fields when groupBy changes
-  useEffect(() => {
-    const defaultFields = getDefaultFields(groupBy);
-    setSelectedFields(defaultFields);
-    setSelectedFieldGroup(''); // Reset field group selection when groupBy changes
-  }, [groupBy, getDefaultFields]);
 
   const fetchFilterOptions = async () => {
     setLoadingFilters(true);
@@ -602,52 +573,17 @@ const LossQtyReportTab: React.FC = () => {
     selectedClassesOfTrade,
   ]);
 
-  const handleFieldToggle = (field: string, checked: boolean) => {
-    setSelectedFields(prev => ({
-      ...prev,
-      [field]: checked
-    }));
-  };
-
-  const handleFieldGroupChange = (groupKey: string) => {
-    setSelectedFieldGroup(groupKey);
-    
-    if (groupKey === '') {
-      // Don't clear fields when group is deselected, just remove the group selection
-      return;
-    }
-
-    const group = FIELD_GROUPS[groupKey];
-    if (group) {
-      // Clear all previous selections and only select fields in the new group
-      // Ensure Item_Number and Description are always included and never duplicated
-      const newSelectedFields: { [key: string]: boolean } = {
-        Item_Number: true,
-        Description: true,
-      };
-      // Add group fields, but exclude Item_Number and Description if they somehow appear
-      group.fields.forEach(field => {
-        if (field !== 'Item_Number' && field !== 'Description') {
-          newSelectedFields[field] = true;
-        }
-      });
-      setSelectedFields(newSelectedFields);
-    }
-  };
 
   type GroupedDataItem = 
-    | { type: 'header'; key: string; level?: number }
+    | { type: 'header'; key: string; level?: number; customerData?: LossQtyReportRow; itemData?: LossQtyReportRow; onHand?: number }
     | { type: 'row'; data: LossQtyReportRow }
-    | { type: 'row'; subtotal: { lossQty: number; extLoss: number } };
+    | { type: 'row'; subtotal: { lossQty: number; extLoss: number } }
+    | { type: 'row'; grandTotal: { lossQty: number; extLoss: number } };
 
   const getGroupedData = useMemo((): GroupedDataItem[] => {
     // Use current chunk data for display
     const dataToGroup = getCurrentChunkData.length > 0 ? getCurrentChunkData : filteredData;
     
-    if (groupBy === 'none') {
-      return dataToGroup.map(row => ({ type: 'row' as const, data: row }));
-    }
-
     const result: GroupedDataItem[] = [];
 
     if (groupBy === 'date') {
@@ -666,11 +602,11 @@ const LossQtyReportTab: React.FC = () => {
         // Format date for display
         const formattedDate = key ? (dayjs(key).isValid() ? dayjs(key).format('MM/DD/YYYY') : key) : key;
         result.push({ type: 'header', key: formattedDate, level: 1 });
-        // Sort rows by customer name, then by product description
+        // Sort rows by item description first (alphabetically), then by customer name
         const rows = grouped[key].sort((a, b) => {
-          const customerCompare = (a.C_Name || '').localeCompare(b.C_Name || '');
-          if (customerCompare !== 0) return customerCompare;
-          return (a.Description || '').localeCompare(b.Description || '');
+          const descCompare = customAlphabeticalSort(a.Description || '', b.Description || '');
+          if (descCompare !== 0) return descCompare;
+          return customAlphabeticalSort(a.C_Name || '', b.C_Name || '');
         });
         rows.forEach(row => {
           result.push({ type: 'row', data: row });
@@ -683,62 +619,93 @@ const LossQtyReportTab: React.FC = () => {
         result.push({ type: 'row', subtotal });
       });
     } else if (groupBy === 'customer') {
-      // Group by customer, show all product rows directly
-      const customerGrouped: { [customerKey: string]: LossQtyReportRow[] } = {};
+      // Group by customer - include customer details in header
+      const customerGrouped: { [customerKey: string]: { rows: LossQtyReportRow[]; firstRow: LossQtyReportRow } } = {};
 
       dataToGroup.forEach(row => {
-        const customerKey = `${row.C_Number} - ${row.C_Name}`;
+        const customerKey = `${row.C_Number} ${row.C_Name || ''}`.trim();
         if (!customerGrouped[customerKey]) {
-          customerGrouped[customerKey] = [];
+          customerGrouped[customerKey] = { rows: [], firstRow: row };
         }
-        customerGrouped[customerKey].push(row);
+        customerGrouped[customerKey].rows.push(row);
       });
 
-      Object.keys(customerGrouped).sort().forEach(customerKey => {
-        // Customer header
-        result.push({ type: 'header', key: customerKey, level: 1 });
-        // Sort rows by product description, then by invoice date
-        const rows = customerGrouped[customerKey].sort((a, b) => {
-          const productCompare = (a.Description || '').localeCompare(b.Description || '');
+      // Sort customers alphabetically by name first, then by number
+      Object.keys(customerGrouped).sort((keyA, keyB) => {
+        const customerA = customerGrouped[keyA].firstRow;
+        const customerB = customerGrouped[keyB].firstRow;
+        // Sort by customer name first (alphabetically)
+        const nameCompare = customAlphabeticalSort(customerA.C_Name || '', customerB.C_Name || '');
+        if (nameCompare !== 0) return nameCompare;
+        // If names are the same, sort by customer number
+        return (customerA.C_Number || 0) - (customerB.C_Number || 0);
+      }).forEach(customerKey => {
+        const { rows, firstRow } = customerGrouped[customerKey];
+        // Customer header with details
+        result.push({ 
+          type: 'header', 
+          key: customerKey, 
+          level: 1,
+          customerData: firstRow
+        });
+        // Sort rows by product description (alphabetically), then by invoice date
+        const sortedRows = rows.sort((a, b) => {
+          const productCompare = customAlphabeticalSort(a.Description || '', b.Description || '');
           if (productCompare !== 0) return productCompare;
           return (a.Invoice_Date || '').localeCompare(b.Invoice_Date || '');
         });
-        rows.forEach(row => {
+        sortedRows.forEach(row => {
           result.push({ type: 'row', data: row });
         });
         // Customer subtotal
-        const customerSubtotal = rows.reduce((acc, row) => ({
+        const customerSubtotal = sortedRows.reduce((acc, row) => ({
           lossQty: acc.lossQty + (row.Loss_Qty || 0),
           extLoss: acc.extLoss + (row.Ext_Loss || 0),
         }), { lossQty: 0, extLoss: 0 });
         result.push({ type: 'row', subtotal: customerSubtotal });
       });
     } else if (groupBy === 'item') {
-      // Group by item/product, show all customer rows directly
-      const itemGrouped: { [itemKey: string]: LossQtyReportRow[] } = {};
+      // Group by item/product - include On Hand in header
+      const itemGrouped: { [itemKey: string]: { rows: LossQtyReportRow[]; firstRow: LossQtyReportRow; onHand: number } } = {};
 
       dataToGroup.forEach(row => {
-        const itemKey = `${row.Item_Number} - ${row.Description}`;
+        const itemKey = `${row.Item_Number} ${row.Description || ''}`.trim();
         if (!itemGrouped[itemKey]) {
-          itemGrouped[itemKey] = [];
+          itemGrouped[itemKey] = { rows: [], firstRow: row, onHand: row.OnHand || 0 };
         }
-        itemGrouped[itemKey].push(row);
+        itemGrouped[itemKey].rows.push(row);
       });
 
-      Object.keys(itemGrouped).sort().forEach(itemKey => {
-        // Item header
-        result.push({ type: 'header', key: itemKey, level: 1 });
-        // Sort rows by customer name, then by invoice date
-        const rows = itemGrouped[itemKey].sort((a, b) => {
-          const customerCompare = (a.C_Name || '').localeCompare(b.C_Name || '');
+      // Sort items alphabetically by description first, then by item number
+      Object.keys(itemGrouped).sort((keyA, keyB) => {
+        const itemA = itemGrouped[keyA].firstRow;
+        const itemB = itemGrouped[keyB].firstRow;
+        // Sort by description first (alphabetically)
+        const descCompare = customAlphabeticalSort(itemA.Description || '', itemB.Description || '');
+        if (descCompare !== 0) return descCompare;
+        // If descriptions are the same, sort by item number
+        return (itemA.Item_Number || 0) - (itemB.Item_Number || 0);
+      }).forEach(itemKey => {
+        const { rows, firstRow, onHand } = itemGrouped[itemKey];
+        // Item header with On Hand
+        result.push({ 
+          type: 'header', 
+          key: itemKey, 
+          level: 1,
+          itemData: firstRow,
+          onHand: onHand
+        });
+        // Sort rows by customer name (alphabetically), then by invoice date
+        const sortedRows = rows.sort((a, b) => {
+          const customerCompare = customAlphabeticalSort(a.C_Name || '', b.C_Name || '');
           if (customerCompare !== 0) return customerCompare;
           return (a.Invoice_Date || '').localeCompare(b.Invoice_Date || '');
         });
-        rows.forEach(row => {
+        sortedRows.forEach(row => {
           result.push({ type: 'row', data: row });
         });
         // Item subtotal
-        const itemSubtotal = rows.reduce((acc, row) => ({
+        const itemSubtotal = sortedRows.reduce((acc, row) => ({
           lossQty: acc.lossQty + (row.Loss_Qty || 0),
           extLoss: acc.extLoss + (row.Ext_Loss || 0),
         }), { lossQty: 0, extLoss: 0 });
@@ -746,15 +713,22 @@ const LossQtyReportTab: React.FC = () => {
       });
     }
 
+    // Add grand total at the end only on the last chunk (calculate from all filtered data)
+    const isLastChunk = filteredData.length <= CHUNK_SIZE || currentChunk === Math.ceil(filteredData.length / CHUNK_SIZE) - 1;
+    
+    if (isLastChunk && filteredData.length > 0) {
+      const grandTotal = filteredData.reduce((acc, row) => ({
+        lossQty: acc.lossQty + (row.Loss_Qty || 0),
+        extLoss: acc.extLoss + (row.Ext_Loss || 0),
+      }), { lossQty: 0, extLoss: 0 });
+      result.push({ type: 'row', grandTotal });
+    }
+
     return result;
-  }, [getCurrentChunkData, filteredData, groupBy]);
+  }, [getCurrentChunkData, filteredData, groupBy, currentChunk]);
 
   // Get all grouped data (for CSV/PDF export - includes all filtered data, not just current chunk)
   const getAllGroupedData = useMemo((): GroupedDataItem[] => {
-    if (groupBy === 'none') {
-      return filteredData.map(row => ({ type: 'row' as const, data: row }));
-    }
-
     const result: GroupedDataItem[] = [];
 
     if (groupBy === 'date') {
@@ -769,10 +743,11 @@ const LossQtyReportTab: React.FC = () => {
       Object.keys(grouped).sort().forEach(key => {
         const formattedDate = key ? (dayjs(key).isValid() ? dayjs(key).format('MM/DD/YYYY') : key) : key;
         result.push({ type: 'header', key: formattedDate, level: 1 });
+        // Sort rows by item description first (alphabetically), then by customer name
         const rows = grouped[key].sort((a, b) => {
-          const customerCompare = (a.C_Name || '').localeCompare(b.C_Name || '');
-          if (customerCompare !== 0) return customerCompare;
-          return (a.Description || '').localeCompare(b.Description || '');
+          const descCompare = customAlphabeticalSort(a.Description || '', b.Description || '');
+          if (descCompare !== 0) return descCompare;
+          return customAlphabeticalSort(a.C_Name || '', b.C_Name || '');
         });
         rows.forEach(row => {
           result.push({ type: 'row', data: row });
@@ -784,55 +759,96 @@ const LossQtyReportTab: React.FC = () => {
         result.push({ type: 'row', subtotal });
       });
     } else if (groupBy === 'customer') {
-      const customerGrouped: { [customerKey: string]: LossQtyReportRow[] } = {};
+      const customerGrouped: { [customerKey: string]: { rows: LossQtyReportRow[]; firstRow: LossQtyReportRow } } = {};
       filteredData.forEach(row => {
-        const customerKey = `${row.C_Number} - ${row.C_Name}`;
+        const customerKey = `${row.C_Number} ${row.C_Name || ''}`.trim();
         if (!customerGrouped[customerKey]) {
-          customerGrouped[customerKey] = [];
+          customerGrouped[customerKey] = { rows: [], firstRow: row };
         }
-        customerGrouped[customerKey].push(row);
+        customerGrouped[customerKey].rows.push(row);
       });
-      Object.keys(customerGrouped).sort().forEach(customerKey => {
-        result.push({ type: 'header', key: customerKey, level: 1 });
-        const rows = customerGrouped[customerKey].sort((a, b) => {
-          const productCompare = (a.Description || '').localeCompare(b.Description || '');
+      // Sort customers alphabetically by name first, then by number
+      Object.keys(customerGrouped).sort((keyA, keyB) => {
+        const customerA = customerGrouped[keyA].firstRow;
+        const customerB = customerGrouped[keyB].firstRow;
+        // Sort by customer name first (alphabetically)
+        const nameCompare = customAlphabeticalSort(customerA.C_Name || '', customerB.C_Name || '');
+        if (nameCompare !== 0) return nameCompare;
+        // If names are the same, sort by customer number
+        return (customerA.C_Number || 0) - (customerB.C_Number || 0);
+      }).forEach(customerKey => {
+        const { rows, firstRow } = customerGrouped[customerKey];
+        result.push({ 
+          type: 'header', 
+          key: customerKey, 
+          level: 1,
+          customerData: firstRow
+        });
+        const sortedRows = rows.sort((a, b) => {
+          const productCompare = customAlphabeticalSort(a.Description || '', b.Description || '');
           if (productCompare !== 0) return productCompare;
           return (a.Invoice_Date || '').localeCompare(b.Invoice_Date || '');
         });
-        rows.forEach(row => {
+        sortedRows.forEach(row => {
           result.push({ type: 'row', data: row });
         });
-        const customerSubtotal = rows.reduce((acc, row) => ({
+        const customerSubtotal = sortedRows.reduce((acc, row) => ({
           lossQty: acc.lossQty + (row.Loss_Qty || 0),
           extLoss: acc.extLoss + (row.Ext_Loss || 0),
         }), { lossQty: 0, extLoss: 0 });
         result.push({ type: 'row', subtotal: customerSubtotal });
       });
     } else if (groupBy === 'item') {
-      const itemGrouped: { [itemKey: string]: LossQtyReportRow[] } = {};
+      const itemGrouped: { [itemKey: string]: { rows: LossQtyReportRow[]; firstRow: LossQtyReportRow; onHand: number } } = {};
       filteredData.forEach(row => {
-        const itemKey = `${row.Item_Number} - ${row.Description}`;
+        const itemKey = `${row.Item_Number} ${row.Description || ''}`.trim();
         if (!itemGrouped[itemKey]) {
-          itemGrouped[itemKey] = [];
+          itemGrouped[itemKey] = { rows: [], firstRow: row, onHand: row.OnHand || 0 };
         }
-        itemGrouped[itemKey].push(row);
+        itemGrouped[itemKey].rows.push(row);
       });
-      Object.keys(itemGrouped).sort().forEach(itemKey => {
-        result.push({ type: 'header', key: itemKey, level: 1 });
-        const rows = itemGrouped[itemKey].sort((a, b) => {
-          const customerCompare = (a.C_Name || '').localeCompare(b.C_Name || '');
+      // Sort items alphabetically by description first, then by item number
+      Object.keys(itemGrouped).sort((keyA, keyB) => {
+        const itemA = itemGrouped[keyA].firstRow;
+        const itemB = itemGrouped[keyB].firstRow;
+        // Sort by description first (alphabetically)
+        const descCompare = customAlphabeticalSort(itemA.Description || '', itemB.Description || '');
+        if (descCompare !== 0) return descCompare;
+        // If descriptions are the same, sort by item number
+        return (itemA.Item_Number || 0) - (itemB.Item_Number || 0);
+      }).forEach(itemKey => {
+        const { rows, firstRow, onHand } = itemGrouped[itemKey];
+        result.push({ 
+          type: 'header', 
+          key: itemKey, 
+          level: 1,
+          itemData: firstRow,
+          onHand: onHand
+        });
+        const sortedRows = rows.sort((a, b) => {
+          const customerCompare = customAlphabeticalSort(a.C_Name || '', b.C_Name || '');
           if (customerCompare !== 0) return customerCompare;
           return (a.Invoice_Date || '').localeCompare(b.Invoice_Date || '');
         });
-        rows.forEach(row => {
+        sortedRows.forEach(row => {
           result.push({ type: 'row', data: row });
         });
-        const itemSubtotal = rows.reduce((acc, row) => ({
+        const itemSubtotal = sortedRows.reduce((acc, row) => ({
           lossQty: acc.lossQty + (row.Loss_Qty || 0),
           extLoss: acc.extLoss + (row.Ext_Loss || 0),
         }), { lossQty: 0, extLoss: 0 });
         result.push({ type: 'row', subtotal: itemSubtotal });
       });
+    }
+
+    // Add grand total at the end
+    const grandTotal = filteredData.reduce((acc, row) => ({
+      lossQty: acc.lossQty + (row.Loss_Qty || 0),
+      extLoss: acc.extLoss + (row.Ext_Loss || 0),
+    }), { lossQty: 0, extLoss: 0 });
+    
+    if (filteredData.length > 0) {
+      result.push({ type: 'row', grandTotal });
     }
 
     return result;
@@ -845,25 +861,76 @@ const LossQtyReportTab: React.FC = () => {
   const handleGenerateCSV = () => {
     setGeneratingReport(true);
     try {
-      // Include selected fields (Item_Number and Description only if selected)
-      const selectedFieldKeys = Object.keys(selectedFields).filter(key => selectedFields[key]);
-      const headers = selectedFieldKeys;
+      // Use fixed fields based on groupBy
+      const fixedFields = getFixedFields(groupBy);
+      const headers = fixedFields;
       const csvHeaders = headers.map(h => FIELD_LABELS[h] || h).join(',');
 
       const rows: string[] = [csvHeaders];
 
+      // Add main header row with distributor details
+      const distributor = wareHouseDetail?.[0];
+      const distributorName = distributor?.D_Name || '';
+      const distributorAddress = [
+        distributor?.D_Addr1,
+        distributor?.D_City,
+        distributor?.D_State
+      ].filter(Boolean).join(', ');
+      const distributorPhone = distributor?.D_Phone || '';
+      
+      const mainHeader = [
+        distributorName || '',
+        distributorAddress || '',
+        distributorPhone || '',
+        'Lost Sales Report',
+        `Generated on: ${dayjs().format('MM/DD/YYYY')}`,
+        fromDate && toDate ? `Date Range: ${fromDate.format('MM/DD/YYYY')} to ${toDate.format('MM/DD/YYYY')}` : '',
+        `Report by: ${groupBy === 'item' ? 'Item' : groupBy === 'customer' ? 'Customer' : 'Date'}`
+      ].filter(Boolean).join(' | ');
+      rows.push(`"${mainHeader}"`);
+      rows.push(''); // Empty row separator
+
       getAllGroupedData.forEach(item => {
         if (item.type === 'header') {
-          const isLevel2 = item.level === 2;
-          rows.push(`"${isLevel2 ? '  └─ ' : '=== '}${item.key}${isLevel2 ? '' : ' ==='}"`);
+          // Format header based on groupBy
+          let headerRow = '';
+          if (groupBy === 'customer' && item.customerData) {
+            const cust = item.customerData;
+            const address = [cust.c_address, cust.c_city, cust.c_state, cust.c_zip].filter(Boolean).join(' ');
+            headerRow = `Customer # ${cust.C_Number} - ${cust.C_Name || ''} ${address}`;
+            rows.push(`"${headerRow}"`);
+          } else if (groupBy === 'item' && item.itemData) {
+            const leftPart = `Item # ${item.itemData.Item_Number} - ${item.itemData.Description || ''}`;
+            const onHandText = item.onHand !== undefined ? `On Hand: ${item.onHand.toFixed(2)}` : '';
+            // Show On Hand on the right side with spacing
+            headerRow = onHandText ? `${leftPart} | ${onHandText}` : leftPart;
+            rows.push(`"${headerRow}"`);
+          } else {
+            headerRow = item.key;
+            rows.push(`"${headerRow}"`);
+          }
         } else if (item.type === 'row' && 'data' in item) {
           const row = headers.map(header => {
             const value = (item.data as any)[header];
-            return value !== undefined && value !== null ? String(value) : '';
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'number') {
+              if (header.includes('Date')) {
+                return dayjs(value).format('MM/DD/YYYY');
+              } else if (header === 'Ext_Loss' || header.includes('Price') || header.includes('Cost')) {
+                return value.toFixed(2);
+              }
+              return value.toString();
+            }
+            if (header.includes('Date') && typeof value === 'string') {
+              return dayjs(value).format('MM/DD/YYYY');
+            }
+            return String(value);
           });
           rows.push(row.map(v => `"${v.replace(/"/g, '""')}"`).join(','));
         } else if (item.type === 'row' && 'subtotal' in item) {
-          rows.push(`"Subtotal: Loss Qty: ${item.subtotal.lossQty}, Ext Loss: ${item.subtotal.extLoss.toFixed(2)}"`);
+          rows.push(`"Total Lost Qty: ${item.subtotal.lossQty.toFixed(2)}, Ext lost: ${item.subtotal.extLoss.toFixed(2)}"`);
+        } else if (item.type === 'row' && 'grandTotal' in item) {
+          rows.push(`"Total Lost Qty: ${item.grandTotal.lossQty.toFixed(2)}, Total Ext Lost: ${item.grandTotal.extLoss.toFixed(2)}"`);
         }
       });
 
@@ -978,82 +1045,111 @@ const LossQtyReportTab: React.FC = () => {
       // Load logo first before generating PDF
       const logoDataUrl = await loadLogoAsDataUrl();
       
-      // Use orderedSelectedFields to ensure no duplicates and proper ordering
-      const pdfFieldKeys = orderedSelectedFields;
+      // Use fixed fields based on groupBy
+      const pdfFieldKeys = getFixedFields(groupBy);
       const totalColumns = pdfFieldKeys.length;
-      const orientation = totalColumns <= 8 ? 'portrait' : 'landscape';
+      // Use portrait for customer grouping, otherwise use column-based logic
+      const orientation = groupBy === 'customer' ? 'portrait' : (totalColumns <= 8 ? 'portrait' : 'landscape');
       
+      const margin = 10;
+      const date = dayjs().format('MM/DD/YYYY');
+      let yPosition = 10;
+      
+      // Create doc with correct orientation
       const doc = new jsPDF(orientation, 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
-    //   const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 10;
-      let yPosition = 10;
-
-      // Title
+      
+      // Get distributor details
+      const distributor = wareHouseDetail?.[0];
+      const distributorName = distributor?.D_Name || '';
+      const distributorAddress = [
+        distributor?.D_Addr1,
+        distributor?.D_City,
+        distributor?.D_State
+      ].filter(Boolean).join(', ');
+      const distributorPhone = distributor?.D_Phone || '';
+      
+      // Main Header: Left - Distributor Details
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      let leftY = yPosition;
+      if (distributorName) {
+        doc.setFont('helvetica', 'bold');
+        doc.text(distributorName, margin, leftY);
+        leftY += 4;
+      }
+      if (distributorAddress) {
+        doc.setFont('helvetica', 'normal');
+        doc.text(distributorAddress, margin, leftY);
+        leftY += 4;
+      }
+      if (distributorPhone) {
+        doc.text(distributorPhone, margin, leftY);
+      }
+      
+      // Middle - Report Title
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text('Lost Sales Report', margin, yPosition);
-
-      // Date
-      doc.setFontSize(10);
+      doc.text('Lost Sales Report', pageWidth / 2, yPosition + 4, { align: 'center' });
+      
+      // Right - Generated on, Date range, Report by
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      const date = dayjs().format('MM/DD/YYYY');
-      doc.text(`Generated on: ${date}`, pageWidth - margin, yPosition, { align: 'right' });
-      yPosition += 8;
-
-      // Date range
+      let rightY = yPosition;
+      doc.text(`Generated on: ${date}`, pageWidth - margin, rightY, { align: 'right' });
+      rightY += 4;
       if (fromDate && toDate) {
-        doc.text(`Date Range: ${fromDate.format('MM/DD/YYYY')} to ${toDate.format('MM/DD/YYYY')}`, margin, yPosition);
-        yPosition += 6;
+        doc.text(`Date Range: ${fromDate.format('MM/DD/YYYY')} to ${toDate.format('MM/DD/YYYY')}`, pageWidth - margin, rightY, { align: 'right' });
+        rightY += 4;
       }
-
-      // Group by label
-      if (groupBy !== 'none') {
-        doc.text(`Grouped by: ${groupBy === 'item' ? 'Item' : groupBy === 'customer' ? 'Customer' : 'Date'}`, margin, yPosition);
-        yPosition += 6;
-      }
-
-      // Table headers - use orderedSelectedFields to prevent duplicates, use PDF-specific labels
-      const headers = pdfFieldKeys.map(key => PDF_FIELD_LABELS[key] || FIELD_LABELS[key] || key);
+      doc.text(`Report by: ${groupBy === 'item' ? 'Item' : groupBy === 'customer' ? 'Customer' : 'Date'}`, pageWidth - margin, rightY, { align: 'right' });
       
-      // Calculate column widths dynamically based on orientation
-      const availableWidth = pageWidth - (margin * 2);
-      const itemNumberIndex = pdfFieldKeys.indexOf('Item_Number');
-      const descriptionIndex = pdfFieldKeys.indexOf('Description');
-      const baseWidth = orientation === 'portrait' ? 25 : 30; // Base width for Item Number
-      const descWidth = orientation === 'portrait' ? 50 : 60; // Width for Description
-      const otherFieldsCount = pdfFieldKeys.length - (itemNumberIndex >= 0 ? 1 : 0) - (descriptionIndex >= 0 ? 1 : 0);
-      const selectedFieldWidth = orientation === 'portrait' 
-        ? (availableWidth - (itemNumberIndex >= 0 ? baseWidth : 0) - (descriptionIndex >= 0 ? descWidth : 0)) / (otherFieldsCount || 1)
-        : 30; // Width for each selected field
+      yPosition = Math.max(leftY, rightY) + 8;
       
-      const colWidths = pdfFieldKeys.map(field => {
-        if (field === 'Item_Number') return baseWidth;
-        if (field === 'Description') return descWidth;
-        return selectedFieldWidth;
-      });
+      const finalDoc = doc;
+
+      // Table headers - use PDF-specific labels
+      const headers = pdfFieldKeys.map((key: string) => PDF_FIELD_LABELS[key] || FIELD_LABELS[key] || key);
 
       // Table data
       const tableData: any[][] = [];
 
       getAllGroupedData.forEach(item => {
         if (item.type === 'header' && item.key) {
-          const isLevel2 = item.level === 2;
+          let leftContent = item.key;
+          
+          if (groupBy === 'customer' && item.customerData) {
+            const cust = item.customerData;
+            const address = [cust.c_address, cust.c_city, cust.c_state, cust.c_zip].filter(Boolean).join(' ');
+            leftContent = `Customer # ${cust.C_Number} - ${cust.C_Name || ''} ${address}`;
+          } else if (groupBy === 'item' && item.itemData) {
+            // For item grouping, show On Hand on the right side
+            const itemDesc = item.itemData.Description || '';
+            const leftPart = `Item # ${item.itemData.Item_Number} - ${itemDesc}`;
+            const onHandText = item.onHand !== undefined ? `On Hand: ${item.onHand.toFixed(2)}` : '';
+            // Format with On Hand on the right
+            leftContent = onHandText ? `${leftPart} | ${onHandText}` : leftPart;
+          } else if (groupBy === 'date') {
+            leftContent = item.key;
+          }
+          
+          // Single cell spanning all columns
           tableData.push([{ 
-            content: `${isLevel2 ? '  └─ ' : '=== '}${item.key}${isLevel2 ? '' : ' ==='}`, 
+            content: leftContent, 
             colSpan: headers.length, 
             styles: { 
               fontStyle: 'bold', 
-              fillColor: isLevel2 ? [220, 220, 220] : [200, 200, 200],
-              textColor: isLevel2 ? [80, 80, 80] : [0, 0, 0],
+              fillColor: [200, 200, 200],
+              textColor: [0, 0, 0],
+              halign: groupBy === 'item' && item.itemData && item.onHand !== undefined ? 'left' : 'left',
             } 
           }]);
         } else if (item.type === 'row' && 'data' in item) {
           const row = item.data;
           const rowData: any[] = [];
           
-          // Add field values in the same order as headers (using orderedSelectedFields)
-          pdfFieldKeys.forEach(field => {
+          // Add field values in the same order as headers
+          pdfFieldKeys.forEach((field: string) => {
             const value = (row as any)[field];
             let displayValue = '';
             if (value !== null && value !== undefined) {
@@ -1066,7 +1162,6 @@ const LossQtyReportTab: React.FC = () => {
                   field === 'Ext_Loss' || 
                   field.includes('Amount')
                 ) {
-                  // Only format as currency for price, cost, Ext_Loss, and amount fields (not Loss_Qty which is quantity)
                   displayValue = value.toFixed(2);
                 } else {
                   displayValue = value.toString();
@@ -1084,7 +1179,21 @@ const LossQtyReportTab: React.FC = () => {
           
           tableData.push(rowData);
         } else if (item.type === 'row' && 'subtotal' in item) {
-          tableData.push([{ content: `Subtotal: Lost: ${item.subtotal.lossQty}, Ext Loss: $${item.subtotal.extLoss.toFixed(2)}`, colSpan: headers.length, styles: { fontStyle: 'bold' } }]);
+          tableData.push([{ 
+            content: `Total Lost Qty: ${item.subtotal.lossQty.toFixed(2)}, Ext lost: ${item.subtotal.extLoss.toFixed(2)}`, 
+            colSpan: headers.length, 
+            styles: { fontStyle: 'bold' } 
+          }]);
+        } else if (item.type === 'row' && 'grandTotal' in item) {
+          tableData.push([{ 
+            content: `Total Lost Qty: ${item.grandTotal.lossQty.toFixed(2)}, Total Ext Lost: ${item.grandTotal.extLoss.toFixed(2)}`, 
+            colSpan: headers.length, 
+            styles: { 
+              fontStyle: 'bold',
+              fillColor: [220, 220, 220],
+              textColor: [0, 0, 0],
+            } 
+          }]);
         }
       });
 
@@ -1092,42 +1201,106 @@ const LossQtyReportTab: React.FC = () => {
       // Handle both default export and named export
       const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
       
-      autoTableFn(doc, {
+      autoTableFn(finalDoc, {
         head: [headers],
         body: tableData,
-        startY: yPosition,
-        margin: { left: margin, right: margin },
+        startY: yPosition, // Start position for first page (with header)
+        margin: { 
+          left: margin, 
+          right: margin,
+          top: 5, // Smaller top margin for pages 2+ (will be overridden by startY on first page)
+          bottom: 15 // Bottom margin for all pages to provide space for footer
+        },
         styles: { fontSize: 7 },
         headStyles: { fillColor: [25, 118, 210], textColor: 255, fontStyle: 'bold' },
-        columnStyles: colWidths.reduce((acc, width, index) => {
-          acc[index] = { cellWidth: width };
+        columnStyles: pdfFieldKeys.reduce((acc: { [key: number]: { fontSize?: number; overflow?: string; cellPadding?: number } }, field: string, index: number) => {
+          // Auto width - let jspdf-autotable calculate automatically
+          // Only set styling properties, not cellWidth
+          if (field === 'C_Name' || field === 'Description') {
+            acc[index] = { 
+              fontSize: 6,
+              overflow: 'linebreak',
+              cellPadding: 2,
+            };
+          } else {
+            acc[index] = {
+              overflow: 'ellipsize',
+            };
+          }
           return acc;
-        }, {} as { [key: number]: { cellWidth: number } }),
+        }, {} as { [key: number]: { fontSize?: number; overflow?: string; cellPadding?: number } }),
+        didDrawPage: (data: any) => {
+          // Only show main header on first page
+          if (data.pageNumber === 1) {
+            const headerY = 10;
+            
+            // Left - Distributor Details
+            finalDoc.setFontSize(8);
+            finalDoc.setFont('helvetica', 'normal');
+            let leftY = headerY;
+            if (distributorName) {
+              finalDoc.setFont('helvetica', 'bold');
+              finalDoc.text(distributorName, margin, leftY);
+              leftY += 4;
+            }
+            if (distributorAddress) {
+              finalDoc.setFont('helvetica', 'normal');
+              finalDoc.text(distributorAddress, margin, leftY);
+              leftY += 4;
+            }
+            if (distributorPhone) {
+              finalDoc.text(distributorPhone, margin, leftY);
+            }
+            
+            // Middle - Report Title
+            finalDoc.setFontSize(14);
+            finalDoc.setFont('helvetica', 'bold');
+            finalDoc.text('Lost Sales Report', finalDoc.internal.pageSize.getWidth() / 2, headerY + 4, { align: 'center' });
+            
+            // Right - Generated on, Date range, Report by
+            finalDoc.setFontSize(8);
+            finalDoc.setFont('helvetica', 'normal');
+            let rightY = headerY;
+            finalDoc.text(`Generated on: ${date}`, finalDoc.internal.pageSize.getWidth() - margin, rightY, { align: 'right' });
+            rightY += 4;
+            if (fromDate && toDate) {
+              finalDoc.text(`Date Range: ${fromDate.format('MM/DD/YYYY')} to ${toDate.format('MM/DD/YYYY')}`, finalDoc.internal.pageSize.getWidth() - margin, rightY, { align: 'right' });
+              rightY += 4;
+            }
+            finalDoc.text(`Report by: ${groupBy === 'item' ? 'Item' : groupBy === 'customer' ? 'Customer' : 'Date'}`, finalDoc.internal.pageSize.getWidth() - margin, rightY, { align: 'right' });
+          } else {
+            // For pages 2+, set a smaller top margin by adjusting the page's Y position
+            // This ensures the table starts higher on subsequent pages
+            finalDoc.setPage(data.pageNumber);
+            // The margin.top setting should handle this, but we ensure it here
+          }
+        },
       });
 
       // Footer with "Report Generated by Woopsa" on left and "Page X of Y" on right
-      const pageCount = (doc as any).internal.getNumberOfPages();
+      const pageCount = (finalDoc as any).internal.getNumberOfPages();
+      const finalPageWidth = finalDoc.internal.pageSize.getWidth();
       for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        const currentPageHeight = doc.internal.pageSize.getHeight();
+        finalDoc.setPage(i);
+        const currentPageHeight = finalDoc.internal.pageSize.getHeight();
         const footerY = currentPageHeight - 5;
         
         // Add "Report Generated by Woopsa" with logo on the left
-        doc.setFontSize(6);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
+        finalDoc.setFontSize(6);
+        finalDoc.setFont('helvetica', 'normal');
+        finalDoc.setTextColor(100, 100, 100);
         const footerText = 'Report Generated by Woopsa';
-        doc.text(footerText, margin, footerY);
+        finalDoc.text(footerText, margin, footerY);
         
         // Add logo beside text
         if (logoDataUrl) {
           try {
-            const textWidth = doc.getTextWidth(footerText);
-            doc.addImage(logoDataUrl, 'PNG', margin + textWidth + 1, footerY - 2.5, 3, 3);
+            const textWidth = finalDoc.getTextWidth(footerText);
+            finalDoc.addImage(logoDataUrl, 'PNG', margin + textWidth + 1, footerY - 2.5, 3, 3);
           } catch {
             try {
-              const textWidth = doc.getTextWidth(footerText);
-              doc.addImage(logoDataUrl, 'SVG', margin + textWidth + 1, footerY - 2.5, 3, 3);
+              const textWidth = finalDoc.getTextWidth(footerText);
+              finalDoc.addImage(logoDataUrl, 'SVG', margin + textWidth + 1, footerY - 2.5, 3, 3);
             } catch {
               // Ignore logo errors
             }
@@ -1135,14 +1308,14 @@ const LossQtyReportTab: React.FC = () => {
         }
         
         // Add page number on the right
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
+        finalDoc.setFontSize(7);
+        finalDoc.setFont('helvetica', 'normal');
+        finalDoc.setTextColor(100, 100, 100);
         const pageText = `${i} of ${pageCount}`;
-        doc.text(pageText, pageWidth - margin, footerY, { align: 'right' });
+        finalDoc.text(pageText, finalPageWidth - margin, footerY, { align: 'right' });
       }
 
-      doc.save(`loss-qty-report-${dayjs().format('YYYY-MM-DD')}.pdf`);
+      finalDoc.save(`loss-qty-report-${dayjs().format('YYYY-MM-DD')}.pdf`);
       toast.success('PDF generated successfully');
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -1152,51 +1325,6 @@ const LossQtyReportTab: React.FC = () => {
     }
   };
 
-  // Get all available fields from the data
-  // Exclude fields with red arrows: S_Number, Promo_Number, Unit_Code, OrderDetail_Code, 
-  // OTP_Amount_State, Delivered, Credit_ReturnToStock, OTP_Amount_County, OTP_Amount_City, Cig_Sticks
-  const availableFields = useMemo(() => {
-    if (reportData.length === 0) return [];
-    const excludedFields = [
-      'Item_Number',
-      'Description',
-      'S_Number',           // Sales Rep Number
-      'Promo_Number',       // Promo Number
-      'Unit_Code',          // Unit_Code
-      'OrderDetail_Code',   // OrderDetail_Code
-      'OTP_Amount_State',   // OTP Amount State
-      'Delivered',          // Delivered
-      'Credit_ReturnToStock', // Credit_ReturnToStock
-      'OTP_Amount_County',  // OTP Amount County
-      'OTP_Amount_City',    // OTP Amount City
-      'Cig_Sticks',         // Cig Sticks
-    ];
-    return Object.keys(reportData[0]).filter(key => !excludedFields.includes(key));
-  }, [reportData]);
-
-  // Get ordered selected fields - Item_Number and Description always first, no duplicates
-  const orderedSelectedFields = useMemo(() => {
-    // Get all selected field keys
-    const allSelectedKeys = Object.keys(selectedFields).filter(key => selectedFields[key]);
-    
-    // Separate Item_Number and Description from other fields
-    const itemNumberSelected = allSelectedKeys.includes('Item_Number');
-    const descriptionSelected = allSelectedKeys.includes('Description');
-    const otherFields = allSelectedKeys.filter(key => key !== 'Item_Number' && key !== 'Description');
-    
-    // Build ordered array: Item_Number first, then Description, then others
-    const ordered: string[] = [];
-    if (itemNumberSelected) {
-      ordered.push('Item_Number');
-    }
-    if (descriptionSelected) {
-      ordered.push('Description');
-    }
-    // Add other fields (no duplicates since we filtered them)
-    ordered.push(...otherFields);
-    
-    return ordered;
-  }, [selectedFields]);
 
   return (
     <Box sx={{ 
@@ -1296,18 +1424,6 @@ const LossQtyReportTab: React.FC = () => {
                       control={
                         <Radio
                           size="small"
-                          checked={groupBy === 'none'}
-                          sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '1rem' } }}
-                        />
-                      }
-                      label={<Typography sx={{ fontSize: '0.7rem', fontWeight: 400 }}>None</Typography>}
-                      sx={{ m: 0 }}
-                      onClick={() => setGroupBy('none')}
-                    />
-                    <FormControlLabel
-                      control={
-                        <Radio
-                          size="small"
                           checked={groupBy === 'item'}
                           sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '1rem' } }}
                         />
@@ -1342,14 +1458,17 @@ const LossQtyReportTab: React.FC = () => {
                     />
                   </Box>
                 </Box>
+              </Grid>
 
-
-                {/* Sales Category Filter */}
-                {filterOptions.salesCategories && filterOptions.salesCategories.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Sales Category
-                    </Typography>
+              {/* Right Column - Filter Dropdowns */}
+              <Grid size={{ xs: 12, md: 9 }}>
+                <Grid container spacing={1.5}>
+                  {/* Sales Category Filter */}
+                  {filterOptions.salesCategories && filterOptions.salesCategories.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Sales Category
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1380,8 +1499,17 @@ const LossQtyReportTab: React.FC = () => {
                         }}
                         sx={{
                           fontSize: '0.75rem',
+                          '& .MuiOutlinedInput-root': {
+                            minHeight: '32px',
+                            height: '32px',
+                            '& input': {
+                              padding: '4px 10px',
+                              fontSize: '0.75rem',
+                            },
+                          },
                           '& .MuiSelect-select': {
                             minHeight: 'auto',
+                            py: 0.5,
                           },
                           '& .MuiOutlinedInput-notchedOutline': {
                             borderWidth: '1px',
@@ -1410,15 +1538,15 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {/* Price Class Filter */}
-                {filterOptions.priceClasses && filterOptions.priceClasses.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Price Class
-                    </Typography>
+                  {/* Price Class Filter */}
+                  {filterOptions.priceClasses && filterOptions.priceClasses.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Price Class
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1449,8 +1577,17 @@ const LossQtyReportTab: React.FC = () => {
                         }}
                         sx={{
                           fontSize: '0.75rem',
+                          '& .MuiOutlinedInput-root': {
+                            minHeight: '32px',
+                            height: '32px',
+                            '& input': {
+                              padding: '4px 10px',
+                              fontSize: '0.75rem',
+                            },
+                          },
                           '& .MuiSelect-select': {
                             minHeight: 'auto',
+                            py: 0.5,
                           },
                           '& .MuiOutlinedInput-notchedOutline': {
                             borderWidth: '1px',
@@ -1479,16 +1616,15 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {/* Add more filters as needed based on filterOptions */}
-                {/* Customer Filter */}
-                {filterOptions.customers && filterOptions.customers.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Customer
-                    </Typography>
+                  {/* Customer Filter */}
+                  {filterOptions.customers && filterOptions.customers.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Customer
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1519,8 +1655,17 @@ const LossQtyReportTab: React.FC = () => {
                         }}
                         sx={{
                           fontSize: '0.75rem',
+                          '& .MuiOutlinedInput-root': {
+                            minHeight: '32px',
+                            height: '32px',
+                            '& input': {
+                              padding: '4px 10px',
+                              fontSize: '0.75rem',
+                            },
+                          },
                           '& .MuiSelect-select': {
                             minHeight: 'auto',
+                            py: 0.5,
                           },
                           '& .MuiOutlinedInput-notchedOutline': {
                             borderWidth: '1px',
@@ -1549,15 +1694,15 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {/* Additional Filters - Dynamically render all filters from API */}
-                {filterOptions.salesReps && filterOptions.salesReps.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Sales Reps
-                    </Typography>
+                  {/* Sales Reps Filter */}
+                  {filterOptions.salesReps && filterOptions.salesReps.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Sales Reps
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1601,14 +1746,14 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {filterOptions.routes && filterOptions.routes.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Routes
-                    </Typography>
+                  {filterOptions.routes && filterOptions.routes.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Routes
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1652,14 +1797,14 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {filterOptions.states && filterOptions.states.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      States
-                    </Typography>
+                  {filterOptions.states && filterOptions.states.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        States
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1703,14 +1848,14 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {filterOptions.cities && filterOptions.cities.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Cities
-                    </Typography>
+                  {filterOptions.cities && filterOptions.cities.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Cities
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1754,14 +1899,14 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {filterOptions.otpTypes && filterOptions.otpTypes.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      OTP Types
-                    </Typography>
+                  {filterOptions.otpTypes && filterOptions.otpTypes.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        OTP Types
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1805,14 +1950,14 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {filterOptions.classesOfTrade && filterOptions.classesOfTrade.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Class of Trade
-                    </Typography>
+                  {filterOptions.classesOfTrade && filterOptions.classesOfTrade.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Class of Trade
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1856,14 +2001,14 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
+                    </Grid>
+                  )}
 
-                {filterOptions.counties && filterOptions.counties.length > 0 && (
-                  <Box sx={{ mb: 1.25 }}>
-                    <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Counties
-                    </Typography>
+                  {filterOptions.counties && filterOptions.counties.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Counties
+                      </Typography>
                     <FormControl fullWidth size="small">
                       <Select
                         multiple
@@ -1907,122 +2052,9 @@ const LossQtyReportTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Box>
-                )}
-              </Grid>
-
-              {/* Right Column - Field Selection */}
-              <Grid size={{ xs: 12, md: 9 }}>
-                {/* Field Group Dropdown */}
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography variant="caption" sx={{ mb: 0.4, pl: 0.5, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Field Group
-                  </Typography>
-                  <FormControl fullWidth size="small" sx={{ pl: 0.5 }}>
-                    <Select
-                      value={selectedFieldGroup}
-                      onChange={(e) => handleFieldGroupChange(e.target.value)}
-                      disabled={loading}
-                      displayEmpty
-                      sx={{
-                        fontSize: '0.75rem',
-                        '& .MuiSelect-select': {
-                          minHeight: 'auto',
-                        },
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderWidth: '1px',
-                        },
-                        '& .MuiSelect-icon': {
-                          color: 'primary.main',
-                        },
-                      }}
-                    >
-                      <MenuItem value="" sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}>
-                        <em>Select a field group (or select individual fields below)</em>
-                      </MenuItem>
-                      {Object.entries(FIELD_GROUPS).map(([key, group]) => (
-                        <MenuItem 
-                          key={key} 
-                          value={key}
-                          sx={{ fontSize: '0.68rem', py: 0.25, minHeight: 'auto' }}
-                        >
-                          {group.label} ({group.fields.length} fields)
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <Typography variant="caption" sx={{ mt: 0.4, pl: 0.5, fontSize: '0.65rem', display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
-                    Selecting a group will auto-select all fields in that group. You can still edit individual fields.
-                  </Typography>
-                </Box>
-
-                <Typography variant="caption" sx={{ mb: 0.5, pl: 0.5, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Select Fields
-                </Typography>
-                <Box sx={{ 
-                  maxHeight: 'calc(100vh - 260px)',
-                  overflowY: 'auto',
-                  pr: 0.5,
-                  '&::-webkit-scrollbar': {
-                    width: '4px',
-                  },
-                  '&::-webkit-scrollbar-track': {
-                    background: 'transparent',
-                  },
-                  '&::-webkit-scrollbar-thumb': {
-                    background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
-                    borderRadius: '2px',
-                    '&:hover': {
-                      background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)',
-                    },
-                  },
-                }}>
-                  <Grid container spacing={0.4}>
-                    {availableFields.map((field) => (
-                      <Grid size={{ xs: 12, sm: 6, md: 6, lg: 4, xl: 3}} key={field}>
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            py: 0.35,
-                            px: 0.5,
-                            borderRadius: 0.75,
-                            transition: 'all 0.15s ease',
-                            backgroundColor: selectedFields[field] 
-                              ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.12)' : 'rgba(25, 118, 210, 0.06)')
-                              : 'transparent',
-                            '&:hover': {
-                              backgroundColor: theme.palette.mode === 'dark' 
-                                ? 'rgba(255, 255, 255, 0.03)' 
-                                : 'rgba(0, 0, 0, 0.02)',
-                            },
-                          }}
-                        >
-                          <Switch
-                            size="small"
-                            checked={selectedFields[field] || false}
-                            onChange={(e) => handleFieldToggle(field, e.target.checked)}
-                            sx={{
-                              flexShrink: 0,
-                            }}
-                          />
-                          <Typography 
-                            sx={{ 
-                              fontSize: '0.7rem', 
-                              fontWeight: selectedFields[field] ? 500 : 400,
-                              color: selectedFields[field] ? 'primary.main' : 'text.secondary',
-                              transition: 'all 0.15s ease',
-                              flex: 1,
-                            }}
-                          >
-                            {FIELD_LABELS[field] || field}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Box>
+                    </Grid>
+                  )}
+                </Grid>
               </Grid>
             </Grid>
           </Paper>
@@ -2037,6 +2069,72 @@ const LossQtyReportTab: React.FC = () => {
               ? '0 1px 3px rgba(0,0,0,0.2)' 
               : '0 1px 3px rgba(0,0,0,0.05)',
           }}>
+            {/* Main Page Header */}
+            <Box sx={{ 
+              mb: 2, 
+              pb: 1.5, 
+              borderBottom: `2px solid ${theme.palette.divider}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+            }}>
+              {/* Left: Distributor Details */}
+              <Box sx={{ flex: 1 }}>
+                {(() => {
+                  const distributor = wareHouseDetail?.[0];
+                  const distributorName = distributor?.D_Name || '';
+                  const distributorAddress = [
+                    distributor?.D_Addr1,
+                    distributor?.D_City,
+                    distributor?.D_State
+                  ].filter(Boolean).join(', ');
+                  const distributorPhone = distributor?.D_Phone || '';
+                  
+                  return (
+                    <>
+                      {distributorName && (
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, mb: 0.5 }}>
+                          {distributorName}
+                        </Typography>
+                      )}
+                      {distributorAddress && (
+                        <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 0.3 }}>
+                          {distributorAddress}
+                        </Typography>
+                      )}
+                      {distributorPhone && (
+                        <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                          {distributorPhone}
+                        </Typography>
+                      )}
+                    </>
+                  );
+                })()}
+              </Box>
+              
+              {/* Middle: Report Title */}
+              <Box sx={{ flex: 1, textAlign: 'center' }}>
+                <Typography sx={{ fontSize: '1rem', fontWeight: 700 }}>
+                  Lost Sales Report
+                </Typography>
+              </Box>
+              
+              {/* Right: Generated on, Date range, Report by */}
+              <Box sx={{ flex: 1, textAlign: 'right' }}>
+                <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 0.3 }}>
+                  Generated on: {dayjs().format('MM/DD/YYYY')}
+                </Typography>
+                {fromDate && toDate && (
+                  <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 0.3 }}>
+                    Date Range: {fromDate.format('MM/DD/YYYY')} to {toDate.format('MM/DD/YYYY')}
+                  </Typography>
+                )}
+                <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                  Report by: {groupBy === 'item' ? 'Item' : groupBy === 'customer' ? 'Customer' : 'Date'}
+                </Typography>
+              </Box>
+            </Box>
+            
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.813rem', mt: 0 }}>
                 Preview Data ({filteredData.length} rows)
@@ -2056,43 +2154,122 @@ const LossQtyReportTab: React.FC = () => {
                 />
               )}
             </Box>
-            <TableContainer sx={{ 
-              maxHeight: '60vh', 
-              overflow: 'auto',
-              overflowX: 'auto',
-              overflowY: 'auto',
-              borderRadius: 2,
-              border: `1px solid ${theme.palette.divider}`,
-            }}>
-              <Table stickyHeader size="small" sx={{ minWidth: 'max-content' }}>
+            <TableContainer 
+              sx={{ 
+                maxHeight: '60vh', 
+                overflow: 'auto',
+                overflowX: 'auto',
+                overflowY: 'auto',
+                borderRadius: 2,
+                border: `1px solid ${theme.palette.divider}`,
+                ...(groupBy === 'date' ? {
+                  width: '100%',
+                  '& table': {
+                    tableLayout: 'auto !important',
+                    width: 'auto !important',
+                    minWidth: 'auto !important',
+                  },
+                } : {}),
+              }}
+            >
+              <Table 
+                stickyHeader 
+                size="small" 
+                sx={{ 
+                  ...(groupBy === 'date' 
+                    ? {
+                        tableLayout: 'auto',
+                        width: 'auto',
+                        minWidth: 'auto',
+                      }
+                    : {
+                        minWidth: 'max-content',
+                      }
+                  ),
+                }}
+              >
                 <TableHead>
                   <TableRow>
-                    {orderedSelectedFields.map(field => (
-                      <TableCell key={field}>{FIELD_LABELS[field] || field}</TableCell>
+                    {getFixedFields(groupBy).map(field => (
+                      <TableCell 
+                        key={field}
+                        sx={{
+                          py: 0.5,
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          ...(groupBy === 'date' ? {
+                            // No width constraints - fully auto
+                            width: 'auto',
+                            minWidth: 'auto',
+                            maxWidth: 'none',
+                            whiteSpace: (field === 'C_Name' || field === 'Description') ? 'normal' : 'nowrap',
+                            paddingLeft: '8px',
+                            paddingRight: '8px',
+                          } : {}),
+                        }}
+                      >
+                        {FIELD_LABELS[field] || field}
+                      </TableCell>
                     ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {getGroupedData.map((item, idx) => {
-                    const selectedFieldsCount = orderedSelectedFields.length;
-                    const totalCols = selectedFieldsCount; // Only selected fields
+                    const fixedFields = getFixedFields(groupBy);
+                    const totalCols = fixedFields.length;
                     
                     if (item.type === 'header') {
-                      const isLevel2 = item.level === 2;
+                      let leftContent = item.key;
+                      
+                      if (groupBy === 'customer' && item.customerData) {
+                        const cust = item.customerData;
+                        const address = [cust.c_address, cust.c_city, cust.c_state, cust.c_zip].filter(Boolean).join(' ');
+                        leftContent = `Customer # ${cust.C_Number} - ${cust.C_Name || ''} ${address}`;
+                      } else if (groupBy === 'item' && item.itemData) {
+                        // For item grouping, show On Hand on the right side
+                        const itemDesc = item.itemData.Description || '';
+                        leftContent = `Item # ${item.itemData.Item_Number} - ${itemDesc}`;
+                      } else if (groupBy === 'date') {
+                        // Date grouping - keep as is
+                        leftContent = item.key;
+                      }
+                      
                       return (
                         <TableRow key={`header-${idx}`}>
                           <TableCell
                             colSpan={totalCols}
                             sx={{ 
-                              fontWeight: isLevel2 ? 500 : 600, 
-                              backgroundColor: isLevel2 
-                                ? (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)')
-                                : theme.palette.action.hover,
-                              pl: isLevel2 ? 4 : 1,
-                              fontSize: isLevel2 ? '0.75rem' : '0.813rem',
+                              fontWeight: 600, 
+                              backgroundColor: theme.palette.action.hover,
+                              pl: 1,
+                              fontSize: '0.813rem',
+                              py: 1,
                             }}
                           >
-                            {isLevel2 ? '  └─ ' : '=== '}{item.key}{isLevel2 ? '' : ' ==='}
+                            <Box sx={{ 
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              width: '100%',
+                            }}>
+                              <Box component="span" sx={{ 
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                flex: 1,
+                              }}>
+                                {leftContent}
+                              </Box>
+                              {groupBy === 'item' && item.itemData && item.onHand !== undefined && (
+                                <Box component="span" sx={{ 
+                                  ml: 2,
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  On Hand: {item.onHand.toFixed(2)}
+                                </Box>
+                              )}
+                            </Box>
                           </TableCell>
                         </TableRow>
                       );
@@ -2100,7 +2277,7 @@ const LossQtyReportTab: React.FC = () => {
                       const row = item.data;
                       return (
                         <TableRow key={`row-${idx}`}>
-                          {orderedSelectedFields.map(field => {
+                          {fixedFields.map(field => {
                             const value = (row as any)[field];
                             // Format the value based on type
                             let displayValue = value;
@@ -2116,8 +2293,7 @@ const LossQtyReportTab: React.FC = () => {
                                 field === 'Ext_Loss' || 
                                 field.includes('Amount')
                               ) {
-                                // Only add $ for price, cost, Ext_Loss, and amount fields (not Loss_Qty which is quantity)
-                                displayValue = `$${value.toFixed(2)}`;
+                                displayValue = value.toFixed(2);
                               } else {
                                 displayValue = value.toString();
                               }
@@ -2129,7 +2305,40 @@ const LossQtyReportTab: React.FC = () => {
                               displayValue = String(value);
                             }
                             return (
-                              <TableCell key={field}>{displayValue}</TableCell>
+                              <TableCell 
+                                key={field} 
+                                align={typeof value === 'number' && !field.includes('Date') ? 'right' : 'left'}
+                                sx={
+                                  groupBy === 'date' 
+                                    ? {
+                                        // Completely auto width - NO constraints at all for date grouping
+                                        fontSize: '0.75rem',
+                                        width: 'auto',
+                                        minWidth: 'auto',
+                                        maxWidth: 'none',
+                                        whiteSpace: (field === 'C_Name' || field === 'Description') ? 'normal' : 'nowrap',
+                                        paddingLeft: '8px',
+                                        paddingRight: '8px',
+                                        boxSizing: 'border-box',
+                                        overflow: 'visible',
+                                        textOverflow: 'clip',
+                                      }
+                                    : field === 'C_Name' || field === 'Description' 
+                                      ? {
+                                          minWidth: 200,
+                                          maxWidth: 300,
+                                          fontSize: '0.75rem',
+                                        } 
+                                      : (field === 'Document_Number' || field === 'Invoice_Date' || field === 'Quantity_Ordered' || field === 'Quantity_Shipped' || field === 'Loss_Qty' || field === 'Ext_Loss') 
+                                        ? {
+                                            minWidth: 80,
+                                            maxWidth: 120,
+                                          } 
+                                        : {}
+                                }
+                              >
+                                {displayValue}
+                              </TableCell>
                             );
                           })}
                         </TableRow>
@@ -2141,7 +2350,18 @@ const LossQtyReportTab: React.FC = () => {
                             colSpan={totalCols}
                             sx={{ fontWeight: 600 }}
                           >
-                            Subtotal: Lost: {item.subtotal.lossQty}, Ext Loss: ${item.subtotal.extLoss.toFixed(2)}
+                            Total Lost Qty: {item.subtotal.lossQty.toFixed(2)}, Ext lost: {item.subtotal.extLoss.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    } else if (item.type === 'row' && 'grandTotal' in item) {
+                      return (
+                        <TableRow key={`grandtotal-${idx}`}>
+                          <TableCell
+                            colSpan={totalCols}
+                            sx={{ fontWeight: 700, backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', fontSize: '0.813rem', py: 1.5 }}
+                          >
+                            Total Lost Qty: {item.grandTotal.lossQty.toFixed(2)}, Total Ext Lost: {item.grandTotal.extLoss.toFixed(2)}
                           </TableCell>
                         </TableRow>
                       );

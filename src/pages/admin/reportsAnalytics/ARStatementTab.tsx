@@ -13,7 +13,6 @@ import {
   TableRow,
   CircularProgress,
   Pagination,
-  Switch,
 } from '@mui/material';
 import {
   FileDownload as FileDownloadIcon,
@@ -111,34 +110,6 @@ interface RouteOption {
   Route_Description: string;
 }
 
-// Fields to exclude from checkboxes
-const EXCLUDED_FIELDS = ['Balance']; // Balance is calculated, not from API
-
-// Field sequence for display
-const FIELD_SEQUENCE: string[] = [
-  'AR_Date',
-  'AR_Type',
-  'AR_CheckDate',
-  'AR_Ref',
-  'AR_Amount',
-  'AR_Applied',
-  'Balance',
-  'Invoice_Number',
-  'P_Number',
-  'C_Number',
-  'C_Number_Child',
-  'AR_SubType',
-  'AR_POS',
-  'Deposit_ID',
-  'Workstation_ID',
-  'User_Number',
-  'AR_Archived',
-  'AR_Reconcile',
-  'AR_Batch',
-  'C_Name_Child',
-  'fCharge',
-];
-
 // Field labels mapping
 const FIELD_LABELS: { [key: string]: string } = {
   AR_Date: 'Posting Date',
@@ -164,8 +135,8 @@ const FIELD_LABELS: { [key: string]: string } = {
   fCharge: 'Charge',
 };
 
-// Default selected fields matching the image
-const DEFAULT_SELECTED_FIELDS = [
+// Fixed fields for the report (matching the image)
+const FIXED_FIELDS = [
   'AR_Date',
   'AR_Type',
   'AR_CheckDate',
@@ -174,18 +145,6 @@ const DEFAULT_SELECTED_FIELDS = [
   'AR_Applied',
   'Balance',
 ];
-
-// Helper function to sort fields by sequence
-const sortFieldsBySequence = (fields: string[]): string[] => {
-  return [...fields].sort((a, b) => {
-    const indexA = FIELD_SEQUENCE.indexOf(a);
-    const indexB = FIELD_SEQUENCE.indexOf(b);
-    if (indexA === -1 && indexB === -1) return 0;
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
-  });
-};
 
 const ARStatementTab: React.FC = () => {
   const theme = useTheme();
@@ -210,15 +169,6 @@ const ARStatementTab: React.FC = () => {
 
   // Suppress Fully Applied filter
   const [suppressFullyApplied, setSuppressFullyApplied] = useState<'all' | 'suppress'>('all');
-
-  // Field selection states
-  const [selectedFields, setSelectedFields] = useState<{ [key: string]: boolean }>(() => {
-    const initial: { [key: string]: boolean } = {};
-    DEFAULT_SELECTED_FIELDS.forEach(field => {
-      initial[field] = true;
-    });
-    return initial;
-  });
 
   // Data states
   const [reportData, setReportData] = useState<ARStatementItem[]>([]);
@@ -649,25 +599,6 @@ const ARStatementTab: React.FC = () => {
 
   const totalPreviewPages = Math.ceil(groupedPreviewData.length / PREVIEW_PAGE_SIZE);
 
-  // Get selected field keys
-  const getSelectedFieldKeys = useMemo(() => {
-    const selected = Object.keys(selectedFields).filter(key => selectedFields[key]);
-    return sortFieldsBySequence(selected);
-  }, [selectedFields]);
-
-  // Handle field toggle
-  const handleFieldToggle = (field: string, checked: boolean) => {
-    setSelectedFields(prev => ({
-      ...prev,
-      [field]: checked
-    }));
-  };
-
-  // Get available fields
-  const availableFields = useMemo(() => {
-    return FIELD_SEQUENCE.filter(field => !EXCLUDED_FIELDS.includes(field));
-  }, []);
-
   // Generate CSV
   const handleGenerateCSV = () => {
     if (reportData.length === 0) {
@@ -677,8 +608,7 @@ const ARStatementTab: React.FC = () => {
 
     setGeneratingReport(true);
     try {
-      const selectedFieldKeys = getSelectedFieldKeys;
-      const headers = selectedFieldKeys.map(field => FIELD_LABELS[field] || field);
+      const headers = FIXED_FIELDS.map(field => FIELD_LABELS[field] || field);
       const csvHeaders = headers.join(',');
 
       const rows: string[] = [];
@@ -689,11 +619,11 @@ const ARStatementTab: React.FC = () => {
         if (currentCustomerNumber !== item.C_Number) {
           currentCustomerNumber = item.C_Number;
           const customerName = item.customer?.C_Name || item.C_Name_Child || `Customer ${item.C_Number}`;
-          rows.push(`"${customerName}",${''.repeat(selectedFieldKeys.length - 1).split('').map(() => '""').join(',')}`);
+          rows.push(`"${customerName}",${''.repeat(FIXED_FIELDS.length - 1).split('').map(() => '""').join(',')}`);
         }
 
         // Add data row
-        const row = selectedFieldKeys.map(field => {
+        const row = FIXED_FIELDS.map(field => {
           const value = formatFieldValue(item, field);
           return `"${value.replace(/"/g, '""')}"`;
         }).join(',');
@@ -771,8 +701,7 @@ const ARStatementTab: React.FC = () => {
     setGeneratingPDF(true);
     try {
       const logoDataUrl = await loadLogoAsDataUrl();
-      const selectedFieldKeys = getSelectedFieldKeys;
-      const headers = selectedFieldKeys.map(field => FIELD_LABELS[field] || field);
+      const headers = FIXED_FIELDS.map(field => FIELD_LABELS[field] || field);
 
       const doc = new jsPDF('portrait', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -973,7 +902,7 @@ const ARStatementTab: React.FC = () => {
 
         // Transaction table
         const tableBody = customerTransactions.map(item =>
-          selectedFieldKeys.map(field => formatFieldValue(item, field))
+          FIXED_FIELDS.map(field => formatFieldValue(item, field))
         );
 
         autoTableFn(doc, {
@@ -998,7 +927,7 @@ const ARStatementTab: React.FC = () => {
               data.cell.styles.textColor = [0, 0, 0];
             }
           },
-          columnStyles: selectedFieldKeys.reduce((acc: any, field, idx) => {
+          columnStyles: FIXED_FIELDS.reduce((acc: any, field, idx) => {
             // Set all columns to auto width, with right alignment for numeric fields
             if (field === 'AR_Amount' || field === 'AR_Applied' || field === 'Balance') {
               acc[idx] = { cellWidth: 'auto', halign: 'right' };
@@ -1062,7 +991,7 @@ const ARStatementTab: React.FC = () => {
             backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
           }}>
             <Grid container spacing={3}>
-              {/* Left Column - Filters */}
+              {/* Left Column - Date Filters */}
               <Grid size={{ xs: 12, md: 3 }}>
                 <Box sx={{ mb: 1.25 }}>
                   <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -1083,232 +1012,136 @@ const ARStatementTab: React.FC = () => {
                     minDate={startDate || undefined}
                   />
                 </Box>
-                <Box sx={{ mb: 1.25 }}>
-                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Customer (Optional)
-                  </Typography>
-                  <SearchableDropdown
-                    options={customers}
-                    value={selectedCustomer}
-                    onChange={(value) => {
-                      if (value) {
-                        // Find the matching CustomerOption from customers array
-                        const customerOption = customers.find(c => c.value === value.value);
-                        setSelectedCustomer(customerOption || null);
-                      } else {
-                        setSelectedCustomer(null);
-                      }
-                    }}
-                    loading={loadingCustomers}
-                    placeholder="All Customers"
-                    sx={{ 
-                      mb: 0,
-                      '& .MuiOutlinedInput-root': {
-                        minHeight: '36px',
-                        height: '36px',
-                        '& input': {
-                          padding: '6px 12px',
-                          fontSize: '0.875rem',
-                        },
-                      },
-                    }}
-                  />
-                </Box>
-                <Box sx={{ mb: 1.25 }}>
-                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Sales Rep (Optional)
-                  </Typography>
-                  <SearchableDropdown
-                    options={salesReps}
-                    value={selectedSalesRep}
-                    onChange={(value) => {
-                      if (value) {
-                        const salesRepOption = salesReps.find(r => r.value === value.value);
-                        setSelectedSalesRep(salesRepOption || null);
-                      } else {
-                        setSelectedSalesRep(null);
-                      }
-                    }}
-                    loading={loadingCustomers}
-                    placeholder="All Sales Reps"
-                    sx={{ 
-                      mb: 0,
-                      '& .MuiOutlinedInput-root': {
-                        minHeight: '36px',
-                        height: '36px',
-                        '& input': {
-                          padding: '6px 12px',
-                          fontSize: '0.875rem',
-                        },
-                      },
-                    }}
-                  />
-                </Box>
-                <Box sx={{ mb: 1.25 }}>
-                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Route (Optional)
-                  </Typography>
-                  <SearchableDropdown
-                    options={routes}
-                    value={selectedRoute}
-                    onChange={(value) => {
-                      if (value) {
-                        const routeOption = routes.find(r => r.value === value.value);
-                        setSelectedRoute(routeOption || null);
-                      } else {
-                        setSelectedRoute(null);
-                      }
-                    }}
-                    loading={loadingCustomers}
-                    placeholder="All Routes"
-                    sx={{ 
-                      mb: 0,
-                      '& .MuiOutlinedInput-root': {
-                        minHeight: '36px',
-                        height: '36px',
-                        '& input': {
-                          padding: '6px 12px',
-                          fontSize: '0.875rem',
-                        },
-                      },
-                    }}
-                  />
-                </Box>
-                <Box sx={{ mb: 1.25 }}>
-                  <Typography variant="caption" sx={{ mb: 0.4, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Filter Option
-                  </Typography>
-                  <SearchableDropdown
-                    options={[
-                      { label: 'All', value: 'all' },
-                      { label: 'Suppress Fully Applied', value: 'suppress' },
-                    ]}
-                    value={suppressFullyApplied === 'all' 
-                      ? { label: 'All', value: 'all' }
-                      : { label: 'Suppress Fully Applied', value: 'suppress' }}
-                    onChange={(value) => {
-                      if (value) {
-                        setSuppressFullyApplied(value.value === 'suppress' ? 'suppress' : 'all');
-                      } else {
-                        setSuppressFullyApplied('all');
-                      }
-                    }}
-                    placeholder="All"
-                    sx={{ 
-                      mb: 0,
-                      '& .MuiOutlinedInput-root': {
-                        minHeight: '36px',
-                        height: '36px',
-                        '& input': {
-                          padding: '6px 12px',
-                          fontSize: '0.875rem',
-                        },
-                      },
-                    }}
-                  />
-                </Box>
               </Grid>
 
-              {/* Right Column - Field Selection */}
+              {/* Right Column - Filter Dropdowns */}
               <Grid size={{ xs: 12, md: 9 }}>
-                <Typography variant="caption" sx={{ mb: 0.5, pl: 0.5, fontWeight: 500, fontSize: '0.68rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Select Fields
-                </Typography>
-                <Typography variant="caption" sx={{ mb: 0.6, pl: 0.5, fontSize: '0.65rem', display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
-                  Balance is calculated automatically
-                </Typography>
-                <Box sx={{
-                  maxHeight: 'calc(100vh - 260px)',
-                  overflowY: 'auto',
-                  pr: 0.5,
-                  '&::-webkit-scrollbar': {
-                    width: '4px',
-                  },
-                  '&::-webkit-scrollbar-track': {
-                    background: 'transparent',
-                  },
-                  '&::-webkit-scrollbar-thumb': {
-                    background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
-                    borderRadius: '2px',
-                    '&:hover': {
-                      background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)',
-                    },
-                  },
-                }}>
-                  <Grid container spacing={0.4}>
-                    {availableFields.map((field) => (
-                      <Grid size={{ xs: 12, sm: 6, md: 6, lg: 4, xl: 3 }} key={field}>
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            py: 0.35,
-                            px: 0.5,
-                            borderRadius: 0.75,
-                            transition: 'all 0.15s ease',
-                            backgroundColor: selectedFields[field]
-                              ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.12)' : 'rgba(25, 118, 210, 0.06)')
-                              : 'transparent',
-                            '&:hover': {
-                              backgroundColor: theme.palette.mode === 'dark'
-                                ? 'rgba(255, 255, 255, 0.03)'
-                                : 'rgba(0, 0, 0, 0.02)',
-                            },
-                          }}
-                        >
-                          <Switch
-                            size="small"
-                            checked={selectedFields[field] || false}
-                            onChange={(e) => handleFieldToggle(field, e.target.checked)}
-                            disabled={previewLoading}
-                          />
-                          <Typography
-                            sx={{
-                              fontSize: '0.7rem',
-                              fontWeight: selectedFields[field] ? 500 : 400,
-                              color: selectedFields[field] ? 'primary.main' : 'text.secondary',
-                              transition: 'all 0.15s ease',
-                              flex: 1,
-                            }}
-                          >
-                            {FIELD_LABELS[field] || field}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                    ))}
-                    {/* Balance field (always included, read-only) */}
-                    <Grid size={{ xs: 12, sm: 6, md: 6, lg: 4, xl: 3 }}>
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          py: 0.35,
-                          px: 0.5,
-                          borderRadius: 0.75,
-                          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.12)' : 'rgba(25, 118, 210, 0.06)',
-                        }}
-                      >
-                        <Switch
-                          size="small"
-                          checked={true}
-                          disabled
-                        />
-                        <Typography
-                          sx={{
-                            fontSize: '0.7rem',
-                            fontWeight: 500,
-                            color: 'primary.main',
-                            flex: 1,
-                          }}
-                        >
-                          {FIELD_LABELS['Balance']}
-                        </Typography>
-                      </Box>
-                    </Grid>
+                <Grid container spacing={1.5}>
+                  <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                    <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Customer (Optional)
+                    </Typography>
+                    <SearchableDropdown
+                      options={customers}
+                      value={selectedCustomer}
+                      onChange={(value) => {
+                        if (value) {
+                          // Find the matching CustomerOption from customers array
+                          const customerOption = customers.find(c => c.value === value.value);
+                          setSelectedCustomer(customerOption || null);
+                        } else {
+                          setSelectedCustomer(null);
+                        }
+                      }}
+                      loading={loadingCustomers}
+                      placeholder="All Customers"
+                      sx={{ 
+                        mb: 0,
+                        '& .MuiOutlinedInput-root': {
+                          minHeight: '32px',
+                          height: '32px',
+                          '& input': {
+                            padding: '4px 10px',
+                            fontSize: '0.75rem',
+                          },
+                        },
+                      }}
+                    />
                   </Grid>
-                </Box>
+                  <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                    <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Sales Rep (Optional)
+                    </Typography>
+                    <SearchableDropdown
+                      options={salesReps}
+                      value={selectedSalesRep}
+                      onChange={(value) => {
+                        if (value) {
+                          const salesRepOption = salesReps.find(r => r.value === value.value);
+                          setSelectedSalesRep(salesRepOption || null);
+                        } else {
+                          setSelectedSalesRep(null);
+                        }
+                      }}
+                      loading={loadingCustomers}
+                      placeholder="All Sales Reps"
+                      sx={{ 
+                        mb: 0,
+                        '& .MuiOutlinedInput-root': {
+                          minHeight: '32px',
+                          height: '32px',
+                          '& input': {
+                            padding: '4px 10px',
+                            fontSize: '0.75rem',
+                          },
+                        },
+                      }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                    <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Route (Optional)
+                    </Typography>
+                    <SearchableDropdown
+                      options={routes}
+                      value={selectedRoute}
+                      onChange={(value) => {
+                        if (value) {
+                          const routeOption = routes.find(r => r.value === value.value);
+                          setSelectedRoute(routeOption || null);
+                        } else {
+                          setSelectedRoute(null);
+                        }
+                      }}
+                      loading={loadingCustomers}
+                      placeholder="All Routes"
+                      sx={{ 
+                        mb: 0,
+                        '& .MuiOutlinedInput-root': {
+                          minHeight: '32px',
+                          height: '32px',
+                          '& input': {
+                            padding: '4px 10px',
+                            fontSize: '0.75rem',
+                          },
+                        },
+                      }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                    <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Filter Option
+                    </Typography>
+                    <SearchableDropdown
+                      options={[
+                        { label: 'All', value: 'all' },
+                        { label: 'Suppress Fully Applied', value: 'suppress' },
+                      ]}
+                      value={suppressFullyApplied === 'all' 
+                        ? { label: 'All', value: 'all' }
+                        : { label: 'Suppress Fully Applied', value: 'suppress' }}
+                      onChange={(value) => {
+                        if (value) {
+                          setSuppressFullyApplied(value.value === 'suppress' ? 'suppress' : 'all');
+                        } else {
+                          setSuppressFullyApplied('all');
+                        }
+                      }}
+                      placeholder="All"
+                      sx={{ 
+                        mb: 0,
+                        '& .MuiOutlinedInput-root': {
+                          minHeight: '32px',
+                          height: '32px',
+                          '& input': {
+                            padding: '4px 10px',
+                            fontSize: '0.75rem',
+                          },
+                        },
+                      }}
+                    />
+                  </Grid>
+                </Grid>
               </Grid>
             </Grid>
           </Paper>
@@ -1354,7 +1187,7 @@ const ARStatementTab: React.FC = () => {
                   }}>
                     <TableHead>
                       <TableRow>
-                        {getSelectedFieldKeys.map((field) => (
+                        {FIXED_FIELDS.map((field) => (
                           <TableCell
                             key={field}
                             sx={{
@@ -1385,7 +1218,7 @@ const ARStatementTab: React.FC = () => {
                           return (
                             <TableRow key={`group-${item.customerNumber}-${idx}`}>
                               <TableCell
-                                colSpan={getSelectedFieldKeys.length}
+                                colSpan={FIXED_FIELDS.length}
                                 sx={{
                                   backgroundColor: theme.palette.mode === 'dark'
                                     ? 'rgba(255, 255, 255, 0.08)'
@@ -1405,7 +1238,7 @@ const ARStatementTab: React.FC = () => {
                         }
                         return (
                           <TableRow key={`${item.data?.C_Number}-${item.data?.Invoice_Number}-${idx}`} hover>
-                            {getSelectedFieldKeys.map((field) => (
+                            {FIXED_FIELDS.map((field) => (
                               <TableCell
                                 key={field}
                                 sx={{

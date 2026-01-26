@@ -15,9 +15,10 @@ interface Props {
   minDate?: Dayjs;
   maxDate?: Dayjs;
   disablePast?: boolean;
+  disabled?: boolean;
 }
 
-const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {mb: 2.2}, error = false, helperText = "", minDate, maxDate, disablePast = false }) => {
+const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {mb: 2.2}, error = false, helperText = "", minDate, maxDate, disablePast = false, disabled = false }) => {
   return (
     <Box sx={sx}>
       {/* External Label like TextInput */}
@@ -37,6 +38,7 @@ const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {
           minDate={minDate}
           maxDate={maxDate}
           disablePast={disablePast}
+          disabled={disabled}
           sx={{
             "& .MuiInputBase-input": {
               fontSize: "12px",
@@ -48,6 +50,7 @@ const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {
               fullWidth: true,
               size: "small",
               variant: "outlined",
+              disabled: disabled,
               InputProps: {
                 sx: {
                   borderRadius: "4px",
