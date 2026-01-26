@@ -218,8 +218,21 @@ const FloatingChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  // Loading messages that cycle through
+  const loadingMessages = [
+    'AI chat loading scanned database...',
+    'Analyzing your request...',
+    'Processing information...',
+    'Wait a minute...',
+    'Gathering insights...',
+    'Almost there...',
+    'Preparing response...',
+    'Searching knowledge base...',
+  ];
 
   const { wareHouseDetail } = useSelector((state: RootState) => state.auth);
   
@@ -443,6 +456,20 @@ const FloatingChat = () => {
     }
   }, [open, isLoading, messages.length]);
 
+  // Cycle through loading messages when loading
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingMessageIndex(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setLoadingMessageIndex((prev) => (prev + 1) % loadingMessages.length);
+    }, 2000); // Change message every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [isLoading, loadingMessages.length]);
+
   const sendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
 
@@ -554,23 +581,14 @@ const FloatingChat = () => {
     }
   `;
 
-  const TypingIndicator = () => (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 0.5 }}>
-      {[0, 1, 2].map((index) => (
-        <Box
-          key={index}
-          sx={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            backgroundColor: theme.palette.text.secondary,
-            animation: `${bounceAnimation} 1.4s infinite`,
-            animationDelay: `${index * 0.2}s`,
-          }}
-        />
-      ))}
-    </Box>
-  );
+  const gradientMove = keyframes`
+    0% {
+      background-position: -100% 0%;
+    }
+    100% {
+      background-position: 100% 0%;
+    }
+  `;
 
   const TypingIndicatorSmall = ({ color = 'default' }: { color?: 'default' | 'white' }) => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
@@ -1008,9 +1026,10 @@ const FloatingChat = () => {
             alignItems: 'center',
             justifyContent: 'space-between',
             p: 1.5,
+            position: 'relative',
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
             {/* <Avatar
               sx={{
                 bgcolor: 'rgba(255,255,255,0.2)',
@@ -1029,7 +1048,7 @@ const FloatingChat = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Chip
               icon={isLoading ? <TypingIndicatorSmall color="white" /> : <OnlineIcon />}
-              label="Online"
+              label={isLoading ? '' : 'Online'}
               size="small"
               sx={{
                 bgcolor: 'rgba(255,255,255,0.2)',
@@ -1037,6 +1056,25 @@ const FloatingChat = () => {
                 '& .MuiChip-icon': {
                   color: 'white',
                 },
+                ...(isLoading && {
+                  '& .MuiChip-label': {
+                    display: 'none',
+                  },
+                  '& .MuiChip-icon': {
+                    marginLeft: '0 !important',
+                    marginRight: '0 !important',
+                  },
+                  paddingLeft: '12px',
+                  paddingRight: '12px',
+                  minWidth: '40px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  '& > span': {
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  },
+                }),
               }}
             />
             <IconButton
@@ -1175,7 +1213,7 @@ const FloatingChat = () => {
             </Fade>
           ))}
 
-          {/* Typing Indicator */}
+          {/* Loading Message Indicator */}
           {isLoading && (
             <Fade in timeout={300}>
               <Box
@@ -1207,8 +1245,88 @@ const FloatingChat = () => {
                      }}
                    />
                  </Avatar>
-                 <Box>
-                   <TypingIndicator />
+                 <Box
+                   sx={{
+                     p: 1,
+                     borderRadius: 2,
+                     position: 'relative',
+                     overflow: 'hidden',
+                     backgroundColor: theme.palette.background.default,
+                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                     '&::before': {
+                       content: '""',
+                       position: 'absolute',
+                       top: 0,
+                       left: 0,
+                       right: 0,
+                       bottom: 0,
+                       background: (() => {
+                         const primaryColor = theme.palette.primary.main;
+                         const bgColor = theme.palette.background.default;
+                         // Convert hex to rgba for proper opacity
+                         const hexToRgba = (hex: string, alpha: number) => {
+                           const r = parseInt(hex.slice(1, 3), 16);
+                           const g = parseInt(hex.slice(3, 5), 16);
+                           const b = parseInt(hex.slice(5, 7), 16);
+                           return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                         };
+                         // Create a gradient with a bright spot that moves left to right
+                         // Bright spot starts on left side of pattern, moves right
+                         return `linear-gradient(90deg, 
+                           ${hexToRgba(primaryColor, 0.5)} 0%, 
+                           ${hexToRgba(primaryColor, 0.2)} 10%, 
+                           ${bgColor} 20%, 
+                           ${bgColor} 80%, 
+                           ${hexToRgba(primaryColor, 0.2)} 90%, 
+                           ${hexToRgba(primaryColor, 0.5)} 100%)`;
+                       })(),
+                       backgroundSize: '200% 100%',
+                       animation: `${gradientMove} 2s linear infinite`,
+                       pointerEvents: 'none',
+                     },
+                     '&::after': {
+                       content: '""',
+                       position: 'absolute',
+                       top: 8,
+                       left: -6,
+                       width: 0,
+                       height: 0,
+                       borderRight: `6px solid ${theme.palette.background.default}`,
+                       borderTop: '6px solid transparent',
+                       borderBottom: '6px solid transparent',
+                       zIndex: 1,
+                     },
+                   }}
+                 >
+                   <Typography 
+                     key={loadingMessageIndex}
+                     variant="body2" 
+                     sx={{ 
+                       lineHeight: 1.4, 
+                       wordBreak: 'break-word',
+                       fontSize: '13px',
+                       fontWeight: 400,
+                       fontStyle: 'italic',
+                       color: theme.palette.text.secondary,
+                       position: 'relative',
+                       zIndex: 1,
+                       transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
+                       opacity: 1,
+                       animation: 'fadeIn 0.4s ease-in-out',
+                       '@keyframes fadeIn': {
+                         '0%': {
+                           opacity: 0,
+                           transform: 'translateY(4px)',
+                         },
+                         '100%': {
+                           opacity: 1,
+                           transform: 'translateY(0)',
+                         },
+                       },
+                     }}
+                   >
+                     {loadingMessages[loadingMessageIndex]}
+                   </Typography>
                  </Box>
                </Box>
              </Fade>
