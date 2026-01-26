@@ -1446,6 +1446,11 @@ const OrderConfirmationDetail = () => {
         return;
       }
 
+      if (quantity > 6) {
+        toast.error('Maximum quantity allowed is 6');
+        return;
+      }
+
       // Calculate payload using the same logic as Order.tsx
       const cartPayload = calculateCartPayload(selectedProduct, quantity);
       
@@ -1568,6 +1573,11 @@ const OrderConfirmationDetail = () => {
       
       if (isNaN(quantity) || quantity <= 0) {
         toast.error('Please enter a valid quantity greater than 0');
+        return;
+      }
+
+      if (quantity > 6) {
+        toast.error('Maximum quantity allowed is 6');
         return;
       }
 
@@ -4474,6 +4484,10 @@ const OrderConfirmationDetail = () => {
                     let value = e.target.value;
                     // Remove non-numeric characters
                     value = value.replace(/[^0-9]/g, '');
+                    // Limit to max 6
+                    if (value !== '' && Number(value) > 6) {
+                      value = '6';
+                    }
                     console.log('📝 Quantity input changed (scanned):', value);
                     // Always update the state, even if empty (user can clear and retype)
                     setAddProductQuantity(value);
@@ -4486,8 +4500,9 @@ const OrderConfirmationDetail = () => {
                     if (value === '' || Number(value) < 1) {
                       setAddProductQuantity('1');
       addProductQuantityRef.current = '1';
-                    } else if (Number(value) > 9999) {
-                      setAddProductQuantity('9999');
+                    } else if (Number(value) > 6) {
+                      setAddProductQuantity('6');
+      addProductQuantityRef.current = '6';
                     }
                   }}
                   onKeyDown={(e) => {
@@ -4500,7 +4515,7 @@ const OrderConfirmationDetail = () => {
                     inputMode: 'numeric',
                     pattern: '[0-9]*',
                     min: 1,
-                    max: 9999,
+                    max: 6,
                   }}
                   fullWidth
                   size="small"
@@ -4758,6 +4773,10 @@ const OrderConfirmationDetail = () => {
                   let value = e.target.value;
                   // Remove non-numeric characters
                   value = value.replace(/[^0-9]/g, '');
+                  // Limit to max 6
+                  if (value !== '' && Number(value) > 6) {
+                    value = '6';
+                  }
                   // Always update the state, even if empty (user can clear and retype)
                   setSelectedProductQuantity(value);
                   selectedProductQuantityRef.current = value; // Update ref immediately
@@ -4768,8 +4787,9 @@ const OrderConfirmationDetail = () => {
                   if (value === '' || Number(value) < 1) {
                     setSelectedProductQuantity('1');
       selectedProductQuantityRef.current = '1';
-                  } else if (Number(value) > 9999) {
-                    setSelectedProductQuantity('9999');
+                  } else if (Number(value) > 6) {
+                    setSelectedProductQuantity('6');
+      selectedProductQuantityRef.current = '6';
                   }
                 }}
                 onKeyDown={(e) => {
@@ -4782,7 +4802,7 @@ const OrderConfirmationDetail = () => {
                   inputMode: 'numeric',
                   pattern: '[0-9]*',
                   min: 1,
-                  max: 9999,
+                  max: 6,
                 }}
                 fullWidth
                 size="small"

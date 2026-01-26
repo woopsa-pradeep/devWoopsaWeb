@@ -69,3 +69,31 @@ export const getVelocityReportCustomer = async (
     
     return axiosInstance.get(finalUrl);
 };
+
+export const getARUndepositeFund = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/getARUndepositeFund${queryString ? `?${queryString}` : ''}`;
+    
+    return axiosInstance.get(finalUrl);
+};
+
+export const getOpenItemReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/getOpenItemReport${queryString ? `?${queryString}` : ''}`;
+    
+    return axiosInstance.get(finalUrl);
+};
