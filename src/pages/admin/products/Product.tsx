@@ -48,6 +48,8 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 // import CardContent from '@mui/material/CardContent';
 import Pagination from '@mui/material/Pagination';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+// import AssessmentIcon from '@mui/icons-material/Assessment';
+import LossQtyReportModal from '../../../component/molecules/LossQtyReportModal';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const JsBarcode = require('jsbarcode');
 
@@ -115,6 +117,10 @@ const Product = () => {
   const [loadingSalesCategory, setLoadingSalesCategory] = useState(false);
   const [loadingPriceClass, setLoadingPriceClass] = useState(false);
   
+  // Filter states for I_Inactive and ShortOrderForm
+  const [iInactive, setIInactive] = useState<boolean>(false);
+  const [shortOrderForm, setShortOrderForm] = useState<boolean>(true);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -142,7 +148,7 @@ const Product = () => {
   // Print Label states
   const [printLabelDrawerOpen, setPrintLabelDrawerOpen] = useState(false);
   const [printLabelForm, setPrintLabelForm] = useState({
-    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4",
+    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4" | "A4-30" | "A4-5160",
     orientation: 'landscape' as "landscape" | "portrait",
     salesCategory: [] as FilterOption[],
     priceClass: [] as FilterOption[],
@@ -153,20 +159,21 @@ const Product = () => {
   const [individualPrintModalOpen, setIndividualPrintModalOpen] = useState(false);
   const [individualPrintProduct, setIndividualPrintProduct] = useState<Product | null>(null);
   const [individualPrintForm, setIndividualPrintForm] = useState({
-    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4",
+    size: '4x6' as "4x3" | "4x6" | "3x6" | "3x2" | "4x4" | "2x2" | "2x3" | "3x3" | "5x3" | "6x4" | "A4" | "A4-1" | "A4-2" | "A4-3" | "A4-4" | "A4-30" | "A4-5160",
     orientation: 'landscape' as "landscape" | "portrait",
     rows: 1 as number,
     columns: 1 as number,
   });
   const [individualPrintLoading, setIndividualPrintLoading] = useState(false);
 
+  // Loss Qty Report Modal state
+  const [lossQtyReportModalOpen, setLossQtyReportModalOpen] = useState(false);
+
   // Detailed view state
   const [viewMode, setViewMode] = useState<'table' | 'detailed'>('detailed');
   const [expandedCards, setExpandedCards] = useState<{ [key: string]: boolean }>({});
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: { [section: string]: boolean } }>({});
   
-  // Track which card was opened first (for default open behavior)
-  const [firstOpenedCard, setFirstOpenedCard] = useState<string | null>(null);
   const [detailedData, setDetailedData] = useState<any[]>([]);
   const [detailedLoading, setDetailedLoading] = useState(false);
   const [detailedCurrentPage, setDetailedCurrentPage] = useState(1);
@@ -181,6 +188,10 @@ const Product = () => {
 
   // Reset rows when column count changes for A4 layouts
   useEffect(() => {
+    if (printLabelForm.size === 'A4-30' || printLabelForm.size === 'A4-5160') {
+      // A4-30 and A4-5160 are fixed at 10 rows, no need to reset
+      return;
+    }
     if (printLabelForm.size.startsWith('A4-')) {
       const columnCount = parseInt(printLabelForm.size.split('-')[1]) || 1;
       const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
@@ -191,6 +202,10 @@ const Product = () => {
   }, [printLabelForm.size]);
 
   useEffect(() => {
+    if (individualPrintForm.size === 'A4-30' || individualPrintForm.size === 'A4-5160') {
+      // A4-30 and A4-5160 are fixed at 10 rows, no need to reset
+      return;
+    }
     if (individualPrintForm.size.startsWith('A4-')) {
       const columnCount = parseInt(individualPrintForm.size.split('-')[1]) || 1;
       const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
@@ -244,7 +259,7 @@ const Product = () => {
     if (viewMode === 'detailed') {
       setDetailedCurrentPage(1);
     }
-  }, [debouncedSearch, salesCategory, priceClass, viewMode]);
+  }, [debouncedSearch, salesCategory, priceClass, viewMode, iInactive, shortOrderForm]);
 
   useEffect(() => {
     if (viewMode === 'table') {
@@ -258,6 +273,8 @@ const Product = () => {
             limit: pageSize,
             salesCategoryId: salesCategory.map(cat => Number(cat.value)),
             priceClassId: priceClass.map(pc => Number(pc.value)),
+            I_Inactive: iInactive,
+            ShortOrderForm: shortOrderForm,
           };
           const res = await productList(params) as any;
           // Adjust this line based on your API response structure
@@ -276,7 +293,7 @@ const Product = () => {
       fetchProducts();
       return () => { ignore = true; };
     }
-  }, [currentPage, pageSize, debouncedSearch, salesCategory, priceClass, viewMode]);
+  }, [currentPage, pageSize, debouncedSearch, salesCategory, priceClass, viewMode, iInactive, shortOrderForm]);
 
   // Store detailed product data with full details
   const [detailedProductsWithFullData, setDetailedProductsWithFullData] = useState<any[]>([]);
@@ -295,6 +312,8 @@ const Product = () => {
             limit: detailedPageSize,
             salesCategoryId: salesCategory.map(cat => Number(cat.value)),
             priceClassId: priceClass.map(pc => Number(pc.value)),
+            I_Inactive: iInactive,
+            ShortOrderForm: shortOrderForm,
           };
           
           const res = await productList(params) as any;
@@ -320,7 +339,7 @@ const Product = () => {
       fetchDetailedProducts();
       return () => { ignore = true; };
     }
-  }, [detailedCurrentPage, detailedPageSize, debouncedSearch, salesCategory, priceClass, viewMode]);
+  }, [detailedCurrentPage, detailedPageSize, debouncedSearch, salesCategory, priceClass, viewMode, iInactive, shortOrderForm]);
 
   // Fetch full details for each product in the current page
   useEffect(() => {
@@ -401,6 +420,8 @@ const Product = () => {
         limit: pageSize,
         salesCategoryId: salesCategory.map(cat => Number(cat.value)),
         priceClassId: priceClass.map(pc => Number(pc.value)),
+        I_Inactive: iInactive,
+        ShortOrderForm: shortOrderForm,
       };
       const res = await productList(params) as any;
       const list = res?.data?.data?.finalProductList || [];
@@ -560,11 +581,20 @@ const Product = () => {
     // Handle A4 sizes differently
     let pageWidth, pageHeight;
     const isA4Column = size.startsWith('A4-');
-    const columnCount = isA4Column ? parseInt(size.split('-')[1]) : 1;
+    const isA430 = size === 'A4-30';
+    const isA45160 = size === 'A4-5160';
+    const columnCount = isA430 || isA45160 ? 3 : (isA4Column ? parseInt(size.split('-')[1]) : 1);
     
     if (size === 'A4' || isA4Column) {
-      pageWidth = '8.27in';
-      pageHeight = '11.69in';
+      if (isA45160) {
+        // Avery 5160 uses US Letter size (8.5 x 11 inches)
+        pageWidth = '8.5in';
+        pageHeight = '11in';
+      } else {
+        // Standard A4 size
+        pageWidth = '8.27in';
+        pageHeight = '11.69in';
+      }
     } else {
       const [width, height] = size.split('x').map(Number);
       const isLandscape = orientation === 'landscape';
@@ -575,9 +605,13 @@ const Product = () => {
 
     // Calculate responsive sizes based on label dimensions, orientation, and rows
     const getSize = (base: number) => {
-      if (isA4Column) {
+      if (isA4Column || isA430 || isA45160) {
         // Calculate size multiplier based on column count and rows
         // Fewer rows = larger labels (more space per label)
+        if (isA430 || isA45160) {
+          // A4-30 and A4-5160: 3 columns x 10 rows, very compact labels
+          return `${base * 0.35}px`;
+        }
         const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
         const rowMultiplier = maxRows / rows; // More rows selected = smaller multiplier
         
@@ -797,16 +831,17 @@ const Product = () => {
         width: ${pageWidth};
         height: ${pageHeight};
         margin: 0;
-        padding: 0.1in;
+        padding: ${isA45160 ? '0.5in 0.15in' : isA430 ? '0.2in 0.15in' : '0.1in'};
         display: grid;
-        grid-template-columns: ${isA4Column && columnCount === 4 ? 'repeat(4, 1fr)' : 
+        grid-template-columns: ${isA430 || isA45160 ? 'repeat(3, 1fr)' :
+                                isA4Column && columnCount === 4 ? 'repeat(4, 1fr)' : 
                                 isA4Column && columnCount === 3 ? 'repeat(3, 1fr)' : 
                                 isA4Column && columnCount === 2 ? 'repeat(2, 1fr)' : 
                                 isA4Column && columnCount === 1 ? '1fr' : '1fr'};
-        grid-template-rows: ${isA4Column ? `repeat(${rows}, 1fr)` : '1fr'};
+        grid-template-rows: ${isA430 || isA45160 ? 'repeat(10, 1fr)' : (isA4Column ? `repeat(${rows}, 1fr)` : '1fr')};
         grid-auto-rows: 0;
         overflow: hidden;
-        gap: 0.1in;
+        ${isA45160 ? 'column-gap: 0.08in; row-gap: 0;' : isA430 ? 'column-gap: 0.05in; row-gap: 0;' : 'gap: 0.1in;'};
         page-break-after: always;
         page-break-inside: avoid;
         box-sizing: border-box;
@@ -853,6 +888,108 @@ const Product = () => {
         align-items: center;
         justify-content: center;
         margin-top: auto;
+      }
+      .label-item-a4-30 {
+        border: none;
+        padding: 0.02in;
+        display: flex;
+        flex-direction: column;
+        gap: 0.02in;
+        font-size: ${getSize(6)}px;
+        height: 100%;
+        width: 100%;
+        justify-content: space-between;
+        box-sizing: border-box;
+      }
+      .label-item-a4-5160 {
+        border: none;
+        padding: 0.02in 0.02in 0 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        font-size: ${getSize(6)}px;
+        height: 100%;
+        width: 100%;
+        justify-content: space-between;
+        box-sizing: border-box;
+      }
+      .label-item-a4-5160 .label-item-header {
+        line-height: 1.2;
+        margin-bottom: 0.02in;
+      }
+      .label-item-a4-5160 .label-item-number {
+        font-weight: bold;
+        font-size: ${getSize(5)}px;
+        line-height: 1.2;
+        white-space: nowrap;
+        display: inline;
+        margin-right: 0.03in;
+      }
+      .label-item-a4-5160 .label-item-description {
+        font-size: ${getSize(5)}px;
+        line-height: 1.2;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        display: inline;
+      }
+      .label-item-a4-5160 .label-item-barcode {
+        width: 100%;
+        max-height: 0.3in;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        margin-top: auto;
+        padding-bottom: 0;
+        margin-bottom: 0;
+      }
+      .label-item-a4-5160 .label-item-barcode img {
+        max-height: 0.3in;
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+        display: block;
+      }
+      .label-item-a4-30 .label-item-header {
+        line-height: 1.2;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .label-item-a4-30 .label-item-number {
+        font-weight: bold;
+        font-size: ${getSize(8)}px;
+        line-height: 1.2;
+        white-space: nowrap;
+        flex-shrink: 0;
+        margin-right: 0.05in;
+      }
+      .label-item-a4-30 .label-item-description {
+        font-size: ${getSize(6)}px;
+        line-height: 1.2;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .label-item-a4-30 .label-item-header::after {
+        content: '';
+        flex-basis: 100%;
+        width: 0;
+        height: 0;
+      }
+      .label-item-a4-30 .label-item-barcode {
+        width: 100%;
+        max-height: 0.3in;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: auto;
+      }
+      .label-item-a4-30 .label-item-barcode img {
+        max-height: 0.3in;
+        width: 100%;
+        height: auto;
+        object-fit: contain;
       }
       .label-item-a4-3 {
         border: 1px solid #ccc;
@@ -1102,8 +1239,30 @@ const Product = () => {
       const isSquareSize = size === '4x4' || size === '3x3';
 
       // Handle A4 column layouts
-      if (isA4Column) {
-        if (columnCount === 4) {
+      if (isA4Column || isA430 || isA45160) {
+        if (isA430) {
+          // A4-30: 3 columns x 10 rows, very compact address label style - item number and description side by side, barcode below
+          return `
+            <div class="label-item-a4-30" data-upc="${upc}">
+              <div class="label-item-header">
+                <div class="label-item-number">${itemNumber}</div>
+                <div class="label-item-description">${productName}</div>
+              </div>
+              <div class="label-item-barcode" data-barcode-placeholder="${upc}"></div>
+            </div>
+          `;
+        } else if (isA45160) {
+          // A4-5160: 3 columns x 10 rows, Avery 5160 label style - item number and description side by side, barcode below
+          return `
+            <div class="label-item-a4-5160" data-upc="${upc}">
+              <div class="label-item-header">
+                <div class="label-item-number">${itemNumber}</div>
+                <div class="label-item-description">${productName}</div>
+              </div>
+              <div class="label-item-barcode" data-barcode-placeholder="${upc}"></div>
+            </div>
+          `;
+        } else if (columnCount === 4) {
           // 4 columns: small font, itemNumber, description (flex), pack, case, small barcode
           return `
             <div class="label-item-a4-4" data-upc="${upc}">
@@ -1272,7 +1431,7 @@ const Product = () => {
     let currentIndex = 0;
     const totalProducts = products.length;
     // Calculate items per page: columns * rows
-    const itemsPerPage = isA4Column ? (columnCount * rows) : 1;
+    const itemsPerPage = isA430 || isA45160 ? 30 : (isA4Column ? (columnCount * rows) : 1);
     
     // For A4 columns, we need to track items across chunks to create proper pages
     const pageBuffer: Product[] = [];
@@ -1284,7 +1443,7 @@ const Product = () => {
       // Generate HTML without barcodes (fast)
       let chunkHTML = '';
       
-      if (isA4Column) {
+      if (isA4Column || isA430 || isA45160) {
         // Add chunk items to page buffer
         pageBuffer.push(...chunk);
         
@@ -1318,7 +1477,7 @@ const Product = () => {
         setTimeout(processChunk, 0);
       } else {
         // Process any remaining items in buffer (last incomplete page)
-        if (isA4Column && pageBuffer.length > 0) {
+        if ((isA4Column || isA430 || isA45160) && pageBuffer.length > 0) {
           let finalPageHTML = `<div class="label-container-a4-multi">`;
           for (let j = 0; j < pageBuffer.length; j++) {
             finalPageHTML += generateLabelWithoutBarcode(pageBuffer[j]);
@@ -1406,6 +1565,8 @@ const Product = () => {
         priceClassId: printLabelForm.priceClass.length > 0
           ? printLabelForm.priceClass.map(pc => Number(pc.value))
           : [],
+        I_Inactive: iInactive,
+        ShortOrderForm: shortOrderForm,
       };
       
       const res: any = await productList(params);
@@ -1725,35 +1886,25 @@ const Product = () => {
     const productData = fullDetails || item;
     const cardId = `card-${item.Item_Number}`;
     
-    // Default: only first card open, but allow multiple to be open
-    const isFirstCard = index === 0;
-    const shouldBeExpandedByDefault = isFirstCard && firstOpenedCard === null;
-    const isCardExpanded = expandedCards[cardId] !== undefined 
-      ? expandedCards[cardId] 
-      : shouldBeExpandedByDefault;
+    // All cards closed by default - only open when user clicks
+    const isCardExpanded = expandedCards[cardId] || false;
     
-    // Set first opened card on mount
-    if (isFirstCard && firstOpenedCard === null) {
-      setFirstOpenedCard(cardId);
-      setExpandedCards(prev => ({ ...prev, [cardId]: true }));
-    }
-    
-    // Initialize expanded sections for this card if not exists
+    // Initialize expanded sections for this card if not exists (all closed by default)
     if (!expandedSections[cardId]) {
       setExpandedSections(prev => ({
         ...prev,
         [cardId]: {
-          pricing: true,
-          cost: true,
-          product: true,
-          inventory: true,
-          caseDimensions: true,
-          quantity: true,
-          vendor: true,
-          jurisdiction: true,
-          flags: true,
-          additional: true,
-          dates: true,
+          pricing: false,
+          cost: false,
+          product: false,
+          inventory: false,
+          caseDimensions: false,
+          quantity: false,
+          vendor: false,
+          jurisdiction: false,
+          flags: false,
+          additional: false,
+          dates: false,
         }
       }));
     }
@@ -1766,9 +1917,6 @@ const Product = () => {
         expanded={isCardExpanded}
         onChange={(_, expanded) => {
           setExpandedCards(prev => ({ ...prev, [cardId]: expanded }));
-          if (expanded && firstOpenedCard === null) {
-            setFirstOpenedCard(cardId);
-          }
         }}
         sx={{ 
           mb: 1.5, 
@@ -2057,14 +2205,13 @@ const Product = () => {
             {/* Pricing Information */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex', maxWidth: '100%' }}>
               <Accordion
-                expanded={sectionExpanded.pricing !== false}
+                expanded={sectionExpanded.pricing === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], pricing: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2175,14 +2322,13 @@ const Product = () => {
             {/* Cost Information */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.cost !== false}
+                expanded={sectionExpanded.cost === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], cost: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2273,14 +2419,13 @@ const Product = () => {
             {/* Product Details */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.product !== false}
+                expanded={sectionExpanded.product === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], product: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2372,14 +2517,13 @@ const Product = () => {
             {/* Inventory & Location */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.inventory !== false}
+                expanded={sectionExpanded.inventory === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], inventory: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2466,14 +2610,13 @@ const Product = () => {
             {/* Case Dimensions */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.caseDimensions !== false}
+                expanded={sectionExpanded.caseDimensions === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], caseDimensions: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2526,14 +2669,13 @@ const Product = () => {
             {/* Quantity Limits */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.quantity !== false}
+                expanded={sectionExpanded.quantity === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], quantity: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2607,14 +2749,13 @@ const Product = () => {
             {/* Vendor & Manufacturer */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.vendor !== false}
+                expanded={sectionExpanded.vendor === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], vendor: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2679,14 +2820,13 @@ const Product = () => {
             {/* Jurisdiction & Cigarette */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.jurisdiction !== false}
+                expanded={sectionExpanded.jurisdiction === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], jurisdiction: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2821,14 +2961,13 @@ const Product = () => {
             {/* Flags & Status */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.flags !== false}
+                expanded={sectionExpanded.flags === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], flags: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -2858,7 +2997,7 @@ const Product = () => {
                 <AccordionDetails sx={{ px: 1, pb: 1, pt: 0.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box display="flex" flexDirection="column" gap={0.75}>
                     <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography fontSize={11} color="text.secondary">Short Order Form:</Typography>
+                      <Typography fontSize={11} color="text.secondary">Web Allow:</Typography>
                       <Chip 
                         label={productData.ShortOrderForm ? 'Yes' : 'No'} 
                         size="small" 
@@ -2977,14 +3116,13 @@ const Product = () => {
             {/* Additional Information */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.additional !== false}
+                expanded={sectionExpanded.additional === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], additional: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -3148,14 +3286,13 @@ const Product = () => {
             {/* Dates & Tracking */}
             <Grid size={{ xs: 12, md: 6, lg: 4 }} sx={{ display: 'flex' }}>
               <Accordion
-                expanded={sectionExpanded.dates !== false}
+                expanded={sectionExpanded.dates === true}
                 onChange={(_, expanded) => {
                   setExpandedSections(prev => ({
                     ...prev,
                     [cardId]: { ...prev[cardId], dates: expanded }
                   }));
                 }}
-                defaultExpanded
                 sx={{ 
                   boxShadow: 'none', 
                   border: '1px solid', 
@@ -3371,6 +3508,23 @@ const Product = () => {
               <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Print Label</Box>
               <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Print</Box>
             </CustomButton>
+            {/* <CustomButton 
+              fullWidth={false}
+              onClick={() => setLossQtyReportModalOpen(true)}
+              icon={<AssessmentIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
+              iconPosition="left"
+              sx={{ 
+                mt: 0,
+                fontSize: { xs: '0.75rem', md: '0.875rem' },
+                px: { xs: 1, md: 1.5 },
+                '& .MuiButton-startIcon': {
+                  mr: { xs: 0.5, md: 1 }
+                }
+              }} 
+            >
+              <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Loss Qty Report</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Report</Box>
+            </CustomButton> */}
             <CustomButton 
               fullWidth={false}
               onClick={() => navigate('/admin/product/add')}
@@ -3420,6 +3574,55 @@ const Product = () => {
               placeholder="Select sub category"
               sx={{ mb: 0, width: '100%', fontSize: "14px" }}
             />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 12, md: 12 }}>
+            <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+              <Typography fontSize={13} color="text.secondary" sx={{ mr: 0.5 }}>
+                Filters:
+              </Typography>
+              <Chip
+                label="Inactive"
+                onClick={() => {
+                  setIInactive(!iInactive);
+                  setCurrentPage(1);
+                  if (viewMode === 'detailed') {
+                    setDetailedCurrentPage(1);
+                  }
+                }}
+                color={iInactive ? 'primary' : 'default'}
+                variant={iInactive ? 'filled' : 'outlined'}
+                sx={{ 
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  height: '28px',
+                  color: iInactive ? 'white' : 'inherit',
+                  '&:hover': {
+                    bgcolor: iInactive ? 'primary.dark' : 'action.hover'
+                  }
+                }}
+              />
+              <Chip
+                label="Web Allow"
+                onClick={() => {
+                  setShortOrderForm(!shortOrderForm);
+                  setCurrentPage(1);
+                  if (viewMode === 'detailed') {
+                    setDetailedCurrentPage(1);
+                  }
+                }}
+                color={shortOrderForm ? 'primary' : 'default'}
+                variant={shortOrderForm ? 'filled' : 'outlined'}
+                sx={{ 
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  height: '28px',
+                  color: shortOrderForm ? 'white' : 'inherit',
+                  '&:hover': {
+                    bgcolor: shortOrderForm ? 'primary.dark' : 'action.hover'
+                  }
+                }}
+              />
+            </Box>
           </Grid>
         </Grid>
       </Box>
@@ -3888,13 +4091,21 @@ const Product = () => {
               value={printLabelForm.size}
               onChange={(e) => {
                 const newSize = e.target.value as any;
-                const newColumnCount = newSize.startsWith('A4-') ? parseInt(newSize.split('-')[1]) || 1 : 0;
-                const maxRows = newColumnCount === 4 ? 7 : newColumnCount === 3 ? 5 : newColumnCount === 2 ? 4 : newColumnCount === 1 ? 4 : 1;
-                setPrintLabelForm({
-                  ...printLabelForm,
-                  size: newSize,
-                  rows: newColumnCount > 0 && printLabelForm.rows > maxRows ? maxRows : printLabelForm.rows,
-                });
+                if (newSize === 'A4-30' || newSize === 'A4-5160') {
+                  setPrintLabelForm({
+                    ...printLabelForm,
+                    size: newSize,
+                    rows: 10, // Fixed at 10 rows for A4-30 and A4-5160
+                  });
+                } else {
+                  const newColumnCount = newSize.startsWith('A4-') ? parseInt(newSize.split('-')[1]) || 1 : 0;
+                  const maxRows = newColumnCount === 4 ? 7 : newColumnCount === 3 ? 5 : newColumnCount === 2 ? 4 : newColumnCount === 1 ? 4 : 1;
+                  setPrintLabelForm({
+                    ...printLabelForm,
+                    size: newSize,
+                    rows: newColumnCount > 0 && printLabelForm.rows > maxRows ? maxRows : printLabelForm.rows,
+                  });
+                }
               }}
               label="Label Size"
             >
@@ -3913,10 +4124,12 @@ const Product = () => {
               <MenuItem value="A4-2">A4 (2 Columns)</MenuItem>
               <MenuItem value="A4-3">A4 (3 Columns)</MenuItem>
               <MenuItem value="A4-4">A4 (4 Columns)</MenuItem>
+              <MenuItem value="A4-30">A4 (30 Labels - 3x10)</MenuItem>
+              <MenuItem value="A4-5160">Avery 5160 (30 Labels - 3x10)</MenuItem>
             </Select>
           </FormControl>
 
-          {(printLabelForm.size.startsWith('A4-')) && (() => {
+          {(printLabelForm.size.startsWith('A4-') && printLabelForm.size !== 'A4-30' && printLabelForm.size !== 'A4-5160') && (() => {
             const columnCount = parseInt(printLabelForm.size.split('-')[1]) || 1;
             const maxRows = columnCount === 4 ? 7 : columnCount === 3 ? 5 : 4;
             const rowOptions = [];
@@ -4133,6 +4346,13 @@ const Product = () => {
           </Box>
         </Box>
       </CommonModal>
+
+      {/* Loss Qty Report Modal */}
+      <LossQtyReportModal
+        open={lossQtyReportModalOpen}
+        onClose={() => setLossQtyReportModalOpen(false)}
+        groupBy="item"
+      />
     </Box>
   );
 };

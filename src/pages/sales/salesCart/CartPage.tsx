@@ -17,6 +17,7 @@ import PriceChangeModal from '../../../component/molecules/PriceChangeModal';
 import InactiveItemsModal from '../../../component/molecules/InactiveItemsModal';
 import OrderCelebration from '../../../component/atoms/OrderCelebration';
 import QuantityDiscountModal from '../../../component/molecules/QuantityDiscountModal';
+import SalesCategoryWisePriceModal from '../../../component/molecules/SalesCategoryWisePriceModal';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../../../redux/store';
@@ -117,6 +118,9 @@ const CartPage: React.FC = () => {
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
   const [selectedDiscountProduct, setSelectedDiscountProduct] = useState<CartItem | null>(null);
   const [selectedDiscountData, setSelectedDiscountData] = useState<any>(null);
+
+  // Sales category wise price modal state
+  const [salesCategoryModalOpen, setSalesCategoryModalOpen] = useState(false);
 
   // Debounced input state
   const [inputValues, setInputValues] = useState<{ [key: number]: number }>({});
@@ -220,6 +224,21 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       return updated;
     });
   }, [cartItems]);
+
+  // F9 key listener for sales category modal
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key === 'F9') {
+        event.preventDefault();
+        setSalesCategoryModalOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, []);
   
 
   // Helper function to calculate cart payload with prepaidTaxRate
@@ -1433,22 +1452,40 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
         >
           My Cart
         </Typography>
-        {cartItems.length > 0 && (
-          <Button
-            variant="outlined"
-            color="error"
-            size="small"
-            onClick={() => setClearCartModalOpen(true)}
-            sx={{ 
-              textTransform: 'none',
-              fontSize: '12px',
-              px: 2,
-              py: 0.5
-            }}
-          >
-            Remove All Items
-          </Button>
-        )}
+        <Box display="flex" gap={1}>
+          {cartItems.length > 0 && (
+            <>
+              <Button
+                variant="outlined"
+                color="primary"
+                size="small"
+                onClick={() => setSalesCategoryModalOpen(true)}
+                sx={{ 
+                  textTransform: 'none',
+                  fontSize: '12px',
+                  px: 2,
+                  py: 0.5
+                }}
+              >
+                Sales Category Wise Price
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                onClick={() => setClearCartModalOpen(true)}
+                sx={{ 
+                  textTransform: 'none',
+                  fontSize: '12px',
+                  px: 2,
+                  py: 0.5
+                }}
+              >
+                Remove All Items
+              </Button>
+            </>
+          )}
+        </Box>
       </Box>
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, lg: 8 }}>
@@ -1580,6 +1617,13 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
         onNoDiscount={handleNoDiscount}
         product={selectedDiscountProduct}
         qtyDiscountData={selectedDiscountData}
+      />
+
+      {/* Sales Category Wise Price Modal */}
+      <SalesCategoryWisePriceModal
+        open={salesCategoryModalOpen}
+        onClose={() => setSalesCategoryModalOpen(false)}
+        cartItems={cartItems}
       />
     </Box>
   );

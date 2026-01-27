@@ -88,6 +88,9 @@ const OrderDetailsPage = () => {
     setCurrentPage(1); // Reset to first page when changing page size
   };
 
+  const invoiceNumber = Number(orderHeader?.Invoice_Number) || 0;
+  const isInvoiceGenerated = invoiceNumber > 0;
+
   const columns: TableColumn<any>[] = [
     { 
       id: 'products', 
@@ -113,6 +116,9 @@ const OrderDetailsPage = () => {
     },
     { id: 'Item_Number', label: 'Item Number' },
     { id: 'Quantity_Ordered', label: 'Qty', render: (row) => `${Number(row.Quantity_Ordered).toFixed(0)}` },
+    ...(isInvoiceGenerated
+      ? [{ id: 'Quantity_Shipped', label: 'Shipped Qty', render: (row: any) => `${Number(row.Quantity_Shipped ?? 0).toFixed(0)}` }]
+      : []),
     { 
       id: 'Price', 
       label: 'Price', 
@@ -165,21 +171,23 @@ const OrderDetailsPage = () => {
   const crv = Number(orderHeader?.Total_Deposit) || 0;
   const deliveryCharges = Number(orderHeader?.Delivery_Charge) || 0;
   const totalPrepaidTax = Number(orderHeader?.Total_PrepaidTax) || 0;
+  const invoiceTotal = Number(orderHeader?.Invoice_Total) || 0;
   
   // Calculate subtotal: when showWithPerpaidTax is false, subtract prepaid tax from subtotal
-  let subtotal = originalSubtotal + discount; // Subtotal = original + discount
-  if (!showWithPerpaidTax && totalPrepaidTax > 0) {
+  // If invoice is generated, use Invoice_Total instead
+  let subtotal = isInvoiceGenerated ? invoiceTotal : (originalSubtotal + discount); // Subtotal = original + discount
+  if (!isInvoiceGenerated && !showWithPerpaidTax && totalPrepaidTax > 0) {
     subtotal = subtotal - totalPrepaidTax;
   }
   
-  // Grand total should always show with prepaid tax (original total)
-  const estimatedTotal = originalSubtotal - discount + deliveryCharges; // Grand total = original - discount + delivery charge (includes prepaid tax)    
+  // Grand total calculated from subtotal
+  const estimatedTotal = subtotal - discount + deliveryCharges;    
 
   // Separate handlers for each button to manage their own loading state
   const handlePrintOrderWithPrice = async () => {
     setPdfLoadingWithPrice(true);
     try {
-      const response: any = await getOrderPdf(selectedCustomer?.C_Number?.toString() || '', orderId || '', true);
+      const response: any = await getOrderPdf(selectedCustomer?.C_Number?.toString() || '', orderId || '', true, isInvoiceGenerated);
       if (response?.success && response?.data?.pdfUrl) {
         const pdfUrl = response?.data?.pdfUrl;
         try {
@@ -217,7 +225,7 @@ const OrderDetailsPage = () => {
   const handlePrintOrderWithoutPrice = async () => {
     setPdfLoadingWithoutPrice(true);
     try {
-      const response: any = await getOrderPdf(selectedCustomer?.C_Number?.toString() || '', orderId || '', false);
+      const response: any = await getOrderPdf(selectedCustomer?.C_Number?.toString() || '', orderId || '', false, isInvoiceGenerated);
       console.log(response, "response");
       if (response?.success && response?.data?.pdfUrl) {
         const pdfUrl = response?.data?.pdfUrl;

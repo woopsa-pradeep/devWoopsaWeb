@@ -97,7 +97,8 @@ interface SettingsData {
     maxPromotedItems: number;
     promotedItems: string[];
   };
-
+  orderEmailNotification?: string | null;
+  warehouseImage?: string;
 }
 
 interface ContactUsData {
@@ -165,6 +166,7 @@ interface FormData {
     allowShipping: boolean;
     timeSlots?: DayTimeSlots[];
   };
+  orderEmailNotification?: string;
   demandedItems: {
     showMostSale: boolean;
     showAsPerCustomer: boolean;
@@ -449,6 +451,7 @@ const SettingsTabs = () => {
               allowShipping: data.warehouseProfile?.allowShipping ?? true,
               timeSlots: data.warehouseProfile?.timeSlots || [],
             },
+            orderEmailNotification: data.orderEmailNotification ?? '',
             demandedItems: {
               showMostSale: data.demandedItems?.showMostSale ?? true,
               showAsPerCustomer: data.demandedItems?.showAsPerCustomer ?? true,
@@ -480,6 +483,18 @@ const SettingsTabs = () => {
         return {
           ...prev,
           showWithPerpaidTax: value
+        };
+      });
+      return;
+    }
+
+    // Handle orderEmailNotification as a top-level field
+    if (field === 'orderEmailNotification') {
+      setFormData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          orderEmailNotification: value
         };
       });
       return;
@@ -931,7 +946,10 @@ const SettingsTabs = () => {
           showSuccessToast('Retailer settings updated successfully!');
           break;
         case 'warehouseProfile':
-          await updateWarehouseProfileSetting({ warehouseProfile: formData.warehouseProfile });
+          await updateWarehouseProfileSetting({ 
+            warehouseProfile: formData.warehouseProfile,
+            orderEmailNotification: formData.orderEmailNotification 
+          });
           showSuccessToast('Warehouse Profile settings updated successfully!');
           break;
         case 'demandedItems':
@@ -1191,6 +1209,18 @@ const SettingsTabs = () => {
                 />
               </Box>
             )}
+            
+            <Box sx={{ mb: 2 }}>
+              <Typography sx={{ fontSize: 14, mb: 1 }}>Order Email Notification</Typography>
+              <TextField
+                fullWidth
+                type="email"
+                value={formData.orderEmailNotification || ''}
+                onChange={(e) => handleFieldChange('', 'orderEmailNotification', e.target.value)}
+                size="small"
+                placeholder="Enter email address for order notifications"
+              />
+            </Box>  
           </Box>
         );
 

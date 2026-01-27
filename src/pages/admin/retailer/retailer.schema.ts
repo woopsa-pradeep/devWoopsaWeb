@@ -50,7 +50,7 @@ export const retailerSchema = z.object({
   PriceLevel_Default: numberOrStringNumber(0),
   EDI_Format: numberOrStringNumber(0),
   NetCost_Flag: z.boolean(),
-  TermCode: numberOrStringNumber(0),
+  TermsCode: numberOrStringNumber(0),
   C_SalesTaxSelect: z.string().refine((val) => ['S', 'A', 'N'].includes(val), {
     message: 'Sales Tax Select must be S, A, or N'
   }),

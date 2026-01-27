@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Box, Typography, useMediaQuery, Paper, IconButton, CircularProgress } from "@mui/material";
+import React, { useState, useEffect, useMemo } from "react";
+import { Box, Typography, useMediaQuery, Paper, IconButton, CircularProgress, SelectChangeEvent } from "@mui/material";
 import CommonTable, {
   TableColumn,
 } from "../../../component/atoms/Table/CommonTable";
@@ -10,6 +10,7 @@ import { getCustomerList } from "../../../redux/apis/distrubutor/listApis";
 import { makePickListPrinted } from "../../../redux/apis/distrubutor/settingApis";
 import CustomAutoComplete from '../../../component/atoms/CustomAutoComplete';
 import CustomDateRangePicker from "../../../component/atoms/CustomDateRangePicker";
+import SelectInput from "../../../component/atoms/SelectInput";
 import { generatePicklistPDF } from "../../../utils/picklistPdfGenerator";
 import toast from 'react-hot-toast';
 
@@ -22,16 +23,86 @@ const AdminOrder = () => {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [selectedStartDate, setSelectedStartDate] = useState<any>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<any>(null);
   const [printingOrder, setPrintingOrder] = useState<string | null>(null);
+  
+  // Filter state
+  const [filterType, setFilterType] = useState<string>(''); // 'isDeleted', 'updated', 'currentStatus', or ''
+  const [currentStatus, setCurrentStatus] = useState<string>('all');
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const handleViewOrder = (orderId: string) => {
-    navigate(`/admin/order/details/${orderId}`);
+  const handleViewOrder = (orderId: string, isConfirmed?: boolean) => {
+    navigate(`/admin/order/details/${orderId}`, {
+      state: { isConfirmed }
+    });
   };
+
+  // Handle column sorting
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Toggle sort direction if same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new sort field and default to ascending
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sort data based on current sort field and direction
+  const sortedData = useMemo(() => {
+    if (!sortField) return data;
+    
+    return [...data].sort((a, b) => {
+      // Handle Picklist column - sort by Picklist_Printed
+      let actualField = sortField;
+      if (sortField === 'Picklist') {
+        actualField = 'Picklist_Printed';
+      }
+      
+      let aValue = a[actualField];
+      let bValue = b[actualField];
+      
+      // Handle null/undefined values
+      if (aValue == null) aValue = '';
+      if (bValue == null) bValue = '';
+      
+      // Handle boolean values (for Picklist_Printed)
+      if (sortField === 'Picklist') {
+        aValue = aValue ? 1 : 0;
+        bValue = bValue ? 1 : 0;
+      }
+      
+      // Handle numeric values
+      if (actualField === 'totalQuantityOrdered' || actualField === 'route' || actualField === 'stop') {
+        aValue = Number(aValue) || 0;
+        bValue = Number(bValue) || 0;
+      }
+      
+      // Handle date values
+      if (actualField === 'Order_Date') {
+        aValue = aValue ? new Date(aValue).getTime() : 0;
+        bValue = bValue ? new Date(bValue).getTime() : 0;
+      }
+      
+      // Convert to string for comparison if not numeric/date/boolean
+      if (typeof aValue !== 'number') {
+        aValue = String(aValue).toLowerCase();
+        bValue = String(bValue).toLowerCase();
+      }
+      
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [data, sortField, sortDirection]);
 
   const handlePrintPicklist = async (orderNumber: string, picklistPrinted: boolean = false) => {
     setPrintingOrder(orderNumber);
@@ -301,55 +372,104 @@ const AdminOrder = () => {
   };
 
   const columns: TableColumn<any>[] = [
-    { id: "Order_Number", label: "Order Number", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Number}</Typography>
-      </Box>
-    )  },
-    { id: "Order_Date", label: "Date", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Date}</Typography>
-      </Box>
-    )  },
-    { id: "customerName", label: "Customer Name", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.customerName}</Typography>
-      </Box>
-    )  },
-    { id: "address", label: "Address", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.address || "-"}</Typography>
-      </Box>
-    )  },
-    { id: "route", label: "Route", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.route || "-"}</Typography>
-      </Box>
-    )  },
-    { id: "stop", label: "Stop", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.stop || "-"}</Typography>
-      </Box>
-    )  },
-    { id: "totalQuantityOrdered", label: "Item (Qty)", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{Number(row.totalQuantityOrdered).toFixed(0)}</Typography>
-      </Box>
-    )  },
-    { id: "Order_Source_Name", label: "Platforms", render: (row) => (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Source_Name}</Typography>
-      </Box>
-    )  },
+    { 
+      id: "Order_Number", 
+      label: "Order Number", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Number}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "Order_Date", 
+      label: "Date", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Date}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "customerName", 
+      label: "Customer Name", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.customerName}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "address", 
+      label: "Address", 
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.address || "-"}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "route", 
+      label: "Route", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.route || "-"}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "stop", 
+      label: "Stop", 
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.stop || "-"}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "totalQuantityOrdered", 
+      label: "Item (Qty)", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{Number(row.totalQuantityOrdered).toFixed(0)}</Typography>
+        </Box>
+      )  
+    },
+    { 
+      id: "Order_Source_Name", 
+      label: "Platforms", 
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.Order_Source_Name}</Typography>
+        </Box>
+      )  
+    },
+    {
+      id: "isConfirmed",
+      label: "isConfirmed",
+      sortable: true,
+      render: (row) => (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography fontSize={12} fontWeight={400} color="text.secondary">{row.isConfirmed ? "Yes" : "No"}</Typography>
+        </Box>
+      )  
+    },
     {
       id: "Picklist",
       label: "Picklist",
+      sortable: true,
       render: (row) => (
         <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
           <IconButton
             size="small"
             onClick={() => handlePrintPicklist(row.Order_Number, row.Picklist_Printed)}
-            disabled={printingOrder === row.Order_Number}
+            disabled={row.isConfirmed === true || printingOrder === row.Order_Number}
             sx={{ p: 0.5 }}
             title={row.Picklist_Printed ? "Reprint Picklist" : "Print Picklist"}
           >
@@ -374,7 +494,7 @@ const AdminOrder = () => {
         <Box display="flex" alignItems="center" gap={1}>
           <VisibilityOutlined 
             sx={{ cursor: "pointer", color: "primary.main" }} 
-            onClick={() => handleViewOrder(row.Order_Number)}
+            onClick={() => handleViewOrder(row.Order_Number, row.isConfirmed)}
           />
         </Box>
       ),
@@ -392,10 +512,25 @@ const AdminOrder = () => {
   };
 
   // Fetch data with pagination
-  const fetchData = async (page: number, size: number, customerId: string, startDate: any, endDate: any) => {
+  const fetchData = async (page: number, size: number, customerId: string, startDate: any, endDate: any, filterType: string, currentStatus: string) => {
     setLoading(true);
     try {
-      const response: any = await getOrderHistory(page, size, customerId, startDate, endDate);
+      // Determine which filter to send based on filterType
+      let isDeleted: boolean | undefined = undefined;
+      let updated: boolean | undefined = undefined;
+      let status: string | undefined = undefined;
+      
+      if (filterType === 'isDeleted') {
+        isDeleted = true;
+      } else if (filterType === 'updated') {
+        updated = true;
+      } else if (filterType === 'currentStatus' && currentStatus) {
+        status = currentStatus; // Pass 'all' or any other selected status
+        isDeleted = false;
+        updated = false;
+      }
+      
+      const response: any = await getOrderHistory(page, size, customerId, startDate, endDate, isDeleted, updated, status);
       setData(response?.data?.orderList || []);
       setTotalItems(response?.data?.totalCount || 0);
       setTotalPages(response?.data?.totalPages || 0);
@@ -423,47 +558,103 @@ const AdminOrder = () => {
     setCurrentPage(1); // Reset to first page when changing customer
   };
 
+  // Handle filter changes
+  const handleFilterTypeChange = (event: SelectChangeEvent<unknown>) => {
+    const newFilterType = event.target.value as string;
+    setFilterType(newFilterType);
+    // Reset currentStatus when switching away from currentStatus filter
+    if (newFilterType !== 'currentStatus') {
+      setCurrentStatus('all');
+    }
+    setCurrentPage(1); // Reset to first page when changing filter
+  };
+
+  const handleCurrentStatusChange = (event: SelectChangeEvent<unknown>) => {
+    setCurrentStatus(event.target.value as string);
+    setCurrentPage(1); // Reset to first page when changing filter
+  };
+
   // Fetch customers on component mount
   useEffect(() => {
     fetchCustomers();
   }, []);
 
-  // Fetch data when page, pageSize, or customer changes
+  // Fetch data when page, pageSize, customer, or filters change
   useEffect(() => {
-    fetchData(currentPage, pageSize, selectedCustomer?.C_Number || '', selectedStartDate, selectedEndDate);
-  }, [currentPage, pageSize, selectedCustomer, selectedStartDate, selectedEndDate]);
+    fetchData(currentPage, pageSize, selectedCustomer?.C_Number || '', selectedStartDate, selectedEndDate, filterType, currentStatus);
+  }, [currentPage, pageSize, selectedCustomer, selectedStartDate, selectedEndDate, filterType, currentStatus]);
 
   return (
     <Box sx={{ padding: "10px 20px" }}>
       <Paper sx={{ p: 2, mb: 2 }}>
         {/* Filter Bar */}
-        <Box display={useMediaQuery("(max-width: 600px)") ? "block" : "flex"} justifyContent="space-between" alignItems="center" mb={1} px={2}>
-          <Box display="flex" gap={2} flexWrap="wrap" width={useMediaQuery("(max-width: 600px)") ? "100%" : "300px"}>
-            <CustomAutoComplete
-              fullWidth
-              options={customers}
-              getOptionLabel={(option) => option.C_Name || option.C_CoName || ''}
-              value={selectedCustomer}
-              onChange={handleCustomerChange}
-              label="Search Customer"
-              size="small"
-              placeholder="Type to search customers..."
+        <Box display="flex" flexDirection="column" gap={2} mb={1} px={2}>
+          {/* First Row: Customer, Filters, and Date Range */}
+          <Box display={useMediaQuery("(max-width: 600px)") ? "block" : "flex"} justifyContent="space-between" alignItems="center" gap={2}>
+            <Box display="flex" gap={2} flexWrap="wrap" alignItems="center">
+              <CustomAutoComplete
+                fullWidth={false}
+                options={customers}
+                getOptionLabel={(option) => {
+                  const name = option.C_Name || option.C_CoName || '';
+                  const number = option.C_Number ? ` (${option.C_Number})` : '';
+                  return `${name}${number}`;
+                }}
+                value={selectedCustomer}
+                onChange={handleCustomerChange}
+                label="Search Customer"
+                size="small"
+                placeholder="Type to search customers..."
+              />
+              
+              {/* First Dropdown: Filter Type */}
+              <SelectInput
+                options={[
+                  { label: 'All', value: '' },
+                  { label: 'Deleted', value: 'isDeleted' },
+                  { label: 'Updated', value: 'updated' },
+                  { label: 'Current', value: 'currentStatus' },
+                ]}
+                value={filterType}
+                onChange={handleFilterTypeChange}
+                marginBottom="0"
+              />
+              
+              {/* Second Dropdown: Current Status (only shown when Current Status is selected) */}
+              {filterType === 'currentStatus' && (
+                <SelectInput
+                  options={[
+                    { label: 'All Orders', value: 'all' },
+                    { label: 'Orders in Progress', value: 'recordLocks' },
+                    { label: 'Order Confirmation', value: 'orderConfirmation' },
+                    { label: 'Invoiced', value: 'invoices' },
+                    { label: 'Non Invoiced', value: 'non_invoices' },
+                    { label: 'Picklist', value: 'picklist' },
+                    { label: 'Epick Confirmed', value: 'EpickStatusFromPicker' },
+                  ]}
+                  value={currentStatus}
+                  onChange={handleCurrentStatusChange}
+                  marginBottom="0"
+                />
+              )}
+            </Box>
+
+            <CustomDateRangePicker 
+              startDate={selectedStartDate}
+              endDate={selectedEndDate}
+              onStartDateChange={setSelectedStartDate}
+              onEndDateChange={setSelectedEndDate}
+              isLabel={false}
+              sx={{mb: 0, width: {xs: "100%", md: "auto"}}}
             />
           </Box>
 
-          <CustomDateRangePicker 
-            startDate={selectedStartDate}
-            endDate={selectedEndDate}
-            onStartDateChange={setSelectedStartDate}
-            onEndDateChange={setSelectedEndDate}
-            isLabel={false}
-            sx={{mb: 0, width: {xs: "100%", md: "auto"}}}
-          />
+          
         </Box>
 
         {/* Table */}
         <CommonTable
-          data={data}
+          data={sortedData}
           containerHeight="calc(100vh - 380px)"
           columns={columns}
           // Pagination props
@@ -483,6 +674,10 @@ const AdminOrder = () => {
           // Other props
           loading={loading}
           filterComponent={null}
+          // Sorting props
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       </Paper>
     </Box>

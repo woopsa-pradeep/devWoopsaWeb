@@ -403,9 +403,13 @@ const CustomerReportTab: React.FC = () => {
     if (field === 'Trade_Desc') {
       return customer.classOfTrade?.Trade_Desc || '';
     }
-    // Handle new nested jurisdiction fields
+    // Handle new nested jurisdiction fields - return TaxDescription instead of number
     if (field === 'Jurisdiction_State') {
       // Try new nested structure first, then fallback to legacy
+      if (customer.taxRate?.TaxDescription !== undefined) {
+        return customer.taxRate.TaxDescription;
+      }
+      // Fallback to legacy structure if TaxDescription not available
       if (customer.taxRate?.Jurisdiction_State !== undefined) {
         return customer.taxRate.Jurisdiction_State.toString();
       }
@@ -413,6 +417,10 @@ const CustomerReportTab: React.FC = () => {
     }
     if (field === 'Jurisdiction_City') {
       // Try new nested structure first, then fallback to legacy
+      if (customer.taxRateCity?.TaxDescription !== undefined) {
+        return customer.taxRateCity.TaxDescription;
+      }
+      // Fallback to legacy structure if TaxDescription not available
       if (customer.taxRateCity?.Jurisdiction_City !== undefined) {
         return customer.taxRateCity.Jurisdiction_City.toString();
       }
@@ -420,6 +428,10 @@ const CustomerReportTab: React.FC = () => {
     }
     if (field === 'Jurisdiction_County') {
       // Try new nested structure first, then fallback to legacy
+      if (customer.taxRateCounty?.TaxDescription !== undefined) {
+        return customer.taxRateCounty.TaxDescription;
+      }
+      // Fallback to legacy structure if TaxDescription not available
       if (customer.taxRateCounty?.Jurisdiction_County !== undefined) {
         return customer.taxRateCounty.Jurisdiction_County.toString();
       }

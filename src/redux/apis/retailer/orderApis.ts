@@ -122,8 +122,14 @@ export const getOrderDeliveryStatus = async (id: any) => {
     const response = await axiosInstance.get(`/retailer/orderDeliveryStatus/${id}`);
     return response.data;
 }
-export const getOrderPdf = async (id: any, hasPrice: boolean = true) => {
-    const response = await axiosInstance.get(`/retailer/orderPdf?orderNumber=${id}&hasPrice=${hasPrice}`);
+export const getOrderPdf = async (id: any, hasPrice: boolean = true, invoiceGenerated: boolean = false) => {
+    const params = new URLSearchParams();
+    params.append('orderNumber', id.toString());
+    params.append('hasPrice', hasPrice.toString());
+    if (invoiceGenerated) {
+        params.append('invoiceGenerated', 'true');
+    }
+    const response = await axiosInstance.get(`/retailer/orderPdf?${params.toString()}`);
     return response.data;
 }
 

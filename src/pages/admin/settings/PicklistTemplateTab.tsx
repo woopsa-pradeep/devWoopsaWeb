@@ -286,9 +286,16 @@ const PicklistTemplateTab: React.FC = () => {
             setGroupBy(templateData.groupBy === 'none' ? '' : templateData.groupBy);
           }
           
-          // Set all other fields
+          // Set all other fields - filter out invalid fields (like unitCost, extendedCost, retail)
           if (templateData.selectedFields) {
-            setSelectedFields(templateData.selectedFields);
+            const validFieldKeys = PICKLIST_FIELDS.map(f => f.key);
+            const cleanedSelectedFields: { [key: string]: boolean } = {};
+            Object.keys(templateData.selectedFields).forEach(key => {
+              if (validFieldKeys.includes(key)) {
+                cleanedSelectedFields[key] = templateData.selectedFields[key];
+              }
+            });
+            setSelectedFields(cleanedSelectedFields);
           }
           if (templateData.newCategoryOnNewPage !== undefined) {
             setNewCategoryOnNewPage(templateData.newCategoryOnNewPage);
@@ -374,9 +381,17 @@ const PicklistTemplateTab: React.FC = () => {
     setSaving(true);
     try {
       const templateName = getTemplateName(groupBy || '');
+      // Clean selectedFields to only include valid fields
+      const validFieldKeys = PICKLIST_FIELDS.map(f => f.key);
+      const cleanedSelectedFields: { [key: string]: boolean } = {};
+      Object.keys(selectedFields).forEach(key => {
+        if (validFieldKeys.includes(key)) {
+          cleanedSelectedFields[key] = selectedFields[key];
+        }
+      });
       const templateData = {
         name: templateName,
-        selectedFields,
+        selectedFields: cleanedSelectedFields,
         groupBy: groupBy || 'none',
         newCategoryOnNewPage: newCategoryOnNewPage || false, // Explicitly include false
         headerPosition: 'topRight', // Always top right
@@ -870,9 +885,38 @@ const PicklistTemplateTab: React.FC = () => {
     return 0;
   };
 
+  // Sort by description with priority: space, symbolic, numeric, alphabetic
+  const sortByDescription = (a: typeof SAMPLE_ITEMS[0], b: typeof SAMPLE_ITEMS[0]): number => {
+    const descA = String(a.description || '').trim();
+    const descB = String(b.description || '').trim();
+    
+    // Get first character of each description
+    const firstCharA = descA.charAt(0);
+    const firstCharB = descB.charAt(0);
+    
+    // Get priority for first character: space (0), symbolic (1), numeric (2), alphabetic (3)
+    const getPriority = (char: string): number => {
+      if (char === ' ') return 0; // Space
+      if (/[0-9]/.test(char)) return 2; // Numeric
+      if (/[a-zA-Z]/.test(char)) return 3; // Alphabetic
+      return 1; // Symbolic (everything else)
+    };
+    
+    const priorityA = getPriority(firstCharA);
+    const priorityB = getPriority(firstCharB);
+    
+    // Sort by priority first
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    // If same priority, sort alphabetically
+    return descA.localeCompare(descB);
+  };
+
   // Group items based on selected grouping
   const groupItems = (items: typeof SAMPLE_ITEMS) => {
-    if (!groupBy) return [{ key: 'all', items }];
+    if (!groupBy) return [{ key: 'all', items: items.sort(sortByDescription) }];
     
     // Handle hierarchical grouping (Sales Category first, then Section/Location/Sequence)
     if (groupBy === 'sequenceSalesCategory') {
@@ -906,7 +950,7 @@ const PicklistTemplateTab: React.FC = () => {
         const sortedSeqs = Object.keys(secondaryGrouped).sort((a, b) => parseInt(a) - parseInt(b));
         const subGroups = sortedSeqs.map(seq => ({
           key: seq,
-          items: secondaryGrouped[seq]
+          items: secondaryGrouped[seq].sort(sortByDescription)
         }));
         
         result.push({
@@ -947,7 +991,7 @@ const PicklistTemplateTab: React.FC = () => {
         const sortedSections = Object.keys(secondaryGrouped).sort(naturalSort);
         const subGroups = sortedSections.map(section => ({
           key: section,
-          items: secondaryGrouped[section]
+          items: secondaryGrouped[section].sort(sortByDescription)
         }));
         
         result.push({
@@ -996,7 +1040,7 @@ const PicklistTemplateTab: React.FC = () => {
         });
         const subGroups = sortedLocations.map(location => ({
           key: location,
-          items: secondaryGrouped[location]
+          items: secondaryGrouped[location].sort(sortByDescription)
         }));
         
         result.push({
@@ -1053,7 +1097,7 @@ const PicklistTemplateTab: React.FC = () => {
     
     return sortedKeys.map(key => ({
       key,
-      items: grouped[key]
+      items: grouped[key].sort(sortByDescription)
     }));
   };
 
@@ -1062,7 +1106,8 @@ const PicklistTemplateTab: React.FC = () => {
     const logoDataUrl = await loadLogoAsDataUrl();
     const selectedFieldKeys = Object.keys(selectedFields).filter(key => selectedFields[key]);
     const totalFields = selectedFieldKeys.length;
-    const isLandscape = totalFields > 7;
+    const hasSectionOrLocation = selectedFieldKeys.includes('section') || selectedFieldKeys.includes('location');
+    const isLandscape = totalFields > 7 && !hasSectionOrLocation;
     
     const doc = new jsPDF(isLandscape ? 'landscape' : 'portrait', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1419,6 +1464,8 @@ const PicklistTemplateTab: React.FC = () => {
 
   const selectedFieldKeys = Object.keys(selectedFields).filter(key => selectedFields[key]);
   const totalFields = selectedFieldKeys.length;
+  const hasSectionOrLocation = selectedFieldKeys.includes('section') || selectedFieldKeys.includes('location');
+  const isLandscape = totalFields > 7 && !hasSectionOrLocation;
 
   return (
     <Box sx={{ 
@@ -1564,7 +1611,7 @@ const PicklistTemplateTab: React.FC = () => {
                   Select Fields
                 </Typography>
                 <Typography variant="caption" sx={{ mb: 0.6, pl: 0.5, fontSize: '0.65rem', display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
-                  {totalFields <= 7 ? 'Portrait A4' : 'Landscape A4'} ({totalFields} fields selected)
+                  {isLandscape ? 'Landscape A4' : 'Portrait A4'} ({totalFields} fields selected)
                 </Typography>
                 <Box sx={{ 
                   maxHeight: 'calc(100vh - 260px)',

@@ -21,6 +21,7 @@ import {
 } from '../../../redux/slices/orderConfirmSlice';
 import toast from 'react-hot-toast';
 import image from '../../../assets/Default-Product-Image.jpg';
+import beepSound from '../../../assets/wsdist.mp3';
 import dayjs from 'dayjs';
 import type { LabelSize } from '../../../utils/labelGenerator';
 import { generateBarcode } from '../../../utils/labelGenerator';
@@ -100,6 +101,8 @@ const OrderConfirmationDetail = () => {
   const [addingSelectedProduct, setAddingSelectedProduct] = useState(false);
   const [selectedProductQuantity, setSelectedProductQuantity] = useState<string>('1');
   const selectedProductQuantityRef = useRef<string>('1');
+  const [wrongProductConfirmationModalOpen, setWrongProductConfirmationModalOpen] = useState(false);
+  const [pendingFoundProduct, setPendingFoundProduct] = useState<any>(null);
   const location = useLocation();
   
   const previousLocationRef = useRef<string | null>(null);
@@ -112,6 +115,81 @@ const OrderConfirmationDetail = () => {
   const currentOrderNumberRef = useRef(currentOrderNumber);
   const currentOrderlineRef = useRef(currentOrderline);
   const isOrderCompletedRef = useRef(isOrderCompleted);
+  const beepAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize beep audio
+  useEffect(() => {
+    try {
+      beepAudioRef.current = new Audio(beepSound);
+      beepAudioRef.current.volume = 0.7; // Set volume to 70%
+      beepAudioRef.current.preload = 'auto'; // Preload the audio
+      
+      // Load the audio to ensure it's ready
+      beepAudioRef.current.load();
+      
+      // Handle audio ready
+      beepAudioRef.current.addEventListener('canplaythrough', () => {
+        console.log('Beep audio ready to play');
+      });
+      
+      // Handle errors
+      beepAudioRef.current.addEventListener('error', (e) => {
+        console.error('Beep audio error:', e);
+      });
+    } catch (error) {
+      console.error('Error initializing beep audio:', error);
+    }
+    
+    return () => {
+      if (beepAudioRef.current) {
+        beepAudioRef.current.pause();
+        beepAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Helper function to play beep sound
+  const playBeepSound = useCallback(async () => {
+    try {
+      if (beepAudioRef.current) {
+        beepAudioRef.current.currentTime = 0; // Reset to start
+        await beepAudioRef.current.play();
+      } else {
+        // If ref is null, create a new audio instance
+        const fallbackAudio = new Audio(beepSound);
+        fallbackAudio.volume = 0.7;
+        await fallbackAudio.play();
+      }
+    } catch (error: any) {
+      console.error('Error playing beep sound:', error);
+      // If play fails, try to reload and play again
+      if (beepAudioRef.current) {
+        try {
+          beepAudioRef.current.load();
+          await beepAudioRef.current.play();
+        } catch (retryError) {
+          console.error('Error retrying beep sound:', retryError);
+          // Fallback: create a new audio instance
+          try {
+            const fallbackAudio = new Audio(beepSound);
+            fallbackAudio.volume = 0.7;
+            await fallbackAudio.play();
+          } catch (fallbackError) {
+            console.error('Fallback beep also failed:', fallbackError);
+          }
+        }
+      } else {
+        // If ref is null, try creating a new instance
+        try {
+          const fallbackAudio = new Audio(beepSound);
+          fallbackAudio.volume = 0.7;
+          await fallbackAudio.play();
+        } catch (fallbackError) {
+          console.error('Fallback beep also failed:', fallbackError);
+        }
+      }
+    }
+  }, []);
 
   // Enable scanning by default (unless in review mode)
   useEffect(() => {
@@ -755,6 +833,9 @@ const OrderConfirmationDetail = () => {
       }
 
       if (!matchingLine) {
+        // Product not found in order - play beep sound for wrong UPC
+        playBeepSound();
+        
         // Product not found in order - search for it in inventory
         if (!orderHeader?.customer?.C_Number) {
           setScanMessage({ text: 'Customer information not available', type: 'error' });
@@ -772,13 +853,10 @@ const OrderConfirmationDetail = () => {
           const productList = Array.isArray(items) ? items : [];
           
           if (productList.length > 0) {
-            // Found product - show modal to add it
-            setFoundProduct(productList[0]); // Use first matching item
-            setAddProductQuantity('1');
-      addProductQuantityRef.current = '1'; // Reset quantity to 1
-            addProductQuantityRef.current = '1';
-            setAddProductModalOpen(true);
-            setScanMessage({ text: `Product found. Do you want to add it to the order?`, type: 'success' });
+            // Found product - store it and show confirmation modal first
+            setPendingFoundProduct(productList[0]); // Store product temporarily
+            setWrongProductConfirmationModalOpen(true); // Show confirmation modal first
+            setScanMessage({ text: `Wrong product scanned. Do you want to add it?`, type: 'error' });
           } else {
             setScanMessage({ text: `Product with UPC ${cleanedUPC} not found in inventory`, type: 'error' });
           }
@@ -1368,6 +1446,11 @@ const OrderConfirmationDetail = () => {
         return;
       }
 
+      if (quantity > 6) {
+        toast.error('Maximum quantity allowed is 6');
+        return;
+      }
+
       // Calculate payload using the same logic as Order.tsx
       const cartPayload = calculateCartPayload(selectedProduct, quantity);
       
@@ -1442,6 +1525,26 @@ const OrderConfirmationDetail = () => {
     }
   }, [selectedProduct, selectedProductQuantity, currentOrderNumber, orderHeader, orderDetails, confirmedLines, dispatch, calculateCartPayload]);
 
+  // Handle wrong product confirmation - opens add product modal
+  const handleWrongProductConfirm = useCallback(() => {
+    if (pendingFoundProduct) {
+      // Move product from pending to found and open add product modal
+      setFoundProduct(pendingFoundProduct);
+      setAddProductQuantity('1');
+      addProductQuantityRef.current = '1';
+      setWrongProductConfirmationModalOpen(false);
+      setAddProductModalOpen(true);
+      setPendingFoundProduct(null);
+    }
+  }, [pendingFoundProduct]);
+
+  // Handle wrong product cancel - closes confirmation modal
+  const handleWrongProductCancel = useCallback(() => {
+    setWrongProductConfirmationModalOpen(false);
+    setPendingFoundProduct(null);
+    setScannedUPCForSearch('');
+  }, []);
+
   // Handle adding product to order
   const handleAddProductToOrder = useCallback(async () => {
     if (!foundProduct || !currentOrderNumber || !orderHeader?.customer?.C_Number) {
@@ -1470,6 +1573,11 @@ const OrderConfirmationDetail = () => {
       
       if (isNaN(quantity) || quantity <= 0) {
         toast.error('Please enter a valid quantity greater than 0');
+        return;
+      }
+
+      if (quantity > 6) {
+        toast.error('Maximum quantity allowed is 6');
         return;
       }
 
@@ -4158,6 +4266,88 @@ const OrderConfirmationDetail = () => {
         </Box>
       </CommonModal>
 
+      {/* Wrong Product Confirmation Modal */}
+      <Dialog
+        open={wrongProductConfirmationModalOpen}
+        onClose={handleWrongProductCancel}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+          },
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            handleWrongProductCancel();
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            handleWrongProductConfirm();
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 2, fontSize: 16, fontWeight: 500 }}>
+          Wrong Product Scanned
+        </DialogTitle>
+        <DialogContent sx={{ pb: 2 }}>
+          <Typography variant="body1" color="text.secondary" fontSize={14}>
+            Oops! It's a wrong product. Do you want to add this product to the order?
+          </Typography>
+          {pendingFoundProduct && (
+            <Box mt={2}>
+              <Typography variant="body2" fontSize={12} fontWeight={500} color="text.primary" mb={0.5}>
+                Product Details:
+              </Typography>
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: '8px',
+                  border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e5e7eb'}`,
+                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
+                }}
+              >
+                {pendingFoundProduct.Description && (
+                  <Typography fontSize={12} fontWeight={400} color="text.primary" mb={0.5}>
+                    <strong>Description:</strong> {pendingFoundProduct.Description}
+                  </Typography>
+                )}
+                {pendingFoundProduct.Item_Number && (
+                  <Typography fontSize={12} fontWeight={400} color="text.primary" mb={0.5}>
+                    <strong>Item #:</strong> {pendingFoundProduct.Item_Number}
+                  </Typography>
+                )}
+                {(pendingFoundProduct.Price !== undefined || pendingFoundProduct.price !== undefined) && (
+                  <Typography fontSize={12} fontWeight={400} color="text.primary">
+                    <strong>Price:</strong> ${(pendingFoundProduct.Price || pendingFoundProduct.price || 0).toFixed(2)}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
+          <CustomButton
+            onClick={handleWrongProductCancel}
+            buttonType="cancel"
+            appearance="outlined"
+            size="small"
+            fullWidth={false}
+            sx={{ minWidth: 100 }}
+          >
+            Cancel
+          </CustomButton>
+          <CustomButton
+            onClick={handleWrongProductConfirm}
+            appearance="filled"
+            fullWidth={false}
+            sx={{ minWidth: 100 }}
+            size="small"
+          >
+            Yes, Add It
+          </CustomButton>
+        </DialogActions>
+      </Dialog>
+
       {/* Add Product Modal */}
       <Dialog
         open={addProductModalOpen}
@@ -4167,7 +4357,8 @@ const OrderConfirmationDetail = () => {
             setFoundProduct(null);
             setScannedUPCForSearch('');
             setAddProductQuantity('1');
-      addProductQuantityRef.current = '1';
+            addProductQuantityRef.current = '1';
+            setPendingFoundProduct(null);
           }
         }}
         maxWidth="sm"
@@ -4293,6 +4484,10 @@ const OrderConfirmationDetail = () => {
                     let value = e.target.value;
                     // Remove non-numeric characters
                     value = value.replace(/[^0-9]/g, '');
+                    // Limit to max 6
+                    if (value !== '' && Number(value) > 6) {
+                      value = '6';
+                    }
                     console.log('📝 Quantity input changed (scanned):', value);
                     // Always update the state, even if empty (user can clear and retype)
                     setAddProductQuantity(value);
@@ -4305,8 +4500,9 @@ const OrderConfirmationDetail = () => {
                     if (value === '' || Number(value) < 1) {
                       setAddProductQuantity('1');
       addProductQuantityRef.current = '1';
-                    } else if (Number(value) > 9999) {
-                      setAddProductQuantity('9999');
+                    } else if (Number(value) > 6) {
+                      setAddProductQuantity('6');
+      addProductQuantityRef.current = '6';
                     }
                   }}
                   onKeyDown={(e) => {
@@ -4319,7 +4515,7 @@ const OrderConfirmationDetail = () => {
                     inputMode: 'numeric',
                     pattern: '[0-9]*',
                     min: 1,
-                    max: 9999,
+                    max: 6,
                   }}
                   fullWidth
                   size="small"
@@ -4577,6 +4773,10 @@ const OrderConfirmationDetail = () => {
                   let value = e.target.value;
                   // Remove non-numeric characters
                   value = value.replace(/[^0-9]/g, '');
+                  // Limit to max 6
+                  if (value !== '' && Number(value) > 6) {
+                    value = '6';
+                  }
                   // Always update the state, even if empty (user can clear and retype)
                   setSelectedProductQuantity(value);
                   selectedProductQuantityRef.current = value; // Update ref immediately
@@ -4587,8 +4787,9 @@ const OrderConfirmationDetail = () => {
                   if (value === '' || Number(value) < 1) {
                     setSelectedProductQuantity('1');
       selectedProductQuantityRef.current = '1';
-                  } else if (Number(value) > 9999) {
-                    setSelectedProductQuantity('9999');
+                  } else if (Number(value) > 6) {
+                    setSelectedProductQuantity('6');
+      selectedProductQuantityRef.current = '6';
                   }
                 }}
                 onKeyDown={(e) => {
@@ -4601,7 +4802,7 @@ const OrderConfirmationDetail = () => {
                   inputMode: 'numeric',
                   pattern: '[0-9]*',
                   min: 1,
-                  max: 9999,
+                  max: 6,
                 }}
                 fullWidth
                 size="small"

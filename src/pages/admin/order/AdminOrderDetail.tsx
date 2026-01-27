@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Grid, Paper, Button, CircularProgress } from "@mui/material";
 import { KeyboardBackspaceOutlined, Print as PrintIcon } from "@mui/icons-material";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import CommonTable, {
   TableColumn,
 } from "../../../component/atoms/Table/CommonTable";
@@ -24,8 +24,15 @@ import rabbitLogo from '../../../assets/Rabbit.svg';
 
 const AdminOrderDetail = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { orderId } = useParams();
   const [orderHistory, setOrderHistory] = useState<any[]>([]);
+  
+  // Check if we came from calendar view
+  const fromCalendar = location.state?.fromCalendar;
+  const calendarState = location.state?.calendarState;
+  // Get isConfirmed from parent page (AdminOrder)
+  const isConfirmed = location.state?.isConfirmed;
   const [orderHeader, setOrderHeader] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -56,6 +63,9 @@ const AdminOrderDetail = () => {
 
   // Check if PrintInvoice is true in any delivery status item
   const canPrintInvoice = stepData.some((step: any) => step.PrintInvoice === true);
+
+  const invoiceNumber = Number(orderHeader?.Invoice_Number) || 0;
+  const isInvoiceGenerated = invoiceNumber > 0;
 
   useEffect(() => {
     const fetchOrderHistory = async () => {
@@ -207,15 +217,9 @@ const AdminOrderDetail = () => {
           ? Number(item.Retail)
           : (item.Retail_Price !== undefined && item.Retail_Price !== null
             ? Number(item.Retail_Price)
-            : (item.Price !== undefined && item.Price !== null
+              : (item.Price !== undefined && item.Price !== null
               ? Number(item.Price)
               : 0));
-        
-        const sequence = item.Sequence !== undefined && item.Sequence !== null
-          ? Number(item.Sequence)
-          : (item.Line_Number !== undefined && item.Line_Number !== null
-            ? Number(item.Line_Number)
-            : index + 1);
         
         // Sales Category - from inventory.SalesCategory.Category_Desc or Sales_Category
         const salesCategory = item.inventory?.SalesCategory?.Category_Desc || 
@@ -223,6 +227,46 @@ const AdminOrderDetail = () => {
                             item.SalesCategory || 
                             (item.Sales_Category !== undefined && item.Sales_Category !== null ? String(item.Sales_Category) : '') ||
                             '';
+        
+        // Price Class - from inventory.PriceClass.Class_Desc
+        const priceClass = item.inventory?.PriceClass?.Class_Desc || 
+                          item.Price_Class_Desc || 
+                          item.PriceClass || 
+                          item.Price_Class || 
+                          item.inventory?.Price_Class_Desc ||
+                          '';
+        
+        // Section - from inventory.Section
+        const section = item.inventory?.Section || 
+                       item.Section || 
+                       item.inventory?.Section2 ||
+                       '';
+        
+        // Location - from inventory.Location (may be 0, convert to string)
+        const location = item.inventory?.Location !== undefined && item.inventory?.Location !== null
+          ? (item.inventory.Location === 0 ? '' : String(item.inventory.Location))
+          : (item.Location !== undefined && item.Location !== null
+            ? (item.Location === 0 ? '' : String(item.Location))
+            : (item.inventory?.Location2 !== undefined && item.inventory?.Location2 !== null
+              ? (item.inventory.Location2 === 0 ? '' : String(item.inventory.Location2))
+              : ''));
+        
+        // Sequence - from inventory.Sequence
+        const sequence = item.inventory?.Sequence !== undefined && item.inventory?.Sequence !== null
+          ? Number(item.inventory.Sequence)
+          : (item.Sequence !== undefined && item.Sequence !== null
+            ? Number(item.Sequence)
+            : (item.Line_Number !== undefined && item.Line_Number !== null
+              ? Number(item.Line_Number)
+              : index + 1));
+        
+        // Vendor Item - from inventory.Vendor_ItemNumberAlpha
+        const vendorItem = item.inventory?.Vendor_ItemNumberAlpha || 
+                          item.inventory?.Vendor_Item || 
+                          item.Vendor_Item || 
+                          item.VendorItem || 
+                          item.inventory?.VendorItem ||
+                          '';
         
         return {
           lineNumber,
@@ -235,13 +279,13 @@ const AdminOrderDetail = () => {
           upc: String(upc || ''),
           onhand: Number(onhand || 0),
           salesCategory: String(salesCategory),
-          priceClass: String(item.Price_Class_Desc || item.PriceClass || item.Price_Class || ''),
+          priceClass: String(priceClass),
           unitCost,
           extendedCost,
           retail,
-          section: String(item.Section || ''),
-          location: String(item.Location || ''),
-          vendorItem: String(item.Vendor_Item || item.VendorItem || ''),
+          section: String(section),
+          location: String(location),
+          vendorItem: String(vendorItem),
           sequence,
         };
       });
@@ -964,6 +1008,9 @@ const AdminOrderDetail = () => {
     },
     { id: "Item_Number", label: "Item Number" },
     { id: "Quantity_Ordered", label: "Qty", render: (row) => `${Number(row.Quantity_Ordered).toFixed(0)}` },
+    ...(isInvoiceGenerated
+      ? [{ id: "Quantity_Shipped", label: "Shipped Qty", render: (row: any) => `${Number(row.Quantity_Shipped ?? 0).toFixed(0)}` }]
+      : []),
     {
       id: "Price",
       label: "Price",
@@ -1052,7 +1099,15 @@ const AdminOrderDetail = () => {
       {/* Header */}
       <Box display="flex" alignItems="center" gap={1} mb={3}>
         <KeyboardBackspaceOutlined
-          onClick={() => navigate("/admin/order")}
+          onClick={() => {
+            if (fromCalendar && calendarState) {
+              // Navigate back to calendar view with the original state
+              navigate('/admin/calender/view', { state: calendarState });
+            } else {
+              // Default navigation to order list
+              navigate("/admin/order");
+            }
+          }}
           sx={{ cursor: "pointer" }}
         />
         <Typography fontSize={20} fontWeight={500}>
@@ -1088,7 +1143,7 @@ const AdminOrderDetail = () => {
                   startIcon={picklistLoading ? <CircularProgress size={16} color="inherit" /> : <PrintIcon />}
                   onClick={handlePrintPicklist}
                   size="small"
-                  disabled={picklistLoading || pdfLoading}
+                  disabled={picklistLoading || pdfLoading || isConfirmed === true}
                   sx={{ backgroundColor: "primary.main", color: "white" }}
                 >
                   {picklistLoading ? "Generating..." : "Print Picklist"}

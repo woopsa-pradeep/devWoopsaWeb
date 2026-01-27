@@ -284,6 +284,8 @@ const BulkUpdate = () => {
   const isInitialMount = useRef(true);
   // Ref to track previous filter values to prevent duplicate calls
   const prevFiltersRef = useRef<string>('');
+  // Ref to track the latest request ID to ignore stale responses
+  const requestIdRef = useRef(0);
   
   // Editable cell state
   const [editingCell, setEditingCell] = useState<{
@@ -308,6 +310,10 @@ const BulkUpdate = () => {
   } | null>(null);
 
   const fetchInventoryItems = useCallback(async () => {
+    // Increment request ID for this new request
+    requestIdRef.current += 1;
+    const currentRequestId = requestIdRef.current;
+    
     setLoading(true);
     try {
       const params: any = {};
@@ -329,16 +335,26 @@ const BulkUpdate = () => {
       }
       
       const res = await inventoryItemsForUpdate(params) as any;
-      const items = res?.data?.data?.productList || [];
-      setData(items);
-      setHasDataLoaded(true);
-      setCurrentPage(1); // Reset to first page on new data
+      
+      // Only update state if this is still the latest request
+      if (currentRequestId === requestIdRef.current) {
+        const items = res?.data?.data?.productList || [];
+        setData(items);
+        setHasDataLoaded(true);
+        setCurrentPage(1); // Reset to first page on new data
+      }
     } catch (error: any) {
-      console.error('Error fetching inventory items:', error);
-      toast.error(error?.response?.data?.message || 'Failed to load inventory items');
-      setData([]);
+      // Only show error and update state if this is still the latest request
+      if (currentRequestId === requestIdRef.current) {
+        console.error('Error fetching inventory items:', error);
+        toast.error(error?.response?.data?.message || 'Failed to load inventory items');
+        setData([]);
+      }
     } finally {
-      setLoading(false);
+      // Only update loading state if this is still the latest request
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [appliedSalesCategory, appliedPriceClass, appliedFilter, appliedSearch]);
 

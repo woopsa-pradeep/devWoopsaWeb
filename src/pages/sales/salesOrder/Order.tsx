@@ -301,6 +301,7 @@ const Order = () => {
   const [priceClass, setPriceClass] = useState<{ label: string; value: string }[]>([]);
   const [salesCategoryOptions, setSalesCategoryOptions] = useState<{ label: string; value: string }[]>([]);
   const [priceClassOptions, setPriceClassOptions] = useState<{ label: string; value: string }[]>([]);
+  const [allPriceClasses, setAllPriceClasses] = useState<any[]>([]); // Store raw price classes data
   const [loadingSalesCategory, setLoadingSalesCategory] = useState(false);
   const [loadingPriceClass, setLoadingPriceClass] = useState(false);
   const [userSalesCategory, setUserSalesCategory] = useState<number[]>([]);
@@ -849,8 +850,11 @@ const Order = () => {
           }
         }));
         
-        // Populate price class options
+        // Store raw price classes data for filtering
         const priceClasses = response?.data?.priceClasses || [];
+        setAllPriceClasses(priceClasses);
+        
+        // Populate price class options (will be filtered by sales category)
         setPriceClassOptions(priceClasses?.map((pc: any) => {
           return {
             label: pc.Class_Desc,
@@ -886,6 +890,37 @@ const Order = () => {
     };
     fetchUserSalesCategory();
   }, [selectedCustomer?.C_Number]);
+
+  // Filter price classes based on selected sales category
+  useEffect(() => {
+    if (allPriceClasses.length === 0) {
+      return;
+    }
+
+    // If no sales category is selected, show all price classes
+    if (!salesCategory || salesCategory.length === 0) {
+      setPriceClassOptions(allPriceClasses.map((pc: any) => {
+        return {
+          label: pc.Class_Desc,
+          value: pc.Price_Class.toString()
+        };
+      }));
+      return;
+    }
+
+    // Filter price classes where Sales_Category_Group matches any selected Sales_Category
+    const selectedSalesCategoryValues = salesCategory.map(cat => parseInt(cat.value));
+    const filteredPriceClasses = allPriceClasses.filter((pc: any) => 
+      selectedSalesCategoryValues.includes(pc.Sales_Category_Group)
+    );
+
+    setPriceClassOptions(filteredPriceClasses.map((pc: any) => {
+      return {
+        label: pc.Class_Desc,
+        value: pc.Price_Class.toString()
+      };
+    }));
+  }, [salesCategory, allPriceClasses]);
 
   // Handle quantity change
   const handleQuantityChange = async (id: string, change: number) => {

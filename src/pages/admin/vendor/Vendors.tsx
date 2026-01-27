@@ -28,7 +28,7 @@ const Vendors = () => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
@@ -146,6 +146,8 @@ const Vendors = () => {
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           containerHeight="calc(100vh - 365px)"
+          stickyFirstTwoColumns={true}
+          stickyLastColumn={true}  
         />
       )}
       </Paper>

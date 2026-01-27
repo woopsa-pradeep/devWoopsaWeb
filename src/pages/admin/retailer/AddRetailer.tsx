@@ -154,7 +154,7 @@ const AddRetailer: React.FC = () => {
       PriceLevel_Default: 0,
       EDI_Format: 0,
       NetCost_Flag: false,
-      TermCode: 0,
+      TermsCode: 0,
       C_SalesTaxSelect: 'N',
       C_OrderDaySequence: 1,
       Credit_Limit: 0,
@@ -1606,7 +1606,7 @@ const AddRetailer: React.FC = () => {
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                         <Controller
-                          name="TermCode"
+                          name="TermsCode"
                           control={control}
                           render={({ field }) => (
                             <SelectInput
@@ -1616,8 +1616,8 @@ const AddRetailer: React.FC = () => {
                               label="Term Code"
                               options={termCodeOptions}
                               disabled={loadingDropdowns}
-                              error={!!errors.TermCode}
-                              helperText={errors.TermCode?.message}
+                              error={!!errors.TermsCode}
+                              helperText={errors.TermsCode?.message}
                             />
                           )}
                         />

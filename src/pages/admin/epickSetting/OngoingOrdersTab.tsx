@@ -109,6 +109,7 @@ interface OverrideRequest {
   orderNumber: number;
   itemNumber: number;
   itemDescription: string;
+  pickerId?: number;
   pickerUserNumber: number;
   userName: string;
   userEmail: string;
@@ -175,6 +176,23 @@ interface OrderItem {
   masterImage: string;
   distributorImage: string | null;
   isDistributorImageShow: boolean;
+  pickerId?: number;
+  pickerUserNumber?: number | string;
+}
+
+interface PickerInfo {
+  pickerId: number;
+  pickerName: string;
+  pickerEmail?: string;
+  pickerUserNumber?: number | string;
+  startedAt?: string;
+  completedAt?: string;
+  totalLines?: number;
+  totalQty?: number;
+  scannedLines?: number;
+  scannedQty?: number;
+  orderItems?: OrderItem[];
+  overrideRequests?: OverrideRequest[];
 }
 
 interface CompleteOrderDetails {
@@ -200,6 +218,8 @@ interface CompleteOrderDetails {
     };
     startedAt: string;
     completedAt: string;
+    allPicker?: PickerInfo[];
+    allPickers?: PickerInfo[];
   };
   orderItems: OrderItem[];
   overrideRequests: OverrideRequest[];
@@ -795,16 +815,16 @@ const OngoingOrdersTab: React.FC = () => {
         );
       },
     },
-    {
-      id: 'pickerUserNumber',
-      label: 'Picker User #',
-      minWidth: 120,
-      render: (row) => (
-        <Typography fontSize={14} fontWeight={400}>
-          {row.pickerUserNumber}
-        </Typography>
-      ),
-    },
+    // {
+    //   id: 'pickerUserNumber',
+    //   label: 'Picker User #',
+    //   minWidth: 120,
+    //   render: (row) => (
+    //     <Typography fontSize={14} fontWeight={400}>
+    //       {row.pickerUserNumber}
+    //     </Typography>
+    //   ),
+    // },
     {
       id: 'userName',
       label: 'User Name',
@@ -1933,27 +1953,27 @@ const OngoingOrdersTab: React.FC = () => {
           setViewModalOpen(false);
           setOrderDetails(null);
         }}
-        size="xl"
+        size="xxl"
         title="Order Details"
       >
-        <Box>
+        <Box sx={{ p: 0 }}>
           {loadingDetails ? (
-            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+            <Box display="flex" justifyContent="center" alignItems="center" py={2}>
               <Typography>Loading order details...</Typography>
             </Box>
           ) : !orderDetails ? (
-            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+            <Box display="flex" justifyContent="center" alignItems="center" py={2}>
               <Typography color="text.secondary">No order details found</Typography>
             </Box>
           ) : (
             <Box>
-              <Box sx={{ maxHeight: '70vh', overflow: 'auto', pr: 2 }}>
+              <Box sx={{ maxHeight: '80vh', overflow: 'auto' }}>
                 {/* Order Info */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography fontSize={16} fontWeight={600} sx={{ mb: 2 }}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography fontSize={15} fontWeight={600} sx={{ mb: 1 }}>
                     Order Information
                   </Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mb: 2 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 1 }}>
                     <Typography fontSize={13} color="text.secondary">
                       Order Number: <strong>{orderDetails.orderInfo.orderNumber}</strong>
                     </Typography>
@@ -1966,12 +1986,42 @@ const OngoingOrdersTab: React.FC = () => {
                     <Typography fontSize={13} color="text.secondary">
                       Invoice Total: <strong>{formatCurrency(orderDetails.orderInfo.invoiceTotal)}</strong>
                     </Typography>
-                    <Typography fontSize={13} color="text.secondary">
-                      Picker ID: <strong>{orderDetails.orderInfo.pickerId || 'N/A'}</strong>
-                    </Typography>
-                    <Typography fontSize={13} color="text.secondary">
-                      Picker Name: <strong>{orderDetails.orderInfo.pickerName || 'N/A'}</strong>
-                    </Typography>
+                    {(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker) && (orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.length > 0 ? (
+                      <>
+                        <Typography fontSize={13} color="text.secondary" sx={{ gridColumn: '1 / -1', mb: 0.5 }}>
+                          <strong>Pickers ({(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.length}):</strong>
+                        </Typography>
+                        {(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.map((picker, index) => (
+                          <Box key={picker.pickerId || index} sx={{ gridColumn: '1 / -1', pl: 1, mb: 0.5, pb: 0.5, borderLeft: '2px solid', borderColor: 'divider' }}>
+                            <Typography fontSize={13} color="text.secondary">
+                              Picker {index + 1}: <strong>{picker.pickerName || 'N/A'}</strong>
+                            </Typography>
+                            <Typography fontSize={12} color="text.secondary">
+                              ID: {picker.pickerId} | User #: {picker.pickerUserNumber || 'N/A'} | Email: {picker.pickerEmail || 'N/A'}
+                            </Typography>
+                            {picker.startedAt && (
+                              <Typography fontSize={12} color="text.secondary">
+                                Started: {formatDateTime(picker.startedAt)} | Completed: {picker.completedAt ? formatDateTime(picker.completedAt) : 'N/A'}
+                              </Typography>
+                            )}
+                            {(picker.totalLines !== undefined || picker.scannedLines !== undefined) && (
+                              <Typography fontSize={12} color="text.secondary">
+                                Lines: {picker.scannedLines || 0}/{picker.totalLines || 0} | Qty: {picker.scannedQty || 0}/{picker.totalQty || 0}
+                              </Typography>
+                            )}
+                          </Box>
+                        ))}
+                      </>
+                    ) : (
+                      <>
+                        <Typography fontSize={13} color="text.secondary">
+                          Picker ID: <strong>{orderDetails.orderInfo.pickerId || 'N/A'}</strong>
+                        </Typography>
+                        <Typography fontSize={13} color="text.secondary">
+                          Picker Name: <strong>{orderDetails.orderInfo.pickerName || 'N/A'}</strong>
+                        </Typography>
+                      </>
+                    )}
                     <Typography fontSize={13} color="text.secondary">
                       Bundles: <strong>{orderDetails.orderInfo.bundles}</strong>
                     </Typography>
@@ -1989,10 +2039,10 @@ const OngoingOrdersTab: React.FC = () => {
                     </Typography>
                   </Box>
                   
-                  <Typography fontSize={14} fontWeight={600} sx={{ mb: 1, mt: 2 }}>
+                  <Typography fontSize={15} fontWeight={600} sx={{ mb: 1, mt: 1.5 }}>
                     Customer Information
                   </Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mb: 2 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 1 }}>
                     <Typography fontSize={13} color="text.secondary">
                       Customer Number: <strong>{orderDetails.orderInfo.customer.customerNumber}</strong>
                     </Typography>
@@ -2014,10 +2064,10 @@ const OngoingOrdersTab: React.FC = () => {
                   {/* Summary */}
                   {orderDetails.summary && (
                     <>
-                      <Typography fontSize={14} fontWeight={600} sx={{ mb: 1, mt: 2 }}>
+                      <Typography fontSize={15} fontWeight={600} sx={{ mb: 1, mt: 1.5 }}>
                         Summary
                       </Typography>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1.5, mb: 2 }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, mb: 1 }}>
                         <Typography fontSize={13} color="text.secondary">
                           Total Items Ordered: <strong>{orderDetails.summary.totalItemsOrdered}</strong>
                         </Typography>
@@ -2032,75 +2082,196 @@ const OngoingOrdersTab: React.FC = () => {
                   )}
                 </Box>
 
-                <Divider sx={{ my: 3 }} />
+                <Divider sx={{ my: 1.5 }} />
 
-                {/* Override Requests Table */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography fontSize={16} fontWeight={600} sx={{ mb: 2 }}>
-                    Override Requests ({orderDetails.overrideRequests?.length || 0})
-                  </Typography>
-                  {orderDetails.overrideRequests && orderDetails.overrideRequests.length > 0 ? (
-                    <CommonTable
-                      data={orderDetails.overrideRequests}
-                      columns={overrideRequestsViewColumns}
-                      currentPage={1}
-                      totalPages={1}
-                      totalItems={orderDetails.overrideRequests.length}
-                      pageSize={orderDetails.overrideRequests.length}
-                      onPageChange={() => {}}
-                      onPageSizeChange={() => {}}
-                      loading={false}
-                      isPagination={false}
-                      stickyLastColumn={true}
-                      containerHeight="auto"
-                      emptyStateComponent={
-                        <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                {/* Group by Picker if allPickers or allPicker exists */}
+                {(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker) && (orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.length > 0 ? (
+                  <>
+                    {(orderDetails.orderInfo.allPickers || orderDetails.orderInfo.allPicker)!.map((picker, pickerIndex) => {
+                      // Use picker's own orderItems and overrideRequests if available, otherwise filter by pickerId
+                      const pickerItems = picker.orderItems || orderDetails.orderItems?.filter((item) => 
+                        item.pickerId === picker.pickerId
+                      ) || [];
+                      
+                      // Use picker's overrideRequests if it exists and has items, otherwise filter from orderDetails
+                      const pickerRequests = (picker.overrideRequests && picker.overrideRequests.length > 0) 
+                        ? picker.overrideRequests 
+                        : orderDetails.overrideRequests?.filter((req) => {
+                            // Match by pickerId - this is the primary matching criteria
+                            if (req.pickerId !== undefined && picker.pickerId !== undefined) {
+                              return req.pickerId === picker.pickerId;
+                            }
+                            // Fallback to pickerUserNumber matching if pickerId is not available
+                            return req.pickerUserNumber === picker.pickerUserNumber;
+                          }) || [];
+
+                      return (
+                        <Box key={picker.pickerId || pickerIndex} sx={{ mb: 2 }}>
+                          {/* Picker Header Section */}
+                          <Box sx={{ 
+                            p: 1, 
+                            mb: 1.5, 
+                            borderLeft: '3px solid',
+                            borderColor: 'primary.main'
+                          }}>
+                            <Typography fontSize={16} fontWeight={600} sx={{ mb: 0.25 }}>
+                              Picker {pickerIndex + 1}: {picker.pickerName || 'N/A'}
+                            </Typography>
+                            <Typography fontSize={12} color="text.secondary" sx={{ mb: 0.25 }}>
+                              ID: {picker.pickerId} | User #: {picker.pickerUserNumber || 'N/A'} | Email: {picker.pickerEmail || 'N/A'}
+                            </Typography>
+                            {picker.startedAt && (
+                              <Typography fontSize={12} color="text.secondary" sx={{ mb: 0.25 }}>
+                                Started: {formatDateTime(picker.startedAt)} | Completed: {picker.completedAt ? formatDateTime(picker.completedAt) : 'N/A'}
+                              </Typography>
+                            )}
+                            {(picker.totalLines !== undefined || picker.scannedLines !== undefined) && (
+                              <Typography fontSize={12} color="text.secondary">
+                                Lines: {picker.scannedLines || 0}/{picker.totalLines || 0} | Qty: {picker.scannedQty || 0}/{picker.totalQty || 0}
+                              </Typography>
+                            )}
+                          </Box>
+
+                          {/* Override Requests for this picker */}
+                          <Box sx={{ mb: 2 }}>
+                            <Typography fontSize={14} fontWeight={600} sx={{ mb: 1 }}>
+                              Override Requests ({pickerRequests.length})
+                            </Typography>
+                            {pickerRequests.length > 0 ? (
+                              <CommonTable
+                                data={pickerRequests}
+                                columns={overrideRequestsViewColumns}
+                                currentPage={1}
+                                totalPages={1}
+                                totalItems={pickerRequests.length}
+                                pageSize={pickerRequests.length}
+                                onPageChange={() => {}}
+                                onPageSizeChange={() => {}}
+                                loading={false}
+                                isPagination={false}
+                                stickyLastColumn={true}
+                                containerHeight="auto"
+                                emptyStateComponent={
+                                  <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                                    <Typography color="text.secondary">No override requests found</Typography>
+                                  </Box>
+                                }
+                              />
+                            ) : (
+                              <Box display="flex" justifyContent="center" alignItems="center" py={1}>
+                                <Typography color="text.secondary">No override requests found for this picker</Typography>
+                              </Box>
+                            )}
+                          </Box>
+
+                          <Divider sx={{ my: 1 }} />
+
+                          {/* Order Items for this picker */}
+                          <Box sx={{ mb: 2 }}>
+                            <Typography fontSize={14} fontWeight={600} sx={{ mb: 1 }}>
+                              Order Items ({pickerItems.length})
+                            </Typography>
+                            {pickerItems.length > 0 ? (
+                              <CommonTable
+                                data={pickerItems}
+                                columns={orderItemsColumns}
+                                currentPage={1}
+                                totalPages={1}
+                                totalItems={pickerItems.length}
+                                pageSize={pickerItems.length}
+                                onPageChange={() => {}}
+                                onPageSizeChange={() => {}}
+                                loading={false}
+                                isPagination={false}
+                                stickyLastColumn={true}
+                                containerHeight="auto"
+                                emptyStateComponent={
+                                  <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                                    <Typography color="text.secondary">No order items found</Typography>
+                                  </Box>
+                                }
+                              />
+                            ) : (
+                              <Box display="flex" justifyContent="center" alignItems="center" py={1}>
+                                <Typography color="text.secondary">No order items found for this picker</Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <>
+                    {/* Override Requests Table - All */}
+                    <Box sx={{ mb: 2 }}>
+                      <Typography fontSize={15} fontWeight={600} sx={{ mb: 1 }}>
+                        Override Requests ({orderDetails.overrideRequests?.length || 0})
+                      </Typography>
+                      {orderDetails.overrideRequests && orderDetails.overrideRequests.length > 0 ? (
+                        <CommonTable
+                          data={orderDetails.overrideRequests}
+                          columns={overrideRequestsViewColumns}
+                          currentPage={1}
+                          totalPages={1}
+                          totalItems={orderDetails.overrideRequests.length}
+                          pageSize={orderDetails.overrideRequests.length}
+                          onPageChange={() => {}}
+                          onPageSizeChange={() => {}}
+                          loading={false}
+                          isPagination={false}
+                          stickyLastColumn={true}
+                          containerHeight="auto"
+                          emptyStateComponent={
+                            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                              <Typography color="text.secondary">No override requests found</Typography>
+                            </Box>
+                          }
+                        />
+                      ) : (
+                        <Box display="flex" justifyContent="center" alignItems="center" py={1}>
                           <Typography color="text.secondary">No override requests found</Typography>
                         </Box>
-                      }
-                    />
-                  ) : (
-                    <Box display="flex" justifyContent="center" alignItems="center" py={2}>
-                      <Typography color="text.secondary">No override requests found</Typography>
+                      )}
                     </Box>
-                  )}
-                </Box>
 
-                <Divider sx={{ my: 3 }} />
+                    <Divider sx={{ my: 1.5 }} />
 
-                {/* Order Items Table */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography fontSize={16} fontWeight={600} sx={{ mb: 2 }}>
-                    Order Items ({orderDetails.orderItems?.length || 0})
-                  </Typography>
-                  {orderDetails.orderItems && orderDetails.orderItems.length > 0 ? (
-                    <CommonTable
-                      data={orderDetails.orderItems}
-                      columns={orderItemsColumns}
-                      currentPage={1}
-                      totalPages={1}
-                      totalItems={orderDetails.orderItems.length}
-                      pageSize={orderDetails.orderItems.length}
-                      onPageChange={() => {}}
-                      onPageSizeChange={() => {}}
-                      loading={false}
-                      isPagination={false}
-                      stickyLastColumn={true}
-                      containerHeight="auto"
-                      emptyStateComponent={
-                        <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                    {/* Order Items Table - All */}
+                    <Box sx={{ mb: 2 }}>
+                      <Typography fontSize={15} fontWeight={600} sx={{ mb: 1 }}>
+                        Order Items ({orderDetails.orderItems?.length || 0})
+                      </Typography>
+                      {orderDetails.orderItems && orderDetails.orderItems.length > 0 ? (
+                        <CommonTable
+                          data={orderDetails.orderItems}
+                          columns={orderItemsColumns}
+                          currentPage={1}
+                          totalPages={1}
+                          totalItems={orderDetails.orderItems.length}
+                          pageSize={orderDetails.orderItems.length}
+                          onPageChange={() => {}}
+                          onPageSizeChange={() => {}}
+                          loading={false}
+                          isPagination={false}
+                          stickyLastColumn={true}
+                          containerHeight="auto"
+                          emptyStateComponent={
+                            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                              <Typography color="text.secondary">No order items found</Typography>
+                            </Box>
+                          }
+                        />
+                      ) : (
+                        <Box display="flex" justifyContent="center" alignItems="center" py={1}>
                           <Typography color="text.secondary">No order items found</Typography>
                         </Box>
-                      }
-                    />
-                  ) : (
-                    <Box display="flex" justifyContent="center" alignItems="center" py={2}>
-                      <Typography color="text.secondary">No order items found</Typography>
+                      )}
                     </Box>
-                  )}
-                </Box>
+                  </>
+                )}
               </Box>
-              <Box display="flex" gap={2} justifyContent="flex-end" sx={{ mt: 3 }}>
+              <Box display="flex" gap={2} justifyContent="flex-end" sx={{ mt: 1.5 }}>
                 <CustomButton
                   appearance="outlined"
                   buttonType="cancel"
@@ -2123,3 +2294,5 @@ const OngoingOrdersTab: React.FC = () => {
 };
 
 export default OngoingOrdersTab;
+
+

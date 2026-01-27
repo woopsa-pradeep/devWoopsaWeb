@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -13,18 +14,69 @@ import {
   Inventory as InventoryIcon,
   People as PeopleIcon,
   Label as LabelIcon,
+  TrendingDown as TrendingDownIcon,
+  AccountBalance as AccountBalanceIcon,
+  Description as DescriptionIcon,
+  Speed as SpeedIcon,
+  AccountBalanceWallet as AccountBalanceWalletIcon,
+  Receipt as ReceiptIcon,
   ChevronLeft,
   ChevronRight,
+  ExpandMore,
+  ExpandLess,
 } from '@mui/icons-material';
 import InventoryReportTab from './InventoryReportTab';
 import CustomerReportTab from './CustomerReportTab';
 import InventoryLabelTab from './InventoryLabelTab';
+import LossQtyReportTab from './LossQtyReportTab';
+import ARReportTab from './ARReportTab';
+import ARStatementTab from './ARStatementTab';
+import VelocityReportTab from './VelocityReportTab';
+import ARUndepositeTab from './ARUndepositeTab';
+import OpenItemReportTab from './OpenItemReportTab';
 
 const ReportsAnalytics: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery("(max-width: 899px)");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [tab, setTab] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [arExpanded, setArExpanded] = useState(false);
+  const [tab, setTab] = useState(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'loss-qty') return 3;
+    // Check if any AR tab is selected
+    if (tabParam === 'ar-report') return 5;
+    if (tabParam === 'ar-statement') return 6;
+    if (tabParam === 'ar-undeposite') return 7;
+    if (tabParam === 'ar-open-item') return 8;
+    return 0;
+  });
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'loss-qty') {
+      setTab(3);
+    } else if (tabParam === 'ar-report') {
+      setTab(5);
+      setArExpanded(true);
+    } else if (tabParam === 'ar-statement') {
+      setTab(6);
+      setArExpanded(true);
+    } else if (tabParam === 'ar-undeposite') {
+      setTab(7);
+      setArExpanded(true);
+    } else if (tabParam === 'ar-open-item') {
+      setTab(8);
+      setArExpanded(true);
+    }
+  }, [searchParams]);
+
+  // Auto-expand AR when an AR tab is selected
+  useEffect(() => {
+    if (tab >= 5 && tab <= 8) {
+      setArExpanded(true);
+    }
+  }, [tab]);
 
 
   const sidebarWidth = sidebarOpen ? 250 : 72;
@@ -38,6 +90,18 @@ const ReportsAnalytics: React.FC = () => {
         return <CustomerReportTab />;
       case 2:
         return <InventoryLabelTab />;
+      case 3:
+        return <LossQtyReportTab />;
+      case 4:
+        return <VelocityReportTab />;
+      case 5:
+        return <ARReportTab />;
+      case 6:
+        return <ARStatementTab />;
+      case 7:
+        return <ARUndepositeTab />;
+      case 8:
+        return <OpenItemReportTab />;
       default:
         return <InventoryReportTab />;
     }
@@ -126,153 +190,478 @@ const ReportsAnalytics: React.FC = () => {
           </IconButton>
         </Box>
 
-        <Tabs
-          orientation={isMobile ? "horizontal" : "vertical"}
-          variant={isMobile ? "scrollable" : "standard"}
-          value={tab}
-          onChange={(_, v) => setTab(v)}
+        <Box
           sx={{
             flexGrow: 1,
             height: isMobile ? 'auto' : 'calc(100% - 56px)',
-            '& .MuiTabs-flexContainer': {
-              gap: 0.5,
-              p: 1,
-              justifyContent: sidebarOpen ? 'flex-start' : 'center',
-              alignItems: sidebarOpen ? 'stretch' : 'center',
-            },
+            overflow: 'auto',
+            p: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0.5,
           }}
-          TabIndicatorProps={{ style: { display: "none" } }}
         >
-          <Tab
-            label={sidebarOpen ? "Inventory" : ""}
-            icon={<InventoryIcon sx={{ fontSize: 20 }} />}
-            iconPosition="start"
+          {/* Regular Tabs */}
+          <Tabs
+            orientation={isMobile ? "horizontal" : "vertical"}
+            variant={isMobile ? "scrollable" : "standard"}
+            value={tab < 5 ? tab : false}
+            onChange={(_, v) => {
+              setTab(v);
+              if (v === 3) {
+                setSearchParams({ tab: 'loss-qty' });
+              } else {
+                setSearchParams({});
+              }
+            }}
             sx={{
-              alignItems: "center",
-              justifyContent: sidebarOpen ? "flex-start" : "center",
-              textTransform: "none",
-              minHeight: 48,
-              height: 48,
-              width: sidebarOpen ? 'auto' : '100%',
-              fontWeight: tab === 0 ? 500 : 400,
-              gap: sidebarOpen ? 1.5 : 0,
-              px: sidebarOpen ? 2 : 0,
-              mx: sidebarOpen ? 0.5 : 0,
-              borderRadius: 1.5,
-              color: theme.palette.text.secondary,
-              transition: 'all 0.2s ease-in-out',
-              '& .MuiTab-iconWrapper': {
-                margin: sidebarOpen ? '0' : '0 auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              },
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover,
-                color: theme.palette.text.primary,
-              },
-              "&.Mui-selected": {
-                color: theme.palette.primary.main,
-                backgroundColor: theme.palette.mode === 'dark'
-                  ? 'rgba(25, 118, 210, 0.16)'
-                  : 'rgba(25, 118, 210, 0.08)',
-                fontWeight: 600,
-                borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
-                '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark'
-                    ? 'rgba(25, 118, 210, 0.2)'
-                    : 'rgba(25, 118, 210, 0.12)',
-                },
+              '& .MuiTabs-flexContainer': {
+                gap: 0.5,
+                justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                alignItems: sidebarOpen ? 'stretch' : 'center',
               },
             }}
-          />
-          <Tab
-            label={sidebarOpen ? "Customer" : ""}
-            icon={<PeopleIcon sx={{ fontSize: 20 }} />}
-            iconPosition="start"
+            TabIndicatorProps={{ style: { display: "none" } }}
+          >
+            <Tab
+              label={sidebarOpen ? "Inventory" : ""}
+              icon={<InventoryIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              sx={{
+                alignItems: "center",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                textTransform: "none",
+                minHeight: 48,
+                height: 48,
+                width: sidebarOpen ? 'auto' : '100%',
+                fontWeight: tab === 0 ? 500 : 400,
+                gap: sidebarOpen ? 1.5 : 0,
+                px: sidebarOpen ? 2 : 0,
+                mx: sidebarOpen ? 0.5 : 0,
+                borderRadius: 1.5,
+                color: theme.palette.text.secondary,
+                transition: 'all 0.2s ease-in-out',
+                '& .MuiTab-iconWrapper': {
+                  margin: sidebarOpen ? '0' : '0 auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
+                '&:hover': {
+                  backgroundColor: theme.palette.action.hover,
+                  color: theme.palette.text.primary,
+                },
+                "&.Mui-selected": {
+                  color: theme.palette.primary.main,
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(25, 118, 210, 0.16)'
+                    : 'rgba(25, 118, 210, 0.08)',
+                  fontWeight: 600,
+                  borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark'
+                      ? 'rgba(25, 118, 210, 0.2)'
+                      : 'rgba(25, 118, 210, 0.12)',
+                  },
+                },
+              }}
+            />
+            <Tab
+              label={sidebarOpen ? "Customer" : ""}
+              icon={<PeopleIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              sx={{
+                alignItems: "center",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                textTransform: "none",
+                minHeight: 48,
+                height: 48,
+                width: sidebarOpen ? 'auto' : '100%',
+                fontWeight: tab === 1 ? 500 : 400,
+                gap: sidebarOpen ? 1.5 : 0,
+                px: sidebarOpen ? 2 : 0,
+                mx: sidebarOpen ? 0.5 : 0,
+                borderRadius: 1.5,
+                color: theme.palette.text.secondary,
+                transition: 'all 0.2s ease-in-out',
+                '& .MuiTab-iconWrapper': {
+                  margin: sidebarOpen ? '0' : '0 auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
+                '&:hover': {
+                  backgroundColor: theme.palette.action.hover,
+                  color: theme.palette.text.primary,
+                },
+                "&.Mui-selected": {
+                  color: theme.palette.primary.main,
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(25, 118, 210, 0.16)'
+                    : 'rgba(25, 118, 210, 0.08)',
+                  fontWeight: 600,
+                  borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark'
+                      ? 'rgba(25, 118, 210, 0.2)'
+                      : 'rgba(25, 118, 210, 0.12)',
+                  },
+                },
+              }}
+            />
+            <Tab
+              label={sidebarOpen ? "Inventory Label" : ""}
+              icon={<LabelIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              sx={{
+                alignItems: "center",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                textTransform: "none",
+                minHeight: 48,
+                height: 48,
+                width: sidebarOpen ? 'auto' : '100%',
+                fontWeight: tab === 2 ? 500 : 400,
+                gap: sidebarOpen ? 1.5 : 0,
+                px: sidebarOpen ? 2 : 0,
+                mx: sidebarOpen ? 0.5 : 0,
+                borderRadius: 1.5,
+                color: theme.palette.text.secondary,
+                transition: 'all 0.2s ease-in-out',
+                '& .MuiTab-iconWrapper': {
+                  margin: sidebarOpen ? '0' : '0 auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
+                '&:hover': {
+                  backgroundColor: theme.palette.action.hover,
+                  color: theme.palette.text.primary,
+                },
+                "&.Mui-selected": {
+                  color: theme.palette.primary.main,
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(25, 118, 210, 0.16)'
+                    : 'rgba(25, 118, 210, 0.08)',
+                  fontWeight: 600,
+                  borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark'
+                      ? 'rgba(25, 118, 210, 0.2)'
+                      : 'rgba(25, 118, 210, 0.12)',
+                  },
+                },
+              }}
+            />
+            <Tab
+              label={sidebarOpen ? "Loss Qty Report" : ""}
+              icon={<TrendingDownIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              sx={{
+                alignItems: "center",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                textTransform: "none",
+                minHeight: 48,
+                height: 48,
+                width: sidebarOpen ? 'auto' : '100%',
+                fontWeight: tab === 3 ? 500 : 400,
+                gap: sidebarOpen ? 1.5 : 0,
+                px: sidebarOpen ? 2 : 0,
+                mx: sidebarOpen ? 0.5 : 0,
+                borderRadius: 1.5,
+                color: theme.palette.text.secondary,
+                transition: 'all 0.2s ease-in-out',
+                '& .MuiTab-iconWrapper': {
+                  margin: sidebarOpen ? '0' : '0 auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
+                '&:hover': {
+                  backgroundColor: theme.palette.action.hover,
+                  color: theme.palette.text.primary,
+                },
+                "&.Mui-selected": {
+                  color: theme.palette.primary.main,
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(25, 118, 210, 0.16)'
+                    : 'rgba(25, 118, 210, 0.08)',
+                  fontWeight: 600,
+                  borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark'
+                      ? 'rgba(25, 118, 210, 0.2)'
+                      : 'rgba(25, 118, 210, 0.12)',
+                  },
+                },
+              }}
+            />
+            <Tab
+              label={sidebarOpen ? "Velocity Report" : ""}
+              icon={<SpeedIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              sx={{
+                alignItems: "center",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                textTransform: "none",
+                minHeight: 48,
+                height: 48,
+                width: sidebarOpen ? 'auto' : '100%',
+                fontWeight: tab === 4 ? 500 : 400,
+                gap: sidebarOpen ? 1.5 : 0,
+                px: sidebarOpen ? 2 : 0,
+                mx: sidebarOpen ? 0.5 : 0,
+                borderRadius: 1.5,
+                color: theme.palette.text.secondary,
+                transition: 'all 0.2s ease-in-out',
+                '& .MuiTab-iconWrapper': {
+                  margin: sidebarOpen ? '0' : '0 auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
+                '&:hover': {
+                  backgroundColor: theme.palette.action.hover,
+                  color: theme.palette.text.primary,
+                },
+                "&.Mui-selected": {
+                  color: theme.palette.primary.main,
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(25, 118, 210, 0.16)'
+                    : 'rgba(25, 118, 210, 0.08)',
+                  fontWeight: 600,
+                  borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark'
+                      ? 'rgba(25, 118, 210, 0.2)'
+                      : 'rgba(25, 118, 210, 0.12)',
+                  },
+                },
+              }}
+            />
+          </Tabs>
+
+          {/* AR Expandable Tab */}
+          <Box
             sx={{
-              alignItems: "center",
-              justifyContent: sidebarOpen ? "flex-start" : "center",
-              textTransform: "none",
-              minHeight: 48,
-              height: 48,
-              width: sidebarOpen ? 'auto' : '100%',
-              fontWeight: tab === 1 ? 500 : 400,
-              gap: sidebarOpen ? 1.5 : 0,
-              px: sidebarOpen ? 2 : 0,
-              mx: sidebarOpen ? 0.5 : 0,
-              borderRadius: 1.5,
-              color: theme.palette.text.secondary,
-              transition: 'all 0.2s ease-in-out',
-              '& .MuiTab-iconWrapper': {
-                margin: sidebarOpen ? '0' : '0 auto',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Box
+              onClick={() => setArExpanded(!arExpanded)}
+              sx={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-              },
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover,
-                color: theme.palette.text.primary,
-              },
-              "&.Mui-selected": {
-                color: theme.palette.primary.main,
-                backgroundColor: theme.palette.mode === 'dark'
-                  ? 'rgba(25, 118, 210, 0.16)'
-                  : 'rgba(25, 118, 210, 0.08)',
-                fontWeight: 600,
-                borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                justifyContent: sidebarOpen ? 'space-between' : 'center',
+                minHeight: 48,
+                height: 48,
+                px: sidebarOpen ? 2 : 1,
+                mx: sidebarOpen ? 0.5 : 0,
+                borderRadius: 1.5,
+                cursor: 'pointer',
+                color: (tab >= 5 && tab <= 8) ? theme.palette.primary.main : theme.palette.text.secondary,
+                backgroundColor: (tab >= 5 && tab <= 8) 
+                  ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                  : 'transparent',
+                fontWeight: (tab >= 5 && tab <= 8) ? 600 : 400,
+                borderLeft: (tab >= 5 && tab <= 8) && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                transition: 'all 0.2s ease-in-out',
                 '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark'
-                    ? 'rgba(25, 118, 210, 0.2)'
-                    : 'rgba(25, 118, 210, 0.12)',
+                  backgroundColor: theme.palette.action.hover,
+                  color: theme.palette.text.primary,
                 },
-              },
-            }}
-          />
-          <Tab
-            label={sidebarOpen ? "Inventory Label" : ""}
-            icon={<LabelIcon sx={{ fontSize: 20 }} />}
-            iconPosition="start"
-            sx={{
-              alignItems: "center",
-              justifyContent: sidebarOpen ? "flex-start" : "center",
-              textTransform: "none",
-              minHeight: 48,
-              height: 48,
-              width: sidebarOpen ? 'auto' : '100%',
-              fontWeight: tab === 2 ? 500 : 400,
-              gap: sidebarOpen ? 1.5 : 0,
-              px: sidebarOpen ? 2 : 0,
-              mx: sidebarOpen ? 0.5 : 0,
-              borderRadius: 1.5,
-              color: theme.palette.text.secondary,
-              transition: 'all 0.2s ease-in-out',
-              '& .MuiTab-iconWrapper': {
-                margin: sidebarOpen ? '0' : '0 auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              },
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover,
-                color: theme.palette.text.primary,
-              },
-              "&.Mui-selected": {
-                color: theme.palette.primary.main,
-                backgroundColor: theme.palette.mode === 'dark'
-                  ? 'rgba(25, 118, 210, 0.16)'
-                  : 'rgba(25, 118, 210, 0.08)',
-                fontWeight: 600,
-                borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
-                '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark'
-                    ? 'rgba(25, 118, 210, 0.2)'
-                    : 'rgba(25, 118, 210, 0.12)',
-                },
-              },
-            }}
-          />
-        </Tabs>
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: sidebarOpen ? 1.5 : 0, flex: 1 }}>
+                <AccountBalanceIcon sx={{ fontSize: 20 }} />
+                {sidebarOpen && (
+                  <Typography sx={{ textTransform: 'none', fontSize: '0.875rem' }}>
+                    AR
+                  </Typography>
+                )}
+              </Box>
+              {sidebarOpen && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setArExpanded(!arExpanded);
+                  }}
+                  sx={{
+                    p: 0.5,
+                    '&:hover': {
+                      backgroundColor: 'transparent',
+                    },
+                  }}
+                >
+                  {arExpanded ? (
+                    <ExpandLess sx={{ fontSize: 18 }} />
+                  ) : (
+                    <ExpandMore sx={{ fontSize: 18 }} />
+                  )}
+                </IconButton>
+              )}
+            </Box>
+
+            {/* Nested AR Tabs */}
+            {arExpanded && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  ml: sidebarOpen ? 3 : 0,
+                  mt: 0.25,
+                  gap: 0.25,
+                }}
+              >
+                <Box
+                  onClick={() => {
+                    setTab(5);
+                    setSearchParams({ tab: 'ar-report' });
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minHeight: sidebarOpen ? 32 : 48,
+                    height: sidebarOpen ? 32 : 48,
+                    py: sidebarOpen ? 0.25 : 0,
+                    px: sidebarOpen ? 1.5 : 0,
+                    width: sidebarOpen ? 'auto' : '100%',
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: tab === 5 ? theme.palette.primary.main : theme.palette.text.secondary,
+                    backgroundColor: tab === 5
+                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                      : 'transparent',
+                    fontWeight: tab === 5 ? 600 : 400,
+                    borderLeft: tab === 5 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <AccountBalanceIcon sx={{ fontSize: 16 }} />
+                  {sidebarOpen && (
+                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
+                      AR Report
+                    </Typography>
+                  )}
+                </Box>
+                <Box
+                  onClick={() => {
+                    setTab(6);
+                    setSearchParams({ tab: 'ar-statement' });
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minHeight: sidebarOpen ? 32 : 48,
+                    height: sidebarOpen ? 32 : 48,
+                    py: sidebarOpen ? 0.25 : 0,
+                    px: sidebarOpen ? 1.5 : 0,
+                    width: sidebarOpen ? 'auto' : '100%',
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: tab === 6 ? theme.palette.primary.main : theme.palette.text.secondary,
+                    backgroundColor: tab === 6
+                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                      : 'transparent',
+                    fontWeight: tab === 6 ? 600 : 400,
+                    borderLeft: tab === 6 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <DescriptionIcon sx={{ fontSize: 16 }} />
+                  {sidebarOpen && (
+                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
+                      AR Statement
+                    </Typography>
+                  )}
+                </Box>
+                <Box
+                  onClick={() => {
+                    setTab(7);
+                    setSearchParams({ tab: 'ar-undeposite' });
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minHeight: sidebarOpen ? 32 : 48,
+                    height: sidebarOpen ? 32 : 48,
+                    py: sidebarOpen ? 0.25 : 0,
+                    px: sidebarOpen ? 1.5 : 0,
+                    width: sidebarOpen ? 'auto' : '100%',
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: tab === 7 ? theme.palette.primary.main : theme.palette.text.secondary,
+                    backgroundColor: tab === 7
+                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                      : 'transparent',
+                    fontWeight: tab === 7 ? 600 : 400,
+                    borderLeft: tab === 7 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <AccountBalanceWalletIcon sx={{ fontSize: 16 }} />
+                  {sidebarOpen && (
+                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
+                      AR Undeposite
+                    </Typography>
+                  )}
+                </Box>
+                <Box
+                  onClick={() => {
+                    setTab(8);
+                    setSearchParams({ tab: 'ar-open-item' });
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minHeight: sidebarOpen ? 32 : 48,
+                    height: sidebarOpen ? 32 : 48,
+                    py: sidebarOpen ? 0.25 : 0,
+                    px: sidebarOpen ? 1.5 : 0,
+                    width: sidebarOpen ? 'auto' : '100%',
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: tab === 8 ? theme.palette.primary.main : theme.palette.text.secondary,
+                    backgroundColor: tab === 8
+                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                      : 'transparent',
+                    fontWeight: tab === 8 ? 600 : 400,
+                    borderLeft: tab === 8 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <ReceiptIcon sx={{ fontSize: 16 }} />
+                  {sidebarOpen && (
+                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
+                      Open Item Report
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </Box>
       </Paper>
 
       {/* Right Content - Tab Content */}

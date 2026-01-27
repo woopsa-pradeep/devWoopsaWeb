@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Box, Typography, Tabs, Tab, Paper, useTheme, useMediaQuery, CircularProgress, Alert, Snackbar, TextField, InputAdornment } from '@mui/material';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import { fetchLoginDevices, updateLoginDevice, fetchRetailerSignUpRequests, updateRetailerSignUpRequest } from '../../../redux/apis/distrubutor/loginDeviceApis';
@@ -24,7 +24,8 @@ const createSignInColumns = (onToggle: (row: any, field: string, value: boolean)
   },
   { 
     id: 'customerName', 
-    label: 'Customer Name', 
+    label: 'Customer Name',
+    sortable: true,
     render: (row) => (
       <Typography 
         color="text.secondary" 
@@ -84,7 +85,8 @@ const createDeviceColumns = (onToggle: (row: any, field: string, value: boolean)
   },
   { 
     id: 'customerName', 
-    label: 'Customer Name', 
+    label: 'Customer Name',
+    sortable: true,
     render: (row) => (
       <Typography 
         color="text.secondary" 
@@ -198,11 +200,13 @@ const TrackLoginDevices = () => {
   const [devices, setDevices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Confirmation modal state
   const [confirmationModal, setConfirmationModal] = useState({
@@ -308,7 +312,7 @@ const TrackLoginDevices = () => {
           pending,
           page: currentPage,
           limit: pageSize,
-          search: debouncedSearchTerm
+          search: debouncedSearchTerm,
         }) as any;
         setDevices(
           response?.data?.data?.deviceList?.map((item: any) => ({
@@ -325,7 +329,7 @@ const TrackLoginDevices = () => {
             isAllow,
           page: currentPage,
           limit: pageSize,
-          search: debouncedSearchTerm
+          search: debouncedSearchTerm,
         }) as any;
         setDevices(
           response?.data?.data?.retailerListWithCustomer?.map((item: any) => ({
@@ -360,6 +364,39 @@ const TrackLoginDevices = () => {
     setSearchTerm(event.target.value);
     setCurrentPage(1); // Reset to first page when searching
   };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Toggle direction if same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New field, default to ascending
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sort data based on current sort field and direction
+  const sortedData = useMemo(() => {
+    if (!sortField) return devices;
+    
+    return [...devices].sort((a, b) => {
+      let aValue = a?.customer?.C_Name || '';
+      let bValue = b?.customer?.C_Name || '';
+      
+      // Handle null/undefined values
+      if (aValue == null) aValue = '';
+      if (bValue == null) bValue = '';
+      
+      // Convert to string for comparison
+      aValue = String(aValue).toLowerCase();
+      bValue = String(bValue).toLowerCase();
+      
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [devices, sortField, sortDirection]);
 
   return (
     <Box sx={{ 
@@ -403,7 +440,9 @@ const TrackLoginDevices = () => {
             onChange={(_, v) => { 
               setVerticalTab(v); 
               setHorizontalTab(0); // Reset horizontal tab to Pending
-              setCurrentPage(1); 
+              setCurrentPage(1);
+              setSortField(null); // Reset sort when switching tabs
+              setSortDirection('asc');
             }}
             sx={{
               '& .MuiTabs-indicator': {
@@ -479,7 +518,12 @@ const TrackLoginDevices = () => {
               {/* Horizontal Tabs */}
               <Tabs
                 value={horizontalTab}
-                onChange={(_, v) => { setHorizontalTab(v); setCurrentPage(1); }}
+                onChange={(_, v) => { 
+                  setHorizontalTab(v); 
+                  setCurrentPage(1);
+                  setSortField(null); // Reset sort when switching tabs
+                  setSortDirection('asc');
+                }}
                 sx={{ 
                   minHeight: { xs: '30px !important', sm: '35px !important' },
                   '& .MuiTabs-flexContainer': {
@@ -552,7 +596,7 @@ const TrackLoginDevices = () => {
             
             {/* Table */}
             <CommonTable
-              data={devices}
+              data={sortedData}
               columns={verticalTab === 1 ? createDeviceColumns(handleToggle) : createSignInColumns(handleToggle)}
               currentPage={currentPage}
               totalPages={totalPages}
@@ -563,6 +607,9 @@ const TrackLoginDevices = () => {
               loading={loading}
               containerHeight={isMobile ? "calc(100vh - 400px)" : "calc(100vh - 360px)"}
               padding={isSmallMobile ? "8px" : "16px"}
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSort}
             />
           </Paper>
         </Box>

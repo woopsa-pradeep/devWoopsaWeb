@@ -10,6 +10,7 @@ import {
   Box,
   useTheme,
 } from '@mui/material';
+import { ArrowUpward, ArrowDownward } from '@mui/icons-material';
 import Pagination from '../Pagination';
 import LoadingSpinner from '../loader/LoadingSpinner';
 
@@ -20,6 +21,7 @@ export interface TableColumn<T = any> {
   minWidth?: number;
   maxWidth?: number;
   render?: (row: T, rowIdx: number) => React.ReactNode;
+  sortable?: boolean;
 }
 
 interface CommonTableProps<T = any> {
@@ -63,6 +65,10 @@ interface CommonTableProps<T = any> {
   emptyStateComponent?: React.ReactNode;
   padding?: number | string;
   isPagination?: boolean;
+  // Sorting props
+  sortField?: string | null;
+  sortDirection?: 'asc' | 'desc';
+  onSort?: (field: string) => void;
 }
 
 const CommonTable = <T,>({
@@ -106,6 +112,10 @@ const CommonTable = <T,>({
   emptyStateComponent,
   padding = 2,
   isPagination = true,
+  // Sorting props
+  sortField = null,
+  sortDirection = 'asc',
+  onSort,
 }: CommonTableProps<T>) => {
   const theme = useTheme();
 
@@ -213,10 +223,41 @@ const CommonTable = <T,>({
                     ...getStickyStyles(index, true),
                     ...headerStyle,
                     py: 1.5,
+                    cursor: column.sortable ? 'pointer' : 'default',
+                    userSelect: 'none',
                   }}
                   className={headerClassName}
+                  onClick={() => column.sortable && onSort && onSort(column.id)}
                 >
-                  {column.label}
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    gap={0.5}
+                    sx={{
+                      justifyContent: column.align === 'right' ? 'flex-end' : column.align === 'center' ? 'center' : 'flex-start',
+                    }}
+                  >
+                    <span>{column.label}</span>
+                    {column.sortable && (
+                      <Box display="flex" flexDirection="column" sx={{ ml: 0.5 }}>
+                        <ArrowUpward
+                          sx={{
+                            fontSize: 14,
+                            opacity: sortField === column.id && sortDirection === 'asc' ? 1 : 0.3,
+                            color: sortField === column.id && sortDirection === 'asc' ? 'white' : 'rgba(255, 255, 255, 0.5)',
+                          }}
+                        />
+                        <ArrowDownward
+                          sx={{
+                            fontSize: 14,
+                            mt: -1,
+                            opacity: sortField === column.id && sortDirection === 'desc' ? 1 : 0.3,
+                            color: sortField === column.id && sortDirection === 'desc' ? 'white' : 'rgba(255, 255, 255, 0.5)',
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Box>
                 </TableCell>
               ))}
             </TableRow>

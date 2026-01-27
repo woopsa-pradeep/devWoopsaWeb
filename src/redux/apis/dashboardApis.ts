@@ -40,7 +40,7 @@ export const getPopularItems = async (role: string, c_number: string) => {
     return response.data;
 };
 
-export const getDistributorDashboard = async (params: { fromDate?: string; toDate?: string }) => {
+export const getDistributorDashboard = async (params: { fromDate?: string; toDate?: string; costType?: string }) => {
     const response = await axiosInstance.post('/dashboard/distributorDashboard', params);
     return response.data;
 };
@@ -66,5 +66,16 @@ export const getTopProducts =async () => {
 
 export const getEpickDashboard = async (params: { fromDate?: string; toDate?: string }) => {
     const response = await axiosInstance.post('/dashboard/epickDashboard', params);
+    return response.data;
+};
+
+export const getHighDemandItems = async (params?: { fromDate?: string; toDate?: string }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.fromDate) queryParams.append('fromDate', params.fromDate);
+    if (params?.toDate) queryParams.append('toDate', params.toDate);
+    
+    const queryString = queryParams.toString();
+    const url = `/dashboard/highDemandItems${queryString ? `?${queryString}` : ''}`;
+    const response = await axiosInstance.get(url);
     return response.data;
 };
