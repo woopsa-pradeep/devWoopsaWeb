@@ -1192,7 +1192,7 @@ const OpenItemReportTab: React.FC = () => {
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
                     <Typography variant="caption" sx={{ mb: 0.3, fontWeight: 500, fontSize: '0.65rem', display: 'block', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Filter Option
+                      Applied Status Select
                     </Typography>
                     <SearchableDropdown
                       options={[

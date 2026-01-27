@@ -88,6 +88,8 @@ interface SettingsData {
     storePickup: boolean;
     warehouseImage: string;
     timeSlots?: DayTimeSlots[];
+    globalSearchOption?: boolean;
+    splitSearchOption?: boolean;
   };
   demandedItems: {
     showMostSale: boolean;
@@ -155,6 +157,8 @@ interface FormData {
     MiniMumOrderAmount: number;
   };
   showWithPerpaidTax: boolean;
+  globalSearchOption: boolean;
+  splitSearchOption: boolean;
   retailer: {
     showStock: boolean;
     allowOrderInventoryUnAvaible: boolean;
@@ -440,6 +444,8 @@ const SettingsTabs = () => {
               MiniMumOrderAmount: data.itemGlobal?.MiniMumOrderAmount ?? 1,
             },
             showWithPerpaidTax: data.showWithPerpaidTax ?? true,
+            globalSearchOption: data.globalSearchOption ?? true,
+            splitSearchOption: data.splitSearchOption ?? false,
             retailer: {
               showStock: data.retailer?.showStock ?? true,
               allowOrderInventoryUnAvaible: data.retailer?.allowOrderInventoryUnAvaible ?? true,
@@ -483,6 +489,21 @@ const SettingsTabs = () => {
         return {
           ...prev,
           showWithPerpaidTax: value
+        };
+      });
+      return;
+    }
+
+    // Handle globalSearchOption and splitSearchOption as mutually exclusive top-level fields (only one true at a time)
+    if (field === 'globalSearchOption' || field === 'splitSearchOption') {
+      setFormData(prev => {
+        if (!prev) return prev;
+        const globalSearchOption = field === 'globalSearchOption' ? value : !value;
+        const splitSearchOption = field === 'splitSearchOption' ? value : !value;
+        return {
+          ...prev,
+          globalSearchOption,
+          splitSearchOption
         };
       });
       return;
@@ -937,7 +958,9 @@ const SettingsTabs = () => {
         case 'itemGlobal':
           await updateItemGlobalSetting({ 
             itemGlobal: formData.itemGlobal,
-            showWithPerpaidTax: formData.showWithPerpaidTax
+            showWithPerpaidTax: formData.showWithPerpaidTax,
+            globalSearchOption: formData.globalSearchOption ?? true,
+            splitSearchOption: formData.splitSearchOption ?? false
           });
           showSuccessToast('Item Global settings updated successfully!');
           break;
@@ -1127,6 +1150,35 @@ const SettingsTabs = () => {
               <SwitchInput
                 checked={formData.showWithPerpaidTax ?? true}
                 onChange={(checked) => handleFieldChange('', 'showWithPerpaidTax', checked)}
+                sx={{ mb: 0 }}
+                isShowLabel={false}
+              />
+            </Box>
+
+            {/* Search type - same UI as Demanded Items "For Retailers", below Show Price With Prepaid Tax */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography component="legend" sx={{ fontSize: 14, fontWeight: 'bold', color: 'primary.main' }}>
+                Search type
+              </Typography>
+            </Box>
+
+            {/* Global Search */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography sx={{ fontSize: 14 }}>Word Search</Typography>
+              <SwitchInput
+                checked={formData.globalSearchOption ?? true}
+                onChange={(checked) => handleFieldChange('', 'globalSearchOption', checked)}
+                sx={{ mb: 0 }}
+                isShowLabel={false}
+              />
+            </Box>
+
+            {/* Split Search */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography sx={{ fontSize: 14 }}>Split Search</Typography>
+              <SwitchInput
+                checked={formData.splitSearchOption ?? false}
+                onChange={(checked) => handleFieldChange('', 'splitSearchOption', checked)}
                 sx={{ mb: 0 }}
                 isShowLabel={false}
               />
