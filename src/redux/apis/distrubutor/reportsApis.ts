@@ -97,3 +97,42 @@ export const getOpenItemReport = async (
     
     return axiosInstance.get(finalUrl);
 };
+
+export const getAgingReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/getAgingReport${queryString ? `?${queryString}` : ''}`;
+    
+    return axiosInstance.get(finalUrl);
+};
+
+// Inventory Spot Check report
+export const getInventorySpotCheck = async (params: { [key: string]: any } = {}) => {
+    const queryParams = new URLSearchParams();
+
+    Object.keys(params).forEach(key => {
+        const value = params[key];
+        if (value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && value.length === 0)) {
+            if (Array.isArray(value)) {
+                value.forEach(v => {
+                    if (v !== undefined && v !== null && v !== '') {
+                        queryParams.append(key, String(v));
+                    }
+                });
+            } else {
+                queryParams.append(key, String(value));
+            }
+        }
+    });
+
+    const queryString = queryParams.toString();
+    const finalUrl = `/distrubutor/getInventorySpotCheck${queryString ? `?${queryString}` : ''}`;
+
+    return axiosInstance.get(finalUrl);
+};

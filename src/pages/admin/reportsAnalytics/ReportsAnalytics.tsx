@@ -20,6 +20,7 @@ import {
   Speed as SpeedIcon,
   AccountBalanceWallet as AccountBalanceWalletIcon,
   Receipt as ReceiptIcon,
+  Schedule as ScheduleIcon,
   ChevronLeft,
   ChevronRight,
   ExpandMore,
@@ -29,26 +30,31 @@ import InventoryReportTab from './InventoryReportTab';
 import CustomerReportTab from './CustomerReportTab';
 import InventoryLabelTab from './InventoryLabelTab';
 import LossQtyReportTab from './LossQtyReportTab';
+import InventorySpotCheckTab from './InventorySpotCheckTab';
 import ARReportTab from './ARReportTab';
 import ARStatementTab from './ARStatementTab';
 import VelocityReportTab from './VelocityReportTab';
 import ARUndepositeTab from './ARUndepositeTab';
 import OpenItemReportTab from './OpenItemReportTab';
+import AgingReportTab from './AgingReportTab';
 
 const ReportsAnalytics: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery("(max-width: 899px)");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [inventoryExpanded, setInventoryExpanded] = useState(true);
   const [arExpanded, setArExpanded] = useState(false);
   const [tab, setTab] = useState(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'loss-qty') return 3;
+    if (tabParam === 'inventory-spot-check') return 5;
     // Check if any AR tab is selected
-    if (tabParam === 'ar-report') return 5;
-    if (tabParam === 'ar-statement') return 6;
-    if (tabParam === 'ar-undeposite') return 7;
-    if (tabParam === 'ar-open-item') return 8;
+    if (tabParam === 'ar-report') return 6;
+    if (tabParam === 'ar-statement') return 7;
+    if (tabParam === 'ar-undeposite') return 8;
+    if (tabParam === 'ar-open-item') return 9;
+    if (tabParam === 'ar-aging') return 10;
     return 0;
   });
 
@@ -56,25 +62,37 @@ const ReportsAnalytics: React.FC = () => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'loss-qty') {
       setTab(3);
-    } else if (tabParam === 'ar-report') {
+    } else if (tabParam === 'inventory-spot-check') {
       setTab(5);
-      setArExpanded(true);
-    } else if (tabParam === 'ar-statement') {
+    } else if (tabParam === 'ar-report') {
       setTab(6);
       setArExpanded(true);
-    } else if (tabParam === 'ar-undeposite') {
+    } else if (tabParam === 'ar-statement') {
       setTab(7);
       setArExpanded(true);
-    } else if (tabParam === 'ar-open-item') {
+    } else if (tabParam === 'ar-undeposite') {
       setTab(8);
+      setArExpanded(true);
+    } else if (tabParam === 'ar-open-item') {
+      setTab(9);
+      setArExpanded(true);
+    } else if (tabParam === 'ar-aging') {
+      setTab(10);
       setArExpanded(true);
     }
   }, [searchParams]);
 
   // Auto-expand AR when an AR tab is selected
   useEffect(() => {
-    if (tab >= 5 && tab <= 8) {
+    if (tab >= 6 && tab <= 10) {
       setArExpanded(true);
+    }
+  }, [tab]);
+
+  // Auto-expand Inventory when an Inventory tab is selected
+  useEffect(() => {
+    if (tab === 0 || tab === 5) {
+      setInventoryExpanded(true);
     }
   }, [tab]);
 
@@ -95,13 +113,17 @@ const ReportsAnalytics: React.FC = () => {
       case 4:
         return <VelocityReportTab />;
       case 5:
-        return <ARReportTab />;
+        return <InventorySpotCheckTab />;
       case 6:
-        return <ARStatementTab />;
+        return <ARReportTab />;
       case 7:
-        return <ARUndepositeTab />;
+        return <ARStatementTab />;
       case 8:
+        return <ARUndepositeTab />;
+      case 9:
         return <OpenItemReportTab />;
+      case 10:
+        return <AgingReportTab />;
       default:
         return <InventoryReportTab />;
     }
@@ -201,11 +223,160 @@ const ReportsAnalytics: React.FC = () => {
             gap: 0.5,
           }}
         >
+          {/* Inventory Expandable Group */}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Box
+              onClick={() => setInventoryExpanded(!inventoryExpanded)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: sidebarOpen ? 'space-between' : 'center',
+                minHeight: 48,
+                height: 48,
+                px: sidebarOpen ? 2 : 1,
+                mx: sidebarOpen ? 0.5 : 0,
+                borderRadius: 1.5,
+                cursor: 'pointer',
+                color: (tab === 0 || tab === 5) ? theme.palette.primary.main : theme.palette.text.secondary,
+                backgroundColor: (tab === 0 || tab === 5)
+                  ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                  : 'transparent',
+                fontWeight: (tab === 0 || tab === 5) ? 600 : 400,
+                borderLeft: (tab === 0 || tab === 5) && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  backgroundColor: theme.palette.action.hover,
+                  color: theme.palette.text.primary,
+                },
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: sidebarOpen ? 1.5 : 0, flex: 1 }}>
+                <InventoryIcon sx={{ fontSize: 20 }} />
+                {sidebarOpen && (
+                  <Typography sx={{ textTransform: 'none', fontSize: '0.875rem' }}>
+                    Inventory
+                  </Typography>
+                )}
+              </Box>
+              {sidebarOpen && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setInventoryExpanded(!inventoryExpanded);
+                  }}
+                  sx={{
+                    p: 0.5,
+                    '&:hover': {
+                      backgroundColor: 'transparent',
+                    },
+                  }}
+                >
+                  {inventoryExpanded ? (
+                    <ExpandLess sx={{ fontSize: 18 }} />
+                  ) : (
+                    <ExpandMore sx={{ fontSize: 18 }} />
+                  )}
+                </IconButton>
+              )}
+            </Box>
+
+            {inventoryExpanded && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  ml: sidebarOpen ? 3 : 0,
+                  mt: 0.25,
+                  gap: 0.25,
+                }}
+              >
+                <Box
+                  onClick={() => {
+                    setTab(0);
+                    setSearchParams({});
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minHeight: sidebarOpen ? 32 : 48,
+                    height: sidebarOpen ? 32 : 48,
+                    py: sidebarOpen ? 0.25 : 0,
+                    px: sidebarOpen ? 1.5 : 0,
+                    width: sidebarOpen ? 'auto' : '100%',
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: tab === 0 ? theme.palette.primary.main : theme.palette.text.secondary,
+                    backgroundColor: tab === 0
+                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                      : 'transparent',
+                    fontWeight: tab === 0 ? 600 : 400,
+                    borderLeft: tab === 0 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <InventoryIcon sx={{ fontSize: 16 }} />
+                  {sidebarOpen && (
+                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
+                      Inventory Report
+                    </Typography>
+                  )}
+                </Box>
+                <Box
+                  onClick={() => {
+                    setTab(5);
+                    setSearchParams({ tab: 'inventory-spot-check' });
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minHeight: sidebarOpen ? 32 : 48,
+                    height: sidebarOpen ? 32 : 48,
+                    py: sidebarOpen ? 0.25 : 0,
+                    px: sidebarOpen ? 1.5 : 0,
+                    width: sidebarOpen ? 'auto' : '100%',
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: tab === 5 ? theme.palette.primary.main : theme.palette.text.secondary,
+                    backgroundColor: tab === 5
+                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                      : 'transparent',
+                    fontWeight: tab === 5 ? 600 : 400,
+                    borderLeft: tab === 5 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <InventoryIcon sx={{ fontSize: 16 }} />
+                  {sidebarOpen && (
+                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
+                      Inventory Spot Check
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            )}
+          </Box>
+
           {/* Regular Tabs */}
           <Tabs
             orientation={isMobile ? "horizontal" : "vertical"}
             variant={isMobile ? "scrollable" : "standard"}
-            value={tab < 5 ? tab : false}
+            value={tab >= 1 && tab <= 4 ? tab : false}
             onChange={(_, v) => {
               setTab(v);
               if (v === 3) {
@@ -223,49 +394,6 @@ const ReportsAnalytics: React.FC = () => {
             }}
             TabIndicatorProps={{ style: { display: "none" } }}
           >
-            <Tab
-              label={sidebarOpen ? "Inventory" : ""}
-              icon={<InventoryIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              sx={{
-                alignItems: "center",
-                justifyContent: sidebarOpen ? "flex-start" : "center",
-                textTransform: "none",
-                minHeight: 48,
-                height: 48,
-                width: sidebarOpen ? 'auto' : '100%',
-                fontWeight: tab === 0 ? 500 : 400,
-                gap: sidebarOpen ? 1.5 : 0,
-                px: sidebarOpen ? 2 : 0,
-                mx: sidebarOpen ? 0.5 : 0,
-                borderRadius: 1.5,
-                color: theme.palette.text.secondary,
-                transition: 'all 0.2s ease-in-out',
-                '& .MuiTab-iconWrapper': {
-                  margin: sidebarOpen ? '0' : '0 auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                },
-                '&:hover': {
-                  backgroundColor: theme.palette.action.hover,
-                  color: theme.palette.text.primary,
-                },
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
-                  backgroundColor: theme.palette.mode === 'dark'
-                    ? 'rgba(25, 118, 210, 0.16)'
-                    : 'rgba(25, 118, 210, 0.08)',
-                  fontWeight: 600,
-                  borderLeft: sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
-                  '&:hover': {
-                    backgroundColor: theme.palette.mode === 'dark'
-                      ? 'rgba(25, 118, 210, 0.2)'
-                      : 'rgba(25, 118, 210, 0.12)',
-                  },
-                },
-              }}
-            />
             <Tab
               label={sidebarOpen ? "Customer" : ""}
               icon={<PeopleIcon sx={{ fontSize: 20 }} />}
@@ -459,12 +587,12 @@ const ReportsAnalytics: React.FC = () => {
                 mx: sidebarOpen ? 0.5 : 0,
                 borderRadius: 1.5,
                 cursor: 'pointer',
-                color: (tab >= 5 && tab <= 8) ? theme.palette.primary.main : theme.palette.text.secondary,
-                backgroundColor: (tab >= 5 && tab <= 8) 
+                color: (tab >= 6 && tab <= 10) ? theme.palette.primary.main : theme.palette.text.secondary,
+                backgroundColor: (tab >= 6 && tab <= 10) 
                   ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
                   : 'transparent',
-                fontWeight: (tab >= 5 && tab <= 8) ? 600 : 400,
-                borderLeft: (tab >= 5 && tab <= 8) && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                fontWeight: (tab >= 6 && tab <= 10) ? 600 : 400,
+                borderLeft: (tab >= 6 && tab <= 10) && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
                 transition: 'all 0.2s ease-in-out',
                 '&:hover': {
                   backgroundColor: theme.palette.action.hover,
@@ -516,44 +644,8 @@ const ReportsAnalytics: React.FC = () => {
               >
                 <Box
                   onClick={() => {
-                    setTab(5);
-                    setSearchParams({ tab: 'ar-report' });
-                  }}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
-                    minHeight: sidebarOpen ? 32 : 48,
-                    height: sidebarOpen ? 32 : 48,
-                    py: sidebarOpen ? 0.25 : 0,
-                    px: sidebarOpen ? 1.5 : 0,
-                    width: sidebarOpen ? 'auto' : '100%',
-                    borderRadius: 1.5,
-                    cursor: 'pointer',
-                    color: tab === 5 ? theme.palette.primary.main : theme.palette.text.secondary,
-                    backgroundColor: tab === 5
-                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
-                      : 'transparent',
-                    fontWeight: tab === 5 ? 600 : 400,
-                    borderLeft: tab === 5 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
-                    transition: 'all 0.2s ease-in-out',
-                    '&:hover': {
-                      backgroundColor: theme.palette.action.hover,
-                      color: theme.palette.text.primary,
-                    },
-                  }}
-                >
-                  <AccountBalanceIcon sx={{ fontSize: 16 }} />
-                  {sidebarOpen && (
-                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
-                      AR Report
-                    </Typography>
-                  )}
-                </Box>
-                <Box
-                  onClick={() => {
                     setTab(6);
-                    setSearchParams({ tab: 'ar-statement' });
+                    setSearchParams({ tab: 'ar-report' });
                   }}
                   sx={{
                     display: 'flex',
@@ -579,17 +671,17 @@ const ReportsAnalytics: React.FC = () => {
                     },
                   }}
                 >
-                  <DescriptionIcon sx={{ fontSize: 16 }} />
+                  <AccountBalanceIcon sx={{ fontSize: 16 }} />
                   {sidebarOpen && (
                     <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
-                      AR Statement
+                      AR Report
                     </Typography>
                   )}
                 </Box>
                 <Box
                   onClick={() => {
                     setTab(7);
-                    setSearchParams({ tab: 'ar-undeposite' });
+                    setSearchParams({ tab: 'ar-statement' });
                   }}
                   sx={{
                     display: 'flex',
@@ -615,17 +707,17 @@ const ReportsAnalytics: React.FC = () => {
                     },
                   }}
                 >
-                  <AccountBalanceWalletIcon sx={{ fontSize: 16 }} />
+                  <DescriptionIcon sx={{ fontSize: 16 }} />
                   {sidebarOpen && (
                     <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
-                      AR Undeposite
+                      AR Statement
                     </Typography>
                   )}
                 </Box>
                 <Box
                   onClick={() => {
                     setTab(8);
-                    setSearchParams({ tab: 'ar-open-item' });
+                    setSearchParams({ tab: 'ar-undeposite' });
                   }}
                   sx={{
                     display: 'flex',
@@ -651,10 +743,82 @@ const ReportsAnalytics: React.FC = () => {
                     },
                   }}
                 >
+                  <AccountBalanceWalletIcon sx={{ fontSize: 16 }} />
+                  {sidebarOpen && (
+                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
+                      AR Undeposite
+                    </Typography>
+                  )}
+                </Box>
+                <Box
+                  onClick={() => {
+                    setTab(9);
+                    setSearchParams({ tab: 'ar-open-item' });
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minHeight: sidebarOpen ? 32 : 48,
+                    height: sidebarOpen ? 32 : 48,
+                    py: sidebarOpen ? 0.25 : 0,
+                    px: sidebarOpen ? 1.5 : 0,
+                    width: sidebarOpen ? 'auto' : '100%',
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: tab === 9 ? theme.palette.primary.main : theme.palette.text.secondary,
+                    backgroundColor: tab === 9
+                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                      : 'transparent',
+                    fontWeight: tab === 9 ? 600 : 400,
+                    borderLeft: tab === 9 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                  }}
+                >
                   <ReceiptIcon sx={{ fontSize: 16 }} />
                   {sidebarOpen && (
                     <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
                       Open Item Report
+                    </Typography>
+                  )}
+                </Box>
+                <Box
+                  onClick={() => {
+                    setTab(10);
+                    setSearchParams({ tab: 'ar-aging' });
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minHeight: sidebarOpen ? 32 : 48,
+                    height: sidebarOpen ? 32 : 48,
+                    py: sidebarOpen ? 0.25 : 0,
+                    px: sidebarOpen ? 1.5 : 0,
+                    width: sidebarOpen ? 'auto' : '100%',
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: tab === 10 ? theme.palette.primary.main : theme.palette.text.secondary,
+                    backgroundColor: tab === 10
+                      ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                      : 'transparent',
+                    fontWeight: tab === 10 ? 600 : 400,
+                    borderLeft: tab === 10 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <ScheduleIcon sx={{ fontSize: 16 }} />
+                  {sidebarOpen && (
+                    <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
+                      Aging Report
                     </Typography>
                   )}
                 </Box>
