@@ -151,7 +151,7 @@ const ARStatementTab: React.FC = () => {
   const wareHouseDetail = useSelector((state: RootState) => state.auth.wareHouseDetail);
 
   // Date filters - default to 1 month ago to today
-  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().subtract(1, 'month'));
+  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs());
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
 
   // Customer selection

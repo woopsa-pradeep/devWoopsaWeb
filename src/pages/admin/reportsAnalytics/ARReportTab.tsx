@@ -88,7 +88,7 @@ const ARReportTab: React.FC = () => {
   const [reportType, setReportType] = useState<'ar-report' | 'ar-report-history'>('ar-report');
   
   // Date filters - default to 1 week ago to today
-  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().subtract(7, 'day'));
+  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs());
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
 
   // Filter states
@@ -985,7 +985,7 @@ const ARReportTab: React.FC = () => {
                         setReportType(newReportType);
                         setPreviewData([]);
                         setShowPreview(false);
-                        setStartDate(dayjs().subtract(7, 'day'));
+                        setStartDate(dayjs());
                         setEndDate(dayjs());
                         // Reset filters
                         setSelectedARTypes([]);

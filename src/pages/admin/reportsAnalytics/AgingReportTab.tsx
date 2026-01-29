@@ -90,7 +90,7 @@ const AgingReportTab: React.FC = () => {
   const theme = useTheme();
   const wareHouseDetail = useSelector((state: RootState) => state.auth.wareHouseDetail);
 
-  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().subtract(1, 'month'));
+  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs());
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
 
   const [salesReps, setSalesReps] = useState<SalesRepOption[]>([]);

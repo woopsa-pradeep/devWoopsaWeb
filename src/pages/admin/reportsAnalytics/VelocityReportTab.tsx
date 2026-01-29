@@ -262,7 +262,7 @@ const VelocityReportTab: React.FC = () => {
   const [filteredData, setFilteredData] = useState<VelocityReportRow[]>([]);
   const [fromDate, setFromDate] = useState<Dayjs | null>(() => {
     const stateFrom = location.state?.fromDate;
-    return stateFrom ? dayjs(stateFrom) : dayjs().subtract(1, 'month');
+    return stateFrom ? dayjs(stateFrom) : dayjs();
   });
   const [toDate, setToDate] = useState<Dayjs | null>(() => {
     const stateTo = location.state?.toDate;

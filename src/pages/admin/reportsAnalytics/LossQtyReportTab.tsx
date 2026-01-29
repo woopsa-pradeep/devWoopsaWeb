@@ -216,10 +216,10 @@ const LossQtyReportTab: React.FC = () => {
   };
 
   const [groupBy, setGroupBy] = useState<'item' | 'customer' | 'date'>('item');
-  // Initialize dates from location.state if available (when coming from dashboard), otherwise default to 1 week ago to today
+  // Initialize dates from location.state if available (when coming from dashboard), otherwise default to today for both
   const [fromDate, setFromDate] = useState<Dayjs | null>(() => {
     const stateFrom = location.state?.fromDate;
-    return stateFrom ? dayjs(stateFrom) : dayjs().subtract(1, 'week');
+    return stateFrom ? dayjs(stateFrom) : dayjs();
   });
   const [toDate, setToDate] = useState<Dayjs | null>(() => {
     const stateTo = location.state?.toDate;

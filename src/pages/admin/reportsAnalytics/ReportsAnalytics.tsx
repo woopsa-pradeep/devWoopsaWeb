@@ -376,10 +376,11 @@ const ReportsAnalytics: React.FC = () => {
           <Tabs
             orientation={isMobile ? "horizontal" : "vertical"}
             variant={isMobile ? "scrollable" : "standard"}
-            value={tab >= 1 && tab <= 4 ? tab : false}
+            value={tab >= 1 && tab <= 4 ? tab - 1 : false}
             onChange={(_, v) => {
-              setTab(v);
-              if (v === 3) {
+              const newTab = v + 1;
+              setTab(newTab);
+              if (newTab === 3) {
                 setSearchParams({ tab: 'loss-qty' });
               } else {
                 setSearchParams({});

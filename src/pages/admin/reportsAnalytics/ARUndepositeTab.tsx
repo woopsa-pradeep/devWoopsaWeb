@@ -119,7 +119,7 @@ const ARUndepositeTab: React.FC = () => {
   const wareHouseDetail = useSelector((state: RootState) => state.auth.wareHouseDetail);
 
   // Date filters - default to 1 week ago to today
-  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().subtract(7, 'day'));
+  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs());
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
 
   // Filter states
