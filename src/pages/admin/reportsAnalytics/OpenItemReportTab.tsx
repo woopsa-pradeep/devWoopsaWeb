@@ -29,6 +29,7 @@ import CustomDatePicker from '../../../component/atoms/CustomDatePicker';
 import SearchableDropdown from '../../../component/atoms/SearchableDropdown';
 import toast from 'react-hot-toast';
 import dayjs, { Dayjs } from 'dayjs';
+import { formatApiDate } from '../../../utils/formatApiDate';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import rabbitLogo from '../../../assets/Rabbit.svg';
 import { useSelector } from 'react-redux';
@@ -374,16 +375,14 @@ const OpenItemReportTab: React.FC = () => {
       customerGroups[item.C_Number].push(item);
     });
 
-    // Sort transactions by type within each customer group
+    // Sort transactions by type within each customer group, then by Posting Date ascending (oldest first, then new)
     Object.keys(customerGroups).forEach(custNum => {
       customerGroups[Number(custNum)].sort((a, b) => {
-        // First sort by AR_Type (I Invoice first, then C CASH, etc.)
         if (a.AR_Type !== b.AR_Type) {
           if (a.AR_Type === 'I') return -1;
           if (b.AR_Type === 'I') return 1;
           return a.AR_Type.localeCompare(b.AR_Type);
         }
-        // Then by date
         const dateA = new Date(a.AR_Date).getTime();
         const dateB = new Date(b.AR_Date).getTime();
         return dateA - dateB;
@@ -463,7 +462,7 @@ const OpenItemReportTab: React.FC = () => {
         customerGroups[item.C_Number].push(item);
       });
 
-      // Sort transactions by type within each customer group
+      // Sort transactions by type within each customer group, then by Posting Date ascending (oldest first, then new)
       Object.keys(customerGroups).forEach(custNum => {
         customerGroups[Number(custNum)].sort((a, b) => {
           if (a.AR_Type !== b.AR_Type) {
@@ -515,10 +514,7 @@ const OpenItemReportTab: React.FC = () => {
     }
 
     if (field.includes('Date')) {
-      if (value) {
-        const date = new Date(value);
-        return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-      }
+      if (value) return formatApiDate(String(value));
       return '';
     }
 
@@ -534,9 +530,11 @@ const OpenItemReportTab: React.FC = () => {
       return value.toString();
     }
 
-    // Format AR_Type with SubType (e.g., "I Invoice", "C CASH")
+    // Format AR_Type with SubType; I with negative AR_Amount = Return Invoice
     if (field === 'AR_Type') {
       const type = item.AR_Type || '';
+      const amount = item.AR_Amount ?? 0;
+      if (type === 'I' && amount < 0) return 'Return Invoice';
       const subType = item.SubType || '';
       if (type && subType) {
         return `${type} ${subType}`;
@@ -570,15 +568,13 @@ const OpenItemReportTab: React.FC = () => {
       .map(Number)
       .sort((a, b) => sortCustomersByName(a, b, groups))
       .forEach(custNum => {
-        // Sort transactions by type (I Invoice first, then C CASH, etc.)
+        // Sort transactions by type (I Invoice first, then C CASH, etc.), then by Posting Date ascending (oldest first, then new)
         const sortedTransactions = groups[custNum].sort((a, b) => {
-          // First sort by AR_Type (I before C)
           if (a.AR_Type !== b.AR_Type) {
             if (a.AR_Type === 'I') return -1;
             if (b.AR_Type === 'I') return 1;
             return a.AR_Type.localeCompare(b.AR_Type);
           }
-          // Then by date
           const dateA = new Date(a.AR_Date).getTime();
           const dateB = new Date(b.AR_Date).getTime();
           return dateA - dateB;
@@ -643,7 +639,7 @@ const OpenItemReportTab: React.FC = () => {
         .map(Number)
         .sort((a, b) => sortCustomersByName(a, b, customerGroups))
         .forEach(custNum => {
-          // Sort transactions by type (I Invoice first, then C CASH, etc.)
+          // Sort transactions by type, then by Posting Date ascending (oldest first, then new)
           const customerItems = customerGroups[custNum].sort((a, b) => {
             if (a.AR_Type !== b.AR_Type) {
               if (a.AR_Type === 'I') return -1;
@@ -766,16 +762,14 @@ const OpenItemReportTab: React.FC = () => {
         customerGroups[item.C_Number].push(item);
       });
 
-      // Sort transactions by type within each customer group
+      // Sort transactions by type within each customer group, then by Posting Date ascending (oldest first, then new)
       Object.keys(customerGroups).forEach(custNum => {
         customerGroups[Number(custNum)].sort((a, b) => {
-          // First sort by AR_Type (I Invoice first, then C CASH, etc.)
           if (a.AR_Type !== b.AR_Type) {
             if (a.AR_Type === 'I') return -1;
             if (b.AR_Type === 'I') return 1;
             return a.AR_Type.localeCompare(b.AR_Type);
           }
-          // Then by date
           const dateA = new Date(a.AR_Date).getTime();
           const dateB = new Date(b.AR_Date).getTime();
           return dateA - dateB;

@@ -35,6 +35,7 @@ import { getSalesRepList, getListOfRoutes } from '../../../redux/apis/distrubuto
 import { listOfCustomersCreate } from '../../../redux/apis/distrubutor/retailerApis';
 import CustomButton from '../../../component/atoms/CustomButton';
 import toast from 'react-hot-toast';
+import { formatApiDate } from '../../../utils/formatApiDate';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import rabbitLogo from '../../../assets/Rabbit.svg';
 
@@ -441,17 +442,11 @@ const CustomerReportTab: React.FC = () => {
     if (value === null || value === undefined) return '';
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     
-    // Handle date fields - format ISO date strings to readable format
+    // Handle date fields - format API date strings without timezone shift (exact date as from API)
     const dateFields = ['ExpDate_SalesTax', 'ExpDate_CigtTax', 'ExpDate_OtherTax', 'ExpDate_OtherTax2', 'ExpDate_OtherTax3', 'LastPaymentDate', 'LastInvoiceDate'];
     if (dateFields.includes(field) && typeof value === 'string') {
-      try {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-          return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        }
-      } catch {
-        // If date parsing fails, return as is
-      }
+      const formatted = formatApiDate(value);
+      if (formatted) return formatted;
     }
     
     if (value instanceof Date) return value.toISOString().split('T')[0];

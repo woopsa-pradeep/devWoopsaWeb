@@ -31,7 +31,7 @@ const AdminOrder = () => {
   const [printingOrder, setPrintingOrder] = useState<string | null>(null);
   
   // Filter state
-  const [filterType, setFilterType] = useState<string>(''); // 'isDeleted', 'updated', 'currentStatus', or ''
+  const [filterType, setFilterType] = useState<string>('currentStatus'); // 'isDeleted', 'updated', 'currentStatus', or ''
   const [currentStatus, setCurrentStatus] = useState<string>('all');
   
   // Sorting state

@@ -29,6 +29,7 @@ import CustomDatePicker from '../../../component/atoms/CustomDatePicker';
 import SearchableDropdown from '../../../component/atoms/SearchableDropdown';
 import toast from 'react-hot-toast';
 import dayjs, { Dayjs } from 'dayjs';
+import { formatApiDate } from '../../../utils/formatApiDate';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import rabbitLogo from '../../../assets/Rabbit.svg';
 import { useSelector } from 'react-redux';
@@ -241,52 +242,14 @@ const ARStatementTab: React.FC = () => {
     fetchARStatementReports();
   }, []);
 
-  // Calculate balance for each transaction (running balance)
+  // Calculate balance for each row: Balance = AR_Amount - AR_Applied
   const calculateBalances = useCallback((data: ARStatementItem[]): ARStatementItem[] => {
-    // Group by customer and calculate running balance per customer
-    const customerGroups: { [key: number]: ARStatementItem[] } = {};
-    data.forEach(item => {
-      if (!customerGroups[item.C_Number]) {
-        customerGroups[item.C_Number] = [];
-      }
-      customerGroups[item.C_Number].push(item);
+    return data.map(item => {
+      const amount = item.AR_Amount ?? 0;
+      const applied = item.AR_Applied ?? 0;
+      const balance = Math.round((amount - applied) * 100) / 100;
+      return { ...item, Balance: balance };
     });
-
-    // Sort each customer's transactions by date, then by type (Invoices first, then Checks)
-    Object.keys(customerGroups).forEach(custNum => {
-      const transactions = customerGroups[Number(custNum)];
-      transactions.sort((a, b) => {
-        const dateA = new Date(a.AR_Date).getTime();
-        const dateB = new Date(b.AR_Date).getTime();
-        if (dateA !== dateB) return dateA - dateB;
-        // If same date, invoices come before checks
-        if (a.AR_Type === 'I' && b.AR_Type === 'C') return -1;
-        if (a.AR_Type === 'C' && b.AR_Type === 'I') return 1;
-        return 0;
-      });
-
-      // Calculate running balance
-      let runningBalance = 0;
-      transactions.forEach(item => {
-        if (item.AR_Type === 'I') {
-          // Invoice increases balance
-          runningBalance += Math.abs(item.AR_Amount || 0);
-        } else if (item.AR_Type === 'C') {
-          // Check decreases balance (handle both positive and negative amounts)
-          const checkAmount = item.AR_Amount || 0;
-          runningBalance -= Math.abs(checkAmount);
-        }
-        item.Balance = Math.round(runningBalance * 100) / 100; // Round to 2 decimal places
-      });
-    });
-
-    // Flatten back to array
-    const result: ARStatementItem[] = [];
-    Object.values(customerGroups).forEach(transactions => {
-      result.push(...transactions);
-    });
-
-    return result;
   }, []);
 
   // Load AR Statement data
@@ -525,10 +488,7 @@ const ARStatementTab: React.FC = () => {
     }
 
     if (field.includes('Date')) {
-      if (value) {
-        const date = new Date(value);
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-      }
+      if (value) return formatApiDate(String(value));
       return '';
     }
 
@@ -545,9 +505,12 @@ const ARStatementTab: React.FC = () => {
       return value.toString();
     }
 
-    // Format AR_Type
+    // Format AR_Type: I with negative AR_Amount = Return Invoice
     if (field === 'AR_Type') {
-      if (value === 'I') return 'Invoice';
+      if (value === 'I') {
+        const amount = item.AR_Amount ?? 0;
+        return amount < 0 ? 'Return Invoice' : 'Invoice';
+      }
       if (value === 'C') return 'Check';
       return String(value);
     }
@@ -577,13 +540,19 @@ const ARStatementTab: React.FC = () => {
       .map(Number)
       .sort((a, b) => a - b)
       .forEach(custNum => {
-        const firstItem = groups[custNum][0];
+        // Sort items within group by Check Date (or Posting Date) ascending - oldest first, then new
+        const sorted = [...groups[custNum]].sort((a, b) => {
+          const dateA = new Date(a.AR_CheckDate || a.AR_Date || 0).getTime();
+          const dateB = new Date(b.AR_CheckDate || b.AR_Date || 0).getTime();
+          return dateA - dateB;
+        });
+        const firstItem = sorted[0];
         result.push({
           type: 'group-header',
           customerNumber: custNum,
           customerData: firstItem,
         });
-        groups[custNum].forEach(item => {
+        sorted.forEach(item => {
           result.push({ type: 'row', data: item });
         });
       });
@@ -869,24 +838,24 @@ const ARStatementTab: React.FC = () => {
 
         yPos = 30;
 
-        // SOLD TO section - on right side
-        const rightX = pageWidth - margin;
+        // SOLD TO section - on left side
+        const soldToX = margin;
         let soldToY = yPos;
         
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(0, 0, 0);
-        doc.text('SOLD TO:', rightX, soldToY, { align: 'right' });
+        doc.text('SOLD TO:', soldToX, soldToY, { align: 'left' });
         soldToY += 4;
 
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         const customerName = customer?.C_Name || firstTransaction.C_Name_Child || `Customer ${custNum}`;
-        doc.text(customerName, rightX, soldToY, { align: 'right' });
+        doc.text(customerName, soldToX, soldToY, { align: 'left' });
         soldToY += 3.5;
 
         if (customer?.C_Address) {
-          doc.text(customer.C_Address, rightX, soldToY, { align: 'right' });
+          doc.text(customer.C_Address, soldToX, soldToY, { align: 'left' });
           soldToY += 3.5;
         }
 
@@ -894,7 +863,7 @@ const ARStatementTab: React.FC = () => {
           .filter(Boolean)
           .join(', ');
         if (cityStateZip) {
-          doc.text(cityStateZip, rightX, soldToY, { align: 'right' });
+          doc.text(cityStateZip, soldToX, soldToY, { align: 'left' });
           soldToY += 3.5;
         }
 

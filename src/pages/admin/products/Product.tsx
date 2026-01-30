@@ -3581,9 +3581,30 @@ const Product = () => {
                 Filters:
               </Typography>
               <Chip
+                label="Active"
+                onClick={() => {
+                  setIInactive(false);
+                  setCurrentPage(1);
+                  if (viewMode === 'detailed') {
+                    setDetailedCurrentPage(1);
+                  }
+                }}
+                color={!iInactive ? 'primary' : 'default'}
+                variant={!iInactive ? 'filled' : 'outlined'}
+                sx={{ 
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  height: '28px',
+                  color: !iInactive ? 'white' : 'inherit',
+                  '&:hover': {
+                    bgcolor: !iInactive ? 'primary.dark' : 'action.hover'
+                  }
+                }}
+              />
+              <Chip
                 label="Inactive"
                 onClick={() => {
-                  setIInactive(!iInactive);
+                  setIInactive(true);
                   setCurrentPage(1);
                   if (viewMode === 'detailed') {
                     setDetailedCurrentPage(1);
@@ -3655,6 +3676,7 @@ const Product = () => {
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
+            mt: 1,
             height: 'calc(100vh - 280px)',
             '@media (max-width: 1024px)': {
               height: 'calc(100vh - 240px)',

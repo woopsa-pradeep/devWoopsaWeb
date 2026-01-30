@@ -38,6 +38,7 @@ import CustomButton from '../../../component/atoms/CustomButton';
 import CustomDatePicker from '../../../component/atoms/CustomDatePicker';
 import toast from 'react-hot-toast';
 import dayjs, { Dayjs } from 'dayjs';
+import { formatApiDate } from '../../../utils/formatApiDate';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import rabbitLogo from '../../../assets/Rabbit.svg';
 import { useSelector } from 'react-redux';
@@ -814,7 +815,7 @@ const VelocityReportTab: React.FC = () => {
       });
 
       Object.keys(grouped).sort().forEach(key => {
-        const formattedDate = key ? (dayjs(key).isValid() ? dayjs(key).format('MM/DD/YYYY') : key) : key;
+        const formattedDate = key ? formatApiDate(key) : key;
         result.push({ type: 'header', key: formattedDate, level: 1 });
         const rows = grouped[key].sort((a, b) => {
           const customerCompare = (a.C_Name || '').localeCompare(b.C_Name || '');
@@ -1008,7 +1009,7 @@ const VelocityReportTab: React.FC = () => {
           });
 
           Object.keys(grouped).sort().forEach(key => {
-            const formattedDate = key ? (dayjs(key).isValid() ? dayjs(key).format('MM/DD/YYYY') : key) : key;
+            const formattedDate = key ? formatApiDate(key) : key;
             rows.push(`"=== ${formattedDate} ==="`);
             grouped[key].forEach(row => {
               const rowData = headers.map(header => {
@@ -1018,7 +1019,7 @@ const VelocityReportTab: React.FC = () => {
                 }
                 if (typeof value === 'number') {
                   if (header.includes('Date')) {
-                    return dayjs(value).format('MM/DD/YYYY');
+                    return formatApiDate(String(value));
                   } else if (header.includes('Percent')) {
                     return `${value.toFixed(2)}%`;
                   } else {
@@ -1027,7 +1028,7 @@ const VelocityReportTab: React.FC = () => {
                 } else if (typeof value === 'boolean') {
                   return value ? 'Yes' : 'No';
                 } else if (header.includes('Date') && typeof value === 'string') {
-                  return dayjs(value).format('MM/DD/YYYY');
+                  return formatApiDate(String(value));
                 } else {
                   return String(value);
                 }
@@ -1077,7 +1078,7 @@ const VelocityReportTab: React.FC = () => {
                 }
                 if (typeof value === 'number') {
                   if (header.includes('Date')) {
-                    return dayjs(value).format('MM/DD/YYYY');
+                    return formatApiDate(String(value));
                   } else if (header.includes('Percent')) {
                     return `${value.toFixed(2)}%`;
                   } else {
@@ -1086,7 +1087,7 @@ const VelocityReportTab: React.FC = () => {
                 } else if (typeof value === 'boolean') {
                   return value ? 'Yes' : 'No';
                 } else if (header.includes('Date') && typeof value === 'string') {
-                  return dayjs(value).format('MM/DD/YYYY');
+                  return formatApiDate(String(value));
                 } else {
                   return String(value);
                 }
@@ -1120,7 +1121,7 @@ const VelocityReportTab: React.FC = () => {
                 }
                 if (typeof value === 'number') {
                   if (header.includes('Date')) {
-                    return dayjs(value).format('MM/DD/YYYY');
+                    return formatApiDate(String(value));
                   } else if (header.includes('Percent')) {
                     return value.toFixed(2);
                   } else {
@@ -1129,7 +1130,7 @@ const VelocityReportTab: React.FC = () => {
                 } else if (typeof value === 'boolean') {
                   return value ? 'Yes' : 'No';
                 } else if (header.includes('Date') && typeof value === 'string') {
-                  return dayjs(value).format('MM/DD/YYYY');
+                  return formatApiDate(String(value));
                 } else {
                   return String(value);
                 }
@@ -1158,7 +1159,7 @@ const VelocityReportTab: React.FC = () => {
           }
           if (typeof value === 'number') {
             if (header.includes('Date')) {
-              return dayjs(value).format('MM/DD/YYYY');
+              return formatApiDate(String(value));
             } else if (header.includes('Percent')) {
               return `${value.toFixed(2)}%`;
             } else {
@@ -1167,7 +1168,7 @@ const VelocityReportTab: React.FC = () => {
           } else if (typeof value === 'boolean') {
             return value ? 'Yes' : 'No';
           } else if (header.includes('Date') && typeof value === 'string') {
-            return dayjs(value).format('MM/DD/YYYY');
+            return formatApiDate(String(value));
           } else {
             return String(value);
           }
@@ -1345,7 +1346,7 @@ const VelocityReportTab: React.FC = () => {
           });
 
           Object.keys(grouped).sort().forEach(key => {
-            const formattedDate = key ? (dayjs(key).isValid() ? dayjs(key).format('MM/DD/YYYY') : key) : key;
+            const formattedDate = key ? formatApiDate(key) : key;
             result.push({ type: 'header', key: formattedDate, level: 1 });
             grouped[key].forEach(row => {
               result.push({ type: 'row', data: row });
@@ -1477,7 +1478,7 @@ const VelocityReportTab: React.FC = () => {
           if (value !== null && value !== undefined) {
             if (typeof value === 'number') {
               if (field.includes('Date')) {
-                displayValue = dayjs(value).format('MM/DD/YYYY');
+                displayValue = formatApiDate(String(value));
               } else if (
                 field.includes('Price') || 
                 field.includes('Cost') || 
@@ -1493,7 +1494,7 @@ const VelocityReportTab: React.FC = () => {
             } else if (typeof value === 'boolean') {
               displayValue = value ? 'Yes' : 'No';
             } else if (field.includes('Date') && typeof value === 'string') {
-              displayValue = dayjs(value).format('MM/DD/YYYY');
+              displayValue = formatApiDate(String(value));
             } else {
               displayValue = String(value);
             }
@@ -2672,7 +2673,7 @@ const VelocityReportTab: React.FC = () => {
                               displayValue = '';
                             } else if (typeof value === 'number') {
                               if (field.includes('Date')) {
-                                displayValue = dayjs(value).format('MM/DD/YYYY');
+                                displayValue = formatApiDate(String(value));
                               } else if (
                                 field.includes('Price') || 
                                 field.includes('Cost') || 
@@ -2688,7 +2689,7 @@ const VelocityReportTab: React.FC = () => {
                             } else if (typeof value === 'boolean') {
                               displayValue = value ? 'Yes' : 'No';
                             } else if (field.includes('Date') && typeof value === 'string') {
-                              displayValue = dayjs(value).format('MM/DD/YYYY');
+                              displayValue = formatApiDate(String(value));
                             } else {
                               displayValue = String(value);
                             }

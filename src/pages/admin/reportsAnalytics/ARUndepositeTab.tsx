@@ -32,6 +32,7 @@ import CustomButton from '../../../component/atoms/CustomButton';
 import CustomDatePicker from '../../../component/atoms/CustomDatePicker';
 import toast from 'react-hot-toast';
 import dayjs, { Dayjs } from 'dayjs';
+import { formatApiDate } from '../../../utils/formatApiDate';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import rabbitLogo from '../../../assets/Rabbit.svg';
 import { useSelector } from 'react-redux';
@@ -288,7 +289,7 @@ const ARUndepositeTab: React.FC = () => {
         groupKey = `${item.AR_Type || 'Unknown'}_${subtype}`;
       } else {
         // Group by Check Date
-        const checkDate = item.AR_CheckDate ? new Date(item.AR_CheckDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'No Date';
+        const checkDate = item.AR_CheckDate ? formatApiDate(item.AR_CheckDate) : 'No Date';
         groupKey = checkDate;
       }
 
@@ -325,11 +326,11 @@ const ARUndepositeTab: React.FC = () => {
     sortedGroupKeys.forEach(groupKey => {
       const items = groups[groupKey];
       
-      // Sort items within group by Check Date (descending) then by Amount (descending)
+      // Sort items within group by Check Date (or Posting Date) ascending - oldest first, then new; then by Amount
       items.sort((a, b) => {
-        const dateA = new Date(a.AR_CheckDate || 0).getTime();
-        const dateB = new Date(b.AR_CheckDate || 0).getTime();
-        if (dateB !== dateA) return dateB - dateA;
+        const dateA = new Date(a.AR_CheckDate || a.AR_Date || 0).getTime();
+        const dateB = new Date(b.AR_CheckDate || b.AR_Date || 0).getTime();
+        if (dateA !== dateB) return dateA - dateB;
         return (b.AR_Amount || 0) - (a.AR_Amount || 0);
       });
 
@@ -444,10 +445,7 @@ const ARUndepositeTab: React.FC = () => {
     }
 
     if (field.includes('Date')) {
-      if (value) {
-        const date = new Date(value);
-        return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-      }
+      if (value) return formatApiDate(String(value));
       return '';
     }
 
@@ -501,7 +499,7 @@ const ARUndepositeTab: React.FC = () => {
 
       previewData.forEach(row => {
         if (row.type === 'group-header') {
-          rows.push(`"${row.groupLabel || ''}",${''.repeat(FIXED_FIELDS.length - 1).split('').map(() => '""').join(',')}`);
+          rows.push(`"",${''.repeat(FIXED_FIELDS.length - 1).split('').map(() => '""').join(',')}`);
         } else if (row.type === 'transaction' && row.data) {
           const csvRow = FIXED_FIELDS.map(field => {
             const value = formatFieldValue(row.data!, field);
@@ -716,9 +714,9 @@ const ARUndepositeTab: React.FC = () => {
       
       previewData.forEach(row => {
         if (row.type === 'group-header') {
-          // Group header row
+          // Group header row kept for spacing; label hidden per request
           tableBody.push([{
-            content: row.groupLabel || '',
+            content: '',
             colSpan: FIXED_FIELDS.length,
             styles: { fillColor: [235, 235, 235], fontStyle: 'bold', fontSize: 8 }
           }]);
@@ -733,7 +731,7 @@ const ARUndepositeTab: React.FC = () => {
             item.User_Number?.toString() || '',
             item.Workstation_ID?.toString() || '',
             item.AR_POS ? 'Yes' : 'No',
-            item.AR_CheckDate ? new Date(item.AR_CheckDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '',
+            item.AR_CheckDate ? formatApiDate(item.AR_CheckDate) : '',
             formatAmount(item.AR_Amount),
           ]);
         } else if (row.type === 'group-total') {
@@ -1119,7 +1117,7 @@ const ARUndepositeTab: React.FC = () => {
                                 : '0 2px 4px rgba(0, 0, 0, 0.2)',
                             }}
                           >
-                            {FIELD_LABELS[field] || field}
+                            {groupBy === 'type' && field === 'AR_Type' ? '' : (FIELD_LABELS[field] || field)}
                           </TableCell>
                         ))}
                       </TableRow>
@@ -1143,7 +1141,7 @@ const ARUndepositeTab: React.FC = () => {
                                     : '2px solid rgba(0, 0, 0, 0.08)',
                                 }}
                               >
-                                {row.groupLabel}
+                                {/* Group header row kept for spacing; label hidden per request */}
                               </TableCell>
                             </TableRow>
                           );

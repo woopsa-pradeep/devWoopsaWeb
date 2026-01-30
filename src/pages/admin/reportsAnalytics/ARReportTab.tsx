@@ -32,6 +32,7 @@ import CustomButton from '../../../component/atoms/CustomButton';
 import CustomDatePicker from '../../../component/atoms/CustomDatePicker';
 import toast from 'react-hot-toast';
 import dayjs, { Dayjs } from 'dayjs';
+import { formatApiDate } from '../../../utils/formatApiDate';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import rabbitLogo from '../../../assets/Rabbit.svg';
 import { useSelector } from 'react-redux';
@@ -67,17 +68,6 @@ const formatAmount = (value: number | null | undefined): string => {
     return `(${Math.abs(numValue).toFixed(2)})`;
   }
   return numValue.toFixed(2);
-};
-
-// Format date
-const formatDate = (dateStr: string | null | undefined): string => {
-  if (!dateStr) return '';
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-  } catch {
-    return '';
-  }
 };
 
 const ARReportTab: React.FC = () => {
@@ -390,7 +380,7 @@ const ARReportTab: React.FC = () => {
     // Group by Deposit Date
     const depositsByDate: { [key: string]: any[] } = {};
     sortedData.forEach((deposit: any) => {
-      const dateKey = deposit.Deposit_Date ? formatDate(deposit.Deposit_Date) : 'No Date';
+      const dateKey = deposit.Deposit_Date ? formatApiDate(deposit.Deposit_Date) : 'No Date';
       if (!depositsByDate[dateKey]) {
         depositsByDate[dateKey] = [];
       }
@@ -450,6 +440,15 @@ const ARReportTab: React.FC = () => {
               transactionsBySubtype[subtype].push(receivable);
             });
 
+            // Sort within each subtype by Check Date (or Posting Date) ascending - oldest date first, then new
+            Object.keys(transactionsBySubtype).forEach((subtype) => {
+              transactionsBySubtype[subtype].sort((a: any, b: any) => {
+                const dateA = new Date(a.AR_CheckDate || a.AR_Date || 0).getTime();
+                const dateB = new Date(b.AR_CheckDate || b.AR_Date || 0).getTime();
+                return dateA - dateB;
+              });
+            });
+
             // Process each subtype
             Object.keys(transactionsBySubtype).sort().forEach((subtype) => {
               const transactions = transactionsBySubtype[subtype];
@@ -504,7 +503,8 @@ const ARReportTab: React.FC = () => {
           const depositTotal = firstDeposit.Payment_Total || 0;
           rows.push({
             type: 'deposit-total',
-            label: 'Total:',
+            Deposit_ID: Number(depositId),
+            label: `Total (${depositId}):`,
             Amount: depositTotal,
           });
           
@@ -605,7 +605,7 @@ const ARReportTab: React.FC = () => {
         previewData.forEach(row => {
           if (row.type === 'transaction') {
             const csvRow = [
-              formatDate(row.Deposit_Date),
+              formatApiDate(row.Deposit_Date),
               row.Deposit_ID?.toString() || '',
               row.Deposit_Reference || '',
               formatAmount(row.Payment_Total),
@@ -632,7 +632,7 @@ const ARReportTab: React.FC = () => {
         
         previewData.forEach(row => {
           if (row.type === 'deposit-header') {
-            rows.push(`"Deposit ID: ${row.Deposit_ID} - ${row.Deposit_Reference || ''} (${formatDate(row.Deposit_Date)})"`);
+            rows.push(`"Deposit ID: ${row.Deposit_ID} - ${row.Deposit_Reference || ''} (${formatApiDate(row.Deposit_Date)})"`);
           } else if (row.type === 'transaction') {
             const customerInfo = row.Customer_Number 
               ? `${row.Customer_Number} - ${row.Customer_Name || ''}`.trim()
@@ -644,8 +644,8 @@ const ARReportTab: React.FC = () => {
               customerInfo,
               row.User?.toString() || '',
               row.Lane_ID?.toString() || '',
-              formatDate(row.Check_Date),
-              formatDate(row.Posting_Date),
+              formatApiDate(row.Check_Date),
+              formatApiDate(row.Posting_Date),
               formatAmount(row.Amount),
             ];
             rows.push(csvRow.map(v => `"${v.replace(/"/g, '""')}"`).join(','));
@@ -837,7 +837,7 @@ const ARReportTab: React.FC = () => {
         previewData.forEach(row => {
           if (row.type === 'transaction') {
             body.push([
-              formatDate(row.Deposit_Date),
+              formatApiDate(row.Deposit_Date),
               row.Deposit_ID?.toString() || '',
               row.Deposit_Reference || '',
               formatAmount(row.Payment_Total),
@@ -876,7 +876,7 @@ const ARReportTab: React.FC = () => {
         const body: any[] = [];
         previewData.forEach(row => {
           if (row.type === 'deposit-header') {
-            const depositDate = formatDate(row.Deposit_Date);
+            const depositDate = formatApiDate(row.Deposit_Date);
             body.push([{
               content: `Deposit Date: ${depositDate} | Deposit ID: ${row.Deposit_ID} - ${row.Deposit_Reference || ''}`,
               colSpan: 9,
@@ -894,8 +894,8 @@ const ARReportTab: React.FC = () => {
               customerInfo,
               row.User?.toString() || '',
               row.Lane_ID?.toString() || '',
-              formatDate(row.Check_Date),
-              formatDate(row.Posting_Date),
+              formatApiDate(row.Check_Date),
+              formatApiDate(row.Posting_Date),
               formatAmount(row.Amount),
             ]);
           } else if (row.type === 'subtype-total' || row.type === 'deposit-total') {
@@ -1160,7 +1160,7 @@ const ARReportTab: React.FC = () => {
                             {filterOptions.depositeID.map((deposit) => (
                               <MenuItem key={deposit.Deposit_ID} value={String(deposit.Deposit_ID)} sx={{ fontSize: '0.7rem', py: 0.5 }}>
                                 <Checkbox checked={selectedDepositIds.includes(deposit.Deposit_ID)} size="small" sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '0.9rem' } }} />
-                                <Typography sx={{ fontSize: '0.7rem' }}>{deposit.Deposit_ID} - {deposit.Deposit_Reference || 'No Ref'} ({formatDate(deposit.Deposit_Date)})</Typography>
+                                <Typography sx={{ fontSize: '0.7rem' }}>{deposit.Deposit_ID} - {deposit.Deposit_Reference || 'No Ref'} ({formatApiDate(deposit.Deposit_Date)})</Typography>
                               </MenuItem>
                             ))}
                           </Select>
@@ -1352,7 +1352,7 @@ const ARReportTab: React.FC = () => {
                       {paginatedPreviewData.map((row, idx) => {
                         // Deposit header
                         if (row.type === 'deposit-header') {
-                          const depositDate = formatDate(row.Deposit_Date);
+                          const depositDate = formatApiDate(row.Deposit_Date);
                           return (
                             <TableRow key={`header-${row.Deposit_ID}-${idx}`}>
                               <TableCell
@@ -1390,7 +1390,7 @@ const ARReportTab: React.FC = () => {
                           if (reportType === 'ar-report-history') {
                             return (
                               <TableRow key={`row-${row.Deposit_ID}-${idx}`} hover>
-                                <TableCell>{formatDate(row.Deposit_Date)}</TableCell>
+                                <TableCell>{formatApiDate(row.Deposit_Date)}</TableCell>
                                 <TableCell>{row.Deposit_ID}</TableCell>
                                 <TableCell>{row.Deposit_Reference || ''}</TableCell>
                                 <TableCell align="right">{formatAmount(row.Payment_Total)}</TableCell>
@@ -1410,8 +1410,8 @@ const ARReportTab: React.FC = () => {
                                 <TableCell>{customerInfo}</TableCell>
                                 <TableCell>{row.User || ''}</TableCell>
                                 <TableCell>{row.Lane_ID || ''}</TableCell>
-                                <TableCell>{formatDate(row.Check_Date)}</TableCell>
-                                <TableCell>{formatDate(row.Posting_Date)}</TableCell>
+                                <TableCell>{formatApiDate(row.Check_Date)}</TableCell>
+                                <TableCell>{formatApiDate(row.Posting_Date)}</TableCell>
                                 <TableCell align="right">{formatAmount(row.Amount)}</TableCell>
                               </TableRow>
                             );
