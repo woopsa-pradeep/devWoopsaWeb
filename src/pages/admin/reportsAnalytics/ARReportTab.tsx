@@ -56,6 +56,7 @@ interface TransactionRow {
   Payment_Total?: number;
   Adjustment_Total?: number;
   ReturnCheck_Total?: number;
+  Deposit_Deleted?: boolean;
   label?: string;
 }
 
@@ -244,22 +245,9 @@ const ARReportTab: React.FC = () => {
     }
   }, [selectedDepositIds, filterOptions.depositeID]);
 
-  // Process data for AR Report History (simple table format)
+  // Process data for AR Report History (API already returns data filtered by startDate/endDate)
   const processHistoryData = useCallback((data: any[]): TransactionRow[] => {
-    // Filter by date if dates are selected
-    let filteredData = [...data];
-    if (startDate && endDate) {
-      const startDateStr = startDate.format('YYYY-MM-DD');
-      const endDateStr = endDate.format('YYYY-MM-DD');
-      
-      filteredData = filteredData.filter((deposit: any) => {
-        if (!deposit.Deposit_Date) return false;
-        const depositDate = new Date(deposit.Deposit_Date);
-        const depositDateStr = depositDate.toISOString().split('T')[0];
-        return depositDateStr >= startDateStr && depositDateStr <= endDateStr;
-      });
-    }
-    
+    const filteredData = [...data];
     // Sort by Deposit Date descending, then Deposit ID descending
     filteredData.sort((a: any, b: any) => {
       const dateA = new Date(a.Deposit_Date || 0).getTime();
@@ -290,6 +278,7 @@ const ARReportTab: React.FC = () => {
         Payment_Total: paymentTotal,
         Adjustment_Total: adjustmentTotal,
         ReturnCheck_Total: returnCheckTotal,
+        Deposit_Deleted: deposit.Deposit_Deleted === true,
       };
     });
 
@@ -303,7 +292,7 @@ const ARReportTab: React.FC = () => {
     });
 
     return rows;
-  }, [startDate, endDate]);
+  }, []);
 
   // Apply filters to data
   const applyFilters = useCallback((data: any[]): any[] => {
@@ -540,8 +529,10 @@ const ARReportTab: React.FC = () => {
       let fetchedData: any[] = [];
       
       if (reportType === 'ar-report-history') {
-        // Fetch AR Report History
-        const response = await getARreportsHistory() as any;
+        // Fetch AR Report History with date range (API filters by startDate/endDate)
+        const startDateStr = startDate.format('YYYY-MM-DD');
+        const endDateStr = endDate.format('YYYY-MM-DD');
+        const response = await getARreportsHistory(startDateStr, endDateStr) as any;
         const data = response?.data?.data?.data || response?.data?.data || response?.data || response || [];
         fetchedData = Array.isArray(data) ? data : [];
       } else {
@@ -599,7 +590,7 @@ const ARReportTab: React.FC = () => {
       
       if (reportType === 'ar-report-history') {
         // History report headers
-        const headers = ['Deposit Date', 'Deposit ID', 'Deposit Reference', 'Payments', 'Adjustments', 'Returned Checks'];
+        const headers = ['Deposit Date', 'Deposit ID', 'Deposit Reference', 'Payments', 'Adjustments', 'Returned Checks', 'Deleted'];
         rows.push(headers.join(','));
         
         previewData.forEach(row => {
@@ -611,6 +602,7 @@ const ARReportTab: React.FC = () => {
               formatAmount(row.Payment_Total),
               formatAmount(row.Adjustment_Total),
               formatAmount(row.ReturnCheck_Total),
+              row.Deposit_Deleted ? 'Deleted' : '',
             ];
             rows.push(csvRow.map(v => `"${v.replace(/"/g, '""')}"`).join(','));
           } else if (row.type === 'history-total') {
@@ -621,6 +613,7 @@ const ARReportTab: React.FC = () => {
               formatAmount(row.Payment_Total),
               formatAmount(row.Adjustment_Total),
               formatAmount(row.ReturnCheck_Total),
+              '',
             ];
             rows.push(csvRow.map(v => `"${v.replace(/"/g, '""')}"`).join(','));
           }
@@ -791,7 +784,7 @@ const ARReportTab: React.FC = () => {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text(
-          reportType === 'ar-report-history' ? 'A/R Deposit History' : 'A/R Deposits',
+          reportType === 'ar-report-history' ? 'A/R Deposite History' : 'A/R Deposite',
           pageWidth / 2,
           yPos + 5,
           { align: 'center' }
@@ -831,7 +824,7 @@ const ARReportTab: React.FC = () => {
       
       if (reportType === 'ar-report-history') {
         // History report - simple table
-        const headers = [['Deposit Date', 'Deposit ID', 'Deposit Reference', 'Payments', 'Adjustments', 'Returned Checks']];
+        const headers = [['Deposit Date', 'Deposit ID', 'Deposit Reference', 'Payments', 'Adjustments', 'Returned Checks', 'Deleted']];
         const body: any[] = [];
         
         previewData.forEach(row => {
@@ -843,22 +836,23 @@ const ARReportTab: React.FC = () => {
               formatAmount(row.Payment_Total),
               formatAmount(row.Adjustment_Total),
               formatAmount(row.ReturnCheck_Total),
+              row.Deposit_Deleted ? 'Deleted' : '',
             ]);
           } else if (row.type === 'history-total') {
             body.push([{
               content: row.label || 'Total:',
               colSpan: 3,
-              styles: { halign: 'right', fontStyle: 'bold' }
+              styles: { halign: 'left', fontStyle: 'bold' }
             }, {
               content: formatAmount(row.Payment_Total),
-              styles: { halign: 'right', fontStyle: 'bold' }
+              styles: { halign: 'left', fontStyle: 'bold' }
             }, {
               content: formatAmount(row.Adjustment_Total),
-              styles: { halign: 'right', fontStyle: 'bold' }
+              styles: { halign: 'left', fontStyle: 'bold' }
             }, {
               content: formatAmount(row.ReturnCheck_Total),
-              styles: { halign: 'right', fontStyle: 'bold' }
-            }]);
+              styles: { halign: 'left', fontStyle: 'bold' }
+            }, '']);
           }
         });
           
@@ -959,7 +953,7 @@ const ARReportTab: React.FC = () => {
       }}>
         {!showPreview && (
           <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.813rem', mb: 1, mt: 0 }}>
-            AR Report Configuration
+            AR Deposite Configuration
           </Typography>
         )}
 
@@ -1018,8 +1012,8 @@ const ARReportTab: React.FC = () => {
                         },
                       }}
                     >
-                      <MenuItem value="ar-report" sx={{ fontSize: '0.7rem', py: 0.5 }}>AR Report</MenuItem>
-                      <MenuItem value="ar-report-history" sx={{ fontSize: '0.7rem', py: 0.5 }}>AR Report History</MenuItem>
+                      <MenuItem value="ar-report" sx={{ fontSize: '0.7rem', py: 0.5 }}>AR Deposite</MenuItem>
+                      <MenuItem value="ar-report-history" sx={{ fontSize: '0.7rem', py: 0.5 }}>AR Deposite History</MenuItem>
                     </Select>
                   </FormControl>
                 </Box>
@@ -1048,7 +1042,7 @@ const ARReportTab: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Filters - Only for AR Report */}
+              {/* Filters - Only for AR Deposite */}
               {reportType === 'ar-report' && (
                 <Grid size={{ xs: 12, md: 9 }}>
                   <Grid container spacing={2}>
@@ -1297,7 +1291,7 @@ const ARReportTab: React.FC = () => {
             backgroundColor: theme.palette.background.paper,
           }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              {reportType === 'ar-report-history' ? 'A/R Deposit History' : 'A/R Deposits'} Preview
+              {reportType === 'ar-report-history' ? 'A/R Deposite History' : 'A/R Deposite'} Preview
             </Typography>
             
             {startDate && endDate && (
@@ -1332,6 +1326,7 @@ const ARReportTab: React.FC = () => {
                             <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }} align="right">Payments</TableCell>
                             <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }} align="right">Adjustments</TableCell>
                             <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }} align="right">Returned Checks</TableCell>
+                            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#e0e0e0', fontWeight: 600 }}>Deleted</TableCell>
                           </>
                         ) : (
                           <>
@@ -1356,7 +1351,7 @@ const ARReportTab: React.FC = () => {
                           return (
                             <TableRow key={`header-${row.Deposit_ID}-${idx}`}>
                               <TableCell
-                                colSpan={reportType === 'ar-report-history' ? 6 : 9}
+                                colSpan={reportType === 'ar-report-history' ? 7 : 9}
                                 sx={{
                                   backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.03)',
                                   fontWeight: 600,
@@ -1376,7 +1371,7 @@ const ARReportTab: React.FC = () => {
                           return (
                             <TableRow key={`spacer-${idx}`}>
                               <TableCell
-                                colSpan={reportType === 'ar-report-history' ? 6 : 9}
+                                colSpan={reportType === 'ar-report-history' ? 7 : 9}
                                 sx={{ py: 0.5, borderBottom: `1px solid ${theme.palette.divider}` }}
                               >
                                 &nbsp;
@@ -1396,6 +1391,7 @@ const ARReportTab: React.FC = () => {
                                 <TableCell align="right">{formatAmount(row.Payment_Total)}</TableCell>
                                 <TableCell align="right">{formatAmount(row.Adjustment_Total)}</TableCell>
                                 <TableCell align="right">{formatAmount(row.ReturnCheck_Total)}</TableCell>
+                                <TableCell>{row.Deposit_Deleted ? 'Deleted' : ''}</TableCell>
                               </TableRow>
                             );
                           } else {
@@ -1424,20 +1420,21 @@ const ARReportTab: React.FC = () => {
                             <TableRow key={`history-total-${idx}`}>
                               <TableCell
                                 colSpan={3}
-                                align="right"
+                                align="left"
                                 sx={{ fontWeight: 600, pl: 2 }}
                               >
                                 {row.label || 'Total:'}
                               </TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 600 }}>
+                              <TableCell align="left" sx={{ fontWeight: 600 }}>
                                 {formatAmount(row.Payment_Total)}
                               </TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 600 }}>
+                              <TableCell align="left" sx={{ fontWeight: 600 }}>
                                 {formatAmount(row.Adjustment_Total)}
                               </TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 600 }}>
+                              <TableCell align="left" sx={{ fontWeight: 600 }}>
                                 {formatAmount(row.ReturnCheck_Total)}
                               </TableCell>
+                              <TableCell />
                             </TableRow>
                           );
                         }
@@ -1447,7 +1444,7 @@ const ARReportTab: React.FC = () => {
                           return (
                             <TableRow key={`total-${idx}`}>
                               <TableCell
-                                colSpan={reportType === 'ar-report-history' ? 5 : 8}
+                                colSpan={reportType === 'ar-report-history' ? 6 : 8}
                                 align="right"
                                 sx={{ fontWeight: 600, pl: 2 }}
                               >

@@ -675,7 +675,7 @@ const ReportsAnalytics: React.FC = () => {
                   <AccountBalanceIcon sx={{ fontSize: 16 }} />
                   {sidebarOpen && (
                     <Typography sx={{ textTransform: 'none', fontSize: '0.75rem', ml: 1 }}>
-                      AR Report
+                      AR Deposite
                     </Typography>
                   )}
                 </Box>
