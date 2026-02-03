@@ -1,5 +1,5 @@
 // AdminDashboard.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Grid from "@mui/material/Grid";
 import {
   Box,
@@ -183,7 +183,6 @@ const AdminDashboard = () => {
   const [pickerViewMode, setPickerViewMode] = useState<"table" | "graph">("table");
   const [salesPerformanceViewMode, setSalesPerformanceViewMode] = useState<"table" | "graph">("table");
   const [lossQtyViewMode, setLossQtyViewMode] = useState<"table" | "graph">("table");
-  const [lossQtyData, setLossQtyData] = useState<any[]>([]);
   const [lossQtyFullData, setLossQtyFullData] = useState<any[]>([]);
   const [lossQtyLoading, setLossQtyLoading] = useState(false);
   const [lossQtyModalOpen, setLossQtyModalOpen] = useState(false);
@@ -252,11 +251,8 @@ const AdminDashboard = () => {
       
       // Handle API response structure: { success: true, message: "...", data: { rows: [...] } }
       const rows = response?.data?.data?.rows || response?.data?.rows || response?.rows || [];
-      // Store full data for modal
+      // Store full data; merging by product is done in lossQtyMergedData useMemo
       setLossQtyFullData(rows);
-      // Get top 10 by Loss_Qty (max loss qty first)
-      const sorted = rows.sort((a: any, b: any) => (b.Loss_Qty || 0) - (a.Loss_Qty || 0));
-      setLossQtyData(sorted.slice(0, 10));
     } catch (error) {
       console.error("Error fetching loss quantity data:", error);
     } finally {
@@ -266,6 +262,35 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchLossQtyData();
   }, [startDate, endDate]);
+
+  // Merge loss qty by product (Item_Number): one row per product with summed Loss_Qty and Ext_Loss
+  const lossQtyMergedData = useMemo(() => {
+    const map = new Map<string, { Description: string; Item_Number: string; Loss_Qty: number; Ext_Loss: number }>();
+    for (const row of lossQtyFullData) {
+      const key = String(row.Item_Number ?? '');
+      const lossQty = Number(row.Loss_Qty) || 0;
+      const extLoss = Number(row.Ext_Loss) || 0;
+      const existing = map.get(key);
+      if (existing) {
+        existing.Loss_Qty += lossQty;
+        existing.Ext_Loss += extLoss;
+      } else {
+        map.set(key, {
+          Description: row.Description ?? '-',
+          Item_Number: row.Item_Number ?? '',
+          Loss_Qty: lossQty,
+          Ext_Loss: extLoss,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [lossQtyFullData]);
+
+  // Top 10 from merged data (by Loss_Qty descending)
+  const lossQtyData = useMemo(
+    () => [...lossQtyMergedData].sort((a, b) => (b.Loss_Qty || 0) - (a.Loss_Qty || 0)).slice(0, 10),
+    [lossQtyMergedData]
+  );
 
   const handleLossQtyGenerateReport = () => {
     navigate('/admin/reports-analytics?tab=loss-qty', {
@@ -281,24 +306,15 @@ const AdminDashboard = () => {
     setLossQtyModalOpen(true);
   };
 
-  // Get paginated data for modal
+  // Get paginated data for modal (merged by product, sorted by Loss_Qty descending)
   const getPaginatedLossQtyData = () => {
-    const sorted = [...lossQtyFullData].sort((a: any, b: any) => {
-      // Sort by date first (newest first), then by loss qty (descending)
-      const dateA = a.Invoice_Date ? new Date(a.Invoice_Date).getTime() : 0;
-      const dateB = b.Invoice_Date ? new Date(b.Invoice_Date).getTime() : 0;
-      if (dateA !== dateB) {
-        return dateB - dateA; // Newest first
-      }
-      return (b.Loss_Qty || 0) - (a.Loss_Qty || 0); // Then by loss qty descending
-    });
-
+    const sorted = [...lossQtyMergedData].sort((a, b) => (b.Loss_Qty || 0) - (a.Loss_Qty || 0));
     const startIndex = (lossQtyModalPage - 1) * lossQtyModalPageSize;
     const endIndex = startIndex + lossQtyModalPageSize;
     return sorted.slice(startIndex, endIndex);
   };
 
-  const lossQtyModalTotalPages = Math.ceil(lossQtyFullData.length / lossQtyModalPageSize);
+  const lossQtyModalTotalPages = Math.ceil(lossQtyMergedData.length / lossQtyModalPageSize);
 
   const handleLossQtyModalPageChange = (page: number) => {
     setLossQtyModalPage(page);
@@ -492,9 +508,9 @@ const AdminDashboard = () => {
     }
   };
 
-  // Generate PDF for Loss Quantity Report
+  // Generate PDF for Loss Quantity Report (uses merged data by product)
   const handleGenerateLossQtyPDF = async () => {
-    if (lossQtyFullData.length === 0) {
+    if (lossQtyMergedData.length === 0) {
       toast.error('No data to generate PDF');
       return;
     }
@@ -564,9 +580,9 @@ const AdminDashboard = () => {
 
       yPosition = 30;
 
-      // Calculate totals
-      const totalLossQty = lossQtyFullData.reduce((sum, item) => sum + (item.Loss_Qty || 0), 0);
-      const totalExtLoss = lossQtyFullData.reduce((sum, item) => sum + (item.Ext_Loss || 0), 0);
+      // Calculate totals from merged data
+      const totalLossQty = lossQtyMergedData.reduce((sum, item) => sum + (item.Loss_Qty || 0), 0);
+      const totalExtLoss = lossQtyMergedData.reduce((sum, item) => sum + (item.Ext_Loss || 0), 0);
 
       // Summary totals before table
       doc.setFontSize(10);
@@ -581,17 +597,10 @@ const AdminDashboard = () => {
       doc.text(`Total Ext Lost: $${totalExtLoss.toFixed(2)}`, margin, yPosition);
       yPosition += 8;
 
-      // Prepare table data with 3 columns: Item, Loss Qty, Ext Lost
-      const tableData = lossQtyFullData
-        .sort((a: any, b: any) => {
-          const dateA = a.Invoice_Date ? new Date(a.Invoice_Date).getTime() : 0;
-          const dateB = b.Invoice_Date ? new Date(b.Invoice_Date).getTime() : 0;
-          if (dateA !== dateB) {
-            return dateB - dateA;
-          }
-          return (b.Loss_Qty || 0) - (a.Loss_Qty || 0);
-        })
-        .map((row: any) => [
+      // Prepare table data from merged data: Item, Loss Qty, Ext Lost (sorted by Loss_Qty descending)
+      const tableData = [...lossQtyMergedData]
+        .sort((a, b) => (b.Loss_Qty || 0) - (a.Loss_Qty || 0))
+        .map((row) => [
           `${row.Description || '-'} (Item #${row.Item_Number || '-'})`,
           (row.Loss_Qty || 0).toString(),
           `$${(row.Ext_Loss || 0).toFixed(2)}`
@@ -1544,7 +1553,6 @@ const AdminDashboard = () => {
     lossQty: row.Loss_Qty || 0,
     extLoss: row.Ext_Loss || 0,
     itemNumber: row.Item_Number,
-    customer: row.C_Name,
   }));
 
   // User Performance Data
@@ -3864,7 +3872,7 @@ const AdminDashboard = () => {
                   Total Loss Qty:
                 </Typography>
                 <Typography fontSize={13} fontWeight={600} color="error.main">
-                  {lossQtyFullData.reduce((sum, item) => sum + (item.Loss_Qty || 0), 0).toLocaleString()}
+                  {lossQtyMergedData.reduce((sum, item) => sum + (item.Loss_Qty || 0), 0).toLocaleString()}
                 </Typography>
               </Box>
               <Box
@@ -3883,7 +3891,7 @@ const AdminDashboard = () => {
                   Total Ext Lost:
                 </Typography>
                 <Typography fontSize={13} fontWeight={600} color="error.main">
-                  ${lossQtyFullData.reduce((sum, item) => sum + (item.Ext_Loss || 0), 0).toFixed(2)}
+                  ${lossQtyMergedData.reduce((sum, item) => sum + (item.Ext_Loss || 0), 0).toFixed(2)}
                 </Typography>
               </Box>
             </Box>
@@ -3891,7 +3899,7 @@ const AdminDashboard = () => {
               variant="contained"
               startIcon={!generatingPDF ? <PdfIcon /> : undefined}
               onClick={handleGenerateLossQtyPDF}
-              disabled={generatingPDF || lossQtyFullData.length === 0}
+              disabled={generatingPDF || lossQtyMergedData.length === 0}
               sx={{
                 textTransform: 'none',
                 minWidth: 150,
@@ -3907,7 +3915,7 @@ const AdminDashboard = () => {
             columns={lossQtyModalColumns}
             currentPage={lossQtyModalPage}
             totalPages={lossQtyModalTotalPages}
-            totalItems={lossQtyFullData.length}
+            totalItems={lossQtyMergedData.length}
             stickyHeader={true}
             pageSize={lossQtyModalPageSize}
             onPageChange={handleLossQtyModalPageChange}
