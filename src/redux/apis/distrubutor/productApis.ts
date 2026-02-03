@@ -4,6 +4,10 @@ export const productList = async (params: any) => {
     return axiosInstance.post('/distrubutor/productList', params);
 };
 
+export const productListWithTax = async (params: any & { customerId?: number }) => {
+    return axiosInstance.post('/distrubutor/productListWithTax', params);
+};
+
 export const uploadProductImage = async (formData: FormData) => {
     return axiosInstance.post('/distrubutor/uploadProductImage', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }

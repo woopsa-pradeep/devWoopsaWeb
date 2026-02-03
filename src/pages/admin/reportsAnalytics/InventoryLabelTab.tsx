@@ -15,7 +15,7 @@ import {
   DialogActions,
   Button,
 } from '@mui/material';
-import { productList } from '../../../redux/apis/distrubutor/productApis';
+import { productList, productListWithTax } from '../../../redux/apis/distrubutor/productApis';
 import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
 import SearchableDropdown from '../../../component/atoms/SearchableDropdown';
 import { getSalesCategoryList, getPriceClassList, getCustomerList } from '../../../redux/apis/distrubutor/listApis';
@@ -270,7 +270,7 @@ const InventoryLabelTab = () => {
       
       for (const itemNumber of itemNumbers) {
         try {
-          const params = {
+          const params: Record<string, unknown> = {
             search: itemNumber,
             page: 1,
             limit: 5,
@@ -279,8 +279,11 @@ const InventoryLabelTab = () => {
             I_Inactive: false,
             ShortOrderForm: true,
           };
-          
-          const res: any = await productList(params);
+          if (selectedCustomer) {
+            params.customerId = Number(selectedCustomer);
+          }
+          const apiCall = selectedCustomer ? productListWithTax : productList;
+          const res: any = await apiCall(params);
           const products: Product[] = res?.data?.data?.finalProductList || [];
           
           // Filter to find exact match for this item number
@@ -313,7 +316,7 @@ const InventoryLabelTab = () => {
     }
   };
 
-  // Fetch order products when order number is selected
+  // Fetch order products when order number or customer is selected (customer affects tax in productListWithTax)
   useEffect(() => {
     if (selectedOrderNumber?.value) {
       fetchOrderProducts(selectedOrderNumber.value);
@@ -323,7 +326,7 @@ const InventoryLabelTab = () => {
     } else {
       setOrderProducts([]);
     }
-  }, [selectedOrderNumber]);
+  }, [selectedOrderNumber, selectedCustomer]);
 
   // Reset rows when column count changes for A4 layouts and set orientation to portrait
   useEffect(() => {
@@ -1668,7 +1671,7 @@ const InventoryLabelTab = () => {
       setLoadingPreview(true);
       const fetchPreviewProducts = async () => {
         try {
-          const params = {
+          const params: Record<string, unknown> = {
             search: '',
             page: 1,
             limit: 100000,
@@ -1681,8 +1684,11 @@ const InventoryLabelTab = () => {
             ShortOrderForm: true,
             I_Inactive: false,
           };
-          
-          const res: any = await productList(params);
+          if (selectedCustomer) {
+            params.customerId = Number(selectedCustomer);
+          }
+          const apiCall = selectedCustomer ? productListWithTax : productList;
+          const res: any = await apiCall(params);
           const allProducts: Product[] = res?.data?.data?.finalProductList || [];
           
           if (!Array.isArray(allProducts) || allProducts.length === 0) {
@@ -1717,8 +1723,8 @@ const InventoryLabelTab = () => {
       if (selectedOrderNumber?.value && orderProducts.length > 0) {
         allProducts = orderProducts;
       } else {
-        // Otherwise, fetch all products using productList with high limit
-        const params = {
+        // Otherwise, fetch all products using productList/productListWithTax with high limit
+        const params: Record<string, unknown> = {
           search: '', // Can be enhanced with search functionality later
           page: 1,
           limit: 100000,
@@ -1731,8 +1737,11 @@ const InventoryLabelTab = () => {
           ShortOrderForm: true,
           I_Inactive: false,
         };
-        
-        const res: any = await productList(params);
+        if (selectedCustomer) {
+          params.customerId = Number(selectedCustomer);
+        }
+        const apiCall = selectedCustomer ? productListWithTax : productList;
+        const res: any = await apiCall(params);
         allProducts = res?.data?.data?.finalProductList || [];
       }
       
@@ -2236,6 +2245,10 @@ const InventoryLabelTab = () => {
           </Grid>
         </Paper>
       </Box>
+
+      <Typography variant="caption" sx={{ px: 1.5, pt: 0.75, display: 'block', color: 'error.main', fontWeight: 500 }}>
+        <Box component="span" sx={{ fontWeight: 600 }}>Note:</Box> If you need prices with tax, then select a customer.
+      </Typography>
 
       <Box sx={{ 
         p: 1.5,

@@ -17,7 +17,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import { useDebounce } from '../../../hooks/useDebounce';
-import { createProductLimit, productList, updateProductImageByImageId, updateProductLimit, uploadProductImage, getProductById} from '../../../redux/apis/distrubutor/productApis';
+import { createProductLimit, productList, productListWithTax, updateProductImageByImageId, updateProductLimit, uploadProductImage, getProductById} from '../../../redux/apis/distrubutor/productApis';
 import TextInput from '../../../component/atoms/TextInput';
 import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
 import img from '../../../assets/Default-Product-Image.jpg';
@@ -28,7 +28,7 @@ import { CircularProgress } from '@mui/material';
 import toast from 'react-hot-toast';
 import Tooltip from '@mui/material/Tooltip';
 import Chip from '@mui/material/Chip';
-import { getSalesCategoryList, getPriceClassList } from '../../../redux/apis/distrubutor/listApis';
+import { getSalesCategoryList, getPriceClassList, getCustomerList } from '../../../redux/apis/distrubutor/listApis';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import EditIcon from '@mui/icons-material/Edit';
 import SwitchInput from '../../../component/atoms/SwitchInput';
@@ -156,6 +156,9 @@ const Product = () => {
     columns: 1 as number,
   });
   const [printLabelLoading, setPrintLabelLoading] = useState(false);
+  const [printLabelSelectedCustomer, setPrintLabelSelectedCustomer] = useState<string>('');
+  const [printLabelCustomerOptions, setPrintLabelCustomerOptions] = useState<FilterOption[]>([]);
+  const [loadingPrintLabelCustomers, setLoadingPrintLabelCustomers] = useState(false);
   const [individualPrintModalOpen, setIndividualPrintModalOpen] = useState(false);
   const [individualPrintProduct, setIndividualPrintProduct] = useState<Product | null>(null);
   const [individualPrintForm, setIndividualPrintForm] = useState({
@@ -184,7 +187,25 @@ const Product = () => {
   useEffect(() => {
     fetchSalesCategories();
     fetchPriceClasses();
+    fetchPrintLabelCustomers();
   }, []);
+
+  const fetchPrintLabelCustomers = async () => {
+    setLoadingPrintLabelCustomers(true);
+    try {
+      const response = await getCustomerList() as any;
+      const customerList = response?.data?.data || [];
+      setPrintLabelCustomerOptions(customerList?.map((cust: { C_Number: number; C_Name: string }) => ({
+        label: `${cust.C_Number} - ${cust.C_Name}`,
+        value: cust.C_Number.toString()
+      })) || []);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      toast.error('Failed to load customers');
+    } finally {
+      setLoadingPrintLabelCustomers(false);
+    }
+  };
 
   // Reset rows when column count changes for A4 layouts
   useEffect(() => {
@@ -1554,8 +1575,8 @@ const Product = () => {
       setPrintLabelLoading(true);
       toast.loading('Fetching products...', { id: 'fetch-products' });
       
-      // Fetch all products using productList with high limit
-      const params = {
+      // Fetch all products using productList or productListWithTax (with tax when customer selected)
+      const params: Record<string, unknown> = {
         search: '',
         page: 1,
         limit: 100000, // Very high limit to get all products
@@ -1568,8 +1589,11 @@ const Product = () => {
         I_Inactive: iInactive,
         ShortOrderForm: shortOrderForm,
       };
-      
-      const res: any = await productList(params);
+      if (printLabelSelectedCustomer) {
+        params.customerId = Number(printLabelSelectedCustomer);
+      }
+      const apiCall = printLabelSelectedCustomer ? productListWithTax : productList;
+      const res: any = await apiCall(params);
       const allProducts: Product[] = res?.data?.data?.finalProductList || [];
       
       if (!Array.isArray(allProducts) || allProducts.length === 0) {
@@ -4107,6 +4131,25 @@ const Product = () => {
         </Box>
 
         <Box display="flex" flexDirection="column" gap={3}>
+          <FormControl fullWidth>
+            <InputLabel>Customer</InputLabel>
+            <Select
+              value={printLabelSelectedCustomer}
+              onChange={(e) => setPrintLabelSelectedCustomer(e.target.value)}
+              label="Customer"
+              disabled={loadingPrintLabelCustomers}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {printLabelCustomerOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
           <FormControl fullWidth>
             <InputLabel>Label Size</InputLabel>
             <Select
