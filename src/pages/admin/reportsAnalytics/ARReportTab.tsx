@@ -39,7 +39,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../../redux/store';
 
 interface TransactionRow {
-  type: 'transaction' | 'subtype-total' | 'deposit-total' | 'deposit-header' | 'history-total';
+  type: 'transaction' | 'subtype-total' | 'deposit-total' | 'deposit-header' | 'history-total' | 'grand-total';
   Deposit_ID?: number;
   Deposit_Date?: string;
   Deposit_Reference?: string;
@@ -376,6 +376,9 @@ const ARReportTab: React.FC = () => {
       depositsByDate[dateKey].push(deposit);
     });
 
+    // Sum of all deposit totals for final grand total row
+    let grandTotalAllDeposits = 0;
+
     // Process each date group
     Object.keys(depositsByDate).sort((a, b) => {
       if (a === 'No Date') return 1;
@@ -394,30 +397,32 @@ const ARReportTab: React.FC = () => {
         depositsById[id].push(deposit);
       });
 
-      // Process each deposit ID
-      Object.keys(depositsById)
-        .map(Number)
-        .sort((a, b) => b - a)
-        .forEach((depositId, depositIndex) => {
-          const depositGroup = depositsById[depositId];
-          const firstDeposit = depositGroup[0];
-          
-          // Add deposit header
-          rows.push({
-            type: 'deposit-header',
-            Deposit_ID: depositId,
-            Deposit_Date: firstDeposit.Deposit_Date,
-            Deposit_Reference: firstDeposit.Deposit_Reference,
-            label: `Deposit ID: ${depositId}`,
-          });
+          // Process each deposit ID
+          Object.keys(depositsById)
+            .map(Number)
+            .sort((a, b) => b - a)
+            .forEach((depositId, depositIndex) => {
+              const depositGroup = depositsById[depositId];
+              const firstDeposit = depositGroup[0];
+              
+              // Add deposit header
+              rows.push({
+                type: 'deposit-header',
+                Deposit_ID: depositId,
+                Deposit_Date: firstDeposit.Deposit_Date,
+                Deposit_Reference: firstDeposit.Deposit_Reference,
+                label: `Deposit ID: ${depositId}`,
+              });
 
-          let lastSubtype = '';
-          
-          // Process each deposit in the group (in case of duplicates)
-          depositGroup.forEach((deposit: any) => {
-            if (!deposit.custReceivables || !Array.isArray(deposit.custReceivables) || deposit.custReceivables.length === 0) {
-              return;
-            }
+              let lastSubtype = '';
+              // Sum of all subtype totals for this deposit (so grand total matches displayed rows, including N/A)
+              let depositTotalCalculated = 0;
+
+              // Process each deposit in the group (in case of duplicates)
+              depositGroup.forEach((deposit: any) => {
+                if (!deposit.custReceivables || !Array.isArray(deposit.custReceivables) || deposit.custReceivables.length === 0) {
+                  return;
+                }
 
             // Group transactions by subtype
             const transactionsBySubtype: { [key: string]: any[] } = {};
@@ -478,6 +483,7 @@ const ARReportTab: React.FC = () => {
               });
 
               // Add subtype total
+              depositTotalCalculated += subtypeTotal;
               rows.push({
                 type: 'subtype-total',
                 label: `Total ${subtype}:`,
@@ -488,8 +494,9 @@ const ARReportTab: React.FC = () => {
             });
           });
 
-          // Add deposit total
-          const depositTotal = firstDeposit.Payment_Total || 0;
+          // Add deposit total: use sum of subtype totals so it includes N/A and matches displayed rows
+          const depositTotal = depositTotalCalculated;
+          grandTotalAllDeposits += depositTotal;
           rows.push({
             type: 'deposit-total',
             Deposit_ID: Number(depositId),
@@ -510,6 +517,13 @@ const ARReportTab: React.FC = () => {
             } as TransactionRow);
           }
         });
+    });
+
+    // Add grand total of all deposits at the end
+    rows.push({
+      type: 'grand-total',
+      label: 'Total (all deposits):',
+      Amount: grandTotalAllDeposits,
     });
 
     return rows;
@@ -642,7 +656,7 @@ const ARReportTab: React.FC = () => {
               formatAmount(row.Amount),
             ];
             rows.push(csvRow.map(v => `"${v.replace(/"/g, '""')}"`).join(','));
-          } else if (row.type === 'subtype-total' || row.type === 'deposit-total') {
+          } else if (row.type === 'subtype-total' || row.type === 'deposit-total' || row.type === 'grand-total') {
             rows.push(`"${row.label || ''}",,,,,,,,"${formatAmount(row.Amount)}"`);
           }
         });
@@ -892,14 +906,15 @@ const ARReportTab: React.FC = () => {
               formatApiDate(row.Posting_Date),
               formatAmount(row.Amount),
             ]);
-          } else if (row.type === 'subtype-total' || row.type === 'deposit-total') {
+          } else if (row.type === 'subtype-total' || row.type === 'deposit-total' || row.type === 'grand-total') {
+            const isGrandTotal = row.type === 'grand-total';
             body.push([{
               content: row.label || '',
               colSpan: 8,
-              styles: { halign: 'right', fontStyle: 'bold' }
+              styles: { halign: 'right', fontStyle: 'bold', fillColor: isGrandTotal ? [220, 220, 220] : undefined }
             }, {
               content: formatAmount(row.Amount),
-              styles: { halign: 'right', fontStyle: 'bold' }
+              styles: { halign: 'right', fontStyle: 'bold', fillColor: isGrandTotal ? [220, 220, 220] : undefined }
             }]);
           }
         });
@@ -1439,10 +1454,14 @@ const ARReportTab: React.FC = () => {
                           );
                         }
                         
-                        // Subtype total or deposit total
-                        if (row.type === 'subtype-total' || row.type === 'deposit-total') {
+                        // Subtype total, deposit total, or grand total (all deposits)
+                        if (row.type === 'subtype-total' || row.type === 'deposit-total' || row.type === 'grand-total') {
+                          const isGrandTotal = row.type === 'grand-total';
                           return (
-                            <TableRow key={`total-${idx}`}>
+                            <TableRow
+                              key={`total-${idx}`}
+                              sx={isGrandTotal ? { backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)' } : undefined}
+                            >
                               <TableCell
                                 colSpan={reportType === 'ar-report-history' ? 6 : 8}
                                 align="right"

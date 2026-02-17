@@ -119,7 +119,7 @@ const AdminOrder = () => {
       const itemDesc = (item.ItemDescription != null && String(item.ItemDescription).trim() !== '') ? String(item.ItemDescription).trim() : '';
       const itemMsg = (item.Item_Message != null && String(item.Item_Message).trim() !== '') ? String(item.Item_Message).trim() : '';
       const invDesc = item.inventory?.Description || item.Description || '';
-      const description = itemDesc || itemMsg || invDesc || '';
+      const description = invDesc || itemDesc || itemMsg || '';
       const itemNumber = item.Item_Number != null ? String(item.Item_Number) : (item.inventory?.Item_Number != null ? String(item.inventory.Item_Number) : '');
       const sortNumber = item.inventory?.Sequence != null ? Number(item.inventory.Sequence) : index + 1;
       const price = item.Price != null ? Number(item.Price) : 0;
@@ -132,7 +132,10 @@ const AdminOrder = () => {
       const taxPerUnit = otpAmountState + prepaidTaxAmount;
       subTotal += totalPrice;
       const retail1 = item.inventory?.Retail1 != null ? Number(item.inventory.Retail1) : price;
-      const salesCategory = item.Sales_Category != null ? String(item.Sales_Category) : '';
+      const salesCategory = item.inventory?.SalesCategory?.Category_Desc || item.Sales_Category_Desc || (item.Sales_Category != null ? String(item.Sales_Category) : '');
+      // Deposit (CRV): DepositAmount per unit; line deposit = Quantity_Shipped * DepositAmount
+      const depositAmount = item.DepositAmount != null ? Number(item.DepositAmount) : 0;
+      const deposit = shippedQty * depositAmount;
       return {
         orderQty,
         shippedQty,
@@ -148,20 +151,22 @@ const AdminOrder = () => {
         retail1,
         ebt: item.EBT === true || item.EBT === 1,
         salesCategory,
+        deposit,
       };
     });
     const route = header.Route_Number != null ? Number(header.Route_Number) : 0;
     const stop = header.Stop_Number != null ? Number(header.Stop_Number) : 0;
     const fullAddress = [customer.C_Address, customer.C_City, customer.C_State, customer.C_Zip].filter(Boolean).join(', ');
     const deliveryCharge = header.Delivery_Charge != null ? Number(header.Delivery_Charge) : 0;
+    const depositTotal = items.reduce((sum: number, i: { deposit?: number }) => sum + (Number(i.deposit) || 0), 0);
     const lastBalance = customer.LastBalance != null ? Number(customer.LastBalance) : 0;
-    const invoiceTotal = header.Invoice_Total != null ? Number(header.Invoice_Total) : subTotal;
-    const totalAmountDue = invoiceTotal > 0 ? invoiceTotal : subTotal + deliveryCharge - lastBalance;
+    const invoiceTotal = header.Invoice_Total != null ? Number(header.Invoice_Total) : subTotal + depositTotal;
+    const totalAmountDue = invoiceTotal > 0 ? invoiceTotal : subTotal + deliveryCharge + depositTotal - lastBalance;
     const invoiceNum = header.Invoice_Number ?? header.LastInvoiceNumber ?? header.Order_Number;
     const invoiceDate = header.Invoice_Date || header.Order_Date || '';
     const salesPerson = header.salesRep?.S_Desc != null ? String(header.salesRep.S_Desc) : '';
     const customerLicense = customer.C_CigtLicenseNumber ?? customer.C_SalesTaxNumber ?? '';
-    const termsCode = customer.TermsCode != null ? Number(customer.TermsCode) : undefined;
+    const termsCode = customer?.terms?.Terms || undefined;
     return {
       customer: {
         number: header.C_Number ?? customer.C_Number ?? 0,
@@ -179,8 +184,9 @@ const AdminOrder = () => {
       salesPerson: salesPerson || undefined,
       customerLicense: customerLicense || undefined,
       termsCode,
+      via: header.DeliveryType?.Delivery_Description ?? undefined,
       items,
-      totals: { subTotal, deliveryCharge, lastBalance, invoiceTotal, totalAmountDue },
+      totals: { subTotal, deliveryCharge, deposit: depositTotal, lastBalance, invoiceTotal, totalAmountDue },
     };
   };
 

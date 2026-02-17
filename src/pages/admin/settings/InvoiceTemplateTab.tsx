@@ -518,7 +518,7 @@ const InvoiceTemplateTab: React.FC = () => {
     let tablesY = (doc as any).lastAutoTable.finalY + 0.5;
     autoTableFn(doc, {
       startY: tablesY,
-      head: [['TERMS:', 'CUSTOMER LICENCE#', 'VIA']],
+      head: [['TERMS:', 'CUSTOMER LICENCE#', 'Delivery Via']],
       body: [['', '', '']],
       columnStyles: { 0: { cellWidth: cellW3 }, 1: { cellWidth: cellW3 }, 2: { cellWidth: cellW3 } },
       styles: tableStyle,
@@ -908,7 +908,8 @@ const InvoiceTemplateTab: React.FC = () => {
             : margin;
       let yPos = headerHeight + 2;
       const grouped = groupInvoiceItems(SAMPLE_INVOICE_ITEMS);
-      const headerLabels = selectedKeys.map((k) => INVOICE_COLUMN_FIELDS.find((f) => f.key === k)?.label || k);
+      // EBT column: show data but no header label in table
+      const headerLabels = selectedKeys.map((k) => (k === 'ebt' ? '' : (INVOICE_COLUMN_FIELDS.find((f) => f.key === k)?.label || k)));
       const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
       const descriptionColIndex = selectedKeys.indexOf('description');
       const columnStyles: Record<number, { cellWidth: number }> = {};

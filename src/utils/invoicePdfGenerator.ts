@@ -360,14 +360,14 @@ function drawHeaderTables(
   });
   let y = (doc as any).lastAutoTable.finalY + 0.5;
 
-  // Row 2: TERMS | CUSTOMER LICENCE# | VIA (from orderData when present)
+  // Row 2: TERMS | CUSTOMER LICENCE# | Delivery Via (from orderData.via = Delivery_Description when present)
   const termsText = orderData.termsCode != null ? String(orderData.termsCode) : '';
   const licenseText = (orderData.customerLicense ?? '').trim() ? orderData.customerLicense! : '-';
   const viaText = (orderData.via ?? '').trim() || '-';
   autoTableFn(doc, {
     startY: y,
-    head: [['TERMS:', 'CUSTOMER LICENCE#', 'VIA']],
-    body: [[termsText || '-', `LICENSE NO : ${licenseText}`, viaText]],
+    head: [['TERMS:', 'CUSTOMER LICENCE#', 'Delivery Via']],
+    body: [[termsText || '-', `${licenseText}`, viaText]],
     columnStyles: { 0: { cellWidth: cellW3 }, 1: { cellWidth: cellW3 }, 2: { cellWidth: cellW3 } },
     styles: tableStyle,
     headStyles: greyHead,
@@ -698,23 +698,30 @@ function stripHtmlAndTruncate(text: string, maxLen: number): string {
   return stripped.slice(0, maxLen).trim();
 }
 
-/** Wrap text into lines of max width (mm); returns array of lines (~6-7 line max). Exported for preview. */
+/** Wrap text into lines of max width (mm); preserves user newlines (line-by-line). Returns array of lines (~maxLines). Exported for preview. */
 export function wrapFooterMessage(doc: jsPDF, text: string, maxWidthMm: number, maxLines = 7): string[] {
   const lines: string[] = [];
   doc.setFontSize(7);
-  const words = text.split(/\s+/).filter(Boolean);
-  let current = '';
-  for (const w of words) {
-    const next = current ? `${current} ${w}` : w;
-    if (doc.getTextWidth(next) <= maxWidthMm) {
-      current = next;
-    } else {
-      if (current) lines.push(current);
-      current = w;
-    }
+  // Split by newlines first so footer message line-by-line input is preserved
+  const paragraphs = text.split(/\r?\n/).map((p) => p.trim()).filter(Boolean);
+  for (const para of paragraphs) {
     if (lines.length >= maxLines) break;
+    const words = para.split(/\s+/).filter(Boolean);
+    let current = '';
+    for (const w of words) {
+      const next = current ? `${current} ${w}` : w;
+      if (doc.getTextWidth(next) <= maxWidthMm) {
+        current = next;
+      } else {
+        if (current) {
+          lines.push(current);
+          if (lines.length >= maxLines) break;
+        }
+        current = w;
+      }
+    }
+    if (current && lines.length < maxLines) lines.push(current);
   }
-  if (current && lines.length < maxLines) lines.push(current);
   return lines;
 }
 
