@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useSelector } from "react-redux";
 import { Box, Typography, useMediaQuery, Paper, IconButton, CircularProgress, SelectChangeEvent, Drawer, Button } from "@mui/material";
 import CommonTable, {
   TableColumn,
@@ -19,6 +20,7 @@ import toast from 'react-hot-toast';
 
 const AdminOrder = () => {
   const navigate = useNavigate();
+  const wareHouseDetail = useSelector((state: { auth?: { wareHouseDetail?: Array<{ D_Logo?: string }> } }) => state.auth?.wareHouseDetail);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -316,7 +318,8 @@ const AdminOrder = () => {
         return;
       }
       const config = apiTemplateToInvoiceConfig(template);
-      await generateInvoicePDF(orderData, config, { print: true });
+      const warehouseLogoUrl = wareHouseDetail?.[0]?.D_Logo ?? undefined;
+      await generateInvoicePDF(orderData, config, { print: true, warehouseLogoUrl });
       toast.success('Invoice print dialog opened');
     } catch (error: any) {
       console.error('Error generating invoice PDF:', error);
