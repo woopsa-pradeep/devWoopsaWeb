@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Box, 
   Paper, 
@@ -8,7 +8,10 @@ import {
   Tabs, 
   Tab,
 } from '@mui/material';
-import { VpnKey as PinIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon, Assessment as ReportsIcon, PersonAdd as CreateUserIcon } from '@mui/icons-material';
+import type { Theme } from '@mui/material/styles';
+import { Settings as SettingsIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon, Assessment as ReportsIcon, PersonAdd as CreateUserIcon } from '@mui/icons-material';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../redux/store';
 import PinSettingsTab from './PinSettingsTab';
 import OngoingOrdersTab from './OngoingOrdersTab';
 import OrderPreferencesTab from './OrderPreferencesTab';
@@ -16,11 +19,48 @@ import EpickReportsTab from './EpickReportsTab';
 import CheckerUsersTab from './CheckerUsersTab';
 import CreateEpickUserTab from './CreateEpickUserTab';
 
+const tabStyle = (theme: Theme) => ({
+  alignItems: "center" as const,
+  justifyContent: "flex-start" as const,
+  textTransform: "none" as const,
+  minHeight: { xs: 35, md: 48 },
+  fontWeight: 400,
+  gap: { xs: 0.3, md: 1 },
+  margin: '4px 8px',
+  transition: 'all 0.2s ease-in-out',
+  "&.Mui-selected": {
+    color: theme.palette.primary.main,
+    fontWeight: 500,
+    borderLeft: `4px solid ${theme.palette.primary.main}`,
+  },
+});
 
 const EpickSetting = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery("(max-width: 899px)");
+  const { role } = useSelector((state: RootState) => state.auth);
+  const isSales = role === 'sales';
+
+  const allTabs = useMemo(() => [
+    { id: 'settings', label: 'Settings', icon: SettingsIcon, content: <PinSettingsTab />, showHeader: true },
+    { id: 'orders', label: 'Orders', icon: OngoingOrdersIcon, content: <OngoingOrdersTab />, showHeader: false },
+    { id: 'orderPreferences', label: 'Order Preferences', icon: OrderPreferencesIcon, content: <OrderPreferencesTab />, showHeader: false },
+    { id: 'reports', label: 'E-pick Reports', icon: ReportsIcon, content: <EpickReportsTab />, showHeader: false },
+    { id: 'createUser', label: 'Create Epick User', icon: CreateUserIcon, content: <CreateEpickUserTab />, showHeader: false },
+  ], []);
+
+  const visibleTabs = useMemo(() => 
+    isSales ? allTabs.filter(t => t.id === 'orders' || t.id === 'reports') : allTabs,
+    [isSales, allTabs]
+  );
+
   const [activeTab, setActiveTab] = useState(0);
+
+  useEffect(() => {
+    if (activeTab >= visibleTabs.length) {
+      setActiveTab(0);
+    }
+  }, [visibleTabs.length, activeTab]);
 
   return (
     <Box sx={{ px: { xs: 1, md: 2 } }}>
@@ -39,134 +79,23 @@ const EpickSetting = () => {
             sx={{ py: { xs: 1, md: 2 } }}
             TabIndicatorProps={{ style: { display: "none" } }}
           >
-            <Tab
-              label="Settings"
-              icon={<PinIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              sx={{
-                alignItems: "center",
-                justifyContent: "flex-start",
-                textTransform: "none",
-                minHeight: { xs: 35, md: 48 },
-                fontWeight: 400,
-                gap: { xs: 0.3, md: 1 },
-                margin: '4px 8px',
-                transition: 'all 0.2s ease-in-out',
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
-                  fontWeight: 500,
-                  borderLeft: `4px solid ${theme.palette.primary.main}`,
-                },
-              }}
-            />
-            <Tab
-              label="Orders"
-              icon={<OngoingOrdersIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              sx={{
-                alignItems: "center",
-                justifyContent: "flex-start",
-                textTransform: "none",
-                minHeight: { xs: 35, md: 48 },
-                fontWeight: 400,
-                gap: { xs: 0.3, md: 1 },
-                margin: '4px 8px',
-                transition: 'all 0.2s ease-in-out',
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
-                  fontWeight: 500,
-                  borderLeft: `4px solid ${theme.palette.primary.main}`,
-                },
-              }}
-            />
-            <Tab
-              label="Order Preferences"
-              icon={<OrderPreferencesIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              sx={{
-                alignItems: "center",
-                justifyContent: "flex-start",
-                textTransform: "none",
-                minHeight: { xs: 35, md: 48 },
-                fontWeight: 400,
-                gap: { xs: 0.3, md: 1 },
-                margin: '4px 8px',
-                transition: 'all 0.2s ease-in-out',
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
-                  fontWeight: 500,
-                  borderLeft: `4px solid ${theme.palette.primary.main}`,
-                },
-              }}
-            />
-            <Tab
-              label="E-pick Reports"
-              icon={<ReportsIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              sx={{
-                alignItems: "center",
-                justifyContent: "flex-start",
-                textTransform: "none",
-                minHeight: { xs: 35, md: 48 },
-                fontWeight: 400,
-                gap: { xs: 0.3, md: 1 },
-                margin: '4px 8px',
-                transition: 'all 0.2s ease-in-out',
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
-                  fontWeight: 500,
-                  borderLeft: `4px solid ${theme.palette.primary.main}`,
-                },
-              }}
-            />
-            <Tab
-              label="Create Epick User"
-              icon={<CreateUserIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              sx={{
-                alignItems: "center",
-                justifyContent: "flex-start",
-                textTransform: "none",
-                minHeight: { xs: 35, md: 48 },
-                fontWeight: 400,
-                gap: { xs: 0.3, md: 1 },
-                margin: '4px 8px',
-                transition: 'all 0.2s ease-in-out',
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
-                  fontWeight: 500,
-                  borderLeft: `4px solid ${theme.palette.primary.main}`,
-                },
-              }}
-            />
-            {/* <Tab
-              label="Checker User"
-              icon={<CheckerUserIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              sx={{
-                alignItems: "center",
-                justifyContent: "flex-start",
-                textTransform: "none",
-                minHeight: { xs: 35, md: 48 },
-                fontWeight: 400,
-                gap: { xs: 0.3, md: 1 },
-                margin: '4px 8px',
-                transition: 'all 0.2s ease-in-out',
-                "&.Mui-selected": {
-                  color: theme.palette.primary.main,
-                  fontWeight: 500,
-                  borderLeft: `4px solid ${theme.palette.primary.main}`,
-                },
-              }}
-            /> */}
+            {visibleTabs.map((tab) => (
+              <Tab
+                key={tab.id}
+                label={tab.label}
+                icon={<tab.icon sx={{ fontSize: 20 }} />}
+                iconPosition="start"
+                sx={tabStyle(theme)}
+              />
+            ))}
           </Tabs>
         </Paper>
 
         {/* Right Content - Form or Requests */}
         <Paper sx={{ flexGrow: 1, borderRadius: 3, boxShadow: "none", position: "relative", height: "100%", overflow: "auto" }}>
           <Box sx={{ position: "relative", height: "100%" }}>
-            {/* Header - Only show for Pin Settings tab */}
-            {activeTab === 0 && (
+            {/* Header - Only show for Pin Settings tab (distributor only) */}
+            {visibleTabs[activeTab]?.showHeader && (
               <Box sx={{
                 display: "flex",
                 justifyContent: "space-between",
@@ -177,25 +106,13 @@ const EpickSetting = () => {
                 marginBottom: 2
               }}>
                 <Typography sx={{ fontWeight: 500, fontSize: 16, color: "white" }}>
-                  Pin Settings
+                  Settings
                 </Typography>
               </Box>
             )}
 
             {/* Content based on active tab */}
-            {activeTab === 0 ? (
-              <PinSettingsTab />
-            ) : activeTab === 1 ? (
-              <OngoingOrdersTab />
-            ) : activeTab === 2 ? (
-              <OrderPreferencesTab />
-            ) : activeTab === 3 ? (
-              <EpickReportsTab />
-            ) : activeTab === 4 ? (
-              <CreateEpickUserTab />
-            ) : (
-              <CheckerUsersTab />
-            )}
+            {visibleTabs[activeTab]?.content ?? <CheckerUsersTab />}
           </Box>
         </Paper>
       </Box>

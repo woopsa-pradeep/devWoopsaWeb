@@ -69,6 +69,7 @@ interface AuthState {
   hasMultipleStore: boolean | null;
   stores: Store[] | null;
   selectedStore: Store | null;
+  showTradeShow: boolean;
 }
 
 const initialState: AuthState = {
@@ -92,6 +93,7 @@ const initialState: AuthState = {
   hasMultipleStore: null,
   stores: null,
   selectedStore: null,
+  showTradeShow: false,
 };
 
 const authSlice = createSlice({
@@ -117,6 +119,7 @@ const authSlice = createSlice({
       state.hasMultipleStore = null;
       state.stores = null;
       state.selectedStore = null;
+      state.showTradeShow = false;
       localStorage.removeItem('token');
       localStorage.removeItem('role');
       localStorage.removeItem('emailPhone');
@@ -158,6 +161,9 @@ const authSlice = createSlice({
     setSelectedStore: (state, action) => {
       state.selectedStore = action.payload;
     },
+    setShowTradeShow: (state, action: { payload: boolean }) => {
+      state.showTradeShow = action.payload === true;
+    },
     setAuthFromSwitchStore: (state, action) => {
       // Handle switchStore response like verifyOtp response
       const authData = action.payload.authData;
@@ -168,6 +174,7 @@ const authSlice = createSlice({
       state.wareHouseDetail = authData.wareHouseDetail;
       state.storeDetail = authData.storeDetail;
       state.logo = authData.logo;
+      state.showTradeShow = authData.showTradeShow === true;
       if (emailPhone) {
         state.emailPhone = emailPhone;
         localStorage.setItem('emailPhone', emailPhone);
@@ -200,16 +207,18 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(verifyOtpThunk.fulfilled, (state, action) => {
+        const payload = action.payload?.data ?? action.payload;
         state.loading = false;
         state.isAuthenticated = true;
-        state.token = action.payload.token;
-        state.role = action.payload.role;
-        state.wareHouseDetail = action.payload.wareHouseDetail;
-        state.storeDetail = action.payload.storeDetail;
+        state.token = payload.token;
+        state.role = payload.role;
+        state.wareHouseDetail = payload.wareHouseDetail;
+        state.storeDetail = payload.storeDetail;
         state.otpSent = false;
-        state.logo = action.payload.logo;
-        localStorage.setItem('token', action.payload.token);
-        localStorage.setItem('role', action.payload.role);
+        state.logo = payload.logo;
+        state.showTradeShow = payload.showTradeShow === true;
+        localStorage.setItem('token', payload.token);
+        localStorage.setItem('role', payload.role);
       })
       .addCase(verifyOtpThunk.rejected, (state, action) => {
         state.loading = false;
@@ -278,6 +287,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, setSelectedCustomer, updateSessionCustomer, updateStoreDetails, setLogo, setMultipleStores, setSelectedStore, setAuthFromSwitchStore } = authSlice.actions;
+export const { logout, clearError, setSelectedCustomer, updateSessionCustomer, updateStoreDetails, setLogo, setMultipleStores, setSelectedStore, setShowTradeShow, setAuthFromSwitchStore } = authSlice.actions;
 export const selectAuth = (state: RootState) => state.auth;
 export default authSlice.reducer;

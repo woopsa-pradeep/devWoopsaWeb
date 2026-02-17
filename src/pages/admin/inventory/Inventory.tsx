@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -65,7 +65,9 @@ interface UPCData {
 
 const Inventory: React.FC = () => {
   const { itemNumber } = useParams<{ itemNumber?: string }>();
+  const location = useLocation();
   const isEditMode = !!itemNumber;
+  const productListPath = location.pathname.startsWith('/sales') ? '/sales/product' : '/admin/products';
   const [loading, setLoading] = useState(true);
   const [apiData, setApiData] = useState<any>(null);
   const [showInitialPopup, setShowInitialPopup] = useState(!isEditMode);
@@ -987,11 +989,11 @@ const Inventory: React.FC = () => {
         
         await updateInventory(itemNumber, changedFields);
         toast.success('Inventory updated successfully!');
-        navigate('/admin/products');
+        navigate(productListPath);
       } else {
         await createInventory(submitData);
         toast.success('Inventory created successfully!');
-        navigate('/admin/products');
+        navigate(productListPath);
       }
     } catch (error: any) {
       console.error('Error saving inventory:', error);

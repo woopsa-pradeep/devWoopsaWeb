@@ -50,6 +50,12 @@ export const retailerNavigationConfig: NavigationItem[] = [
     check: "retailer",
   },
   {
+    name: "Trade Show",
+    path: "/retailer/trade-show",
+    icon: "tradeshow-management",
+    check: "retailer",
+  },
+  {
     name: "Contact Us",
     path: "/retailer/contact",
     icon: "contactUs",
@@ -156,6 +162,12 @@ export const adminNavigationConfig: NavigationItem[] = [
     check: "distributor",
   },
   {
+    name: "Tradeshow Management",
+    path: "/admin/tradeshow-management",
+    icon: "tradeshow-management",
+    check: "distributor",
+  },
+  {
     name: "Reports & Analytics",
     path: "/admin/reports-analytics",
     icon: "reports-analytics",
@@ -210,7 +222,7 @@ export const adminNavigationConfig: NavigationItem[] = [
     check: "distributor",
   },
   {
-    name: "Calender",
+    name: "Calendar",
     path: "/admin/calender",
     icon: "CalendarMonthIcon",
     check: "distributor",
@@ -264,6 +276,12 @@ export const salesNavigationConfig: NavigationItem[] = [
     check: "sales",
   },
   {
+    name: "Trade Show",
+    path: "/sales/trade-show",
+    icon: "tradeshow-management",
+    check: "sales",
+  },
+  {
     name: "Return Orders",
     path: "/sales/return-order",
     icon: "order",
@@ -294,7 +312,7 @@ export const salesNavigationConfig: NavigationItem[] = [
   check: "sales",
 },
   {
-    name: "Calender",
+    name: "Calendar",
     path: "/sales/calender",
     icon: "CalendarMonthIcon",
     check: "sales",
@@ -311,17 +329,35 @@ export const salesNavigationConfig: NavigationItem[] = [
     path: "/sales/account",
     icon: "account",
     check: "sales",
-  },  
+  },
+  {
+    name: "Product",
+    path: "/sales/product",
+    icon: "products",
+    check: "sales",
+  },
+  {
+    name: "Vendor",
+    path: "/sales/vendor",
+    icon: "vendors",
+    check: "sales",
+  },
+  {
+    name: "Epick",
+    path: "/sales/epick",
+    icon: "e-pick-settings",
+    check: "sales",
+  },
+  {
+    name: "Track Login Device",
+    path: "/sales/track-login-devices",
+    icon: "track-login-devices",
+    check: "sales",
+  },
   {
     name: "Promo & Discounts",
     path: "/sales/promo",
     icon: "promo",
-    check: "sales",
-  },
-  {
-    name: "Track Login Devices",
-    path: "/sales/track-login-devices",
-    icon: "track-login-devices",
     check: "sales",
   },
   {

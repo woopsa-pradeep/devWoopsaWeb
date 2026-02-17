@@ -120,6 +120,37 @@ export const getAgingReport = async (
     return axiosInstance.get(finalUrl);
 };
 
+// Current Order Status Report
+export const getCurrentOrderStatusReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/currentOrderStatusReport${queryString ? `?${queryString}` : ''}`;
+    return axiosInstance.get(finalUrl);
+};
+
+// Current Order Detail Status (line items for an order)
+export const getCurrentOrderDetailStatus = async (orderId: number | string) => {
+    return axiosInstance.get(`/distrubutor/currentOrderDetailStatus/${orderId}`);
+};
+
+// Invoice Register report
+export const getInvoiceRegister = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/invoice-register${queryString ? `?${queryString}` : ''}`;
+    return axiosInstance.get(finalUrl);
+};
+
 // Inventory Spot Check report
 export const getInventorySpotCheck = async (params: { [key: string]: any } = {}) => {
     const queryParams = new URLSearchParams();
@@ -142,5 +173,42 @@ export const getInventorySpotCheck = async (params: { [key: string]: any } = {})
     const queryString = queryParams.toString();
     const finalUrl = `/distrubutor/getInventorySpotCheck${queryString ? `?${queryString}` : ''}`;
 
+    return axiosInstance.get(finalUrl);
+};
+
+export const getPoReceivingHistoryReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/poReceivingHistoryReport${queryString ? `?${queryString}` : ''}`;
+    return axiosInstance.get(finalUrl);
+};
+
+export const getPoTransferAdjustmentReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/poTransferAdjustmentReport${queryString ? `?${queryString}` : ''}`;
+    return axiosInstance.get(finalUrl);
+};
+
+/** Receiving History CIG/OTP report - grouping/filtering by type is done on frontend */
+export const getPoCigOtpReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/poCigOtpReport${queryString ? `?${queryString}` : ''}`;
     return axiosInstance.get(finalUrl);
 };

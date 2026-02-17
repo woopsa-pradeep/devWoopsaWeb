@@ -14,6 +14,9 @@ import notificationReducer from "./slices/notificationSlice";
 import navigationReducer from "./slices/navigationSlice";
 import retailerRequestReducer from "./slices/retailerRequestSlice";
 import orderConfirmReducer from "./slices/orderConfirmSlice";
+import tradeShowReducer from "./slices/tradeShowSlice";
+import retailerTradeShowCartReducer from "./slices/retailerTradeShowCartSlice";
+import salesTradeShowCartReducer from "./slices/salesTradeShowCartSlice";
 import { useDispatch, useSelector } from 'react-redux';
 
 const formPersistConfig = {
@@ -25,7 +28,7 @@ const formPersistConfig = {
 const authPersistConfig = {
   key: 'auth',
   storage,
-  whitelist: ['token', 'isAuthenticated', 'role', 'wareHouseDetail', 'storeDetail', 'signUpData', 'module', 'selectedCustomer', 'isSessionActive','logo', 'allowDiscount', 'discountLimit', 'allowDeliveryCharge'] // only persist these fields
+  whitelist: ['token', 'isAuthenticated', 'role', 'wareHouseDetail', 'storeDetail', 'signUpData', 'module', 'selectedCustomer', 'isSessionActive','logo', 'allowDiscount', 'discountLimit', 'allowDeliveryCharge', 'showTradeShow', 'hasMultipleStore', 'stores', 'selectedStore'] // only persist these fields
 };
 
 const salesDashboardPersistConfig = {
@@ -51,12 +54,33 @@ const salesCartPersistConfig = {
   whitelist: ['items', 'count', 'totalItems', 'totalAmountWithTax', 'totalAmount', 'userItemLimitQty', 'userLimitMinOrderAmount']
 };
 
+const tradeShowPersistConfig = {
+  key: 'tradeShow',
+  storage,
+  whitelist: [
+    'currentTradeShow',
+    'selectedVendorIds',
+    'createDraft',
+    'activeStep',
+    'selectedRetailerIds',
+    'appliedItems',
+    'savedTradeShowItems',
+    'weekProductAssignments',
+    'summaryData',
+    'lastSavedVendorIds',
+    'lastSavedRetailerIds',
+    'lastSavedDeliveryItemNumbers',
+    'lastSavedItemNumbers',
+  ],
+};
+
 const persistedFormReducer = persistReducer(formPersistConfig, formReducer);
 const persistedAuthReducer = persistReducer(authPersistConfig, authReducer);
 const persistedSalesDashboardReducer = persistReducer(salesDashboardPersistConfig, salesDashboardReducer);
 const persistDashboardReducer = persistReducer(dashboardPersistConfig, dashboardReducer);
 const persistedCartReducer = persistReducer(cartPersistConfig, cartReducer);
 const persistedSalesCartReducer = persistReducer(salesCartPersistConfig, salesCartReducer);
+const persistedTradeShowReducer = persistReducer(tradeShowPersistConfig, tradeShowReducer);
 
 export const store = configureStore({
   reducer: {
@@ -73,6 +97,9 @@ export const store = configureStore({
     navigation: navigationReducer,
     retailerRequest: retailerRequestReducer,
     orderConfirm: orderConfirmReducer,
+    tradeShow: persistedTradeShowReducer,
+    retailerTradeShowCart: retailerTradeShowCartReducer,
+    salesTradeShowCart: salesTradeShowCartReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -20,6 +20,10 @@ export const updateHomeSetting = async (data: any) => {
 export const getProfile = async () => {
     return axiosInstance.get('/distrubutor/profile');
 };
+export const updateProfile = async (data: any) => {
+  return axiosInstance.put("/distrubutor/distributorUpdate", data);
+};
+
 
 // New API functions for different settings tabs
 export const updateSalesRepSetting = async (data: any) => {
@@ -104,6 +108,98 @@ export const getErpUser = async (id: string) => {
     return axiosInstance.get(`/distrubutor/erpuser/${id}`);
 };
 
+// inventory
+export const getSalesCategories = async () => {
+  return axiosInstance.get("/list/listOfSalesCategories");
+};
+
+export const updateSalesCategory = async (id: number | string, data: any) => {
+  return axiosInstance.put(`/sales/updateSalesCategory/${id}`, data);
+};
+
+export const getItemGroups = async () => {
+  const res: any = await axiosInstance.get(
+    "/distrubutor/getInventoryItemGroups"
+  );
+  return res.data.data;
+};
+
+export const createItemGroup = async (data: {
+  Item_GroupID: string;
+  Item_GroupDescription: string;
+}) => {
+  return axiosInstance.post("/distrubutor/inventory-item-groups", data);
+};
+
+export const updateItemGroup = async (
+  id: number | string,
+  data: { Item_GroupDescription: string }
+) => {
+  return axiosInstance.put(`/distrubutor/inventory-item-groups/${id}`, data);
+};
+
+export const getBrands = async () => {
+  const res: any = await axiosInstance.get("/distrubutor/getinventory-brands");
+  return res.data.data;
+};
+
+export const createBrand = async (data: {
+  Brand_Family: string;
+  Brand_ReceivedStamped: boolean;
+  Brand_PM_Status: string;
+}) => {
+  return axiosInstance.post("/distrubutor/inventory-brands", data);
+};
+
+export const updateBrand = async (
+  id: number,
+  data: {
+    Brand_Family: string;
+    Brand_ReceivedStamped: boolean;
+    Brand_PM_Status: string;
+  }
+) => {
+  return axiosInstance.put(`/distrubutor/inventory-brands/${id}`, data);
+};
+
+export const getPriceClasses = async () => {
+  const res: any = await axiosInstance.get("/distrubutor/getPriceClass");
+  return res.data.data.map((item: any) => ({
+    ...item,
+    Price_Class_ID: item.Price_Class,
+  }));
+};
+
+// Update Price Class Category Groups
+export const getSalesCategoryGroupsForPriceClass = async () => {
+  const res = await axiosInstance.get<{
+    success: boolean;
+    data: {
+      salesCategory: {
+        Sales_Category: number;
+        Category_Desc: string;
+      }[];
+    };
+  }>("/list/listOfUpdatePriceClass");
+
+  return res.data.data.salesCategory;
+};
+
+export const updatePriceClass = async (
+  id: number | string,
+  data: {
+    Class_Desc?: string;
+    Rebate_Amount?: number;
+    SelectionVisible?: boolean;
+    Allow_Price_Change?: boolean;
+    Allow_Price_Change_Remote?: boolean;
+    Sales_Category_Group?: string;
+    Product_ExpDays?: number;
+  }
+) => {
+  return axiosInstance.put(`/distrubutor/updatePriceClass/${id}`, data);
+};
+
 // Picklist Template APIs
 export const getPicklistTemplate = async () => {
     const response: any = await axiosInstance.get('/distrubutor/picklists');
@@ -120,8 +216,15 @@ export const updatePicklistTemplate = async (id: string, data: any) => {
     return response?.data;
 };
 
-// Mark picklist as printed
+// Mark picklist as printed (single order)
 export const makePickListPrinted = async (orderNumber: string) => {
     const response: any = await axiosInstance.put(`/distrubutor/makePickListPrinted/${orderNumber}`);
+    return response?.data;
+};
+
+// Mark bulk picklists as printed
+export const makeBulkPickListPrinted = async (orderNumbers: (string | number)[]) => {
+    const payload = { orderNumbers: orderNumbers.map((n) => Number(n)) };
+    const response: any = await axiosInstance.put('/distrubutor/makeBulkPickListPrinted', payload);
     return response?.data;
 };

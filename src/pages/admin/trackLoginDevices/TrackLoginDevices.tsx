@@ -45,7 +45,7 @@ const createSignInColumns = (onToggle: (row: any, field: string, value: boolean)
         fontSize={{ xs: 12, sm: 14 }}
         sx={{ wordBreak: 'break-word' }}
       >
-        {dayjs(row?.createdAt).format('DD/MM/YYYY HH:mm') || '-'}
+        {dayjs(row?.createdAt).format('MM/DD/YYYY HH:mm') || '-'}
       </Typography>
     ) 
   },
@@ -145,7 +145,7 @@ const createDeviceColumns = (onToggle: (row: any, field: string, value: boolean)
         fontSize={{ xs: 12, sm: 14 }}
         sx={{ wordBreak: 'break-word' }}
       >
-        {dayjs(row?.createdAt).format('DD/MM/YYYY HH:mm') || '-'}
+        {dayjs(row?.createdAt).format('MM/DD/YYYY HH:mm') || '-'}
       </Typography>
     ) 
   },

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, IconButton, Menu, MenuItem, Paper } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import TextInput from '../../../component/atoms/TextInput';
 import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
@@ -10,8 +12,11 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useDebounce } from '../../../hooks/useDebounce';
 import RetailerViewModal from '../../../component/molecules/RetailerViewModal';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import CustomButton from '../../../component/atoms/CustomButton';
+import { useModulePermission } from '../../../hooks/useModulePermission';
 
-function ActionMenu({ row, onView }: { row: any; onView: (row: any) => void }) {
+function ActionMenu({ row, onView, onEdit, canEdit }: { row: any; onView: (row: any) => void; onEdit?: (row: any) => void; canEdit?: boolean }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const handleClick = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
@@ -22,6 +27,11 @@ function ActionMenu({ row, onView }: { row: any; onView: (row: any) => void }) {
     handleClose();
   };
 
+  const handleEdit = () => {
+    onEdit?.(row);
+    handleClose();
+  };
+
   return (
     <>
       <IconButton onClick={handleClick}>
@@ -29,12 +39,17 @@ function ActionMenu({ row, onView }: { row: any; onView: (row: any) => void }) {
       </IconButton>
       <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
         <MenuItem onClick={handleView} sx={{ fontSize: 14, gap: 1, color: 'text.primary' }}><VisibilityIcon fontSize="small"/> View</MenuItem>
+        {canEdit && onEdit && (
+          <MenuItem onClick={handleEdit} sx={{ fontSize: 14, gap: 1, color: 'text.primary' }}><EditIcon fontSize="small" sx={{ color: 'primary.main' }} /> Edit</MenuItem>
+        )}
       </Menu>
     </>
   );
 }
 
 const Retailer = () => {
+  const navigate = useNavigate();
+  const { canAdd, canEdit } = useModulePermission('Retailers');
   const [search, setSearch] = useState('');
   const [selectedRoutes, setSelectedRoutes] = useState<{ label: string; value: string }[]>([]);
   const [selectedStops, setSelectedStops] = useState<{ label: string; value: string }[]>([]);
@@ -131,6 +146,10 @@ const Retailer = () => {
     setViewModalOpen(true);
   };
 
+  const onEditRetailer = (retailer: any) => {
+    navigate(`/sales/retailer/edit/${retailer.C_Number}`);
+  };
+
   const columns: TableColumn<any>[] = [
     { id: 'C_Number', label: 'Customer ID', render: (row) => <Typography color="text.secondary" fontSize={14}>{row.C_Number || "-"}</Typography> },
     { id: 'C_Name', label: 'Customer Name', render: (row) => <Typography color="text.secondary" fontSize={14}>{row.C_Name || "-"}</Typography> },
@@ -191,7 +210,7 @@ const Retailer = () => {
     {
       id: 'actions',
       label: 'Actions',
-      render: (row) => <ActionMenu row={row} onView={onViewRetailer} />,
+      render: (row) => <ActionMenu row={row} onView={onViewRetailer} onEdit={onEditRetailer} canEdit={canEdit} />,
     },
   ];
 
@@ -199,6 +218,17 @@ const Retailer = () => {
     <Box sx={{ p: 3, pt: 0 }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} mt={0}>
         <Typography fontSize={18} fontWeight={400} color="text.primary">Retailers</Typography>
+        {canAdd && (
+          <CustomButton
+            fullWidth={false}
+            onClick={() => navigate('/sales/retailer/add')}
+            icon={<AddIcon sx={{ fontSize: 20 }} />}
+            iconPosition="left"
+            sx={{ mt: 0 }}
+          >
+            Add Retailer
+          </CustomButton>
+        )}
       </Box>
       <Paper
         sx={{ mb: 2, boxShadow: 'none', borderRadius: '0px' }}

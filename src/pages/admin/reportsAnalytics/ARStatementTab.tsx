@@ -488,7 +488,8 @@ const ARStatementTab: React.FC = () => {
     }
 
     if (field.includes('Date')) {
-      if (value) return formatApiDate(String(value));
+      if (value instanceof Date) return formatApiDate(value.toISOString());
+      if (value != null && value !== '') return formatApiDate(String(value));
       return '';
     }
 
@@ -505,14 +506,16 @@ const ARStatementTab: React.FC = () => {
       return value.toString();
     }
 
-    // Format AR_Type: I with negative AR_Amount = Return Invoice
+    // Transaction Type: show arDefinition.SubType when available (in all caps), else fallback to AR_Type logic
     if (field === 'AR_Type') {
+      const subType = item.arDefinition?.SubType;
+      if (subType != null && String(subType).trim() !== '') {
+        return String(subType).toUpperCase();
+      }
       if (value === 'I') {
         const amount = item.AR_Amount ?? 0;
         return amount < 0 ? 'Return Invoice' : 'Invoice';
       }
-      if (value === 'C') return 'Check';
-      return String(value);
     }
 
     return String(value);

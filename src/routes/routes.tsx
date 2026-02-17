@@ -4,7 +4,8 @@ import ErrorBoundaryWrapper from "../pages/error/ErrorBoundaryWrapper";
 import PrivateRoute from "../components/PrivateRoute";
 import RoleBasedRoute from "../components/RoleBasedRoute";
 
-import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AddRetailer, AdminPromo, AccountReceivable, Vendors, AddVendor, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, Inventory, BulkUpdate, FuturePricing, SalesOrderConfirmation, SalesOrderConfirmationDetail, SalesReturnOrder, SalesReturnCartPage, OrderChecker, ReportsAnalytics  } from "./lazyComponents";
+import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AddRetailer, AdminPromo, AccountReceivable, Vendors, AddVendor, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, RetailerTradeShow, RetailerTradeShowCart, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, Inventory, BulkUpdate, FuturePricing, SalesOrderConfirmation, SalesOrderConfirmationDetail, SalesReturnOrder, SalesReturnCartPage, OrderChecker, ReportsAnalytics, TradeshowManagement, CreateTradeshow, TradeshowSummaryView  } from "./lazyComponents";
+import { SalesTradeShow, SalesTradeShowCart } from "./lazyComponents";
 import { Navigate } from "react-router-dom";
 
 // Check if user is logged in
@@ -256,6 +257,22 @@ export const retailerRoutes = [
               </RoleBasedRoute>
             ),
           },
+          {
+            path: "trade-show",
+            element: (
+              <RoleBasedRoute path="/retailer/trade-show">
+                <RetailerTradeShow />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "trade-show/cart",
+            element: (
+              <RoleBasedRoute path="/retailer/trade-show/cart">
+                <RetailerTradeShowCart />
+              </RoleBasedRoute>
+            ),
+          },
 
         ],
       },
@@ -435,6 +452,38 @@ export const adminRoutes = [
             element: (
               <RoleBasedRoute path="/admin/reports-analytics">
                 <ReportsAnalytics />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "tradeshow-management",
+            element: (
+              <RoleBasedRoute path="/admin/tradeshow-management">
+                <TradeshowManagement />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "tradeshow-management/create",
+            element: (
+              <RoleBasedRoute path="/admin/tradeshow-management/create">
+                <CreateTradeshow />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "tradeshow-management/:id/edit",
+            element: (
+              <RoleBasedRoute path="/admin/tradeshow-management/:id/edit">
+                <CreateTradeshow />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "tradeshow-management/:id/summary",
+            element: (
+              <RoleBasedRoute path="/admin/tradeshow-management/:id/summary">
+                <TradeshowSummaryView />
               </RoleBasedRoute>
             ),
           },
@@ -662,6 +711,22 @@ export const salesRoutes = [
             ),
           },
           {
+            path: "trade-show",
+            element: (
+              <RoleBasedRoute path="/sales/trade-show">
+                <SalesTradeShow />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "trade-show/cart",
+            element: (
+              <RoleBasedRoute path="/sales/trade-show/cart">
+                <SalesTradeShowCart />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "return-order",
             element: (
               <RoleBasedRoute path="/sales/return-order">
@@ -750,6 +815,22 @@ export const salesRoutes = [
             ),
           },
           {
+            path: "retailer/add",
+            element: (
+              <RoleBasedRoute path="/sales/retailer/add">
+                <AddRetailer />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "retailer/edit/:customerId",
+            element: (
+              <RoleBasedRoute path="/sales/retailer/edit/:customerId">
+                <AddRetailer />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "calender",
             element: (
               <RoleBasedRoute path="/sales/calender">
@@ -769,7 +850,71 @@ export const salesRoutes = [
             path: "track-login-devices",
             element: (
               <RoleBasedRoute path="/sales/track-login-devices">
-                <div>Track Login Devices</div>
+                <AdminTrackLoginDevices />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "tracklogindevice",
+            element: (
+              <RoleBasedRoute path="/sales/tracklogindevice">
+                <AdminTrackLoginDevices />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "product",
+            element: (
+              <RoleBasedRoute path="/sales/product">
+                <AdminProduct />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "product/add",
+            element: (
+              <RoleBasedRoute path="/sales/product/add">
+                <Inventory />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "product/edit/:itemNumber",
+            element: (
+              <RoleBasedRoute path="/sales/product/edit/:itemNumber">
+                <Inventory />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "vendor",
+            element: (
+              <RoleBasedRoute path="/sales/vendor">
+                <Vendors />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "vendor/add",
+            element: (
+              <RoleBasedRoute path="/sales/vendor/add">
+                <AddVendor />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "vendor/edit/:vendorId",
+            element: (
+              <RoleBasedRoute path="/sales/vendor/edit/:vendorId">
+                <AddVendor />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "epick",
+            element: (
+              <RoleBasedRoute path="/sales/epick">
+                <EpickSetting />
               </RoleBasedRoute>
             ),
           },

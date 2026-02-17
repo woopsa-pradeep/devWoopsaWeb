@@ -3,8 +3,9 @@ import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonT
 import { getVendorList } from '../../../redux/apis/distrubutor/VendorsApis';
 import { CircularProgress, Box, Typography, Paper, Grid, Tooltip } from '@mui/material';
 import TextInput from '../../../component/atoms/TextInput';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import CustomButton from '../../../component/atoms/CustomButton';
+import { useModulePermission } from '../../../hooks/useModulePermission';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -24,6 +25,11 @@ interface VendorItem {
 
 const Vendors = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { canAdd, canEdit } = useModulePermission('Vendor');
+  const isSalesMode = location.pathname.startsWith('/sales');
+  const vendorBasePath = isSalesMode ? '/sales/vendor' : '/admin/vendor';
+
   const [data, setData] = useState<VendorItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -44,7 +50,7 @@ const Vendors = () => {
     { id: 'V_Terms', label: 'Payment Terms', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Terms || "-"}</Typography>) },
     { id: 'V_Email', label: 'Email', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_Email || "-"}</Typography>) },
     { id: 'V_FEIN', label: 'Tax ID', render: row => ( <Typography fontSize={14} fontWeight={400} color="text.secondary">{row.V_FEIN || "-"}</Typography>) },
-    {
+    ...(canEdit ? [{
       id: 'Action',
       label: 'Action',
       minWidth: 100,
@@ -53,12 +59,12 @@ const Vendors = () => {
           <EditIcon 
             sx={{ fontSize: 20, color: 'primary.main', cursor: 'pointer' }} 
             onClick={() => {
-              navigate(`/admin/vendor/edit/${row.Primary_Vendor}`);
+              navigate(`${vendorBasePath}/edit/${row.Primary_Vendor}`);
             }}
           />
         </Tooltip>
       )
-    }
+    }] : [])
   ];
 
   useEffect(() => {
@@ -103,15 +109,17 @@ const Vendors = () => {
         <Typography fontSize={18} fontWeight={400} color="text.primary">
           Vendors
         </Typography>
-        <CustomButton 
-          fullWidth={false}
-          onClick={() => navigate('/admin/vendor/add')}
-          icon={<AddIcon sx={{ fontSize: 20 }} />}
-          iconPosition="left"
-          sx={{ mt: 0 }} 
-        >
-          Add Vendor
-        </CustomButton>
+        {canAdd && (
+          <CustomButton 
+            fullWidth={false}
+            onClick={() => navigate(`${vendorBasePath}/add`)}
+            icon={<AddIcon sx={{ fontSize: 20 }} />}
+            iconPosition="left"
+            sx={{ mt: 0 }} 
+          >
+            Add Vendor
+          </CustomButton>
+        )}
       </Box>
       <Paper sx={{ boxShadow: "none", borderRadius: "0px" }}>
         <Box px={2} pt={2}>

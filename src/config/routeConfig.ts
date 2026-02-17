@@ -67,6 +67,16 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['retailer'],
     redirectPath: '/admin/dashboard'
   },
+  '/retailer/trade-show': {
+    path: '/retailer/trade-show',
+    allowedRoles: ['retailer'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/retailer/trade-show/cart': {
+    path: '/retailer/trade-show/cart',
+    allowedRoles: ['retailer'],
+    redirectPath: '/admin/dashboard'
+  },
 
   // '/retailer/terms-and-conditions': {
   //   path: '/retailer/terms-and-conditions',
@@ -174,8 +184,28 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
+  '/admin/tradeshow-management': {
+    path: '/admin/tradeshow-management',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
   '/admin/reports-analytics': {
     path: '/admin/reports-analytics',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
+  '/admin/tradeshow-management/create': {
+    path: '/admin/tradeshow-management/create',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
+  '/admin/tradeshow-management/:id/edit': {
+    path: '/admin/tradeshow-management/:id/edit',
+    allowedRoles: ['distributor'],
+    redirectPath: '/retailer/dashboard'
+  },
+  '/admin/tradeshow-management/:id/summary': {
+    path: '/admin/tradeshow-management/:id/summary',
     allowedRoles: ['distributor'],
     redirectPath: '/retailer/dashboard'
   },
@@ -315,6 +345,16 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['sales'],
     redirectPath: '/sales/dashboard'
   },
+  '/sales/trade-show': {
+    path: '/sales/trade-show',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/trade-show/cart': {
+    path: '/sales/trade-show/cart',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
 
   '/sales/return-order': {
     path: '/sales/return-order',
@@ -376,6 +416,16 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['sales'],
     redirectPath: '/sales/dashboard'
   },
+  '/sales/retailer/add': {
+    path: '/sales/retailer/add',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/retailer/edit/:customerId': {
+    path: '/sales/retailer/edit/:customerId',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
   '/sales/calender': {
     path: '/sales/calender',
     allowedRoles: ['sales'],
@@ -391,6 +441,21 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['sales'],
     redirectPath: '/sales/dashboard'
   },
+  '/sales/product': {
+    path: '/sales/product',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/vendor': {
+    path: '/sales/vendor',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/epick': {
+    path: '/sales/epick',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
   '/sales/promo': {
     path: '/sales/promo',
     allowedRoles: ['sales'],
@@ -398,6 +463,31 @@ export const routeConfig: { [key: string]: RouteConfig } = {
   },
   '/sales/track-login-devices': {
     path: '/sales/track-login-devices',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/tracklogindevice': {
+    path: '/sales/tracklogindevice',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/product/add': {
+    path: '/sales/product/add',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/product/edit/:itemNumber': {
+    path: '/sales/product/edit/:itemNumber',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/vendor/add': {
+    path: '/sales/vendor/add',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/vendor/edit/:vendorId': {
+    path: '/sales/vendor/edit/:vendorId',
     allowedRoles: ['sales'],
     redirectPath: '/sales/dashboard'
   },

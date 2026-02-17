@@ -112,6 +112,7 @@ interface PicklistTemplate {
   selectedFields: { [key: string]: boolean };
   groupBy: 'salesCategory' | 'priceClass' | 'section' | 'location' | 'sectionSalesCategory' | 'locationSalesCategory' | 'sequence' | 'sequenceSalesCategory' | '';
   newCategoryOnNewPage: boolean;
+  showSubHeader?: boolean;
   headerPosition: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
   footerPosition: 'left' | 'right';
   pickedByPosition: 'top' | 'bottom';
@@ -222,6 +223,7 @@ const PicklistTemplateTab: React.FC = () => {
   
   const [groupBy, setGroupBy] = useState<'salesCategory' | 'priceClass' | 'section' | 'location' | 'sectionSalesCategory' | 'locationSalesCategory' | 'sequence' | 'sequenceSalesCategory' | ''>('');
   const [newCategoryOnNewPage, setNewCategoryOnNewPage] = useState(false);
+  const [showSubHeader, setShowSubHeader] = useState(false);
   // Header is always topRight, Footer is always bottom center - no need for state
   const [pickedByPosition, setPickedByPosition] = useState<'top' | 'bottom'>('top');
   const [checkedByPosition, setCheckedByPosition] = useState<'top' | 'bottom'>('top');
@@ -300,6 +302,9 @@ const PicklistTemplateTab: React.FC = () => {
           if (templateData.newCategoryOnNewPage !== undefined) {
             setNewCategoryOnNewPage(templateData.newCategoryOnNewPage);
           }
+          if (templateData.showSubHeader !== undefined) {
+            setShowSubHeader(templateData.showSubHeader);
+          }
           // Header and footer positions are fixed - no need to load
           if (templateData.pickedByPosition) {
             setPickedByPosition(templateData.pickedByPosition);
@@ -360,6 +365,7 @@ const PicklistTemplateTab: React.FC = () => {
         size: true,
       });
       setNewCategoryOnNewPage(false);
+      setShowSubHeader(false);
       setPickedByPosition('top');
       setCheckedByPosition('top');
       return;
@@ -371,6 +377,7 @@ const PicklistTemplateTab: React.FC = () => {
     if (template) {
       setSelectedFields(template.selectedFields);
       setNewCategoryOnNewPage(template.newCategoryOnNewPage);
+      setShowSubHeader(template.showSubHeader ?? false);
       setPickedByPosition(template.pickedByPosition || 'top');
       setCheckedByPosition(template.checkedByPosition || 'top');
     }
@@ -394,6 +401,7 @@ const PicklistTemplateTab: React.FC = () => {
         selectedFields: cleanedSelectedFields,
         groupBy: groupBy || 'none',
         newCategoryOnNewPage: newCategoryOnNewPage || false, // Explicitly include false
+        showSubHeader: showSubHeader || false,
         headerPosition: 'topRight', // Always top right
         footerPosition: 'left', // Always bottom center (left is default, but footer is centered)
         pickedByPosition,
@@ -437,6 +445,7 @@ const PicklistTemplateTab: React.FC = () => {
       fields: Object.keys(selectedFields).filter(key => selectedFields[key]),
       groupBy,
       newCategoryOnNewPage,
+      showSubHeader,
       headerPosition: 'topRight', // Always top right
       footerPosition: 'left', // Always bottom center
       pickedByPosition,
@@ -1166,23 +1175,25 @@ const PicklistTemplateTab: React.FC = () => {
           yPosition += 4;
         }
         
-        // Sales Category header - prominent with background box
-        const categoryBoxHeight = 6;
-        doc.setFillColor(240, 245, 250);
-        doc.setDrawColor(200, 210, 220);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(margin, yPosition - 4, pageWidth - (margin * 2), categoryBoxHeight, 1.5, 1.5, 'FD');
-        
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 50, 80);
-        doc.text('Sales Category:', margin + 3, yPosition);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-        const categoryLabelWidth = doc.getTextWidth('Sales Category:');
-        doc.text(categoryGroup.salesCategory, margin + 3 + categoryLabelWidth + 2, yPosition);
-        yPosition += 7;
+        // Sales Category header - only when showSubHeader is enabled
+        if (showSubHeader) {
+          const categoryBoxHeight = 6;
+          doc.setFillColor(240, 245, 250);
+          doc.setDrawColor(200, 210, 220);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(margin, yPosition - 4, pageWidth - (margin * 2), categoryBoxHeight, 1.5, 1.5, 'FD');
+          
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(30, 50, 80);
+          doc.text('Sales Category:', margin + 3, yPosition);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(0, 0, 0);
+          const categoryLabelWidth = doc.getTextWidth('Sales Category:');
+          doc.text(categoryGroup.salesCategory, margin + 3 + categoryLabelWidth + 2, yPosition);
+          yPosition += 7;
+        }
         
         // Sub-groups (Section/Location/Sequence) - visually distinct with indentation
         categoryGroup.subGroups.forEach((subGroup, subIndex) => {
@@ -1280,8 +1291,8 @@ const PicklistTemplateTab: React.FC = () => {
           yPosition += 4;
         }
         
-        // Group header - prominent with background box
-        if (groupBy) {
+        // Group header - only when showSubHeader is enabled
+        if (showSubHeader && groupBy) {
           const groupBoxHeight = 6;
           doc.setFillColor(240, 245, 250);
           doc.setDrawColor(200, 210, 220);
@@ -1552,6 +1563,26 @@ const PicklistTemplateTab: React.FC = () => {
                         />
                       }
                       label={<Typography sx={{ fontSize: '0.7rem' }}>New Category on New Page</Typography>}
+                    />
+                  </Box>
+                )}
+
+                {/* Show group/category subheader (Sales Category header etc.) - default off to use space for rows */}
+                {(groupBy === 'salesCategory' || 
+                  groupBy === 'sectionSalesCategory' || 
+                  groupBy === 'locationSalesCategory' || 
+                  groupBy === 'sequenceSalesCategory' ||
+                  groupBy === 'priceClass' || groupBy === 'section' || groupBy === 'location' || groupBy === 'sequence') && (
+                  <Box sx={{ mb: 1.25, ml: 1 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          size="small"
+                          checked={showSubHeader}
+                          onChange={(e) => setShowSubHeader(e.target.checked)}
+                        />
+                      }
+                      label={<Typography sx={{ fontSize: '0.7rem' }}>Show category/group subheader</Typography>}
                     />
                   </Box>
                 )}

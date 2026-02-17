@@ -50,6 +50,9 @@ interface AuthResponse {
   storeDetail: StoreDetail;
   role: string;
   token: string;
+  logo?: string;
+  salesCategory?: number[];
+  showTradeShow?: boolean;
 }
 
 export const fakeLogin = async (data: { email_phone: string; password: string }) => {

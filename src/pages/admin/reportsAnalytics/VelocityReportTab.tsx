@@ -81,7 +81,6 @@ interface VelocityReportRow {
   Ext_Invoice_Cost: number;
   Ext_Total_Invoice_Cost: number;
   EXT_Total_Price: number;
-  Ext_Price: number;
   Profit: number;
   Profit_Percent: number;
   AvgCost_Profit_Percent: number;
@@ -115,6 +114,8 @@ interface VelocityReportRow {
   c_phone: string;
   c_Salesman: number;
   c_memo: string;
+  Rebate?: number;
+  Ext_Rebate?: number;
 }
 
 interface FilterOptions {
@@ -139,10 +140,21 @@ interface FilterOptions {
 
 type CostType = 'Price' | 'AvgCost' | 'BaseCost' | 'NetCost' | 'Invoice_Cost';
 
+/** Extended total for subtotal "Extended Price" by cost type (Ext_Total_AvgCost, Ext_Total_NetCost, etc.) */
+function getExtTotalForRow(row: VelocityReportRow, costType: CostType): number {
+  switch (costType) {
+    case 'Price': return (row as any).EXT_Total_Price ?? 0;
+    case 'AvgCost': return (row as any).Ext_Total_AvgCost ?? 0;
+    case 'BaseCost': return (row as any).Ext_Total_BaseCost ?? 0;
+    case 'NetCost': return (row as any).Ext_Total_NetCost ?? 0;
+    case 'Invoice_Cost': return (row as any).Ext_Total_Invoice_Cost ?? 0;
+    default: return (row as any).EXT_Total_Price ?? 0;
+  }
+}
+
 const FIELD_LABELS: { [key: string]: string } = {
-  Document_Number: 'Document Number',
+  Document_Number: 'Invoice Number',
   Invoice_Date: 'Invoice Date',
-  Invoice_Number: 'Invoice Number',
   C_Number: 'Customer Number',
   S_Number: 'Sales Rep Number',
   Route_Number: 'Route Number',
@@ -167,7 +179,6 @@ const FIELD_LABELS: { [key: string]: string } = {
   Ext_Total_Invoice_Cost: 'Ext Total Invoice Cost',
   EXT_Price: 'Ext Price',
   EXT_Total_Price: 'Ext Total Price',
-  Ext_Price: 'Ext Price',
   Profit: 'Profit',
   Profit_Percent: 'Profit %',
   AvgCost_Profit_Percent: 'Avg Cost Profit %',
@@ -200,57 +211,59 @@ const FIELD_LABELS: { [key: string]: string } = {
   c_phone: 'Phone',
   c_Salesman: 'Salesman',
   c_memo: 'Memo',
+  Rebate: 'Rebate',
+  Ext_Rebate: 'Ext Rebate',
 };
 
 // Field groups definition - matching the report types from the system
 const FIELD_GROUPS: { [key: string]: { label: string; fields: string[] } } = {
+  // (Qty/Price/Cost) - based on cost; when avg cost: Item Number, Description, Invoice Date, Invoice(Doc) Number, Qty Shipped, Ext Price(Total), Ext Cost(Total)
   qtyPriceCost: {
     label: '(Qty/Price/Cost)',
-    fields: ['Item_Number', 'Description', 'Quantity_Ordered', 'Quantity_Shipped', 'Price', 'EXT_Price', 'EXT_Total_Price', 'AvgCost', 'Ext_AvgCost', 'Ext_Total_AvgCost', 'BaseCost', 'Ext_BaseCost', 'Ext_Total_BaseCost', 'NetCost', 'Ext_NetCost', 'Ext_Total_NetCost', 'Invoice_Cost', 'Ext_Invoice_Cost', 'Ext_Total_Invoice_Cost'],
+    fields: ['Item_Number', 'Description', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped', 'EXT_Total_Price', 'Ext_Total_AvgCost', 'Ext_Total_BaseCost', 'Ext_Total_NetCost', 'Ext_Total_Invoice_Cost'],
   },
   basic: {
     label: 'Basic Report',
-    fields: ['Item_Number', 'Description', 'Quantity_Shipped', 'Price', 'EXT_Price', 'EXT_Total_Price', 'C_Number', 'C_Name', 'Invoice_Date', 'Document_Number'],
+    fields: ['Item_Number', 'Description', 'Pack', 'UOM', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped'],
   },
+  // (Price Class Discount) - Item Number, Description, Price Class, Price, Sales Quantity, Sales Dollars, Discount Dollars, Net Sales Dollars
   priceClassDiscounts: {
-    label: '(Price Class Discounts)',
-    fields: ['Item_Number', 'Description', 'Price_Class_Number', 'Class_Desc', 'Price_Class_Price', 'Price', 'EXT_Price', 'EXT_Total_Price', 'Quantity_Shipped'],
+    label: '(Price Class Discount)',
+    fields: ['Item_Number', 'Description', 'Class_Desc', 'Price', 'Quantity_Shipped', 'EXT_Total_Price'],
   },
   price: {
     label: '(Price)',
-    fields: ['Item_Number', 'Description', 'Price', 'EXT_Price', 'EXT_Total_Price', 'Price_Class_Price', 'Quantity_Shipped'],
+    fields: ['Item_Number', 'Description', 'Pack', 'UOM', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped', 'EXT_Total_Price', 'EXT_Price'],
   },
+  // (Price/Cost/Profit) - based on cost; when avg cost: Item Number, Description, Invoice Date, Invoice(Doc) Number, Qty Shipped, Price(With Tax), Avg Cost(With Tax), Ext Price(Total), Ext avg Cost(Total), avg Profit, avg %Profit
   priceCostProfit: {
     label: '(Price/Cost/Profit)',
-    fields: ['Item_Number', 'Description', 'Price', 'EXT_Price', 'EXT_Total_Price', 'AvgCost', 'Ext_AvgCost', 'Ext_Total_AvgCost', 'BaseCost', 'Ext_BaseCost', 'Ext_Total_BaseCost', 'NetCost', 'Ext_NetCost', 'Ext_Total_NetCost', 'Invoice_Cost', 'Ext_Invoice_Cost', 'Ext_Total_Invoice_Cost', 'Profit', 'Profit_Percent', 'AvgCost_Profit_Percent', 'BaseCost_Profit_Percent', 'NetCost_Profit_Percent', 'Invoice_Cost_Profit_Percent'],
+    fields: ['Item_Number', 'Description', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped', 'EXT_Price', 'Ext_AvgCost', 'EXT_Total_Price', 'Ext_Total_AvgCost', 'Profit', 'AvgCost_Profit_Percent', 'Ext_BaseCost', 'Ext_Total_BaseCost', 'BaseCost_Profit_Percent', 'Ext_NetCost', 'Ext_Total_NetCost', 'NetCost_Profit_Percent', 'Ext_Invoice_Cost', 'Ext_Total_Invoice_Cost', 'Invoice_Cost_Profit_Percent', 'Profit_Percent'],
   },
+  // (Profit-Portrait) - based on cost; when avg cost: Item Number, Description, Invoice Date, Invoice(Doc) Number, Qty Shipped, Price(With Tax), Avg Cost(With Tax), Ext Price(Total), Ext Cost(Total), %Profit
   profitPortrait: {
     label: '(Profit-Portrait)',
-    fields: ['Item_Number', 'Description', 'Quantity_Shipped', 'Price', 'EXT_Price', 'EXT_Total_Price', 'Profit', 'Profit_Percent'],
+    fields: ['Item_Number', 'Description', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped', 'EXT_Price', 'Ext_AvgCost', 'EXT_Total_Price', 'Ext_Total_AvgCost', 'AvgCost_Profit_Percent', 'Ext_BaseCost', 'Ext_Total_BaseCost', 'BaseCost_Profit_Percent', 'Ext_NetCost', 'Ext_Total_NetCost', 'NetCost_Profit_Percent', 'Ext_Invoice_Cost', 'Ext_Total_Invoice_Cost', 'Invoice_Cost_Profit_Percent'],
   },
+  // (Qty/Price) - Item Number, Description, Invoice Date, Invoice(Doc) Number, Qty Shipped, Ext Price(Total)
   qtyPrice: {
     label: '(Qty/Price)',
-    fields: ['Item_Number', 'Description', 'Quantity_Ordered', 'Quantity_Shipped', 'Price', 'EXT_Price', 'EXT_Total_Price'],
+    fields: ['Item_Number', 'Description', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped', 'EXT_Total_Price'],
   },
+  // (Points: Item) - Item Number, Description, Uom/Size, Invoice Date, Invoice(Doc) Number, Qty Shipped, Sales points, Item Points, Ext Points
   pointsItem: {
     label: '(Points: Item)',
-    fields: ['Item_Number', 'Description', 'Ext_Points', 'Points', 'Quantity_Shipped', 'Price', 'EXT_Price'],
+    fields: ['Item_Number', 'Description', 'UOM', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped', 'Points', 'Ext_Points'],
   },
+  // (Points: Sales Detail) - Item Number, Description, Uom/Size, Invoice Date, Invoice(Doc) Number, Qty Shipped, Sales points, Item Points, Ext Points
   pointsSalesDetail: {
     label: '(Points: Sales Detail)',
-    fields: ['Item_Number', 'Description', 'Ext_Points', 'Points', 'Document_Number', 'Invoice_Date', 'C_Number', 'C_Name', 'Quantity_Shipped', 'Price', 'EXT_Price'],
+    fields: ['Item_Number', 'Description', 'UOM', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped', 'Points', 'Ext_Points'],
   },
+  // (Price Class Rebates) - Item Number, Description, Price Class, Invoice Date, Invoice(Doc) Number, Qty Shipped, Rebate, Ext Rebate
   priceClassRebates: {
     label: '(Price Class Rebates)',
-    fields: ['Item_Number', 'Description', 'Price_Class_Number', 'Class_Desc', 'Price_Class_Price', 'Price', 'EXT_Price', 'EXT_Total_Price', 'Quantity_Shipped', 'C_Number', 'C_Name'],
-  },
-  priceClassGroup: {
-    label: '(Price Class Group)',
-    fields: ['Price_Class_Number', 'Class_Desc', 'Item_Number', 'Description', 'Quantity_Shipped', 'Price', 'EXT_Price', 'EXT_Total_Price', 'Price_Class_Price'],
-  },
-  salesCategoryGroup: {
-    label: '(Sales Category Group)',
-    fields: ['Sales_Category', 'Item_Number', 'Description', 'Quantity_Shipped', 'Price', 'EXT_Price', 'EXT_Total_Price'],
+    fields: ['Item_Number', 'Description', 'Class_Desc', 'Invoice_Date', 'Document_Number', 'Quantity_Shipped', 'Rebate', 'Ext_Rebate'],
   },
 };
 
@@ -281,10 +294,10 @@ const VelocityReportTab: React.FC = () => {
   const [selectedCostType, setSelectedCostType] = useState<CostType>('AvgCost');
 
   // Grouping
-  const [groupBy, setGroupBy] = useState<'item' | 'customer' | 'date' | 'none'>('none');
+  const [groupBy, setGroupBy] = useState<'item' | 'customer' | 'date' | 'salesCategory' | 'priceClass' | 'none'>('none');
 
   // Field selection
-  const getDefaultFields = useCallback((groupByValue: 'item' | 'customer' | 'date' | 'none'): { [key: string]: boolean } => {
+  const getDefaultFields = useCallback((groupByValue: 'item' | 'customer' | 'date' | 'salesCategory' | 'priceClass' | 'none'): { [key: string]: boolean } => {
     if (groupByValue === 'item') {
       const defaults: { [key: string]: boolean } = {};
       ['C_Number', 'C_Name', 'c_address', 'c_city', 'c_state', 'c_zip', 'c_phone', 'c_Salesman'].forEach(field => {
@@ -716,41 +729,40 @@ const VelocityReportTab: React.FC = () => {
     }
   };
 
-  // Get ordered selected fields
+  // Get ordered selected fields (sequence matches field group when one is selected)
   const orderedSelectedFields = useMemo(() => {
     const allSelectedKeys = Object.keys(selectedFields).filter(key => selectedFields[key]);
+    const group = selectedFieldGroup && FIELD_GROUPS[selectedFieldGroup];
+    if (group) {
+      // Order by field group definition: selected fields in group order, then any extra selected fields
+      const groupOrder = group.fields.filter(f => selectedFields[f]);
+      const rest = allSelectedKeys.filter(k => !group.fields.includes(k));
+      return [...groupOrder, ...rest];
+    }
+    // Default order: Item_Number, Description, Quantity_Ordered, Quantity_Shipped, then rest
     const itemNumberSelected = allSelectedKeys.includes('Item_Number');
     const descriptionSelected = allSelectedKeys.includes('Description');
     const quantityOrderedSelected = allSelectedKeys.includes('Quantity_Ordered');
     const quantityShippedSelected = allSelectedKeys.includes('Quantity_Shipped');
-    
-    // Separate quantity fields from other fields
-    const otherFields = allSelectedKeys.filter(key => 
-      key !== 'Item_Number' && 
-      key !== 'Description' && 
-      key !== 'Quantity_Ordered' && 
-      key !== 'Quantity_Shipped'
+    const otherFields = allSelectedKeys.filter(key =>
+      key !== 'Item_Number' && key !== 'Description' && key !== 'Quantity_Ordered' && key !== 'Quantity_Shipped'
     );
-    
     const ordered: string[] = [];
-    if (itemNumberSelected) {
-      ordered.push('Item_Number');
-    }
-    if (descriptionSelected) {
-      ordered.push('Description');
-    }
-    // Always place quantity fields together, right after Description
-    if (quantityOrderedSelected) {
-      ordered.push('Quantity_Ordered');
-    }
-    if (quantityShippedSelected) {
-      ordered.push('Quantity_Shipped');
-    }
-    // Then add all other fields
+    if (itemNumberSelected) ordered.push('Item_Number');
+    if (descriptionSelected) ordered.push('Description');
+    if (quantityOrderedSelected) ordered.push('Quantity_Ordered');
+    if (quantityShippedSelected) ordered.push('Quantity_Shipped');
     ordered.push(...otherFields);
-    
     return ordered;
-  }, [selectedFields]);
+  }, [selectedFields, selectedFieldGroup]);
+
+  // Display columns: when group by Item, first two columns show C_Number and C_Name; when group by Customer (or none/date), Item_Number and Description
+  const displayColumns = useMemo(() => {
+    if (groupBy === 'item' && orderedSelectedFields[0] === 'Item_Number' && orderedSelectedFields[1] === 'Description') {
+      return ['C_Number', 'C_Name', ...orderedSelectedFields.slice(2)];
+    }
+    return orderedSelectedFields;
+  }, [groupBy, orderedSelectedFields]);
 
   // Get available fields from data
   const availableFields = useMemo(() => {
@@ -777,6 +789,8 @@ const VelocityReportTab: React.FC = () => {
       'OTP_Amount_County',
       'OTP_Amount_City',
       'Cig_Sticks',
+      'Ext_Price', // Removed from report; use EXT_Price / ext total by cost type
+      'Invoice_Number', // Removed; use Document_Number displayed as "Invoice Number"
       'data', // Exclude API response wrapper fields
       'pagination', // Exclude pagination field
     ];
@@ -827,7 +841,7 @@ const VelocityReportTab: React.FC = () => {
         });
         const subtotal = rows.reduce((acc, row) => ({
           quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-          extPrice: acc.extPrice + (row.EXT_Price || 0),
+          extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
         }), { quantityShipped: 0, extPrice: 0 });
         result.push({ type: 'row', subtotal });
       });
@@ -868,7 +882,7 @@ const VelocityReportTab: React.FC = () => {
         });
         const customerSubtotal = rows.reduce((acc, row) => ({
           quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-          extPrice: acc.extPrice + (row.EXT_Price || 0),
+          extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
         }), { quantityShipped: 0, extPrice: 0 });
         result.push({ type: 'row', subtotal: customerSubtotal });
       });
@@ -894,14 +908,50 @@ const VelocityReportTab: React.FC = () => {
         });
         const itemSubtotal = rows.reduce((acc, row) => ({
           quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-          extPrice: acc.extPrice + (row.EXT_Price || 0),
+          extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
         }), { quantityShipped: 0, extPrice: 0 });
         result.push({ type: 'row', subtotal: itemSubtotal });
+      });
+    } else if (groupBy === 'salesCategory') {
+      const grouped: { [key: string]: VelocityReportRow[] } = {};
+      dataToGroup.forEach(row => {
+        const cat = row.Sales_Category;
+        const key = cat !== undefined && cat !== null ? String(cat) : 'Unknown';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(row);
+      });
+      Object.keys(grouped).sort((a, b) => (Number(a) || 0) - (Number(b) || 0)).forEach(key => {
+        const label = filterOptions.salesCategories?.find(opt => String(opt.value) === key)?.label || key;
+        result.push({ type: 'header', key: `Sales Category: ${label}`, level: 1 });
+        const rows = grouped[key].sort((a, b) => (a.Description || '').localeCompare(b.Description || ''));
+        rows.forEach(row => result.push({ type: 'row', data: row }));
+        const subtotal = rows.reduce((acc, row) => ({
+          quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
+          extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
+        }), { quantityShipped: 0, extPrice: 0 });
+        result.push({ type: 'row', subtotal });
+      });
+    } else if (groupBy === 'priceClass') {
+      const grouped: { [key: string]: VelocityReportRow[] } = {};
+      dataToGroup.forEach(row => {
+        const key = (row.Class_Desc ?? row.Price_Class_Number ?? '').toString() || 'Unknown';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(row);
+      });
+      Object.keys(grouped).sort().forEach(groupKey => {
+        result.push({ type: 'header', key: `Price Class: ${groupKey}`, level: 1 });
+        const rows = grouped[groupKey].sort((a, b) => (a.Description || '').localeCompare(b.Description || ''));
+        rows.forEach(row => result.push({ type: 'row', data: row }));
+        const subtotal = rows.reduce((acc, row) => ({
+          quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
+          extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
+        }), { quantityShipped: 0, extPrice: 0 });
+        result.push({ type: 'row', subtotal });
       });
     }
 
     return result;
-  }, [getCurrentChunkData, filteredData, groupBy]);
+  }, [getCurrentChunkData, filteredData, groupBy, selectedCostType, filterOptions.salesCategories]);
 
   // Helper to load logo as data URL
   const loadLogoAsDataUrl = async (): Promise<string | null> => {
@@ -987,7 +1037,7 @@ const VelocityReportTab: React.FC = () => {
   const handleGenerateCSV = () => {
     setGeneratingReport(true);
     try {
-      const headers = orderedSelectedFields;
+      const headers = displayColumns;
       const csvHeaders = headers.map(h => FIELD_LABELS[h] || h).join(',');
 
       const rows: string[] = [csvHeaders];
@@ -1014,30 +1064,20 @@ const VelocityReportTab: React.FC = () => {
             grouped[key].forEach(row => {
               const rowData = headers.map(header => {
                 const value = (row as any)[header];
-                if (value === null || value === undefined) {
-                  return '';
-                }
+                if (value === null || value === undefined) return '';
+                if (header.includes('Date')) return value instanceof Date ? formatApiDate(value.toISOString()) : formatApiDate(String(value));
                 if (typeof value === 'number') {
-                  if (header.includes('Date')) {
-                    return formatApiDate(String(value));
-                  } else if (header.includes('Percent')) {
-                    return `${value.toFixed(2)}%`;
-                  } else {
-                    return value.toString();
-                  }
-                } else if (typeof value === 'boolean') {
-                  return value ? 'Yes' : 'No';
-                } else if (header.includes('Date') && typeof value === 'string') {
-                  return formatApiDate(String(value));
-                } else {
-                  return String(value);
+                  if (header.includes('Percent')) return `${value.toFixed(2)}%`;
+                  return value.toString();
                 }
+                if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+                return String(value);
               });
               rows.push(rowData.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
             });
             const subtotal = grouped[key].reduce((acc, row) => ({
               quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-              extPrice: acc.extPrice + (row.EXT_Price || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
             }), { quantityShipped: 0, extPrice: 0 });
             rows.push(`"Subtotal - Quantity Shipped: ${subtotal.quantityShipped} | Extended Price: $${subtotal.extPrice.toFixed(2)}"`);
           });
@@ -1073,30 +1113,20 @@ const VelocityReportTab: React.FC = () => {
             customerGrouped[customerKey].forEach(row => {
               const rowData = headers.map(header => {
                 const value = (row as any)[header];
-                if (value === null || value === undefined) {
-                  return '';
-                }
+                if (value === null || value === undefined) return '';
+                if (header.includes('Date')) return value instanceof Date ? formatApiDate(value.toISOString()) : formatApiDate(String(value));
                 if (typeof value === 'number') {
-                  if (header.includes('Date')) {
-                    return formatApiDate(String(value));
-                  } else if (header.includes('Percent')) {
-                    return `${value.toFixed(2)}%`;
-                  } else {
-                    return value.toString();
-                  }
-                } else if (typeof value === 'boolean') {
-                  return value ? 'Yes' : 'No';
-                } else if (header.includes('Date') && typeof value === 'string') {
-                  return formatApiDate(String(value));
-                } else {
-                  return String(value);
+                  if (header.includes('Percent')) return `${value.toFixed(2)}%`;
+                  return value.toString();
                 }
+                if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+                return String(value);
               });
               rows.push(rowData.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
             });
             const customerSubtotal = customerGrouped[customerKey].reduce((acc, row) => ({
               quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-              extPrice: acc.extPrice + (row.EXT_Price || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
             }), { quantityShipped: 0, extPrice: 0 });
             rows.push(`"Subtotal - Quantity Shipped: ${customerSubtotal.quantityShipped} | Extended Price: $${customerSubtotal.extPrice.toFixed(2)}"`);
           });
@@ -1116,32 +1146,77 @@ const VelocityReportTab: React.FC = () => {
             itemGrouped[itemKey].forEach(row => {
               const rowData = headers.map(header => {
                 const value = (row as any)[header];
-                if (value === null || value === undefined) {
-                  return '';
-                }
+                if (value === null || value === undefined) return '';
+                if (header.includes('Date')) return value instanceof Date ? formatApiDate(value.toISOString()) : formatApiDate(String(value));
                 if (typeof value === 'number') {
-                  if (header.includes('Date')) {
-                    return formatApiDate(String(value));
-                  } else if (header.includes('Percent')) {
-                    return value.toFixed(2);
-                  } else {
-                    return value.toString();
-                  }
-                } else if (typeof value === 'boolean') {
-                  return value ? 'Yes' : 'No';
-                } else if (header.includes('Date') && typeof value === 'string') {
-                  return formatApiDate(String(value));
-                } else {
-                  return String(value);
+                  if (header.includes('Percent')) return value.toFixed(2);
+                  return value.toString();
                 }
+                if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+                return String(value);
               });
               rows.push(rowData.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
             });
             const itemSubtotal = itemGrouped[itemKey].reduce((acc, row) => ({
               quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-              extPrice: acc.extPrice + (row.EXT_Price || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
             }), { quantityShipped: 0, extPrice: 0 });
             rows.push(`"Subtotal - Quantity Shipped: ${itemSubtotal.quantityShipped} | Extended Price: $${itemSubtotal.extPrice.toFixed(2)}"`);
+          });
+          return;
+        } else if (groupBy === 'salesCategory') {
+          const grouped: { [key: string]: VelocityReportRow[] } = {};
+          filteredData.forEach(row => {
+            const key = row.Sales_Category !== undefined && row.Sales_Category !== null ? String(row.Sales_Category) : 'Unknown';
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(row);
+          });
+          Object.keys(grouped).sort((a, b) => (Number(a) || 0) - (Number(b) || 0)).forEach(key => {
+            const label = filterOptions.salesCategories?.find(opt => String(opt.value) === key)?.label || key;
+            rows.push(`"=== Sales Category: ${label} ==="`);
+            grouped[key].forEach(row => {
+              const rowData = headers.map(header => {
+                const value = (row as any)[header];
+                if (value === null || value === undefined) return '';
+                if (header.includes('Date')) return value instanceof Date ? formatApiDate(value.toISOString()) : formatApiDate(String(value));
+                if (typeof value === 'number') { if (header.includes('Percent')) return value.toFixed(2); return value.toString(); }
+                if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+                return String(value);
+              });
+              rows.push(rowData.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+            });
+            const subtotal = grouped[key].reduce((acc, row) => ({
+              quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
+            }), { quantityShipped: 0, extPrice: 0 });
+            rows.push(`"Subtotal - Quantity Shipped: ${subtotal.quantityShipped} | Extended Price: $${subtotal.extPrice.toFixed(2)}"`);
+          });
+          return;
+        } else if (groupBy === 'priceClass') {
+          const grouped: { [key: string]: VelocityReportRow[] } = {};
+          filteredData.forEach(row => {
+            const key = (row.Class_Desc ?? row.Price_Class_Number ?? '').toString() || 'Unknown';
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(row);
+          });
+          Object.keys(grouped).sort().forEach(groupKey => {
+            rows.push(`"=== Price Class: ${groupKey} ==="`);
+            grouped[groupKey].forEach(row => {
+              const rowData = headers.map(header => {
+                const value = (row as any)[header];
+                if (value === null || value === undefined) return '';
+                if (header.includes('Date')) return value instanceof Date ? formatApiDate(value.toISOString()) : formatApiDate(String(value));
+                if (typeof value === 'number') { if (header.includes('Percent')) return value.toFixed(2); return value.toString(); }
+                if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+                return String(value);
+              });
+              rows.push(rowData.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+            });
+            const subtotal = grouped[groupKey].reduce((acc, row) => ({
+              quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
+            }), { quantityShipped: 0, extPrice: 0 });
+            rows.push(`"Subtotal - Quantity Shipped: ${subtotal.quantityShipped} | Extended Price: $${subtotal.extPrice.toFixed(2)}"`);
           });
           return;
         }
@@ -1154,24 +1229,14 @@ const VelocityReportTab: React.FC = () => {
         filteredData.forEach(row => {
         const rowData = headers.map(header => {
           const value = (row as any)[header];
-          if (value === null || value === undefined) {
-            return '';
-          }
+          if (value === null || value === undefined) return '';
+          if (header.includes('Date')) return value instanceof Date ? formatApiDate(value.toISOString()) : formatApiDate(String(value));
           if (typeof value === 'number') {
-            if (header.includes('Date')) {
-              return formatApiDate(String(value));
-            } else if (header.includes('Percent')) {
-              return `${value.toFixed(2)}%`;
-            } else {
-              return value.toString();
-            }
-          } else if (typeof value === 'boolean') {
-            return value ? 'Yes' : 'No';
-          } else if (header.includes('Date') && typeof value === 'string') {
-            return formatApiDate(String(value));
-          } else {
-            return String(value);
+            if (header.includes('Percent')) return `${value.toFixed(2)}%`;
+            return value.toString();
           }
+          if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+          return String(value);
         });
         rows.push(rowData.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
         });
@@ -1201,7 +1266,7 @@ const VelocityReportTab: React.FC = () => {
     try {
       const logoDataUrl = await loadLogoAsDataUrl();
       
-      const pdfFieldKeys = orderedSelectedFields;
+      const pdfFieldKeys = displayColumns;
       const totalColumns = pdfFieldKeys.length;
       const orientation = totalColumns <= 8 ? 'portrait' : 'landscape';
       
@@ -1243,7 +1308,7 @@ const VelocityReportTab: React.FC = () => {
       // Title - centered
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text('Velocity Report - Customer', pageWidth / 2, yPosition + 5, { align: 'center' });
+      doc.text('Velocity Report', pageWidth / 2, yPosition + 5, { align: 'center' });
 
       // Date and other info on right
       doc.setFontSize(10);
@@ -1353,7 +1418,7 @@ const VelocityReportTab: React.FC = () => {
             });
             const subtotal = grouped[key].reduce((acc, row) => ({
               quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-              extPrice: acc.extPrice + (row.EXT_Price || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
             }), { quantityShipped: 0, extPrice: 0 });
             result.push({ type: 'row', subtotal });
           });
@@ -1389,7 +1454,7 @@ const VelocityReportTab: React.FC = () => {
             });
             const customerSubtotal = customerGrouped[customerKey].reduce((acc, row) => ({
               quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-              extPrice: acc.extPrice + (row.EXT_Price || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
             }), { quantityShipped: 0, extPrice: 0 });
             result.push({ type: 'row', subtotal: customerSubtotal });
           });
@@ -1410,9 +1475,42 @@ const VelocityReportTab: React.FC = () => {
             });
             const itemSubtotal = itemGrouped[itemKey].reduce((acc, row) => ({
               quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
-              extPrice: acc.extPrice + (row.EXT_Price || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
             }), { quantityShipped: 0, extPrice: 0 });
             result.push({ type: 'row', subtotal: itemSubtotal });
+          });
+        } else if (groupBy === 'salesCategory') {
+          const grouped: { [key: string]: VelocityReportRow[] } = {};
+          filteredData.forEach(row => {
+            const key = row.Sales_Category !== undefined && row.Sales_Category !== null ? String(row.Sales_Category) : 'Unknown';
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(row);
+          });
+          Object.keys(grouped).sort((a, b) => (Number(a) || 0) - (Number(b) || 0)).forEach(key => {
+            const label = filterOptions.salesCategories?.find(opt => String(opt.value) === key)?.label || key;
+            result.push({ type: 'header', key: `Sales Category: ${label}`, level: 1 });
+            grouped[key].forEach(row => result.push({ type: 'row', data: row }));
+            const subtotal = grouped[key].reduce((acc, row) => ({
+              quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
+            }), { quantityShipped: 0, extPrice: 0 });
+            result.push({ type: 'row', subtotal });
+          });
+        } else if (groupBy === 'priceClass') {
+          const grouped: { [key: string]: VelocityReportRow[] } = {};
+          filteredData.forEach(row => {
+            const key = (row.Class_Desc ?? row.Price_Class_Number ?? '').toString() || 'Unknown';
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(row);
+          });
+          Object.keys(grouped).sort().forEach(groupKey => {
+            result.push({ type: 'header', key: `Price Class: ${groupKey}`, level: 1 });
+            grouped[groupKey].forEach(row => result.push({ type: 'row', data: row }));
+            const subtotal = grouped[groupKey].reduce((acc, row) => ({
+              quantityShipped: acc.quantityShipped + (row.Quantity_Shipped || 0),
+              extPrice: acc.extPrice + getExtTotalForRow(row, selectedCostType),
+            }), { quantityShipped: 0, extPrice: 0 });
+            result.push({ type: 'row', subtotal });
           });
         }
 
@@ -1476,15 +1574,10 @@ const VelocityReportTab: React.FC = () => {
           const value = (row as any)[field];
           let displayValue = '';
           if (value !== null && value !== undefined) {
-            if (typeof value === 'number') {
-              if (field.includes('Date')) {
-                displayValue = formatApiDate(String(value));
-              } else if (
-                field.includes('Price') || 
-                field.includes('Cost') || 
-                field.includes('Profit') ||
-                field.includes('Amount')
-              ) {
+            if (field.includes('Date')) {
+              displayValue = value instanceof Date ? formatApiDate(value.toISOString()) : formatApiDate(String(value));
+            } else if (typeof value === 'number') {
+              if (field.includes('Price') || field.includes('Cost') || field.includes('Profit') || field.includes('Amount')) {
                 displayValue = value.toFixed(2);
               } else if (field.includes('Percent')) {
                 displayValue = `${value.toFixed(2)}%`;
@@ -1493,8 +1586,6 @@ const VelocityReportTab: React.FC = () => {
               }
             } else if (typeof value === 'boolean') {
               displayValue = value ? 'Yes' : 'No';
-            } else if (field.includes('Date') && typeof value === 'string') {
-              displayValue = formatApiDate(String(value));
             } else {
               displayValue = String(value);
             }
@@ -1761,6 +1852,30 @@ const VelocityReportTab: React.FC = () => {
                       label={<Typography sx={{ fontSize: '0.7rem', fontWeight: 400 }}>Date</Typography>}
                       sx={{ m: 0 }}
                       onClick={() => setGroupBy('date')}
+                    />
+                    <FormControlLabel
+                      control={
+                        <Radio
+                          size="small"
+                          checked={groupBy === 'salesCategory'}
+                          sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '1rem' } }}
+                        />
+                      }
+                      label={<Typography sx={{ fontSize: '0.7rem', fontWeight: 400 }}>Sales category</Typography>}
+                      sx={{ m: 0 }}
+                      onClick={() => setGroupBy('salesCategory')}
+                    />
+                    <FormControlLabel
+                      control={
+                        <Radio
+                          size="small"
+                          checked={groupBy === 'priceClass'}
+                          sx={{ py: 0, '& .MuiSvgIcon-root': { fontSize: '1rem' } }}
+                        />
+                      }
+                      label={<Typography sx={{ fontSize: '0.7rem', fontWeight: 400 }}>Price class</Typography>}
+                      sx={{ m: 0 }}
+                      onClick={() => setGroupBy('priceClass')}
                     />
                   </Box>
                 </Box>
@@ -2493,15 +2608,14 @@ const VelocityReportTab: React.FC = () => {
               <Table stickyHeader size="small" sx={{ minWidth: 'max-content' }}>
                 <TableHead>
                   <TableRow>
-                    {orderedSelectedFields.map(field => (
+                    {displayColumns.map(field => (
                       <TableCell key={field}>{FIELD_LABELS[field] || field}</TableCell>
                     ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {getGroupedData.map((item, idx) => {
-                    const selectedFieldsCount = orderedSelectedFields.length;
-                    const totalCols = selectedFieldsCount;
+                    const totalCols = displayColumns.length;
                     
                     if (item.type === 'header') {
                       const isLevel2 = item.level === 2;
@@ -2666,17 +2780,17 @@ const VelocityReportTab: React.FC = () => {
                       const row = item.data;
                       return (
                         <TableRow key={`row-${idx}`}>
-                          {orderedSelectedFields.map(field => {
+                          {displayColumns.map(field => {
                             const value = (row as any)[field];
                             let displayValue = value;
                             if (value === null || value === undefined) {
                               displayValue = '';
+                            } else if (field.includes('Date')) {
+                              displayValue = value instanceof Date ? formatApiDate(value.toISOString()) : formatApiDate(String(value));
                             } else if (typeof value === 'number') {
-                              if (field.includes('Date')) {
-                                displayValue = formatApiDate(String(value));
-                              } else if (
-                                field.includes('Price') || 
-                                field.includes('Cost') || 
+                              if (
+                                field.includes('Price') ||
+                                field.includes('Cost') ||
                                 field.includes('Profit') ||
                                 field.includes('Amount')
                               ) {
@@ -2688,8 +2802,6 @@ const VelocityReportTab: React.FC = () => {
                               }
                             } else if (typeof value === 'boolean') {
                               displayValue = value ? 'Yes' : 'No';
-                            } else if (field.includes('Date') && typeof value === 'string') {
-                              displayValue = formatApiDate(String(value));
                             } else {
                               displayValue = String(value);
                             }

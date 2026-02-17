@@ -33,7 +33,7 @@ const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {
 
       <LocalizationProvider dateAdapter={AdapterDayjs}>
         <DatePicker
-          value={value} 
+          value={value}
           onChange={onChange}
           minDate={minDate}
           maxDate={maxDate}
@@ -45,8 +45,33 @@ const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {
             },
           }}
           slotProps={{
+            day: {
+              sx: {
+                fontSize: "12px",
+
+                
+                "&.Mui-selected": {
+                  backgroundColor: "primary.main",
+                  color: "#ffffff",
+                },
+
+               
+                "&.Mui-selected:hover": {
+                  backgroundColor: "primary.dark",
+                },
+
+              
+                "&:not(.Mui-selected):hover": {
+                  backgroundColor: "transparent",
+                  border: "1px solid",
+                  borderColor: "primary.main",
+                  color: "primary.main",
+                },
+              },
+            },
+
             textField: {
-              label: "", // <-- Hide MUI internal label
+              label: "",
               fullWidth: true,
               size: "small",
               variant: "outlined",
@@ -87,6 +112,7 @@ const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {
             },
           }}
         />
+
         {error && <FormHelperText error>{helperText}</FormHelperText>}
       </LocalizationProvider>
     </Box>

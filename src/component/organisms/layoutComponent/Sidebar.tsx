@@ -47,6 +47,7 @@ const iconMap: { [key: string]: string } = {
   dashboard: DashboardIcon,
   order: OrderIcon,
   promo: PromoIcon,
+  "tradeshow-management": PromoIcon,
   account: AccountReceivableIcon,
   contactUs: ContactIcon,
   file: ProductLicenceIcon,
@@ -96,14 +97,18 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isMobile = useMediaQuery("(max-width:1199px)");
   const location = useLocation();
   const mode = useSelector((state: RootState) => state.theme.mode);
-  const { role, module } = useSelector((state: RootState) => state.auth);
+  const { role, module, showTradeShow } = useSelector((state: RootState) => state.auth);
   // Get role-based navigation config
   const salesNavigationConfig = getNavigationConfig(role).filter((item) => item.check === "sales");
   const filterByRoleModule = salesNavigationConfig.filter((item) => 
-    ["Policies"].includes(item.name) || 
+    ["Policies", "Trade Show"].includes(item.name) || 
     module?.some((moduleItem: any) => moduleItem.module === item.name && moduleItem?.view === true)
   );
-  const navigationConfig = role === "sales" ? filterByRoleModule : getNavigationConfig(role);
+  let navigationConfig = role === "sales" ? filterByRoleModule : getNavigationConfig(role);
+  // For retailer and sales: show "Trade Show" tab only when showTradeShow is true
+  if ((role === "retailer" || role === "sales") && !showTradeShow) {
+    navigationConfig = navigationConfig.filter((item) => item.name !== "Trade Show");
+  }
   const drawerContent = (
     <>
       {isMobile && (

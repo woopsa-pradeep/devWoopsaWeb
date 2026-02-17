@@ -83,7 +83,7 @@ const RolesPermissionsPage = () => {
       {
         salesId: id,
         name: name,
-        module: 'Calender',
+        module: 'Calendar',
         add: false,
         view: false,
         edit: false,
@@ -104,14 +104,38 @@ const RolesPermissionsPage = () => {
         view: role === 'sales' && isNewUser ? true : false,
         edit: role === 'sales' && isNewUser ? true : false,
       },
-      // {
-      //   salesId: id,
-      //   name: name,
-      //   module: 'Vendors',
-      //   add: false,
-      //   view: false,
-      //   edit: false,
-      // },
+      {
+        salesId: id,
+        name: name,
+        module: 'Product',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Vendor',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Epick',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
+        module: 'Track Login Device',
+        add: false,
+        view: false,
+        edit: false,
+      },
     ];
 
     // If role is checker, only return Order Checker module
@@ -144,15 +168,16 @@ const RolesPermissionsPage = () => {
           }
 
           const response: any = await getUserRolePermissions(id);
-          const permissionsData = response?.data?.data;
+          const raw = response?.data;
+          const permissionsData = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : undefined);
           const userRole = userData?.role || 'sales';
           
           const defaultPermissions = getDefaultPermissions(id, userData?.firstName + ' ' + userData?.lastName || 'User', userRole, false);
           
           if (Array.isArray(permissionsData)) {
-            // Merge existing permissions with default permissions
+            // Merge existing permissions with default permissions (default list is source of truth)
             let mergedPermissions = defaultPermissions.map(defaultModule => {
-              const existingModule = permissionsData.find(p => p.module === defaultModule.module);
+              const existingModule = permissionsData.find((p: any) => p.module === defaultModule.module);
               if (existingModule) {
                 return {
                   ...defaultModule,
@@ -168,6 +193,13 @@ const RolesPermissionsPage = () => {
             // If role is checker, filter to only show Order Checker module
             if (userRole === 'checker') {
               mergedPermissions = mergedPermissions.filter(module => module.module === 'Order Checker');
+            } else {
+              // Ensure all default modules are shown on edit (e.g. Product, Vendor, Epick, Track Login Device)
+              const mergedModuleNames = new Set(mergedPermissions.map((m: any) => m.module));
+              const missingDefaults = defaultPermissions.filter((d: any) => !mergedModuleNames.has(d.module));
+              if (missingDefaults.length > 0) {
+                mergedPermissions = [...mergedPermissions, ...missingDefaults];
+              }
             }
 
             const withPath = mergedPermissions.map((row: any) => ({

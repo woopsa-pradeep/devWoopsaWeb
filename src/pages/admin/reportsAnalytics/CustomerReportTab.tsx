@@ -442,14 +442,14 @@ const CustomerReportTab: React.FC = () => {
     if (value === null || value === undefined) return '';
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     
-    // Handle date fields - format API date strings without timezone shift (exact date as from API)
+    // Handle date fields - use formatApiDate so displayed date matches API date exactly (no timezone shift)
     const dateFields = ['ExpDate_SalesTax', 'ExpDate_CigtTax', 'ExpDate_OtherTax', 'ExpDate_OtherTax2', 'ExpDate_OtherTax3', 'LastPaymentDate', 'LastInvoiceDate'];
-    if (dateFields.includes(field) && typeof value === 'string') {
-      const formatted = formatApiDate(value);
-      if (formatted) return formatted;
+    if (dateFields.includes(field)) {
+      if (value instanceof Date) return formatApiDate(value.toISOString());
+      return formatApiDate(String(value));
     }
     
-    if (value instanceof Date) return value.toISOString().split('T')[0];
+    if (value instanceof Date) return formatApiDate(value.toISOString());
     return value.toString();
   };
 

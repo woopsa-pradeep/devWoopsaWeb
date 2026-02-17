@@ -14,6 +14,7 @@ interface PicklistTemplate {
   selectedFields: { [key: string]: boolean };
   groupBy: 'salesCategory' | 'priceClass' | 'section' | 'location' | 'sectionSalesCategory' | 'locationSalesCategory' | 'sequence' | 'sequenceSalesCategory' | '';
   newCategoryOnNewPage: boolean;
+  showSubHeader?: boolean;
   headerPosition: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
   footerPosition: 'left' | 'right';
   pickedByPosition: 'top' | 'bottom';
@@ -788,6 +789,7 @@ const getTemplateFromAPI = async (): Promise<PicklistTemplate | null> => {
       selectedFields: templateData.selectedFields || {},
       groupBy: groupByValue,
       newCategoryOnNewPage: templateData.newCategoryOnNewPage || false,
+      showSubHeader: templateData.showSubHeader !== undefined ? templateData.showSubHeader : false,
       headerPosition: templateData.headerPosition || 'topRight',
       footerPosition: templateData.footerPosition || 'left',
       pickedByPosition: templateData.pickedByPosition || 'top',
@@ -833,99 +835,75 @@ const getTemplateName = (groupByValue: string): string => {
   return `temp${firstChar}${rest}`;
 };
 
-// Generate Picklist PDF
-export const generatePicklistPDF = async (
-  orderData: {
-    customer: {
-      number: number;
-      name: string;
-      address: string;
-      route: number;
-      stop: number;
-    };
-    distributor: {
-      name: string;
-      address?: string;
-    };
-    invoiceNumber: string;
-    isReprint: boolean;
-    orderNumber: string;
-    orderDate: string;
-    invoiceDate: string;
-    items: Array<{
-      lineNumber: number;
-      orderedQty: number;
-      itemNumber: number;
-      description: string;
-      pack: number;
-      size: string;
-      upc?: string;
-      // onhand?: number;
-      salesCategory?: string;
-      priceClass?: string;
-      section?: string;
-      location?: string;
-      vendorItem?: string;
-      sequence?: number;
-    }>;
-    totals: {
-      totalPieces: number;
-      totalCartons: number;
-      totalLines: number;
-    };
-  },
-): Promise<void> => {
-  // Get template from API
+// Order data type used by picklist generator
+export type PicklistOrderData = {
+  customer: { number: number; name: string; address: string; route: number; stop: number };
+  distributor: { name: string; address?: string };
+  invoiceNumber: string;
+  isReprint: boolean;
+  orderNumber: string;
+  orderDate: string;
+  invoiceDate: string;
+  items: Array<{
+    lineNumber: number;
+    orderedQty: number;
+    itemNumber: number;
+    description: string;
+    pack: number;
+    size: string;
+    upc?: string;
+    salesCategory?: string;
+    priceClass?: string;
+    section?: string;
+    location?: string;
+    vendorItem?: string;
+    sequence?: number;
+  }>;
+  totals: { totalPieces: number; totalCartons: number; totalLines: number };
+};
+
+// Build picklist doc for one or more orders (each order starts on a new page). Returns doc and orderData per page for final header.
+const buildPicklistDoc = async (
+  orderDataArray: PicklistOrderData[],
+): Promise<{ doc: jsPDF; pagesOrderData: PicklistOrderData[]; template: PicklistTemplate; logoDataUrl: string | null }> => {
   const template = await getTemplateFromAPI();
-  
   if (!template) {
     throw new Error('No picklist template found. Please configure and save a template in Settings > Picklist Template.');
   }
-
   const logoDataUrl = await loadLogoAsDataUrl();
-  // Filter to only include valid fields that exist in FIELD_LABELS (exclude removed fields like unitCost, extendedCost, retail)
   const selectedFieldKeys = Object.keys(template.selectedFields)
     .filter(key => template.selectedFields[key] && FIELD_LABELS.hasOwnProperty(key));
   const totalFields = selectedFieldKeys.length;
   const hasSectionOrLocation = selectedFieldKeys.includes('section') || selectedFieldKeys.includes('location');
   const isLandscape = totalFields > 7 && !hasSectionOrLocation;
-  
   const doc = new jsPDF(isLandscape ? 'landscape' : 'portrait', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
-  
-  // Add header to first page to get actual header height
-  const headerHeight = addFullHeaderToPage(doc, 1, 1, orderData, template);
   const headerMargin = 2;
-  let yPosition = headerHeight + headerMargin; // Start below header divider with margin
-  
-  // Group items
-  const grouped = groupItems(orderData.items, template.groupBy);
-  
-  // Fixed column sequence: lineNumber, orderedQty, scannedQty, description, itemNumber, pack, size, then others
+  const pagesOrderData: PicklistOrderData[] = [];
+  const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
   const fixedOrder = ['lineNumber', 'orderedQty', 'scannedQty', 'description', 'itemNumber', 'pack', 'size'];
   const finalFieldKeys: string[] = [];
-  
-  // First, add fixed order fields that are selected
   fixedOrder.forEach(key => {
-    if (selectedFieldKeys.includes(key)) {
-      finalFieldKeys.push(key);
-    }
+    if (selectedFieldKeys.includes(key)) finalFieldKeys.push(key);
   });
-  
-  // Then add other selected fields in their original order
   selectedFieldKeys.forEach(key => {
-    if (!fixedOrder.includes(key)) {
-      finalFieldKeys.push(key);
-    }
+    if (!fixedOrder.includes(key)) finalFieldKeys.push(key);
   });
   const headerLabels = finalFieldKeys.map(key => FIELD_LABELS[key] || key);
-  
-  const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
-  
-  // Check if grouped has nested structure (for Sales Category combinations)
-  const isNestedStructure = grouped.length > 0 && 'salesCategory' in grouped[0] && 'subGroups' in grouped[0];
+
+  for (let orderIndex = 0; orderIndex < orderDataArray.length; orderIndex++) {
+    const orderData = orderDataArray[orderIndex];
+    if (orderIndex > 0) {
+      doc.addPage('a4', isLandscape ? 'landscape' : 'portrait');
+    }
+    (pagesOrderData as any)[doc.getNumberOfPages() - 1] = orderData;
+
+    const headerHeight = addFullHeaderToPage(doc, 1, 1, orderData, template);
+    let yPosition = headerHeight + headerMargin;
+    const grouped = groupItems(orderData.items, template.groupBy);
+    const isNestedStructure = grouped.length > 0 && 'salesCategory' in grouped[0] && 'subGroups' in grouped[0];
   
   if (isNestedStructure) {
     // Handle nested structure: Sales Category -> Section/Location/Sequence
@@ -933,6 +911,7 @@ export const generatePicklistPDF = async (
       // Check if we need a new page for new category
       if (template.newCategoryOnNewPage && categoryIndex > 0) {
         doc.addPage();
+        (pagesOrderData as any)[doc.getNumberOfPages() - 1] = orderData;
         yPosition = headerHeight + headerMargin;
       }
       
@@ -945,23 +924,25 @@ export const generatePicklistPDF = async (
         yPosition += 4;
       }
       
-      // Sales Category header - prominent with background box
-      const categoryBoxHeight = 6;
-      doc.setFillColor(240, 245, 250);
-      doc.setDrawColor(200, 210, 220);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(margin, yPosition - 4, pageWidth - (margin * 2), categoryBoxHeight, 1.5, 1.5, 'FD');
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(30, 50, 80);
-      doc.text('Sales Category:', margin + 3, yPosition);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-      const categoryLabelWidth = doc.getTextWidth('Sales Category:');
-      doc.text(categoryGroup.salesCategory, margin + 3 + categoryLabelWidth + 2, yPosition);
-      yPosition += 7;
+      // Sales Category header - only when showSubHeader is enabled (default: hidden to use space for rows)
+      if (template.showSubHeader) {
+        const categoryBoxHeight = 6;
+        doc.setFillColor(240, 245, 250);
+        doc.setDrawColor(200, 210, 220);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(margin, yPosition - 4, pageWidth - (margin * 2), categoryBoxHeight, 1.5, 1.5, 'FD');
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 50, 80);
+        doc.text('Sales Category:', margin + 3, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        const categoryLabelWidth = doc.getTextWidth('Sales Category:');
+        doc.text(categoryGroup.salesCategory, margin + 3 + categoryLabelWidth + 2, yPosition);
+        yPosition += 7;
+      }
       
       // Sub-groups (Section/Location/Sequence) - visually distinct with indentation
       categoryGroup.subGroups.forEach((subGroup, subIndex) => {
@@ -1038,10 +1019,10 @@ export const generatePicklistPDF = async (
           },
           margin: { top: headerHeight + headerMargin, left: margin, right: margin, bottom: 40 },
           didDrawPage: () => {
+            (pagesOrderData as any)[doc.getNumberOfPages() - 1] = orderData;
             addFooterToPage(doc, logoDataUrl || undefined, template.footerPosition);
             const currentPage = doc.getNumberOfPages();
-            const tempTotalPages = doc.getNumberOfPages();
-            addFullHeaderToPage(doc, currentPage, tempTotalPages, orderData, template);
+            addFullHeaderToPage(doc, currentPage, doc.getNumberOfPages(), orderData, template);
           },
         });
         
@@ -1058,6 +1039,7 @@ export const generatePicklistPDF = async (
                                       template.groupBy === 'sequenceSalesCategory';
       if (template.newCategoryOnNewPage && isSalesCategoryGrouping && groupIndex > 0) {
         doc.addPage();
+        (pagesOrderData as any)[doc.getNumberOfPages() - 1] = orderData;
         yPosition = headerHeight + headerMargin;
       }
       
@@ -1069,8 +1051,8 @@ export const generatePicklistPDF = async (
         yPosition += 3;
       }
       
-      // Group header - prominent with background box
-      if (template.groupBy) {
+      // Group header - only when showSubHeader is enabled (default: hidden to use space for rows)
+      if (template.showSubHeader && template.groupBy) {
         const groupBoxHeight = 6;
         doc.setFillColor(240, 245, 250);
         doc.setDrawColor(200, 210, 220);
@@ -1145,10 +1127,10 @@ export const generatePicklistPDF = async (
         },
         margin: { top: headerHeight + headerMargin, left: margin, right: margin, bottom: 40 },
         didDrawPage: () => {
+          (pagesOrderData as any)[doc.getNumberOfPages() - 1] = orderData;
           addFooterToPage(doc, logoDataUrl || undefined, template.footerPosition);
           const currentPage = doc.getNumberOfPages();
-          const tempTotalPages = doc.getNumberOfPages();
-          addFullHeaderToPage(doc, currentPage, tempTotalPages, orderData, template);
+          addFullHeaderToPage(doc, currentPage, doc.getNumberOfPages(), orderData, template);
         },
       });
       
@@ -1156,7 +1138,7 @@ export const generatePicklistPDF = async (
     });
   }
   
-  // Totals section at bottom (on last page only) - ensure enough space above footer
+  // Totals section at bottom (on last page of this order) - ensure enough space above footer
   let currentPage = doc.getNumberOfPages();
   doc.setPage(currentPage);
   
@@ -1183,6 +1165,7 @@ export const generatePicklistPDF = async (
   // If last content is too close to totals section, add a new page
   if (lastTableY > requiredYForDivider) {
     doc.addPage();
+    (pagesOrderData as any)[doc.getNumberOfPages() - 1] = orderData;
     currentPage = doc.getNumberOfPages();
     doc.setPage(currentPage);
     yPosition = headerHeight + headerMargin;
@@ -1203,34 +1186,29 @@ export const generatePicklistPDF = async (
   let leftYPos = totalsY;
   if (template.pickedByPosition === 'bottom' && template.showPickedBy !== false) {
     doc.text('Picked by:', margin, leftYPos);
-    // Add blank line for manual entry
     doc.setDrawColor(200, 200, 200);
     doc.line(margin + 25, leftYPos + 2, margin + 60, leftYPos + 2);
     leftYPos += 7;
   }
   if (template.checkedByPosition === 'bottom' && template.showCheckedBy !== false) {
     doc.text('Checked by:', margin, leftYPos);
-    // Add blank line for manual entry
     doc.setDrawColor(200, 200, 200);
     doc.line(margin + 30, leftYPos + 2, margin + 65, leftYPos + 2);
     leftYPos += 7;
   }
   if (template.showBundles !== false) {
     doc.text('Bundles:', margin, leftYPos);
-    // Add blank line for manual entry
     doc.setDrawColor(200, 200, 200);
     doc.line(margin + 25, leftYPos + 2, margin + 60, leftYPos + 2);
     leftYPos += 7;
   }
   
-  // Right side: Total Cartons/Pieces/Lines - only if enabled (fill-in-the-blank)
   let rightYPos = totalsY;
   if (template.showTotalCartons !== false) {
     const labelText = 'Total Cartons:';
     const labelWidth = doc.getTextWidth(labelText);
-    const labelX = pageWidth - margin - 40; // Position label to leave space for line
+    const labelX = pageWidth - margin - 40;
     doc.text(labelText, labelX, rightYPos);
-    // Add blank line for manual entry (beside the label)
     doc.setDrawColor(200, 200, 200);
     doc.line(labelX + labelWidth + 2, rightYPos + 2, pageWidth - margin, rightYPos + 2);
     rightYPos += 7;
@@ -1238,45 +1216,68 @@ export const generatePicklistPDF = async (
   if (template.showTotalPieces !== false) {
     const labelText = 'Total Pieces:';
     const labelWidth = doc.getTextWidth(labelText);
-    const labelX = pageWidth - margin - 40; // Position label to leave space for line
+    const labelX = pageWidth - margin - 40;
     doc.text(labelText, labelX, rightYPos);
-    // Add blank line for manual entry (beside the label)
     doc.setDrawColor(200, 200, 200);
     doc.line(labelX + labelWidth + 2, rightYPos + 2, pageWidth - margin, rightYPos + 2);
     rightYPos += 7;
   }
   if (template.showTotalLines !== false) {
-    const labelX = pageWidth - margin - 40; // Same starting position as other fields
+    const labelX = pageWidth - margin - 40;
     doc.text(`Total Lines: ${orderData.totals.totalLines}`, labelX, rightYPos);
     rightYPos += 5;
   }
-  
-  // Add footer and full header to all pages
+  } // end for each order
+
+  return { doc, pagesOrderData, template, logoDataUrl };
+};
+
+const finalizeAndOpenPicklistDoc = (
+  doc: jsPDF,
+  pagesOrderData: PicklistOrderData[],
+  template: PicklistTemplate,
+  logoDataUrl: string | null,
+  openAsPrint: boolean = true,
+  filename?: string,
+) => {
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     addFooterToPage(doc, logoDataUrl || undefined, template.footerPosition);
-    addFullHeaderToPage(doc, i, totalPages, orderData, template);
+    const orderDataForPage = (pagesOrderData as any)[i - 1];
+    addFullHeaderToPage(doc, i, totalPages, orderDataForPage || pagesOrderData[0], template);
   }
-  
-  // Open PDF in new window and trigger print dialog
   const pdfBlob = doc.output('blob');
   const pdfUrl = URL.createObjectURL(pdfBlob);
   const printWindow = window.open(pdfUrl, '_blank');
-  
-  if (printWindow) {
+  if (printWindow && openAsPrint) {
     printWindow.onload = () => {
       setTimeout(() => {
         printWindow.print();
-        // Clean up the blob URL after printing
         URL.revokeObjectURL(pdfUrl);
       }, 250);
     };
-  } else {
-    // Fallback: if popup blocked, download the file
-    const filename = `picklist-${orderData.orderNumber}-${orderData.invoiceNumber}.pdf`;
+  } else if (!openAsPrint && filename) {
     doc.save(filename);
+  } else if (!printWindow) {
+    const first = pagesOrderData[0];
+    doc.save(first ? `picklist-${first.orderNumber}.pdf` : 'picklist-bulk.pdf');
   }
+};
+
+// Generate Picklist PDF (single order)
+export const generatePicklistPDF = async (orderData: PicklistOrderData): Promise<void> => {
+  const { doc, pagesOrderData, template, logoDataUrl } = await buildPicklistDoc([orderData]);
+  finalizeAndOpenPicklistDoc(doc, pagesOrderData, template, logoDataUrl, true);
+};
+
+// Generate combined bulk picklist PDF (multiple orders in one doc, each order starts on a new page)
+export const generateBulkPicklistPDF = async (orderDataArray: PicklistOrderData[]): Promise<void> => {
+  if (!orderDataArray || orderDataArray.length === 0) {
+    throw new Error('No orders selected for bulk picklist.');
+  }
+  const { doc, pagesOrderData, template, logoDataUrl } = await buildPicklistDoc(orderDataArray);
+  finalizeAndOpenPicklistDoc(doc, pagesOrderData, template, logoDataUrl, true);
 };
 
 

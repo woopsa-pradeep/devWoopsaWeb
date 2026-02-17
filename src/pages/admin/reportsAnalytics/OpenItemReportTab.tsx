@@ -514,7 +514,8 @@ const OpenItemReportTab: React.FC = () => {
     }
 
     if (field.includes('Date')) {
-      if (value) return formatApiDate(String(value));
+      if (value instanceof Date) return formatApiDate(value.toISOString());
+      if (value != null && value !== '') return formatApiDate(String(value));
       return '';
     }
 

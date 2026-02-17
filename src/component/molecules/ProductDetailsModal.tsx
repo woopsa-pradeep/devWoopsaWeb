@@ -96,7 +96,7 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({ open, onClose
             >
               {product.name}
               <Chip
-                label={product.stock ?? 'Unknown'}
+                label={product.stock ?? '-'}
                 size="small"
                 sx={{
                   fontSize: '10px',

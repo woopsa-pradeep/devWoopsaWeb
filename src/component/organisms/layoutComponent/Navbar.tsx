@@ -31,7 +31,7 @@ import { useAppDispatch } from "../../../redux/store";
 import { fetchCartItems } from "../../../redux/slices/cartSlice";
 import { fetchSalesCartItems } from "../../../redux/slices/salesCartSlice";
 import { getCustomerList, setSalesSession } from "../../../redux/apis/sales/profileApis";
-import { setSelectedCustomer, updateSessionCustomer, setMultipleStores, logout, setAuthFromSwitchStore } from "../../../redux/slices/authSlice";
+import { setSelectedCustomer, updateSessionCustomer, setMultipleStores, logout, setAuthFromSwitchStore, setShowTradeShow } from "../../../redux/slices/authSlice";
 import { fetchNotificationCount } from "../../../redux/slices/notificationSlice";
 import { hasMultipleStore, switchStore } from "../../../redux/apis/retailer/dashboardApis";
 import { authLogout } from "../../../redux/apis/authAPIs";
@@ -62,9 +62,16 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
   const isTablet = useMediaQuery(theme.breakpoints.down("md"));
   const auth = useSelector((state: RootState) => state.auth);
   const cart = useSelector((state: RootState) => auth?.role === "retailer" ? state.cart : state.salesCart);
+  const retailerTradeShowCart = useSelector((state: RootState) => state.retailerTradeShowCart);
+  const salesTradeShowCart = useSelector((state: RootState) => state.salesTradeShowCart);
   const notification = useSelector((state: RootState) => state.notification);
   const navigate = useNavigate();
   const location = useLocation();
+  const isOnTradeShowRoute = location.pathname.startsWith("/retailer/trade-show");
+  const isOnSalesTradeShowRoute = location.pathname.startsWith("/sales/trade-show");
+  const retailerCartCount = isOnTradeShowRoute ? retailerTradeShowCart.count : cart.count;
+  const salesCartCount = isOnSalesTradeShowRoute ? salesTradeShowCart.count : cart.count;
+  const displayCartCount = auth?.role === "retailer" ? retailerCartCount : auth?.role === "sales" ? salesCartCount : cart.count;
   const dispatch = useAppDispatch();
   const currentCustomerId = useSelector((state: RootState) => state.auth.isSessionActive?.currentCustomerId);
   // State for customer list and loading
@@ -91,9 +98,12 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
   };
 
   // Fetch cart items and notification count on component mount
+  // Only fetch regular retailer cart when NOT on trade show route (avoid conflict with trade show cart)
   useEffect(() => {
     if (auth?.role === "retailer") {
-      dispatch(fetchCartItems());
+      if (!isOnTradeShowRoute) {
+        dispatch(fetchCartItems());
+      }
       // Fetch stories count
       fetchStoriesCount();
       
@@ -128,14 +138,16 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
         }
       }
     } else if (auth?.role === "sales") {
-      dispatch(fetchSalesCartItems());
+      if (!isOnSalesTradeShowRoute) {
+        dispatch(fetchSalesCartItems());
+      }
     }
     
     // Fetch notification count for retailer users only
     if (auth?.role === "retailer") {
       dispatch(fetchNotificationCount());
     }
-  }, [dispatch, auth?.role, auth?.isAuthenticated, auth?.emailPhone]);
+  }, [dispatch, auth?.role, auth?.isAuthenticated, auth?.emailPhone, isOnTradeShowRoute, isOnSalesTradeShowRoute]);
 
   // Fetch customer list for sales users
   useEffect(() => {
@@ -156,8 +168,9 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
             setSalesSession(currentCustomer.C_Number.toString()).then((sessionResponse: any) => {
               if (sessionResponse && typeof sessionResponse === 'object' && 'data' in sessionResponse) {
                 const responseData = sessionResponse as any;
-                if (responseData.data?.data) {
-                  const storeDetails = responseData.data.data;
+                const sessionData = responseData.data?.data ?? responseData.data;
+                if (sessionData) {
+                  const storeDetails = sessionData;
                   dispatch({
                     type: 'auth/updateStoreDetails',
                     payload: {
@@ -169,13 +182,16 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                       C_State: storeDetails.C_State,
                       C_Phone: storeDetails.C_Phone,
                       LastBalance: storeDetails.LastBalance,
-                      C_OrderDay: storeDetails.C_OrderDay, 
+                      C_OrderDay: storeDetails.C_OrderDay,
                       Routes: storeDetails.Routes,
                       salesRep: storeDetails.salesRep,
                       C_Zip: storeDetails.C_Zip,
                       Jurisdiction_State: storeDetails.Jurisdiction_State,
                     }
                   });
+                  if (typeof storeDetails.showTradeShow === 'boolean') {
+                    dispatch(setShowTradeShow(storeDetails.showTradeShow));
+                  }
                 }
               }
             }).catch((error: any) => {
@@ -204,8 +220,9 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
         setSalesSession(currentCustomer.C_Number.toString()).then((sessionResponse: any) => {
           if (sessionResponse && typeof sessionResponse === 'object' && 'data' in sessionResponse) {
             const responseData = sessionResponse as any;
-            if (responseData.data?.data) {
-              const storeDetails = responseData.data.data;
+            const sessionData = responseData.data?.data ?? responseData.data;
+            if (sessionData) {
+              const storeDetails = sessionData;
               dispatch({
                 type: 'auth/updateStoreDetails',
                 payload: {
@@ -224,6 +241,9 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                   Jurisdiction_State: storeDetails.Jurisdiction_State,
                 }
               });
+              if (typeof storeDetails.showTradeShow === 'boolean') {
+                dispatch(setShowTradeShow(storeDetails.showTradeShow));
+              }
             }
           }
         }).catch((error: any) => {
@@ -369,9 +389,9 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
           // Update store details with the response from setSalesSession
           if (sessionResponse && typeof sessionResponse === 'object' && 'data' in sessionResponse) {
             const responseData = sessionResponse as any;
-            if (responseData.data?.data) {
-              const storeDetails = responseData.data.data;
-              // Update the store details in Redux state
+            const sessionData = responseData.data?.data ?? responseData.data;
+            if (sessionData) {
+              const storeDetails = sessionData;
               dispatch({
                 type: 'auth/updateStoreDetails',
                 payload: {
@@ -390,13 +410,16 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                   Jurisdiction_State: storeDetails.Jurisdiction_State,
                 }
               });
+              if (typeof storeDetails.showTradeShow === 'boolean') {
+                dispatch(setShowTradeShow(storeDetails.showTradeShow));
+              }
             }
           }
           
-          // Refresh the page after a short delay to ensure state updates are processed
-          setTimeout(() => {
-            // window.location.reload();
-          }, 100);
+          // When sales user changes retailer, redirect to dashboard
+          if (auth?.role === "sales") {
+            navigate("/sales/dashboard");
+          }
         }else{
 
           setSalesSession(selectedCustomer .C_Number.toString()).then((sessionResponse: any) => {
@@ -405,11 +428,10 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
 
               const responseData = sessionResponse as any;
 
-              if (responseData.data?.data) {
+              const sessionData = responseData.data?.data ?? responseData.data;
+              if (sessionData) {
 
-                const storeDetails = responseData.data.data;
-
-                console.log(storeDetails,'store details');
+                const storeDetails = sessionData;
 
                 dispatch({
 
@@ -446,7 +468,9 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                   }
 
                 });
-
+                if (typeof storeDetails.showTradeShow === 'boolean') {
+                  dispatch(setShowTradeShow(storeDetails.showTradeShow));
+                }
               }
 
             }
@@ -1021,17 +1045,25 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
               }
             }
             
-            // Check if user is already on a cart page
-            const isOnCartPage = auth?.role === "retailer" 
-              ? location.pathname.includes('/retailer/cart')
-              : location.pathname.includes('/sales/cart') || location.pathname.includes('/sales/return-cart');
-            
+            // Check if user is already on a cart page (regular cart or trade show cart)
+            const isOnCartPage = auth?.role === "retailer"
+              ? location.pathname === "/retailer/cart" || location.pathname.includes("/retailer/trade-show/cart")
+              : location.pathname.includes('/sales/cart') || location.pathname.includes('/sales/return-cart') || location.pathname.includes('/sales/trade-show/cart');
+
             return (
-              <IconButton 
-                color="primary" 
+              <IconButton
+                color="primary"
                 onClick={() => {
-                  // Transform cart items to match the validation function interface
-                  const cartItemsForValidation = cart.items.map(item => ({
+                  if (auth?.role === "retailer" && isOnTradeShowRoute) {
+                    navigate("/retailer/trade-show/cart");
+                    return;
+                  }
+                  if (auth?.role === "sales" && isOnSalesTradeShowRoute) {
+                    navigate("/sales/trade-show/cart");
+                    return;
+                  }
+                  // Transform cart items to match the validation function interface (regular cart)
+                  const cartItemsForValidation = cart.items.map((item: any) => ({
                     id: item.Description,
                     quantity: item.Product.Qty,
                     price: item.price,
@@ -1040,19 +1072,16 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                     productLimit: item.productLimit || null
                   }));
 
-                  // Prepare validation data
                   const validationData = {
                     userLimitMinOrderAmount: cart.userLimitMinOrderAmount,
                     totalAmountWithTax: cart.totalAmountWithTax,
                     totalAmount: cart.totalAmount
                   };
 
-                  // Validate cart before navigating
                   if (validateCartForCheckout(cartItemsForValidation, validationData)) {
                     if (auth?.role === "retailer") {
                       navigate('/retailer/cart');
                     } else if (auth?.role === "sales") {
-                      // Check if user is on return order page, redirect to return cart
                       const isOnReturnOrderPage = location.pathname.includes('/sales/return-order');
                       navigate(isOnReturnOrderPage ? '/sales/return-cart' : '/sales/cart');
                     } else {
@@ -1066,7 +1095,7 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                   cursor: isOnCartPage ? 'not-allowed' : 'pointer',
                 }}
               >
-                <CartIcon count={cart.count} />
+                <CartIcon count={displayCartCount} />
               </IconButton>
             );
           })()}

@@ -15,11 +15,11 @@ import {
   DialogActions,
   Button,
 } from '@mui/material';
-import { productList, productListWithTax } from '../../../redux/apis/distrubutor/productApis';
+import { productList, productListWithTax, getProductsByOrderNumber } from '../../../redux/apis/distrubutor/productApis';
 import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
 import SearchableDropdown from '../../../component/atoms/SearchableDropdown';
 import { getSalesCategoryList, getPriceClassList, getCustomerList } from '../../../redux/apis/distrubutor/listApis';
-import { getOrderNumbers, getOrderHistoryByOrderNumber } from '../../../redux/apis/distrubutor/orderDistrubutorApis';
+import { getOrderNumbers } from '../../../redux/apis/distrubutor/orderDistrubutorApis';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import img from '../../../assets/Default-Product-Image.jpg';
 import CustomButton from '../../../component/atoms/CustomButton';
@@ -244,68 +244,32 @@ const InventoryLabelTab = () => {
 
     setLoadingOrderProducts(true);
     try {
-      // Step 1: Get order items from order API
-      const response = await getOrderHistoryByOrderNumber(orderNumber, 1, 200) as any;
-      const orderItems = response?.data?.data || [];
-      
-      // Step 2: Extract unique item numbers from order
-      const itemNumbers = orderItems
-        .map((item: any) => {
-          const inventory = item.inventory || {};
-          return inventory.Item_Number?.toString() || item.Item_Number?.toString();
-        })
-        .filter((itemNum: string) => itemNum && itemNum !== 'undefined' && itemNum !== 'null')
-        .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index); // Remove duplicates
-      
-      if (itemNumbers.length === 0) {
-        toast.error('No items found in order');
+      const orderNum = Number(orderNumber);
+      if (Number.isNaN(orderNum)) {
+        toast.error('Invalid order number');
         setOrderProducts([]);
         setLoadingOrderProducts(false);
         return;
       }
 
-      // Step 3: Fetch products from main productList API one by one using search parameter
-      // Search for each item number individually
-      const allProducts: Product[] = [];
-      
-      for (const itemNumber of itemNumbers) {
-        try {
-          const params: Record<string, unknown> = {
-            search: itemNumber,
-            page: 1,
-            limit: 5,
-            salesCategoryId: [],
-            priceClassId: [],
-            I_Inactive: false,
-            ShortOrderForm: true,
-          };
-          if (selectedCustomer) {
-            params.customerId = Number(selectedCustomer);
-          }
-          const apiCall = selectedCustomer ? productListWithTax : productList;
-          const res: any = await apiCall(params);
-          const products: Product[] = res?.data?.data?.finalProductList || [];
-          
-          // Filter to find exact match for this item number
-          const matchedProduct = products.find((product: Product) => 
-            product.Item_Number?.toString() === itemNumber
-          );
-          
-          if (matchedProduct) {
-            allProducts.push(matchedProduct);
-          }
-        } catch (error) {
-          console.error(`Error fetching product for item number ${itemNumber}:`, error);
-          // Continue with next item even if one fails
-        }
-      }
-      
-      setOrderProducts(allProducts);
-      
-      if (allProducts.length === 0) {
-        toast.error('No matching products found in main listing');
+      const response = await getProductsByOrderNumber({
+        orderNumbers: [orderNum],
+        customerId: selectedCustomer ? Number(selectedCustomer) : null,
+      }) as any;
+
+      const allProducts: Product[] = response?.data?.data?.finalProductList
+        ?? response?.data?.data
+        ?? response?.data?.finalProductList
+        ?? response?.data
+        ?? [];
+      const list = Array.isArray(allProducts) ? allProducts : [];
+
+      setOrderProducts(list);
+
+      if (list.length === 0) {
+        toast.error('No products found for this order');
       } else {
-        toast.success(`Loaded ${allProducts.length} product(s) from order`);
+        toast.success(`Loaded ${list.length} product(s) from order`);
       }
     } catch (error) {
       console.error('Error fetching order products:', error);

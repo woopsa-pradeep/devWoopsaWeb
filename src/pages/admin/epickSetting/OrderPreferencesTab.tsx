@@ -468,7 +468,8 @@ const OrderPreferencesTab: React.FC = () => {
                   { label: 'Item Number', value: 'item_number' },
                   { label: 'Short Number', value: 'short_number' },
                   { label: 'Line Number', value: 'line_number' },
-                  { label: 'Sales Section Location', value: 'sales_section_location' },
+                  { label: 'Sales + Section Location', value: 'sales_section_location' },
+                  { label: 'Alphabetically + Section Location', value: 'alphabetically_section_location' },
                 ]}
                 value={itemSortBy}
                 onChange={(e) => setItemSortBy(e.target.value as string)}

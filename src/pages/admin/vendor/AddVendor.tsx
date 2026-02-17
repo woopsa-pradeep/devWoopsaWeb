@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -30,7 +30,9 @@ import toast from 'react-hot-toast';
 
 const AddVendor: React.FC = () => {
   const { vendorId } = useParams<{ vendorId?: string }>();
+  const location = useLocation();
   const isEditMode = !!vendorId;
+  const vendorListPath = location.pathname.startsWith('/sales') ? '/sales/vendor' : '/admin/vendors';
   const [submitting, setSubmitting] = useState(false);
   const [originalData, setOriginalData] = useState<any>(null);
   const [termsOptions, setTermsOptions] = useState<Array<{ label: string; value: string }>>([]);
@@ -260,7 +262,7 @@ const AddVendor: React.FC = () => {
         const response = await updateVendor(vendorId, changedFields) as any;
         if (response?.success) {
           toast.success(response?.message || 'Vendor updated successfully!');
-          navigate('/admin/vendors');
+          navigate(vendorListPath);
         } else {
           toast.error(response?.message || 'Failed to update vendor');
         }
@@ -268,7 +270,7 @@ const AddVendor: React.FC = () => {
         const response = await createVendor(data) as any;
         if (response?.success) {
           toast.success(response?.message || 'Vendor created successfully!');
-          navigate('/admin/vendors');
+          navigate(vendorListPath);
         } else {
           toast.error(response?.message || 'Failed to create vendor');
         }
@@ -1408,7 +1410,7 @@ const AddVendor: React.FC = () => {
                           type="button"
                           buttonType="cancel"
                           appearance="outlined"
-                          onClick={() => navigate('/admin/vendors')}
+                          onClick={() => navigate(vendorListPath)}
                           sx={{ minWidth: 120 }}
                           fullWidth={false}
                         >

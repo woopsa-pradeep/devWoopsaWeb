@@ -88,6 +88,23 @@ export const AccountReceivableRetailer = lazyLoad(
   () => import("../pages/retailer/AccountReceivableRetailer"),
   "Loading Account Receivable Retailer..."
 );
+export const RetailerTradeShow = lazyLoad(
+  () => import("../pages/retailer/tradeShow/RetailerTradeShow"),
+  "Loading Trade Show..."
+);
+export const RetailerTradeShowCart = lazyLoad(
+  () => import("../pages/retailer/tradeShow/RetailerTradeShowCart"),
+  "Loading Trade Show Cart..."
+);
+
+export const SalesTradeShow = lazyLoad(
+  () => import("../pages/sales/tradeShow/SalesTradeShow"),
+  "Loading Trade Show..."
+);
+export const SalesTradeShowCart = lazyLoad(
+  () => import("../pages/sales/tradeShow/SalesTradeShowCart"),
+  "Loading Trade Show Cart..."
+);
 
 // admin
 export const AdminDashboard = lazyLoad(
@@ -173,7 +190,7 @@ export const AdminOrderDetail = lazyLoad(
 );
 export const AdminCalender = lazyLoad(
   () => import("../pages/admin/calender/DistrubutorCalender"),
-  "Loading Admin Calender..."
+  "Loading Admin Calendar..."
 );
 export const DistributorStatusView = lazyLoad(
   () => import("../pages/admin/calender/DistributorStatusView"),
@@ -198,6 +215,18 @@ export const FuturePricing = lazyLoad(
 export const ReportsAnalytics = lazyLoad(
   () => import("../pages/admin/reportsAnalytics/ReportsAnalytics"),
   "Loading Reports Analytics..."
+);
+export const TradeshowManagement = lazyLoad(
+  () => import("../pages/admin/tradeshowManagement/TradeshowManagement"),
+  "Loading Tradeshow Management..."
+);
+export const CreateTradeshow = lazyLoad(
+  () => import("../pages/admin/tradeshowManagement/CreateTradeshow"),
+  "Loading Create Tradeshow..."
+);
+export const TradeshowSummaryView = lazyLoad(
+  () => import("../pages/admin/tradeshowManagement/TradeshowSummaryView"),
+  "Loading Summary..."
 );
 // sales
 export const SalesDashboard = lazyLoad(
@@ -264,7 +293,7 @@ export const SalesOrderConfirmationDetail = lazyLoad(
 );
 export const SalesCalenderPage = lazyLoad(
   () => import("../pages/sales/calender/salesCalender"),
-  "Loading Sales Calender..."
+  "Loading Sales Calendar..."
 );
 export const OrderChecker = lazyLoad(
   () => import("../pages/sales/checker/OrderChecker"),
@@ -273,7 +302,7 @@ export const OrderChecker = lazyLoad(
 
 export const SalesCalenderViewPage = lazyLoad(
   () => import("../pages/sales/calender/SalesStatusView"),
-  "Loading Sales Calender View..."
+  "Loading Sales Calendar View..."
 );
 
 

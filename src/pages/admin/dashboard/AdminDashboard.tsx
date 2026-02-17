@@ -33,16 +33,18 @@ import {
   Legend,
   ComposedChart,
   Line,
+  ReferenceLine,
 } from "recharts";
 import DashboardCard from "../../../component/atoms/dashboard/DashboardCard";
-import CommonTable, {
+import DashboardTable, {
   TableColumn,
-} from "../../../component/atoms/Table/CommonTable";
+} from "../../../component/atoms/dashboard/DashboardTable";
 import RetailersIcon from "../../../assets/retailerGlobalActive.svg";
 import ItemsIcon from "../../../assets/Menu Icon (2).svg";
 import OrdersIcon from "../../../assets/orderItems.svg";
 import { getDistributorDashboard, getEpickDashboard, getHighDemandItems } from "../../../redux/apis/dashboardApis";
 import { getShortShipmentReport } from "../../../redux/apis/distrubutor/listApis";
+import { getCurrentOrderStatusReport, getCurrentOrderDetailStatus, getInvoiceRegister } from "../../../redux/apis/distrubutor/reportsApis";
 import { useNavigate } from "react-router-dom";
 import CustomDatePicker from "../../../component/atoms/CustomDatePicker";
 import dayjs from "dayjs";
@@ -52,6 +54,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PendingIcon from "@mui/icons-material/Pending";
 import PersonIcon from "@mui/icons-material/Person";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import CommonModal from "../../../component/atoms/CommonModal";
 import { PictureAsPdf as PdfIcon } from "@mui/icons-material";
 import { useSelector } from "react-redux";
@@ -164,6 +167,37 @@ interface EpickDashboardData {
   };
 }
 
+interface CurrentOrderStatusReportOrder {
+  Order_Number: number;
+  Invoice_Number?: number;
+  Invoice_Date?: string;
+  Invoice_Total?: number;
+  Picklist_Printed?: boolean;
+  Order_Date?: string;
+  Delivery_Date?: string;
+  Order_Source?: number;
+  C_Number?: number;
+  S_Number?: number;
+  Route_Number?: number;
+  Stop_Number?: number;
+  Invoice_Number_Legacy?: number;
+  Document_Number?: string;
+  total_item_quantity?: number;
+  total_line_number?: number;
+  customer?: { C_Number?: number; C_Name?: string; C_CoName?: string; C_Address?: string; C_City?: string; C_State?: string; C_Zip?: string; C_PhoneMobile?: string };
+  salesRep?: { S_Number?: number; S_Desc?: string };
+  repName?: string;
+  sourceName?: string;
+}
+
+interface CurrentOrderStatusReport {
+  invoices: CurrentOrderStatusReportOrder[];
+  non_invoices: CurrentOrderStatusReportOrder[];
+  picklist: CurrentOrderStatusReportOrder[];
+  orderConfirmation: CurrentOrderStatusReportOrder[];
+  recordLocks: CurrentOrderStatusReportOrder[];
+}
+
 const AdminDashboard = () => {
   const theme = useTheme();
   // const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -191,6 +225,15 @@ const AdminDashboard = () => {
   const [lossQtyModalPageSize, setLossQtyModalPageSize] = useState(50);
   const wareHouseDetail = useSelector((state: RootState) => state.auth.wareHouseDetail);
   const [userPerformanceViewMode, setUserPerformanceViewMode] = useState<"table" | "graph">("table");
+  const [currentOrderStatusData, setCurrentOrderStatusData] = useState<CurrentOrderStatusReport | null>(null);
+  const [currentOrderStatusLoading, setCurrentOrderStatusLoading] = useState(false);
+  const [currentOrderStatusViewMode, setCurrentOrderStatusViewMode] = useState<Partial<Record<keyof CurrentOrderStatusReport, "table" | "graph">>>({});
+  const [orderDetailModalOpen, setOrderDetailModalOpen] = useState(false);
+  const [orderDetailModalData, setOrderDetailModalData] = useState<any[]>([]);
+  const [invoiceRegisterData, setInvoiceRegisterData] = useState<any[]>([]);
+  const [invoiceRegisterLoading, setInvoiceRegisterLoading] = useState(false);
+  const [orderDetailModalLoading, setOrderDetailModalLoading] = useState(false);
+  const [orderDetailModalOrderId, setOrderDetailModalOrderId] = useState<number | string | null>(null);
   const navigate = useNavigate();
   const [averageTimePerQtyViewMode, setAverageTimePerQtyViewMode] = useState<"table" | "graph">("graph");
   const [scannedQtyViewMode, setScannedQtyViewMode] = useState<"table" | "graph">("graph");
@@ -262,6 +305,384 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchLossQtyData();
   }, [startDate, endDate]);
+
+  const fetchCurrentOrderStatus = async () => {
+    try {
+      setCurrentOrderStatusLoading(true);
+      const start = startDate?.format("YYYY-MM-DD") || "";
+      const end = endDate?.format("YYYY-MM-DD") || "";
+      const response = await getCurrentOrderStatusReport(start, end) as any;
+      const raw = response?.data?.data ?? response?.data ?? response ?? {};
+      setCurrentOrderStatusData({
+        invoices: Array.isArray(raw.invoices) ? raw.invoices : [],
+        non_invoices: Array.isArray(raw.non_invoices) ? raw.non_invoices : [],
+        picklist: Array.isArray(raw.picklist) ? raw.picklist : [],
+        orderConfirmation: Array.isArray(raw.orderConfirmation) ? raw.orderConfirmation : [],
+        recordLocks: Array.isArray(raw.recordLocks) ? raw.recordLocks : [],
+      });
+    } catch (error) {
+      console.error("Error fetching current order status:", error);
+      setCurrentOrderStatusData(null);
+    } finally {
+      setCurrentOrderStatusLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCurrentOrderStatus();
+  }, [startDate, endDate]);
+
+  const handleOpenOrderDetail = async (orderId: number | string) => {
+    setOrderDetailModalOrderId(orderId);
+    setOrderDetailModalOpen(true);
+    setOrderDetailModalData([]);
+    setOrderDetailModalLoading(true);
+    try {
+      const response = await getCurrentOrderDetailStatus(orderId) as any;
+      const items = response?.data?.data ?? response?.data ?? response ?? [];
+      setOrderDetailModalData(Array.isArray(items) ? items : []);
+    } catch (error) {
+      console.error("Error fetching order detail:", error);
+      toast.error("Failed to load order details");
+      setOrderDetailModalData([]);
+    } finally {
+      setOrderDetailModalLoading(false);
+    }
+  };
+
+  const handleCloseOrderDetailModal = () => {
+    setOrderDetailModalOpen(false);
+    setOrderDetailModalOrderId(null);
+    setOrderDetailModalData([]);
+  };
+
+  // Format amount for Invoice Register: negative in parentheses, 2 decimals
+  const formatInvoiceAmount = (n: number): string => {
+    const x = Number(n) || 0;
+    if (x < 0) return `(${Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+    return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // Generate Invoice Register PDF and open print dialog (all users or filtered by userName)
+  const generateInvoiceRegisterPDFAndPrint = async (data: any[], filterByUserName?: string | null) => {
+    const rows = filterByUserName ? data.filter((r: any) => (r.userName ?? "") === filterByUserName) : data;
+    if (rows.length === 0) {
+      toast.error("No invoice register data to generate report");
+      return;
+    }
+
+    const logoDataUrl = await loadLogoAsDataUrl();
+    const doc = new jsPDF("landscape", "mm", "a4");
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 10;
+
+    const distributor = wareHouseDetail?.[0];
+    const distributorName = distributor?.D_Name || "";
+    const distributorAddress = [
+      distributor?.D_Addr1,
+      distributor?.D_City,
+      distributor?.D_State,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const distributorPhone = distributor?.D_Phone || "";
+
+    const addFirstPageHeader = (_pageNum: number) => {
+      const rightX = pageWidth - margin;
+      let leftY = 8;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      // Left: warehouse / company details only
+      if (distributorName) {
+        doc.setFont("helvetica", "bold");
+        doc.text(distributorName, margin, leftY);
+        leftY += 4;
+      }
+      if (distributorAddress) {
+        doc.setFont("helvetica", "normal");
+        doc.text(distributorAddress, margin, leftY);
+        leftY += 4;
+      }
+      if (distributorPhone) doc.text(distributorPhone, margin, leftY);
+
+      // Right: date, title, Lane / User (all dates MM/DD/YYYY)
+      const reportDate = dayjs().format("MM/DD/YYYY");
+      doc.setFontSize(8);
+      doc.text(reportDate, rightX, 8, { align: "right" });
+      doc.setFont("helvetica", "bold");
+      doc.text("Invoice Register (User Totals)", rightX, 13, { align: "right" });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      const scopeText = filterByUserName ? `User = ${filterByUserName}` : "User = All";
+      doc.text(scopeText, rightX, 18, { align: "right" });
+    };
+
+    const addFooterToPage = (_pageNum: number) => {
+      const footerY = pageHeight - 8;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 100, 100);
+      const text = "Report generated by Woopsa";
+      doc.text(text, margin, footerY);
+      if (logoDataUrl) {
+        try {
+          const tw = doc.getTextWidth(text);
+          doc.addImage(logoDataUrl, "PNG", margin + tw + 1.5, footerY - 3, 4, 4);
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    const headers = [
+      "doc #",
+      "Date",
+      "User",
+      "Lane",
+      "Customer Number / Name",
+      "Amount",
+      "Cash",
+      "Check",
+      "Credit",
+      "Other",
+      "House Charge",
+    ];
+
+    const groupByUser = new Map<string, any[]>();
+    for (const r of rows) {
+      const key = r.userName ?? String(r.User_ID ?? "");
+      if (!groupByUser.has(key)) groupByUser.set(key, []);
+      groupByUser.get(key)!.push(r);
+    }
+
+    type TableCell = string | number | { content: string; colSpan?: number; styles?: Record<string, unknown> };
+    const bodyRows: TableCell[][] = [];
+    const totalsRowIndices: number[] = [];
+    let grandAmount = 0,
+      grandCash = 0,
+      grandCheck = 0,
+      grandCredit = 0,
+      grandOther = 0,
+      grandHouse = 0;
+
+    const custName = (r: any) => {
+      const num = r.C_Number ?? r["customer.C_Number"];
+      const name = r["customer.C_Name"] ?? "";
+      return name ? `${num || ""} ${name}`.trim() : (num ?? "-") + "";
+    };
+
+    const userSectionRowIndices: number[] = [];
+    for (const [userName, userRows] of Array.from(groupByUser.entries())) {
+      userSectionRowIndices.push(bodyRows.length);
+      bodyRows.push([
+        {
+          content: `USER: ${userName || "-"}`,
+          colSpan: 11,
+          styles: { fontStyle: "bold", fillColor: [240, 240, 240] },
+        },
+      ]);
+      let sumAmount = 0,
+        sumCash = 0,
+        sumCheck = 0,
+        sumCredit = 0,
+        sumOther = 0,
+        sumHouse = 0;
+      for (const r of userRows) {
+        const amt = Number(r.Invoice_Total) || 0;
+        const cash = Number(r.POS_Cash) || 0;
+        const check = Number(r.POS_Check) || 0;
+        const credit = Number(r.POS_Credit) || 0;
+        const other = Number(r.POS_Other) || 0;
+        const house = Number(r.POS_House) || 0;
+        sumAmount += amt;
+        sumCash += cash;
+        sumCheck += check;
+        sumCredit += credit;
+        sumOther += other;
+        sumHouse += house;
+        const dateStr = r.Invoice_Date ? dayjs(r.Invoice_Date).format("MM/DD/YYYY") : "-";
+        bodyRows.push([
+          r.Document_Number ?? r.Order_Number ?? "-",
+          dateStr,
+          r.userName ?? r.User_ID ?? "-",
+          r.Workstation_ID ?? r.workstationName ?? "-",
+          custName(r),
+          formatInvoiceAmount(amt),
+          formatInvoiceAmount(cash),
+          formatInvoiceAmount(check),
+          formatInvoiceAmount(credit),
+          formatInvoiceAmount(other),
+          formatInvoiceAmount(house),
+        ]);
+      }
+      grandAmount += sumAmount;
+      grandCash += sumCash;
+      grandCheck += sumCheck;
+      grandCredit += sumCredit;
+      grandOther += sumOther;
+      grandHouse += sumHouse;
+      totalsRowIndices.push(bodyRows.length);
+      bodyRows.push([
+        "TOTALS:",
+        "",
+        "",
+        "",
+        "",
+        formatInvoiceAmount(sumAmount),
+        formatInvoiceAmount(sumCash),
+        formatInvoiceAmount(sumCheck),
+        formatInvoiceAmount(sumCredit),
+        formatInvoiceAmount(sumOther),
+        formatInvoiceAmount(sumHouse),
+      ]);
+    }
+
+    if (!filterByUserName) {
+      totalsRowIndices.push(bodyRows.length);
+      bodyRows.push([
+        "REPORT TOTALS:",
+        "",
+        "",
+        "",
+        "",
+        formatInvoiceAmount(grandAmount),
+        formatInvoiceAmount(grandCash),
+        formatInvoiceAmount(grandCheck),
+        formatInvoiceAmount(grandCredit),
+        formatInvoiceAmount(grandOther),
+        formatInvoiceAmount(grandHouse),
+      ]);
+    }
+
+    let firstPageHeaderDone = false;
+    const firstPageHeaderHeight = 28;
+
+    const tableWidth = pageWidth - 2 * margin;
+    // Column width % for landscape: enough width for REPORT TOTALS (e.g. 2,600,325.85) without wrapping
+    const colPct = [11, 10, 10, 5, 17, 12, 7, 7, 7, 7, 7]; // Amount 12% so REPORT TOTALS (e.g. 2,600,325.85) fits
+    const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
+    autoTableFn(doc, {
+      head: [headers],
+      body: bodyRows,
+      startY: firstPageHeaderHeight,
+      margin: { left: margin, right: margin },
+      tableWidth,
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [60, 60, 60], textColor: 255, fontStyle: "bold" },
+      columnStyles: {
+        0: { cellWidth: (tableWidth * colPct[0]) / 100, overflow: "ellipsize" },
+        1: { cellWidth: (tableWidth * colPct[1]) / 100 },
+        2: { cellWidth: (tableWidth * colPct[2]) / 100 },
+        3: { cellWidth: (tableWidth * colPct[3]) / 100 },
+        4: { cellWidth: (tableWidth * colPct[4]) / 100, overflow: "linebreak" },
+        5: { cellWidth: (tableWidth * colPct[5]) / 100, halign: "right" },
+        6: { cellWidth: (tableWidth * colPct[6]) / 100, halign: "right" },
+        7: { cellWidth: (tableWidth * colPct[7]) / 100, halign: "right" },
+        8: { cellWidth: (tableWidth * colPct[8]) / 100, halign: "right" },
+        9: { cellWidth: (tableWidth * colPct[9]) / 100, halign: "right" },
+        10: { cellWidth: (tableWidth * colPct[10]) / 100, halign: "right" },
+      },
+      didParseCell: (data: any) => {
+        if (data.section === "head") {
+          if (data.column.index >= 5) data.cell.styles.halign = "right";
+          return;
+        }
+        if (data.section !== "body") return;
+        if (totalsRowIndices.includes(data.row.index)) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = [0, 0, 0];
+          if (data.column.index === 0) data.cell.styles.overflow = "hidden";
+        }
+        if (userSectionRowIndices.includes(data.row.index)) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [240, 240, 240];
+        }
+      },
+      didDrawPage: (data: any) => {
+        if (data.pageNumber === 1 && !firstPageHeaderDone) {
+          addFirstPageHeader(1);
+          firstPageHeaderDone = true;
+        }
+        doc.setFontSize(7);
+        doc.text(`Page ${data.pageNumber}`, pageWidth - margin, pageHeight - 8, { align: "right" });
+        addFooterToPage(data.pageNumber);
+      },
+      showHead: "everyPage",
+    });
+
+    doc.autoPrint();
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url, "_blank");
+    if (printWindow) {
+      printWindow.onload = () => {
+        try {
+          printWindow.print();
+        } catch {
+          // ignore
+        }
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      URL.revokeObjectURL(url);
+      doc.save(`invoice-register-${dayjs().format("YYYY-MM-DD")}.pdf`);
+    }
+  };
+
+  // View Report: fetch invoice register, generate PDF for all users, open print (no modal)
+  const handleViewInvoiceRegisterReport = async () => {
+    setInvoiceRegisterLoading(true);
+    try {
+      const start = startDate?.format("YYYY-MM-DD") ?? "";
+      const end = endDate?.format("YYYY-MM-DD") ?? "";
+      const response = (await getInvoiceRegister(start, end)) as any;
+      const items = response?.data?.data ?? response?.data ?? response ?? [];
+      const data = Array.isArray(items) ? items : [];
+      setInvoiceRegisterData(data);
+      if (data.length === 0) {
+        toast.error("No invoice register data for the selected date range");
+        return;
+      }
+      await generateInvoiceRegisterPDFAndPrint(data, null);
+    } catch (error) {
+      console.error("Error fetching invoice register:", error);
+      toast.error("Failed to load invoice register");
+    } finally {
+      setInvoiceRegisterLoading(false);
+    }
+  };
+
+  // View report for a single user (filter on frontend, then generate PDF and print)
+  const handleViewInvoiceReportForUser = async (userName: string) => {
+    const getData = async (): Promise<any[]> => {
+      if (invoiceRegisterData.length > 0) {
+        return invoiceRegisterData;
+      }
+      const start = startDate?.format("YYYY-MM-DD") ?? "";
+      const end = endDate?.format("YYYY-MM-DD") ?? "";
+      const response = (await getInvoiceRegister(start, end)) as any;
+      const items = response?.data?.data ?? response?.data ?? response ?? [];
+      const data = Array.isArray(items) ? items : [];
+      setInvoiceRegisterData(data);
+      return data;
+    };
+    setInvoiceRegisterLoading(true);
+    try {
+      const data = await getData();
+      const filtered = data.filter((r: any) => (r.userName ?? "") === userName);
+      if (filtered.length === 0) {
+        toast.error(`No invoice data found for user "${userName}"`);
+        return;
+      }
+      await generateInvoiceRegisterPDFAndPrint(data, userName);
+    } catch (error) {
+      console.error("Error generating user invoice report:", error);
+      toast.error("Failed to generate report");
+    } finally {
+      setInvoiceRegisterLoading(false);
+    }
+  };
 
   // Merge loss qty by product (Item_Number): one row per product with summed Loss_Qty and Ext_Loss
   const lossQtyMergedData = useMemo(() => {
@@ -1031,7 +1452,7 @@ const AdminDashboard = () => {
       id: "item",
       label: "Item Name",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="text.primary">
+        <Typography fontSize={12} fontWeight={500} color="text.primary">
           {row.inventory.Description}
         </Typography>
       ),
@@ -1040,7 +1461,7 @@ const AdminDashboard = () => {
       id: "itemNumber",
       label: "Item Number",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.Item_Number}
         </Typography>
       ),
@@ -1049,7 +1470,7 @@ const AdminDashboard = () => {
       id: "quantity",
       label: "Quantity Ordered",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="primary.main">
+        <Typography fontSize={12} fontWeight={500} color="primary.main">
           {row.totalQuantityOrdered.toLocaleString()}
         </Typography>
       ),
@@ -1058,7 +1479,7 @@ const AdminDashboard = () => {
       id: "orders",
       label: "Order Count",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.orderCount}
         </Typography>
       ),
@@ -1067,7 +1488,7 @@ const AdminDashboard = () => {
       id: "pack",
       label: "Pack",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.inventory.Pack}
         </Typography>
       ),
@@ -1076,10 +1497,168 @@ const AdminDashboard = () => {
       id: "caseCount",
       label: "Case Count",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.inventory.CaseCount} {row.inventory.UOM}
         </Typography>
       ),
+    },
+  ];
+
+  const currentOrderStatusLimit = 10;
+  const CURRENT_ORDER_STATUS_SECTIONS: { key: keyof CurrentOrderStatusReport; label: string }[] = [
+    { key: "invoices", label: "Invoiced" },
+    { key: "non_invoices", label: "Non Invoiced" },
+    { key: "picklist", label: "Picklist" },
+    { key: "orderConfirmation", label: "Order Confirmed" },
+    { key: "recordLocks", label: "Order in Progress" },
+  ];
+
+  const currentOrderStatusColumns: TableColumn[] = [
+    {
+      id: "Order_Number",
+      label: "Order #",
+      render: (row) => (
+        <Typography fontSize={12} fontWeight={500} color="text.primary">
+          {row.Order_Number ?? row.Document_Number ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "total_item_quantity",
+      label: "Total Qty",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.total_item_quantity != null ? Number(row.total_item_quantity) : "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "total_line_number",
+      label: "Total Lines",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.total_line_number != null ? Number(row.total_line_number) : "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "Order_Date",
+      label: "Date",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.Order_Date ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "customer",
+      label: "Customer",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.customer?.C_Name ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "repName",
+      label: "Sales Rep",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.salesRep?.S_Desc ?? row.repName ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "action",
+      label: "Action",
+      align: "center",
+      render: (row) => (
+        <IconButton
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenOrderDetail(row.Order_Number ?? row.Document_Number);
+          }}
+          sx={{ color: theme.palette.primary.main }}
+          title="View order details"
+        >
+          <VisibilityIcon fontSize="small" />
+        </IconButton>
+      ),
+    },
+  ];
+
+  const orderDetailModalColumns: TableColumn[] = [
+    {
+      id: "Line_Number",
+      label: "Line #",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.Line_Number ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "Item_Number",
+      label: "Item #",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.Item_Number ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "description",
+      label: "Description",
+      render: (row) => (
+        <Typography fontSize={12} fontWeight={500} color="text.primary">
+          {row.inventory?.Description ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "Quantity_Ordered",
+      label: "Qty Ordered",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.Quantity_Ordered ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "Quantity_Shipped",
+      label: "Qty Shipped",
+      render: (row) => (
+        <Typography fontSize={12} color="text.secondary">
+          {row.Quantity_Shipped ?? "-"}
+        </Typography>
+      ),
+    },
+    {
+      id: "Price",
+      label: "Price",
+      render: (row) => {
+        const price = Number(row.Price ?? 0) + Number(row.OTP_Amount_State ?? 0) + Number(row.PrepaidTax_Amount ?? 0);
+        return (
+          <Typography fontSize={12} color="text.secondary">
+            {`$${price.toFixed(2)}`}
+          </Typography>
+        );
+      },
+    },
+    {
+      id: "TotalPrice",
+      label: "Total",
+      render: (row) => {
+        const unitPrice = Number(row.Price ?? 0) + Number(row.OTP_Amount_State ?? 0) + Number(row.PrepaidTax_Amount ?? 0);
+        const qty = Number(row.Quantity_Ordered ?? 0);
+        const total = unitPrice * qty;
+        return (
+          <Typography fontSize={12} fontWeight={500} color="text.secondary">
+            {`$${total.toFixed(2)}`}
+          </Typography>
+        );
+      },
     },
   ];
 
@@ -1088,7 +1667,7 @@ const AdminDashboard = () => {
       id: "name",
       label: "Sales Person",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="text.primary">
+        <Typography fontSize={12} fontWeight={500} color="text.primary">
           {row.S_Desc}
         </Typography>
       ),
@@ -1097,7 +1676,7 @@ const AdminDashboard = () => {
       id: "sales",
       label: "Total Sales",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="text.secondary">
+        <Typography fontSize={12} fontWeight={500} color="text.secondary">
           ${row.totalInvoiceTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Typography>
       ),
@@ -1106,7 +1685,7 @@ const AdminDashboard = () => {
       id: "orders",
       label: "Order Count",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.totalOrders}
         </Typography>
       ),
@@ -1120,7 +1699,7 @@ const AdminDashboard = () => {
       render: (row) => (
         <Box display="flex" alignItems="center" gap={1}>
           <PersonIcon sx={{ fontSize: 16, color: theme.palette.primary.main }} />
-          <Typography fontSize={13} fontWeight={500} color="text.primary">
+          <Typography fontSize={12} fontWeight={500} color="text.primary">
             {row.pickerName}
           </Typography>
         </Box>
@@ -1130,7 +1709,7 @@ const AdminDashboard = () => {
       id: "completedOrders",
       label: "Completed Orders",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="success.main">
+        <Typography fontSize={12} fontWeight={500} color="success.main">
           {row.totalCompletedOrders}
         </Typography>
       ),
@@ -1139,9 +1718,9 @@ const AdminDashboard = () => {
       id: "averageTime",
       label: "Average Time",
       render: (row) => (
-        <Box display="flex" alignItems="center" gap={0.5}>
+        <Box display="flex" alignItems="center" gap={1}>
           <AccessTimeIcon sx={{ fontSize: 14, color: theme.palette.info.main }} />
-          <Typography fontSize={13} fontWeight={500} color="text.secondary">
+          <Typography fontSize={12} fontWeight={500} color="text.secondary">
             {row.averageOrderTime.averageTimeFormatted}
           </Typography>
         </Box>
@@ -1151,9 +1730,9 @@ const AdminDashboard = () => {
       id: "averageTimePerQty",
       label: "Avg Time/Qty",
       render: (row) => (
-        <Box display="flex" alignItems="center" gap={0.5}>
+        <Box display="flex" alignItems="center" gap={1}>
           <AccessTimeIcon sx={{ fontSize: 14, color: theme.palette.warning.main }} />
-          <Typography fontSize={13} fontWeight={500} color="text.secondary">
+          <Typography fontSize={12} fontWeight={500} color="text.secondary">
             {row.averageTimePerQuantity.formatted}
           </Typography>
         </Box>
@@ -1163,7 +1742,7 @@ const AdminDashboard = () => {
       id: "scannedQuantity",
       label: "Scanned Quantity",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="primary.main">
+        <Typography fontSize={12} fontWeight={500} color="primary.main">
           {row.totalScannedQuantity.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
         </Typography>
       ),
@@ -1172,7 +1751,7 @@ const AdminDashboard = () => {
       id: "scannedLines",
       label: "Scanned Lines",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="info.main">
+        <Typography fontSize={12} fontWeight={500} color="info.main">
           {row.totalScannedLines?.toLocaleString() || 0}
         </Typography>
       ),
@@ -1181,9 +1760,9 @@ const AdminDashboard = () => {
       id: "totalTime",
       label: "Total Time",
       render: (row) => (
-        <Box display="flex" alignItems="center" gap={0.5}>
+        <Box display="flex" alignItems="center" gap={1}>
           <AccessTimeIcon sx={{ fontSize: 14, color: theme.palette.info.main }} />
-          <Typography fontSize={13} fontWeight={500} color="text.secondary">
+          <Typography fontSize={12} fontWeight={500} color="text.secondary">
             {row.totalTimeFormatted || "00:00:00"}
           </Typography>
         </Box>
@@ -1193,7 +1772,7 @@ const AdminDashboard = () => {
       id: "overrideRequests",
       label: "Total Override Requests",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color={row.totalOverrideRequests > 0 ? "warning.main" : "text.secondary"}>
+        <Typography fontSize={12} fontWeight={500} color={row.totalOverrideRequests > 0 ? "warning.main" : "text.secondary"}>
           {row.totalOverrideRequests || 0}
         </Typography>
       ),
@@ -1202,7 +1781,7 @@ const AdminDashboard = () => {
       id: "acceptedRequests",
       label: "Accepted Requests",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="success.main">
+        <Typography fontSize={12} fontWeight={500} color="success.main">
           {row.totalAcceptedRequests || 0}
         </Typography>
       ),
@@ -1211,7 +1790,7 @@ const AdminDashboard = () => {
       id: "rejectedRequests",
       label: "Rejected Requests",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="error.main">
+        <Typography fontSize={12} fontWeight={500} color="error.main">
           {row.totalRejectedRequests || 0}
         </Typography>
       ),
@@ -1241,7 +1820,7 @@ const AdminDashboard = () => {
                 background: color,
               }}
             />
-            <Typography fontSize={13} fontWeight={500} color="text.primary">
+            <Typography fontSize={12} fontWeight={500} color="text.primary">
               {row.pickerName}
             </Typography>
           </Box>
@@ -1261,9 +1840,9 @@ const AdminDashboard = () => {
         ];
         const color = colors[rowIdx % colors.length];
         return (
-          <Box display="flex" alignItems="center" gap={0.5}>
+          <Box display="flex" alignItems="center" gap={1}>
             <AccessTimeIcon sx={{ fontSize: 14, color: color }} />
-            <Typography fontSize={13} fontWeight={500} color={color}>
+            <Typography fontSize={12} fontWeight={500} color={color}>
               {row.averageTimePerQuantity.formatted}
             </Typography>
           </Box>
@@ -1295,7 +1874,7 @@ const AdminDashboard = () => {
                 background: color,
               }}
             />
-            <Typography fontSize={13} fontWeight={500} color="text.primary">
+            <Typography fontSize={12} fontWeight={500} color="text.primary">
               {row.pickerName}
             </Typography>
           </Box>
@@ -1315,7 +1894,7 @@ const AdminDashboard = () => {
         ];
         const color = colors[rowIdx % colors.length];
         return (
-          <Typography fontSize={13} fontWeight={500} color={color}>
+          <Typography fontSize={12} fontWeight={500} color={color}>
             {row.totalScannedQuantity.toLocaleString()}
           </Typography>
         );
@@ -1334,7 +1913,7 @@ const AdminDashboard = () => {
         ];
         const color = colors[rowIdx % colors.length];
         return (
-          <Typography fontSize={13} fontWeight={500} color={alpha(color, 0.8)}>
+          <Typography fontSize={12} fontWeight={500} color={alpha(color, 0.8)}>
             {row.totalOverrideRequests.toLocaleString()}
           </Typography>
         );
@@ -1347,7 +1926,7 @@ const AdminDashboard = () => {
       id: "metric",
       label: "Metric",
       render: (row: any) => (
-        <Typography fontSize={13} fontWeight={500} color="text.primary">
+        <Typography fontSize={12} fontWeight={500} color="text.primary">
           {row.metric}
         </Typography>
       ),
@@ -1356,7 +1935,7 @@ const AdminDashboard = () => {
       id: "value",
       label: "Value",
       render: (row: any) => (
-        <Typography fontSize={13} fontWeight={500} color="text.secondary">
+        <Typography fontSize={12} fontWeight={500} color="text.secondary">
           {row.value}
         </Typography>
       ),
@@ -1368,7 +1947,7 @@ const AdminDashboard = () => {
       id: "type",
       label: "Request Type",
       render: (row: any) => (
-        <Typography fontSize={13} fontWeight={500} color="text.primary">
+        <Typography fontSize={12} fontWeight={500} color="text.primary">
           {row.type}
         </Typography>
       ),
@@ -1377,7 +1956,7 @@ const AdminDashboard = () => {
       id: "count",
       label: "Count",
       render: (row: any) => (
-        <Typography fontSize={13} fontWeight={500} color={row.color}>
+        <Typography fontSize={12} fontWeight={500} color={row.color}>
           {row.count.toLocaleString()}
         </Typography>
       ),
@@ -1390,7 +1969,7 @@ const AdminDashboard = () => {
       label: "Item",
       render: (row) => (
         <Box>
-          <Typography fontSize={13} fontWeight={500} color="text.primary">
+          <Typography fontSize={12} fontWeight={500} color="text.primary">
             {row.Description || '-'}
           </Typography>
           <Typography fontSize={11} color="text.secondary">
@@ -1403,7 +1982,7 @@ const AdminDashboard = () => {
       id: "lossQty",
       label: "Loss Qty",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="error.main">
+        <Typography fontSize={12} fontWeight={500} color="error.main">
           {row.Loss_Qty || 0}
         </Typography>
       ),
@@ -1412,7 +1991,7 @@ const AdminDashboard = () => {
       id: "extLoss",
       label: "Ext Lost",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="error.main">
+        <Typography fontSize={12} fontWeight={500} color="error.main">
           ${(row.Ext_Loss || 0).toFixed(2)}
         </Typography>
       ),
@@ -1425,7 +2004,7 @@ const AdminDashboard = () => {
       label: "Item",
       render: (row) => (
         <Box>
-          <Typography fontSize={13} fontWeight={500} color="text.primary">
+          <Typography fontSize={12} fontWeight={500} color="text.primary">
             {row.Description || '-'}
           </Typography>
           <Typography fontSize={11} color="text.secondary">
@@ -1438,7 +2017,7 @@ const AdminDashboard = () => {
       id: "lossQty",
       label: "Loss Qty",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="error.main">
+        <Typography fontSize={12} fontWeight={500} color="error.main">
           {row.Loss_Qty || 0}
         </Typography>
       ),
@@ -1447,7 +2026,7 @@ const AdminDashboard = () => {
       id: "extLoss",
       label: "Ext Lost",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="error.main">
+        <Typography fontSize={12} fontWeight={500} color="error.main">
           ${(row.Ext_Loss || 0).toFixed(2)}
         </Typography>
       ),
@@ -1460,7 +2039,7 @@ const AdminDashboard = () => {
       label: "Item Name",
       sortable: true,
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="text.primary">
+        <Typography fontSize={12} fontWeight={500} color="text.primary">
           {row.inventory?.Description || '-'}
         </Typography>
       ),
@@ -1470,7 +2049,7 @@ const AdminDashboard = () => {
       label: "Item Number",
       sortable: true,
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.Item_Number || row.inventory?.Item_Number || '-'}
         </Typography>
       ),
@@ -1480,7 +2059,7 @@ const AdminDashboard = () => {
       label: "Quantity Ordered",
       sortable: true,
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="primary.main">
+        <Typography fontSize={12} fontWeight={500} color="primary.main">
           {row.totalQuantityOrdered?.toLocaleString() || 0}
         </Typography>
       ),
@@ -1490,7 +2069,7 @@ const AdminDashboard = () => {
       label: "Order Count",
       sortable: true,
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.orderCount || 0}
         </Typography>
       ),
@@ -1499,7 +2078,7 @@ const AdminDashboard = () => {
       id: "pack",
       label: "Pack",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.inventory?.Pack || '-'}
         </Typography>
       ),
@@ -1508,7 +2087,7 @@ const AdminDashboard = () => {
       id: "caseCount",
       label: "Case Count",
       render: (row) => (
-        <Typography fontSize={13} color="text.secondary">
+        <Typography fontSize={12} color="text.secondary">
           {row.inventory?.CaseCount || '-'} {row.inventory?.UOM || ''}
         </Typography>
       ),
@@ -1520,7 +2099,7 @@ const AdminDashboard = () => {
       id: "userName",
       label: "User Name",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="text.primary">
+        <Typography fontSize={12} fontWeight={500} color="text.primary">
           {row.userName}
         </Typography>
       ),
@@ -1529,7 +2108,7 @@ const AdminDashboard = () => {
       id: "totalSales",
       label: "Total Sales",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="primary.main">
+        <Typography fontSize={12} fontWeight={500} color="primary.main">
           ${(row.totalInvoiceTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Typography>
       ),
@@ -1538,9 +2117,27 @@ const AdminDashboard = () => {
       id: "orderCount",
       label: "Order Count",
       render: (row) => (
-        <Typography fontSize={13} fontWeight={500} color="text.secondary">
+        <Typography fontSize={12} fontWeight={500} color="text.secondary">
           {row.order_Count || 0}
         </Typography>
+      ),
+    },
+    {
+      id: "viewReport",
+      label: "View",
+      render: (row) => (
+        <IconButton
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewInvoiceReportForUser(row.userName ?? "");
+          }}
+          disabled={invoiceRegisterLoading}
+          sx={{ p: 0.5 }}
+          title="View report for this user"
+        >
+          <VisibilityIcon sx={{ fontSize: 18, color: theme.palette.primary.main }} />
+        </IconButton>
       ),
     },
   ];
@@ -1581,7 +2178,7 @@ const AdminDashboard = () => {
             background: theme.palette.mode === 'dark' 
               ? alpha(theme.palette.background.paper, 0.95)
               : theme.palette.background.paper,
-            border: `1px solid ${theme.palette.divider}`,
+            border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
             borderRadius: 1.5,
           }}
         >
@@ -1617,14 +2214,14 @@ const AdminDashboard = () => {
       {/* Tabs Header */}
       <Fade in={true} timeout={500}>
         <Box
-          mb={2}
+          mb={1}
           sx={{
             display: 'flex',
             flexDirection: { xs: 'column', sm: 'row' },
             justifyContent: 'space-between',
             alignItems: { xs: 'flex-start', sm: 'center' },
-            gap: 1.5,
-            pb: 1.5,
+            gap: 1,
+            pb: 1,
             borderBottom: `1px solid ${theme.palette.divider}`,
           }}
         >
@@ -1632,24 +2229,25 @@ const AdminDashboard = () => {
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 1.5,
+              gap: 1,
             }}
           >
             <Button
               onClick={() => setActiveTab(0)}
               sx={{
                 textTransform: 'none',
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 500,
-                px: 2,
-                py: 0.75,
-                borderRadius: 2,
-                backgroundColor: activeTab === 0 ? theme.palette.primary.main : 'transparent',
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 1.5,
+                backgroundColor: activeTab === 0 ? theme.palette.primary.main : (theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : 'transparent'),
                 color: activeTab === 0 ? '#fff' : theme.palette.text.secondary,
                 minWidth: 'auto',
                 boxShadow: 'none',
+                border: theme.palette.mode === 'dark' && activeTab !== 0 ? `1px solid ${alpha(theme.palette.divider, 0.5)}` : 'none',
                 '&:hover': {
-                  backgroundColor: activeTab === 0 ? theme.palette.primary.dark : alpha(theme.palette.primary.main, 0.08),
+                  backgroundColor: activeTab === 0 ? theme.palette.primary.dark : alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.08),
                   boxShadow: 'none',
                 },
               }}
@@ -1660,17 +2258,18 @@ const AdminDashboard = () => {
               onClick={() => setActiveTab(1)}
               sx={{
                 textTransform: 'none',
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 500,
-                px: 2,
-                py: 0.75,
-                borderRadius: 2,
-                backgroundColor: activeTab === 1 ? theme.palette.primary.main : 'transparent',
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 1.5,
+                backgroundColor: activeTab === 1 ? theme.palette.primary.main : (theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : 'transparent'),
                 color: activeTab === 1 ? '#fff' : theme.palette.text.secondary,
                 minWidth: 'auto',
                 boxShadow: 'none',
+                border: theme.palette.mode === 'dark' && activeTab !== 1 ? `1px solid ${alpha(theme.palette.divider, 0.5)}` : 'none',
                 '&:hover': {
-                  backgroundColor: activeTab === 1 ? theme.palette.primary.dark : alpha(theme.palette.primary.main, 0.08),
+                  backgroundColor: activeTab === 1 ? theme.palette.primary.dark : alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.08),
                   boxShadow: 'none',
                 },
               }}
@@ -1692,6 +2291,11 @@ const AdminDashboard = () => {
                 "& .MuiInputBase-root": {
                   height: 34,
                   fontSize: 12,
+                  ...(theme.palette.mode === "dark" && {
+                    backgroundColor: alpha(theme.palette.background.paper, 0.6),
+                    "& fieldset": { borderColor: alpha(theme.palette.divider, 0.5) },
+                    "&:hover fieldset": { borderColor: alpha(theme.palette.divider, 0.8) },
+                  }),
                 },
               }}
             />
@@ -1711,6 +2315,11 @@ const AdminDashboard = () => {
                 "& .MuiInputBase-root": {
                   height: 34,
                   fontSize: 12,
+                  ...(theme.palette.mode === "dark" && {
+                    backgroundColor: alpha(theme.palette.background.paper, 0.6),
+                    "& fieldset": { borderColor: alpha(theme.palette.divider, 0.5) },
+                    "&:hover fieldset": { borderColor: alpha(theme.palette.divider, 0.8) },
+                  }),
                 },
               }}
             />
@@ -1719,9 +2328,10 @@ const AdminDashboard = () => {
                 onClick={handleClearDates}
                 size="small"
                 sx={{
-                  backgroundColor: theme.palette.action.hover,
+                  backgroundColor: theme.palette.mode === "dark" ? alpha(theme.palette.background.paper, 0.5) : theme.palette.action.hover,
+                  color: theme.palette.text.secondary,
                   "&:hover": {
-                    backgroundColor: theme.palette.action.selected,
+                    backgroundColor: theme.palette.mode === "dark" ? alpha(theme.palette.background.paper, 0.8) : theme.palette.action.selected,
                   },
                 }}
               >
@@ -1734,9 +2344,16 @@ const AdminDashboard = () => {
 
       {/* Tab Content */}
       <Fade in={activeTab === 0} timeout={400} style={{ display: activeTab === 0 ? 'block' : 'none' }}>
-        <Box>
+        <Box
+          sx={{
+            borderRadius: 1.5,
+            ...(theme.palette.mode === "dark"
+              ? { background: alpha(theme.palette.background.paper, 0.15) }
+              : { background: alpha(theme.palette.primary.main, 0.02) }),
+          }}
+        >
           {/* Summary Cards */}
-          <Grid container spacing={2} mb={2}>
+          <Grid container spacing={1.5} mb={1.5}>
             {summaryCards.map((card, idx) => (
               <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
                 <DashboardCard {...card} />
@@ -1745,282 +2362,226 @@ const AdminDashboard = () => {
           </Grid>
 
           {/* Charts Section */}
-          <Grid container spacing={2} mb={2}>
-            
-
-            {/* Loss Quantity Report */}
-            <Grid size={{ xs: 12, md: 8 }}>
-              <Grow in={true} timeout={1000}>
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    height: '100%',
-                    background: theme.palette.mode === 'dark'
-                      ? alpha(theme.palette.background.paper, 0.8)
-                      : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                  }}
-                >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
-                    <Box>
-                      <Typography fontSize={14} fontWeight={500} color="text.primary">
-                        Loss Quantity Report (Top 10)
-                      </Typography>
-                      <Box display="flex" gap={1.5} mt={0.5}>
-                        <Button
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleLossQtyViewAll();
-                          }}
-                          sx={{
-                            textTransform: 'none',
-                            fontSize: 11,
-                            px: 0,
-                            py: 0.25,
-                            minWidth: 'auto',
-                            color: theme.palette.primary.main,
-                            '&:hover': {
-                              backgroundColor: 'transparent',
-                              textDecoration: 'underline',
-                            },
-                          }}
-                        >
-                          View All →
-                        </Button>
-                        <Button
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleLossQtyGenerateReport();
-                          }}
-                          sx={{
-                            textTransform: 'none',
-                            fontSize: 11,
-                            px: 0,
-                            py: 0.25,
-                            minWidth: 'auto',
-                            color: theme.palette.primary.main,
-                            '&:hover': {
-                              backgroundColor: 'transparent',
-                              textDecoration: 'underline',
-                            },
-                          }}
-                        >
-                          Generate Report →
-                        </Button>
-                      </Box>
-                    </Box>
-                    <Stack direction="row" spacing={0.5}>
-                      <Button
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLossQtyViewMode("graph");
-                        }}
-                        variant={lossQtyViewMode === "graph" ? "contained" : "outlined"}
-                        sx={{
-                          textTransform: 'none',
-                          minWidth: 65,
-                          fontSize: 11,
-                          py: 0.5,
-                          '&.MuiButton-contained': {
-                            color: '#fff',
-                          },
-                        }}
-                      >
-                        Chart
-                      </Button>
-                      <Button
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLossQtyViewMode("table");
-                        }}
-                        variant={lossQtyViewMode === "table" ? "contained" : "outlined"}
-                        sx={{
-                          textTransform: 'none',
-                          minWidth: 65,
-                          fontSize: 11,
-                          py: 0.5,
-                          '&.MuiButton-contained': {
-                            color: '#fff',
-                          },
-                        }}
-                      >
-                        Table
-                      </Button>
-                    </Stack>
-                  </Box>
-                  {lossQtyViewMode === "table" ? (
-                    <CommonTable
-                      padding={0}
-                      data={lossQtyData}
-                      columns={lossQtyColumns}
-                      currentPage={1}
-                      totalPages={1}
-                      totalItems={lossQtyData.length}
-                      stickyHeader={true}
-                      pageSize={lossQtyData.length}
-                      onPageChange={() => {}}
-                      onPageSizeChange={() => {}}
-                      showPageSizeSelector={false}
-                      showTotalItems={false}
-                      showPageNumbers={false}
-                      loading={lossQtyLoading}
-                      containerHeight="350px"
-                      emptyStateComponent={<Typography>No loss quantity data</Typography>}
-                    />
-                  ) : (
-                    <Box 
-                      sx={{ 
-                        width: "100%", 
-                        // height: 280,
-                        overflowX: "auto",
-                        overflowY: "hidden",
-                        "&::-webkit-scrollbar": {
-                          height: 6,
-                        },
-                        "&::-webkit-scrollbar-track": {
-                          background: alpha(theme.palette.divider, 0.1),
-                          borderRadius: 3,
-                        },
-                        "&::-webkit-scrollbar-thumb": {
-                          background: alpha(theme.palette.error.main, 0.3),
-                          borderRadius: 3,
-                          "&:hover": {
-                            background: alpha(theme.palette.error.main, 0.5),
-                          },
-                        },
+          <Grid container spacing={1.5} mb={1.5}>
+            {/* Current Order Status – Invoices, Non-Invoices, Picklist, Epick Completed, Record Locks */}
+            {CURRENT_ORDER_STATUS_SECTIONS.map((section, sectionIndex) => {
+              const sectionList = (currentOrderStatusData?.[section.key] ?? []).slice(0, currentOrderStatusLimit);
+              const sectionBarData = sectionList.map((order: CurrentOrderStatusReportOrder) => ({
+                name: String(order.Document_Number ?? order.Order_Number ?? ""),
+                orderNumber: order.Order_Number,
+                documentNumber: order.Document_Number,
+                fullLabel: `Order ${order.Document_Number ?? order.Order_Number} - ${order.customer?.C_Name ?? ""}`,
+                value: order.total_item_quantity != null ? Number(order.total_item_quantity) : 0,
+                totalLineNumber: order.total_line_number != null ? Number(order.total_line_number) : 0,
+              }));
+              // Y-axis is based only on first 10 orders' quantities; scale and ticks are integers only
+              const chartValues = sectionBarData.map((d) => d.value);
+              const first10Values = chartValues.slice(0, 10);
+              const hasNegativeInFirst10 = first10Values.some((v) => v < 0);
+              const dataMin = chartValues.length ? Math.min(...chartValues) : 0;
+              const dataMax = chartValues.length ? Math.max(...chartValues) : 0;
+              const yAxisMin = dataMin < 0 ? Math.floor(dataMin) : 0;
+              const yAxisMax = dataMax > 0 ? Math.ceil(dataMax) : 0;
+              // Nice upper bound slightly above max (e.g. 134 -> 140), so axis scale matches actual data
+              const niceCeil = (n: number) => (n <= 0 ? 0 : (Math.ceil(n / 10) * 10) || 10);
+              const niceFloor = (n: number) => (n >= 0 ? 0 : (Math.floor(n / 10) * 10));
+              const paddingPct = 0.1;
+              const range = yAxisMax - yAxisMin || 1;
+              const topBound = niceCeil(yAxisMax + range * paddingPct);
+              const bottomBound = hasNegativeInFirst10 ? niceFloor(yAxisMin - range * paddingPct) : 0;
+              const yAxisDomain = [bottomBound, topBound] as [number, number];
+              const [domainMin, domainMax] = yAxisDomain;
+              // Integer-only ticks; 0 on baseline when no negative in first 10
+              const yAxisTicks =
+                !hasNegativeInFirst10
+                  ? (() => {
+                      const t = [0, topBound];
+                      const step = topBound <= 0 ? 0 : Math.max(1, Math.ceil((topBound - 0) / 4));
+                      for (let v = step; v < topBound; v += step) t.push(v);
+                      const rounded = t.map((v) => Math.round(v));
+                      return rounded.filter((v, i) => rounded.indexOf(v) === i).sort((a, b) => a - b);
+                    })()
+                  : domainMin < 0 && domainMax > 0
+                    ? (() => {
+                        const t = [domainMin, 0, domainMax];
+                        const step = Math.max(1, Math.ceil((domainMax - domainMin) / 5));
+                        for (let v = domainMin + step; v < domainMax; v += step) t.push(v);
+                        const rounded = t.map((v) => Math.round(v));
+                        return rounded.filter((v, i) => rounded.indexOf(v) === i).sort((a, b) => a - b);
+                      })()
+                    : undefined;
+              return (
+                <Grid size={{ xs: 12, md: 6, lg: 4 }} key={section.key}>
+                  <Grow in={true} timeout={800 + sectionIndex * 100}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 1,
+                        borderRadius: 1.5,
+                        background: theme.palette.mode === "dark"
+                          ? alpha(theme.palette.background.paper, 0.85)
+                          : theme.palette.background.paper,
+                        border: theme.palette.mode === "dark" ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : "none",
+                        boxShadow: theme.palette.mode === "light"
+                          ? `0 1px 3px ${alpha(theme.palette.common.black, 0.06)}`
+                          : "none",
                       }}
                     >
-                      <ResponsiveContainer width="100%" height={280} minWidth={Math.max(600, lossQtyBarData.length * 80)}>
-                        <BarChart data={lossQtyBarData} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
-                          <defs>
-                            <linearGradient id="lossGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor={theme.palette.error.main} stopOpacity={1} />
-                              <stop offset="100%" stopColor={theme.palette.error.dark} stopOpacity={0.8} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid 
-                            strokeDasharray="3 3" 
-                            stroke={alpha(theme.palette.divider, 0.3)}
-                            vertical={false}
-                          />
-                          <XAxis 
-                            dataKey="itemNumber" 
-                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
-                            axisLine={false}
-                            interval={0}
-                          />
-                          <YAxis 
-                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
-                            axisLine={false}
-                            tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
-                            width={60}
-                          />
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                  <Paper
-                                    elevation={8}
-                                    sx={{
-                                      p: 1.5,
-                                      background: theme.palette.mode === 'dark' 
-                                        ? alpha(theme.palette.background.paper, 0.95)
-                                        : theme.palette.background.paper,
-                                      border: `1px solid ${theme.palette.error.main}`,
-                                      borderRadius: 2,
-                                      maxWidth: 280,
-                                    }}
-                                  >
-                                    <Typography fontSize={12} fontWeight={600} mb={1} color="error.main">
-                                      {data.fullName}
-                                    </Typography>
-                                    <Typography fontSize={11} color="text.secondary" mb={0.5}>
-                                      Item #{data.itemNumber}
-                                    </Typography>
-                                    <Box 
-                                      sx={{ 
-                                        display: 'flex', 
-                                        justifyContent: 'space-between', 
-                                        alignItems: 'center',
-                                        mb: 0.5,
-                                        p: 0.75,
-                                        borderRadius: 1,
-                                        background: alpha(theme.palette.error.main, 0.1),
-                                      }}
-                                    >
-                                      <Typography fontSize={11} fontWeight={500}>
-                                        Loss Qty:
-                                      </Typography>
-                                      <Typography fontSize={11} fontWeight={600} color="error.main">
-                                        {data.lossQty}
-                                      </Typography>
-                                    </Box>
-                                    <Box 
-                                      sx={{ 
-                                        display: 'flex', 
-                                        justifyContent: 'space-between', 
-                                        alignItems: 'center',
-                                        p: 0.75,
-                                        borderRadius: 1,
-                                        background: alpha(theme.palette.error.main, 0.1),
-                                      }}
-                                    >
-                                      <Typography fontSize={11} fontWeight={500}>
-                                        Ext Loss:
-                                      </Typography>
-                                      <Typography fontSize={11} fontWeight={600} color="error.main">
-                                        ${data.extLoss.toFixed(2)}
-                                      </Typography>
-                                    </Box>
-                                  </Paper>
-                                );
-                              }
-                              return null;
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Typography fontSize={12} fontWeight={500} color="text.primary">
+                          Order Status – {section.label}
+                        </Typography>
+                        <Stack direction="row" spacing={1}>
+                          <Button
+                            size="small"
+                            onClick={() => setCurrentOrderStatusViewMode((prev) => ({ ...prev, [section.key]: "graph" }))}
+                            variant={(currentOrderStatusViewMode[section.key] ?? "table") === "graph" ? "contained" : "outlined"}
+                            sx={{
+                              textTransform: "none",
+                              minWidth: 65,
+                              fontSize: 11,
+                              py: 0.5,
+                              "&.MuiButton-contained": { color: "#fff" },
                             }}
-                            cursor={{ fill: alpha(theme.palette.error.main, 0.1) }}
-                          />
-                          <Bar 
-                            dataKey="extLoss" 
-                            fill="url(#lossGradient)"
-                            radius={[4, 4, 0, 0]}
                           >
-                            {lossQtyBarData.map((entry, index) => (
-                              <Cell 
-                                key={`cell-${index}`} 
-                                fill={index % 2 === 0 
-                                  ? theme.palette.error.main 
-                                  : alpha(theme.palette.error.main, 0.8)
-                                } 
+                            Chart
+                          </Button>
+                          <Button
+                            size="small"
+                            onClick={() => setCurrentOrderStatusViewMode((prev) => ({ ...prev, [section.key]: "table" }))}
+                            variant={(currentOrderStatusViewMode[section.key] ?? "table") === "table" ? "contained" : "outlined"}
+                            sx={{
+                              textTransform: "none",
+                              minWidth: 65,
+                              fontSize: 11,
+                              py: 0.5,
+                              "&.MuiButton-contained": { color: "#fff" },
+                            }}
+                          >
+                            Table
+                          </Button>
+                        </Stack>
+                      </Box>
+                      {(currentOrderStatusViewMode[section.key] ?? "table") === "table" ? (
+                        <DashboardTable
+                          padding={0}
+                          data={sectionList}
+                          columns={currentOrderStatusColumns}
+                          currentPage={1}
+                          totalPages={1}
+                          totalItems={sectionList.length}
+                          stickyHeader={true}
+                          stickyLastColumn={true}
+                          pageSize={sectionList.length}
+                          onPageChange={() => {}}
+                          onPageSizeChange={() => {}}
+                          showPageSizeSelector={false}
+                          showTotalItems={false}
+                          showPageNumbers={false}
+                          loading={currentOrderStatusLoading}
+                          containerHeight="300px"
+                          emptyStateComponent={<Typography>No orders</Typography>}
+                        />
+                      ) : (
+                        <Box sx={{ height: 320, width: "100%" }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={sectionBarData}
+                              margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
+                              <XAxis
+                                dataKey="name"
+                                tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
                               />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </Box>
-                  )}
-                </Paper>
-              </Grow>
-            </Grid>
+                              <YAxis
+                                width={28}
+                                domain={yAxisDomain}
+                                ticks={yAxisTicks}
+                                tick={{ fill: theme.palette.text.secondary, fontSize: 10 }}
+                                tickFormatter={(v) => String(Math.round(Number(v)))}
+                                allowDecimals={false}
+                                axisLine={{ strokeWidth: 1 }}
+                              />
+                              {yAxisMin <= 0 && yAxisMax >= 0 && (
+                                <ReferenceLine
+                                  y={0}
+                                  stroke={theme.palette.divider}
+                                  strokeWidth={1.5}
+                                  strokeOpacity={0.9}
+                                />
+                              )}
+                              <Tooltip
+                                content={({ active, payload }) => {
+                                  if (active && payload && payload.length) {
+                                    const d = payload[0].payload;
+                                    return (
+                                      <Paper
+                                        elevation={8}
+                                        sx={{
+                                          p: 1,
+                                          background:
+                                            theme.palette.mode === "dark"
+                                              ? alpha(theme.palette.background.paper, 0.95)
+                                              : theme.palette.background.paper,
+                                          border: theme.palette.mode === "dark" ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : "none",
+                                          borderRadius: 2,
+                                          maxWidth: 280,
+                                        }}
+                                      >
+                                        <Typography fontSize={12} fontWeight={500} mb={1}>
+                                          Order {d.documentNumber ?? d.orderNumber}
+                                        </Typography>
+                                        <Typography fontSize={11} color="text.secondary">
+                                          Total Qty: {d.value ?? 0} · Lines: {d.totalLineNumber ?? 0}
+                                        </Typography>
+                                        <Typography fontSize={11} color="text.secondary">
+                                          Click bar to view order details
+                                        </Typography>
+                                      </Paper>
+                                    );
+                                  }
+                                  return null;
+                                }}
+                                cursor={{ fill: "rgba(0,0,0,0.1)" }}
+                              />
+                              <Bar
+                                dataKey="value"
+                                fill={theme.palette.primary.main}
+                                radius={[4, 4, 0, 0]}
+                                style={{ cursor: "pointer" }}
+                              >
+                                {sectionBarData.map((_entry, index) => (
+                                  <Cell
+                                    key={`cell-${section.key}-${index}`}
+                                    onClick={() => handleOpenOrderDetail(sectionBarData[index].orderNumber)}
+                                    style={{ cursor: "pointer" }}
+                                  />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </Box>
+                      )}
+                    </Paper>
+                  </Grow>
+                </Grid>
+              );
+            })}
+
             {/* Platform Orders */}
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 6, lg: 4 }}>
               <Grow in={true} timeout={800}>
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     height: '100%',
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
                   <Box
@@ -2029,14 +2590,14 @@ const AdminDashboard = () => {
                     alignItems="center"
                     flexWrap="wrap"
                     gap={1}
-                    mb={1.5}
+                    mb={1}
                   >
                     <Typography 
-                      fontSize={14} 
+                      fontSize={12} 
                       fontWeight={500} 
                       color="text.primary"
                       sx={{
-                        fontSize: { lg: 14 },
+                        fontSize: { lg: 12 },
                       }}
                     >
                       <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>
@@ -2070,7 +2631,7 @@ const AdminDashboard = () => {
                           <Typography fontSize={12} fontWeight={500}>
                             Sales
                           </Typography>
-                          <Typography fontSize={13} fontWeight={500} color="success.main">
+                          <Typography fontSize={12} fontWeight={500} color="success.main">
                             {dashboardData.orderByUser.sales}
                           </Typography>
                         </Box>
@@ -2089,14 +2650,14 @@ const AdminDashboard = () => {
                           <Typography fontSize={12} fontWeight={500}>
                             Retailer
                           </Typography>
-                          <Typography fontSize={13} fontWeight={500} color="info.main">
+                          <Typography fontSize={12} fontWeight={500} color="info.main">
                             {dashboardData.orderByUser.retailer}
                           </Typography>
                         </Box>
                       </Box>
                     )}
                   </Box>
-                  <Box sx={{ height: 220, width: "100%", mb: 1.5 }}>
+                  <Box sx={{ height: 220, width: "100%", mb: 1 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         {allPlatformData.map((entry, index) => {
@@ -2226,26 +2787,48 @@ const AdminDashboard = () => {
 
           
 
-          <Grid container spacing={2} mb={2}>
+          <Grid container spacing={1.5} mb={1.5}>
             {/* Sales Performance - Full Width */}
             <Grid size={{ xs: 12, lg: 6 }}>
               <Grow in={true} timeout={1000}>
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
-                    <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
-                      <Typography fontSize={14} fontWeight={500} color="text.primary">
-                        Sales Performance
-                      </Typography>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
+                    <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                      <Box>
+                        <Typography fontSize={12} fontWeight={500} color="text.primary">
+                          Sales Performance
+                        </Typography>
+                        {/* <Box display="flex" gap={1} mt={0.5}>
+                          <Button
+                            size="small"
+                            onClick={handleViewInvoiceRegisterReport}
+                            sx={{
+                              textTransform: 'none',
+                              fontSize: 11,
+                              px: 0,
+                              py: 0.25,
+                              minWidth: 'auto',
+                              color: theme.palette.primary.main,
+                              '&:hover': {
+                                backgroundColor: 'transparent',
+                                textDecoration: 'underline',
+                              },
+                            }}
+                          >
+                            View Report →
+                          </Button>
+                        </Box> */}
+                      </Box>
                       <Box
                         sx={{
                           display: 'flex',
@@ -2261,7 +2844,7 @@ const AdminDashboard = () => {
                         <Typography fontSize={12} fontWeight={500} color="text.secondary">
                           Total Sales:
                         </Typography>
-                        <Typography fontSize={13} fontWeight={600} color="primary.main">
+                        <Typography fontSize={12} fontWeight={500} color="primary.main">
                           ${(dashboardData?.result?.reduce((sum, item) => sum + (item.totalInvoiceTotal || 0), 0) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Typography>
                       </Box>
@@ -2280,12 +2863,12 @@ const AdminDashboard = () => {
                         <Typography fontSize={12} fontWeight={500} color="text.secondary">
                           Total Orders:
                         </Typography>
-                        <Typography fontSize={13} fontWeight={600} color="success.main">
+                        <Typography fontSize={12} fontWeight={500} color="success.main">
                           {(dashboardData?.result?.reduce((sum, item) => sum + (item.totalOrders || 0), 0) || 0).toLocaleString()}
                         </Typography>
                       </Box>
                     </Box>
-                    <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Stack direction="row" spacing={1} alignItems="center">
                       <FormControl size="small" sx={{ minWidth: 100 }}>
                         <Select
                           value={costType}
@@ -2338,7 +2921,7 @@ const AdminDashboard = () => {
                     </Stack>
                   </Box>
                   {salesPerformanceViewMode === "table" ? (
-                    <CommonTable
+                    <DashboardTable
                       padding={0}
                       data={[...(dashboardData?.result || [])].sort((a, b) => (b.totalInvoiceTotal || 0) - (a.totalInvoiceTotal || 0))}
                       columns={salesPersonColumns}
@@ -2353,7 +2936,7 @@ const AdminDashboard = () => {
                       showTotalItems={false}
                       showPageNumbers={false}
                       loading={loading}
-                      containerHeight="350px"
+                      containerHeight="300px"
                       emptyStateComponent={<Typography>No sales data</Typography>}
                     />
                   ) : (
@@ -2421,15 +3004,15 @@ const AdminDashboard = () => {
                                 <Paper
                                   elevation={8}
                                   sx={{
-                                    p: 1.5,
+                                    p: 1,
                                     background: theme.palette.mode === 'dark' 
                                       ? alpha(theme.palette.background.paper, 0.95)
                                       : theme.palette.background.paper,
-                                    border: `1px solid ${theme.palette.divider}`,
+                                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                                     borderRadius: 2,
                                   }}
                                 >
-                                  <Typography fontSize={12} fontWeight={600} mb={1}>
+                                  <Typography fontSize={12} fontWeight={500} mb={1}>
                                     {salesData?.payload.name}
                                   </Typography>
                                   <Typography fontSize={11} mb={0.5}>
@@ -2479,19 +3062,42 @@ const AdminDashboard = () => {
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
-                    <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
-                      <Typography fontSize={14} fontWeight={500} color="text.primary">
-                        User Performance
-                      </Typography>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
+                    <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                      <Box>
+                        <Typography fontSize={12} fontWeight={500} color="text.primary">
+                          User Performance
+                        </Typography>
+                        <Box display="flex" gap={1} mt={0.5}>
+                          <Button
+                            size="small"
+                            onClick={handleViewInvoiceRegisterReport}
+                            disabled={invoiceRegisterLoading}
+                            sx={{
+                              textTransform: 'none',
+                              fontSize: 11,
+                              px: 0,
+                              py: 0.25,
+                              minWidth: 'auto',
+                              color: theme.palette.primary.main,
+                              '&:hover': {
+                                backgroundColor: 'transparent',
+                                textDecoration: 'underline',
+                              },
+                            }}
+                          >
+                            {invoiceRegisterLoading ? 'Loading...' : 'View Report →'}
+                          </Button>
+                        </Box>
+                      </Box>
                       <Box
                         sx={{
                           display: 'flex',
@@ -2507,7 +3113,7 @@ const AdminDashboard = () => {
                         <Typography fontSize={12} fontWeight={500} color="text.secondary">
                           Total Sales:
                         </Typography>
-                        <Typography fontSize={13} fontWeight={600} color="primary.main">
+                        <Typography fontSize={12} fontWeight={500} color="primary.main">
                           ${(dashboardData?.userPerformance?.reduce((sum, item) => sum + (item.totalInvoiceTotal || 0), 0) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Typography>
                       </Box>
@@ -2526,12 +3132,12 @@ const AdminDashboard = () => {
                         <Typography fontSize={12} fontWeight={500} color="text.secondary">
                           Total Orders:
                         </Typography>
-                        <Typography fontSize={13} fontWeight={600} color="success.main">
+                        <Typography fontSize={12} fontWeight={500} color="success.main">
                           {(dashboardData?.userPerformance?.reduce((sum, item) => sum + (item.order_Count || 0), 0) || 0).toLocaleString()}
                         </Typography>
                       </Box>
                     </Box>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={1}>
                       <Button
                         size="small"
                         onClick={(e) => {
@@ -2573,7 +3179,7 @@ const AdminDashboard = () => {
                     </Stack>
                   </Box>
                   {userPerformanceViewMode === "table" ? (
-                    <CommonTable
+                    <DashboardTable
                       padding={0}
                       data={userPerformanceData}
                       columns={userPerformanceColumns}
@@ -2588,7 +3194,7 @@ const AdminDashboard = () => {
                       showTotalItems={false}
                       showPageNumbers={false}
                       loading={loading}
-                      containerHeight="350px"
+                      containerHeight="300px"
                       emptyStateComponent={<Typography>No user performance data</Typography>}
                     />
                   ) : (
@@ -2656,15 +3262,15 @@ const AdminDashboard = () => {
                                   <Paper
                                     elevation={8}
                                     sx={{
-                                      p: 1.5,
+                                      p: 1,
                                       background: theme.palette.mode === 'dark' 
                                         ? alpha(theme.palette.background.paper, 0.95)
                                         : theme.palette.background.paper,
-                                      border: `1px solid ${theme.palette.divider}`,
+                                      border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                                       borderRadius: 2,
                                     }}
                                   >
-                                    <Typography fontSize={12} fontWeight={600} mb={1}>
+                                    <Typography fontSize={12} fontWeight={500} mb={1}>
                                       {salesData?.payload.fullName}
                                     </Typography>
                                     <Typography fontSize={11} mb={0.5}>
@@ -2710,26 +3316,26 @@ const AdminDashboard = () => {
           </Grid>
 
           {/* High Demand Products */}
-          <Grid container spacing={2}>
+          <Grid container spacing={1.5} mb={1.5}>
             <Grid size={{ xs: 12 }}>
               <Grow in={true} timeout={1200}>
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
                     <Box>
-                      <Typography fontSize={14} fontWeight={500} color="text.primary">
+                      <Typography fontSize={12} fontWeight={500} color="text.primary">
                         High Demand Products
                       </Typography>
-                      <Box display="flex" gap={1.5} mt={0.5}>
+                      <Box display="flex" gap={1} mt={0.5}>
                         <Button
                           size="small"
                           onClick={(e) => {
@@ -2753,7 +3359,7 @@ const AdminDashboard = () => {
                         </Button>
                       </Box>
                     </Box>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={1}>
                       <Button
                         size="small"
                         onClick={() => setHighDemandViewMode("graph")}
@@ -2789,7 +3395,7 @@ const AdminDashboard = () => {
                     </Stack>
                   </Box>
                   {highDemandViewMode === "table" ? (
-                    <CommonTable
+                    <DashboardTable
                       padding={0}
                       data={dashboardData?.highDemandProducts || []}
                       columns={highDemandColumns}
@@ -2804,7 +3410,7 @@ const AdminDashboard = () => {
                       showTotalItems={false}
                       showPageNumbers={false}
                       loading={loading}
-                      containerHeight="350px"
+                      containerHeight="300px"
                       emptyStateComponent={<Typography>No products</Typography>}
                     />
                   ) : (
@@ -2830,16 +3436,16 @@ const AdminDashboard = () => {
                                   <Paper
                                     elevation={8}
                                     sx={{
-                                      p: 1.5,
+                                      p: 1,
                                       background: theme.palette.mode === 'dark' 
                                         ? alpha(theme.palette.background.paper, 0.95)
                                         : theme.palette.background.paper,
-                                      border: `1px solid ${theme.palette.divider}`,
+                                      border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                                       borderRadius: 2,
                                       maxWidth: 280,
                                     }}
                                   >
-                                    <Typography fontSize={12} fontWeight={600} mb={1}>
+                                    <Typography fontSize={12} fontWeight={500} mb={1}>
                                       {data.fullName}
                                     </Typography>
                                     <Typography fontSize={11} color="text.secondary" mb={0.5}>
@@ -2877,6 +3483,266 @@ const AdminDashboard = () => {
               </Grow>
             </Grid>
           </Grid>
+          {/* Loss Quantity Report */}
+          <Grid size={{ xs: 12, md: 8 }}>
+              <Grow in={true} timeout={1000}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1,
+                    borderRadius: 2,
+                    height: '100%',
+                    background: theme.palette.mode === 'dark'
+                      ? alpha(theme.palette.background.paper, 0.8)
+                      : theme.palette.background.paper,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
+                    <Box>
+                      <Typography fontSize={12} fontWeight={500} color="text.primary">
+                        Loss Quantity Report (Top 10)
+                      </Typography>
+                      <Box display="flex" gap={1} mt={0.5}>
+                        <Button
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLossQtyViewAll();
+                          }}
+                          sx={{
+                            textTransform: 'none',
+                            fontSize: 11,
+                            px: 0,
+                            py: 0.25,
+                            minWidth: 'auto',
+                            color: theme.palette.primary.main,
+                            '&:hover': {
+                              backgroundColor: 'transparent',
+                              textDecoration: 'underline',
+                            },
+                          }}
+                        >
+                          View All →
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLossQtyGenerateReport();
+                          }}
+                          sx={{
+                            textTransform: 'none',
+                            fontSize: 11,
+                            px: 0,
+                            py: 0.25,
+                            minWidth: 'auto',
+                            color: theme.palette.primary.main,
+                            '&:hover': {
+                              backgroundColor: 'transparent',
+                              textDecoration: 'underline',
+                            },
+                          }}
+                        >
+                          Generate Report →
+                        </Button>
+                      </Box>
+                    </Box>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLossQtyViewMode("graph");
+                        }}
+                        variant={lossQtyViewMode === "graph" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Chart
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLossQtyViewMode("table");
+                        }}
+                        variant={lossQtyViewMode === "table" ? "contained" : "outlined"}
+                        sx={{
+                          textTransform: 'none',
+                          minWidth: 65,
+                          fontSize: 11,
+                          py: 0.5,
+                          '&.MuiButton-contained': {
+                            color: '#fff',
+                          },
+                        }}
+                      >
+                        Table
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {lossQtyViewMode === "table" ? (
+                    <DashboardTable
+                      padding={0}
+                      data={lossQtyData}
+                      columns={lossQtyColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={lossQtyData.length}
+                      stickyHeader={true}
+                      pageSize={lossQtyData.length}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      showPageSizeSelector={false}
+                      showTotalItems={false}
+                      showPageNumbers={false}
+                      loading={lossQtyLoading}
+                      containerHeight="300px"
+                      emptyStateComponent={<Typography>No loss quantity data</Typography>}
+                    />
+                  ) : (
+                    <Box 
+                      sx={{ 
+                        width: "100%", 
+                        // height: 280,
+                        overflowX: "auto",
+                        overflowY: "hidden",
+                        "&::-webkit-scrollbar": {
+                          height: 6,
+                        },
+                        "&::-webkit-scrollbar-track": {
+                          background: alpha(theme.palette.divider, 0.1),
+                          borderRadius: 3,
+                        },
+                        "&::-webkit-scrollbar-thumb": {
+                          background: alpha(theme.palette.error.main, 0.3),
+                          borderRadius: 3,
+                          "&:hover": {
+                            background: alpha(theme.palette.error.main, 0.5),
+                          },
+                        },
+                      }}
+                    >
+                      <ResponsiveContainer width="100%" height={280} minWidth={Math.max(600, lossQtyBarData.length * 80)}>
+                        <BarChart data={lossQtyBarData} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
+                          <defs>
+                            <linearGradient id="lossGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={theme.palette.error.main} stopOpacity={1} />
+                              <stop offset="100%" stopColor={theme.palette.error.dark} stopOpacity={0.8} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid 
+                            strokeDasharray="3 3" 
+                            stroke={alpha(theme.palette.divider, 0.3)}
+                            vertical={false}
+                          />
+                          <XAxis 
+                            dataKey="itemNumber" 
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            interval={0}
+                          />
+                          <YAxis 
+                            tick={{ fill: theme.palette.text.secondary, fontSize: 9 }}
+                            axisLine={false}
+                            tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
+                            width={60}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <Paper
+                                    elevation={8}
+                                    sx={{
+                                      p: 1,
+                                      background: theme.palette.mode === 'dark' 
+                                        ? alpha(theme.palette.background.paper, 0.95)
+                                        : theme.palette.background.paper,
+                                      border: `1px solid ${theme.palette.error.main}`,
+                                      borderRadius: 2,
+                                      maxWidth: 280,
+                                    }}
+                                  >
+                                    <Typography fontSize={12} fontWeight={500} mb={1} color="error.main">
+                                      {data.fullName}
+                                    </Typography>
+                                    <Typography fontSize={11} color="text.secondary" mb={0.5}>
+                                      Item #{data.itemNumber}
+                                    </Typography>
+                                    <Box 
+                                      sx={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        mb: 0.5,
+                                        p: 0.75,
+                                        borderRadius: 1,
+                                        background: alpha(theme.palette.error.main, 0.1),
+                                      }}
+                                    >
+                                      <Typography fontSize={11} fontWeight={500}>
+                                        Loss Qty:
+                                      </Typography>
+                                      <Typography fontSize={11} fontWeight={500} color="error.main">
+                                        {data.lossQty}
+                                      </Typography>
+                                    </Box>
+                                    <Box 
+                                      sx={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        p: 0.75,
+                                        borderRadius: 1,
+                                        background: alpha(theme.palette.error.main, 0.1),
+                                      }}
+                                    >
+                                      <Typography fontSize={11} fontWeight={500}>
+                                        Ext Loss:
+                                      </Typography>
+                                      <Typography fontSize={11} fontWeight={500} color="error.main">
+                                        ${data.extLoss.toFixed(2)}
+                                      </Typography>
+                                    </Box>
+                                  </Paper>
+                                );
+                              }
+                              return null;
+                            }}
+                            cursor={{ fill: alpha(theme.palette.error.main, 0.1) }}
+                          />
+                          <Bar 
+                            dataKey="extLoss" 
+                            fill="url(#lossGradient)"
+                            radius={[4, 4, 0, 0]}
+                          >
+                            {lossQtyBarData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={index % 2 === 0 
+                                  ? theme.palette.error.main 
+                                  : alpha(theme.palette.error.main, 0.8)
+                                } 
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+                </Paper>
+              </Grow>
+            </Grid>
         </Box>
       </Fade>
 
@@ -2884,7 +3750,7 @@ const AdminDashboard = () => {
       <Fade in={activeTab === 1} timeout={400} style={{ display: activeTab === 1 ? 'block' : 'none' }}>
         <Box>
           {/* Epick Summary Cards */}
-          <Grid container spacing={2} mb={2}>
+          <Grid container spacing={1.5} mb={1.5}>
             {epickCards.map((card, idx) => (
               <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
                 <DashboardCard {...card} />
@@ -2893,25 +3759,25 @@ const AdminDashboard = () => {
           </Grid>
 
           {/* Picker Performance */}
-          <Grid container spacing={2} mb={2}>
+          <Grid container spacing={1.5} mb={1.5}>
             <Grid size={{ xs: 12 }}>
               <Grow in={true} timeout={800}>
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography fontSize={12} fontWeight={500} color="text.primary">
                       Picker Performance
                     </Typography>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={1}>
                       <Button
                         size="small"
                         onClick={() => setPickerViewMode("graph")}
@@ -2947,7 +3813,7 @@ const AdminDashboard = () => {
                     </Stack>
                   </Box>
                   {pickerViewMode === "table" ? (
-                    <CommonTable
+                    <DashboardTable
                       padding={0}
                       data={epickData?.pickerWiseOrders || []}
                       columns={pickerColumns}
@@ -2962,7 +3828,7 @@ const AdminDashboard = () => {
                       showTotalItems={false}
                       showPageNumbers={false}
                       loading={epickLoading}
-                      containerHeight="350px"
+                      containerHeight="300px"
                       emptyStateComponent={<Typography>No picker data</Typography>}
                     />
                   ) : (
@@ -2992,16 +3858,16 @@ const AdminDashboard = () => {
                                   <Paper
                                     elevation={8}
                                     sx={{
-                                      p: 1.5,
+                                      p: 1,
                                       background: theme.palette.mode === 'dark' 
                                         ? alpha(theme.palette.background.paper, 0.95)
                                         : theme.palette.background.paper,
-                                      border: `1px solid ${theme.palette.divider}`,
+                                      border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                                       borderRadius: 2,
                                       maxWidth: 300,
                                     }}
                                   >
-                                    <Typography fontSize={12} fontWeight={600} mb={1}>
+                                    <Typography fontSize={12} fontWeight={500} mb={1}>
                                       {data.name}
                                     </Typography>
                                     <Typography fontSize={11} mb={0.5}>
@@ -3069,26 +3935,26 @@ const AdminDashboard = () => {
           </Grid>
 
           {/* Donut Charts Section */}
-          <Grid container spacing={2}>
+          <Grid container spacing={1.5} mb={1.5}>
             {/* Average Time Per Quantity Donut Chart */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Grow in={true} timeout={1000}>
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography fontSize={12} fontWeight={500} color="text.primary">
                       Average Time Per Quantity
                     </Typography>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={1}>
                       <Button
                         size="small"
                         onClick={() => setAverageTimePerQtyViewMode("graph")}
@@ -3124,7 +3990,7 @@ const AdminDashboard = () => {
                     </Stack>
                   </Box>
                   {averageTimePerQtyViewMode === "table" ? (
-                    <CommonTable
+                    <DashboardTable
                       padding={0}
                       data={epickData?.pickerWiseOrders || []}
                       columns={averageTimePerQtyColumns}
@@ -3139,7 +4005,7 @@ const AdminDashboard = () => {
                       showTotalItems={false}
                       showPageNumbers={false}
                       loading={epickLoading}
-                      containerHeight="350px"
+                      containerHeight="300px"
                       emptyStateComponent={<Typography>No picker data</Typography>}
                     />
                   ) : (
@@ -3203,15 +4069,15 @@ const AdminDashboard = () => {
                                     <Paper
                                       elevation={8}
                                       sx={{
-                                        p: 1.5,
+                                        p: 1,
                                         background: theme.palette.mode === 'dark' 
                                           ? alpha(theme.palette.background.paper, 0.95)
                                           : theme.palette.background.paper,
-                                        border: `1px solid ${theme.palette.divider}`,
+                                        border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                                         borderRadius: 2,
                                       }}
                                     >
-                                      <Typography fontSize={12} fontWeight={600} mb={0.5}>
+                                      <Typography fontSize={12} fontWeight={500} mb={0.5}>
                                         {picker.pickerName}
                                       </Typography>
                                       <Typography fontSize={11} color="text.secondary">
@@ -3223,6 +4089,12 @@ const AdminDashboard = () => {
                               }
                               return null;
                             }}
+                          />
+                          <Legend
+                            wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                            iconType="circle"
+                            iconSize={8}
+                            formatter={(value) => <span style={{ color: theme.palette.text.primary }}>{value}</span>}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -3238,19 +4110,19 @@ const AdminDashboard = () => {
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography fontSize={12} fontWeight={500} color="text.primary">
                       Scanned Quantity & Override Requests
                     </Typography>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={1}>
                       <Button
                         size="small"
                         onClick={() => setScannedQtyViewMode("graph")}
@@ -3286,7 +4158,7 @@ const AdminDashboard = () => {
                     </Stack>
                   </Box>
                   {scannedQtyViewMode === "table" ? (
-                    <CommonTable
+                    <DashboardTable
                       padding={0}
                       data={epickData?.pickerWiseOrders || []}
                       columns={scannedQtyColumns}
@@ -3301,7 +4173,7 @@ const AdminDashboard = () => {
                       showTotalItems={false}
                       showPageNumbers={false}
                       loading={epickLoading}
-                      containerHeight="350px"
+                      containerHeight="300px"
                       emptyStateComponent={<Typography>No picker data</Typography>}
                     />
                   ) : (
@@ -3393,34 +4265,71 @@ const AdminDashboard = () => {
                             content={({ active, payload }) => {
                               if (active && payload && payload.length) {
                                 const data = payload[0].payload as any;
-                                const picker = epickData?.pickerWiseOrders.find(
+                                const picker = epickData?.pickerWiseOrders?.find(
                                   (p) => p.pickerId === data.pickerId
                                 );
-                                if (picker) {
-                                  return (
-                                    <Paper
-                                      elevation={8}
-                                      sx={{
-                                        p: 1.5,
-                                        background: theme.palette.mode === 'dark' 
-                                          ? alpha(theme.palette.background.paper, 0.95)
-                                          : theme.palette.background.paper,
-                                        border: `1px solid ${theme.palette.divider}`,
-                                        borderRadius: 2,
-                                      }}
-                                    >
-                                      <Typography fontSize={12} fontWeight={600} mb={0.5}>
-                                        {picker.pickerName}
-                                      </Typography>
-                                      <Typography fontSize={11} color="text.secondary">
-                                        {data.type === 'scanned' ? 'Scanned Qty' : 'Override Requests'}: {data.value.toLocaleString()}
-                                      </Typography>
-                                    </Paper>
-                                  );
-                                }
+                                const isScanned = data.type === "scanned";
+                                const label = isScanned ? "Scanned Quantity" : "Override Requests";
+                                const value = Number(data.value) ?? 0;
+                                return (
+                                  <Paper
+                                    elevation={8}
+                                    sx={{
+                                      p: 1.25,
+                                      minWidth: 160,
+                                      background: theme.palette.mode === "dark"
+                                        ? alpha(theme.palette.background.paper, 0.95)
+                                        : theme.palette.background.paper,
+                                      border: theme.palette.mode === "dark" ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : "none",
+                                      borderRadius: 1.5,
+                                    }}
+                                  >
+                                    <Typography fontSize={12} fontWeight={500} color="text.primary" mb={0.5}>
+                                      {picker?.pickerName ?? data.name ?? "—"}
+                                    </Typography>
+                                    <Typography fontSize={11} color="text.secondary">
+                                      {label}
+                                    </Typography>
+                                    <Typography fontSize={12} fontWeight={500} color="primary.main">
+                                      {value.toLocaleString()}
+                                    </Typography>
+                                  </Paper>
+                                );
                               }
                               return null;
                             }}
+                          />
+                          <Legend
+                            content={() => (
+                              <Box display="flex" justifyContent="center" gap={2} flexWrap="wrap" sx={{ paddingTop: 1, fontSize: 11 }}>
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                  <Box
+                                    sx={{
+                                      width: 8,
+                                      height: 8,
+                                      borderRadius: "50%",
+                                      background: theme.palette.primary.main,
+                                    }}
+                                  />
+                                  <Typography component="span" fontSize={11} color="text.primary">
+                                    Scanned Quantity
+                                  </Typography>
+                                </Box>
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                  <Box
+                                    sx={{
+                                      width: 8,
+                                      height: 8,
+                                      borderRadius: "50%",
+                                      background: alpha(theme.palette.primary.main, 0.55),
+                                    }}
+                                  />
+                                  <Typography component="span" fontSize={11} color="text.primary">
+                                    Override Requests
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            )}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -3432,26 +4341,26 @@ const AdminDashboard = () => {
           </Grid>
 
           {/* Scanning Statistics & Override Request Statistics */}
-          <Grid container spacing={2} mt={2}>
+          <Grid container spacing={1.5} mt={1.5} mb={1.5}>
             {/* Scanning Statistics Chart */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Grow in={true} timeout={1400}>
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography fontSize={12} fontWeight={500} color="text.primary">
                       Scanning Statistics
                     </Typography>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={1}>
                       <Button
                         size="small"
                         onClick={() => setScanningStatsViewMode("graph")}
@@ -3487,7 +4396,7 @@ const AdminDashboard = () => {
                     </Stack>
                   </Box>
                   {scanningStatsViewMode === "table" ? (
-                    <CommonTable
+                    <DashboardTable
                       padding={0}
                       data={epickData?.scanningStatistics ? [
                         {
@@ -3518,7 +4427,7 @@ const AdminDashboard = () => {
                       showTotalItems={false}
                       showPageNumbers={false}
                       loading={epickLoading}
-                      containerHeight="350px"
+                      containerHeight="300px"
                       emptyStateComponent={<Typography>No scanning data</Typography>}
                     />
                   ) : (
@@ -3666,19 +4575,19 @@ const AdminDashboard = () => {
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 1.5,
+                    p: 1,
                     borderRadius: 2,
                     background: theme.palette.mode === 'dark'
                       ? alpha(theme.palette.background.paper, 0.8)
                       : theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
+                    border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                    <Typography fontSize={14} fontWeight={500} color="text.primary">
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography fontSize={12} fontWeight={500} color="text.primary">
                       Override Request Statistics
                     </Typography>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack direction="row" spacing={1}>
                       <Button
                         size="small"
                         onClick={() => setOverrideStatsViewMode("graph")}
@@ -3714,7 +4623,7 @@ const AdminDashboard = () => {
                     </Stack>
                   </Box>
                   {overrideStatsViewMode === "table" ? (
-                    <CommonTable
+                    <DashboardTable
                       padding={0}
                       data={epickData?.overrideRequestStatistics ? [
                         {
@@ -3748,7 +4657,7 @@ const AdminDashboard = () => {
                       showTotalItems={false}
                       showPageNumbers={false}
                       loading={epickLoading}
-                      containerHeight="350px"
+                      containerHeight="300px"
                       emptyStateComponent={<Typography>No override data</Typography>}
                     />
                   ) : (
@@ -3806,15 +4715,15 @@ const AdminDashboard = () => {
                                   <Paper
                                     elevation={8}
                                     sx={{
-                                      p: 1.5,
+                                      p: 1,
                                       background: theme.palette.mode === 'dark' 
                                         ? alpha(theme.palette.background.paper, 0.95)
                                         : theme.palette.background.paper,
-                                      border: `1px solid ${theme.palette.divider}`,
+                                      border: theme.palette.mode === 'dark' ? `1px solid ${alpha(theme.palette.divider, 0.4)}` : 'none',
                                       borderRadius: 2,
                                     }}
                                   >
-                                    <Typography fontSize={12} fontWeight={600} mb={0.5}>
+                                    <Typography fontSize={12} fontWeight={500} mb={0.5}>
                                       {data.name}
                                     </Typography>
                                     <Typography fontSize={11} color="text.secondary">
@@ -3825,6 +4734,12 @@ const AdminDashboard = () => {
                               }
                               return null;
                             }}
+                          />
+                          <Legend
+                            wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                            iconType="circle"
+                            iconSize={8}
+                            formatter={(value) => <span style={{ color: theme.palette.text.primary }}>{value}</span>}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -3851,11 +4766,11 @@ const AdminDashboard = () => {
             display="flex" 
             justifyContent="space-between" 
             alignItems="center" 
-            mb={2}
+            mb={1}
             flexWrap="wrap"
-            gap={1.5}
+            gap={1}
           >
-            <Box display="flex" gap={1.5} flexWrap="wrap">
+            <Box display="flex" gap={1} flexWrap="wrap">
               <Box
                 sx={{
                   display: 'flex',
@@ -3871,7 +4786,7 @@ const AdminDashboard = () => {
                 <Typography fontSize={12} fontWeight={500} color="text.secondary">
                   Total Loss Qty:
                 </Typography>
-                <Typography fontSize={13} fontWeight={600} color="error.main">
+                <Typography fontSize={12} fontWeight={500} color="error.main">
                   {lossQtyMergedData.reduce((sum, item) => sum + (item.Loss_Qty || 0), 0).toLocaleString()}
                 </Typography>
               </Box>
@@ -3890,7 +4805,7 @@ const AdminDashboard = () => {
                 <Typography fontSize={12} fontWeight={500} color="text.secondary">
                   Total Ext Lost:
                 </Typography>
-                <Typography fontSize={13} fontWeight={600} color="error.main">
+                <Typography fontSize={12} fontWeight={500} color="error.main">
                   ${lossQtyMergedData.reduce((sum, item) => sum + (item.Ext_Loss || 0), 0).toFixed(2)}
                 </Typography>
               </Box>
@@ -3909,7 +4824,7 @@ const AdminDashboard = () => {
               {generatingPDF ? 'Generating PDF...' : 'Download PDF'}
             </Button>
           </Box>
-          <CommonTable
+          <DashboardTable
             padding={0}
             data={getPaginatedLossQtyData()}
             columns={lossQtyModalColumns}
@@ -3945,11 +4860,11 @@ const AdminDashboard = () => {
             display="flex" 
             justifyContent="space-between" 
             alignItems="center" 
-            mb={2}
+            mb={1}
             flexWrap="wrap"
-            gap={1.5}
+            gap={1}
           >
-            <Box display="flex" gap={1.5} flexWrap="wrap">
+            <Box display="flex" gap={1} flexWrap="wrap">
               <Box
                 sx={{
                   display: 'flex',
@@ -3965,7 +4880,7 @@ const AdminDashboard = () => {
                 <Typography fontSize={12} fontWeight={500} color="text.secondary">
                   Total Quantity:
                 </Typography>
-                <Typography fontSize={13} fontWeight={600} color="primary.main">
+                <Typography fontSize={12} fontWeight={500} color="primary.main">
                   {highDemandFullData.reduce((sum, item) => sum + (item.totalQuantityOrdered || 0), 0).toLocaleString()}
                 </Typography>
               </Box>
@@ -3984,7 +4899,7 @@ const AdminDashboard = () => {
                 <Typography fontSize={12} fontWeight={500} color="text.secondary">
                   Total Orders:
                 </Typography>
-                <Typography fontSize={13} fontWeight={600} color="success.main">
+                <Typography fontSize={12} fontWeight={500} color="success.main">
                   {highDemandFullData.reduce((sum, item) => sum + (item.orderCount || 0), 0).toLocaleString()}
                 </Typography>
               </Box>
@@ -4003,7 +4918,7 @@ const AdminDashboard = () => {
                 <Typography fontSize={12} fontWeight={500} color="text.secondary">
                   Total Items:
                 </Typography>
-                <Typography fontSize={13} fontWeight={600} color="info.main">
+                <Typography fontSize={12} fontWeight={500} color="info.main">
                   {highDemandFullData.length}
                 </Typography>
               </Box>
@@ -4022,7 +4937,7 @@ const AdminDashboard = () => {
               {generatingHighDemandPDF ? 'Generating PDF...' : 'Download PDF'}
             </Button>
           </Box>
-          <CommonTable
+          <DashboardTable
             padding={0}
             data={getPaginatedHighDemandData()}
             columns={highDemandModalColumns}
@@ -4046,6 +4961,81 @@ const AdminDashboard = () => {
           />
         </Box>
       </CommonModal>
+
+      {/* Order Detail Modal (Current Order Status line items) */}
+      <CommonModal
+        open={orderDetailModalOpen}
+        onClose={handleCloseOrderDetailModal}
+        size="lg"
+        title={orderDetailModalOrderId != null ? `Order #${orderDetailModalOrderId} - Line Items` : "Order Details"}
+        maxWidth="90vw"
+      >
+        <Box>
+          {!orderDetailModalLoading && orderDetailModalData.length > 0 && (
+            <Box
+              display="flex"
+              flexWrap="wrap"
+              gap={2}
+              alignItems="center"
+              mb={1.5}
+              px={0.5}
+              py={1}
+              sx={{ bgcolor: (t) => alpha(t.palette.primary.main, 0.06), borderRadius: 1 }}
+            >
+              <Typography fontSize={13} fontWeight={600} color="text.primary">
+                Total Qty Ordered:{" "}
+                <Box component="span" color="primary.main">
+                  {orderDetailModalData.reduce((s, row) => s + Number(row.Quantity_Ordered ?? 0), 0)}
+                </Box>
+              </Typography>
+              <Typography fontSize={13} fontWeight={600} color="text.primary">
+                Total Qty Shipped:{" "}
+                <Box component="span" color="primary.main">
+                  {orderDetailModalData.reduce((s, row) => s + Number(row.Quantity_Shipped ?? 0), 0)}
+                </Box>
+              </Typography>
+              <Typography fontSize={13} fontWeight={600} color="text.primary">
+                Total Price:{" "}
+                <Box component="span" color="primary.main">
+                  $
+                  {orderDetailModalData
+                    .reduce((s, row) => {
+                      const unitPrice =
+                        Number(row.Price ?? 0) + Number(row.OTP_Amount_State ?? 0) + Number(row.PrepaidTax_Amount ?? 0);
+                      return s + unitPrice * Number(row.Quantity_Ordered ?? 0);
+                    }, 0)
+                    .toFixed(2)}
+                </Box>
+              </Typography>
+            </Box>
+          )}
+          {orderDetailModalLoading ? (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+              <LoadingSpinner />
+            </Box>
+          ) : (
+            <DashboardTable
+              padding={0}
+              data={orderDetailModalData}
+              columns={orderDetailModalColumns}
+              currentPage={1}
+              totalPages={1}
+              totalItems={orderDetailModalData.length}
+              stickyHeader={true}
+              pageSize={orderDetailModalData.length}
+              onPageChange={() => {}}
+              onPageSizeChange={() => {}}
+              showPageSizeSelector={false}
+              showTotalItems={true}
+              showPageNumbers={false}
+              loading={false}
+              containerHeight="60vh"
+              emptyStateComponent={<Typography>No line items for this order</Typography>}
+            />
+          )}
+        </Box>
+      </CommonModal>
+
     </Box>
   );
 };

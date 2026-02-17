@@ -1,5 +1,6 @@
 import axiosInstance from "../../../config/axios";
 
+
 export const productList = async (params: any) => {
     return axiosInstance.post('/distrubutor/productList', params);
 };
@@ -20,8 +21,17 @@ export const updateProductImageByImageId = async (imageId: string, formData: For
     });
 };
 
-export const getProductById = async (itemNumber: string) => {
-    return axiosInstance.get(`/distrubutor/product/${itemNumber}`);
+export const getProductById = async (
+  itemNumber: string
+): Promise<{ data: { data: any } }> => {
+  return axiosInstance.get(`/distrubutor/product/${itemNumber}`);
+};
+
+export const getProductsByOrderNumber = async (params: {
+    orderNumbers: number[];
+    customerId: number | null;
+}) => {
+    return axiosInstance.post('/distrubutor/getProductsByOrderNumber', params);
 };
 
 export const createProductLimit = async (params: any) => {

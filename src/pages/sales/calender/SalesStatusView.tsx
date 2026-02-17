@@ -24,7 +24,7 @@ import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonT
 import CustomButton from '../../../component/atoms/CustomButton';
 import { getCustomerOrderList, getCustomerById, getCustomerOrderDetailInCalender, salesCallTime, salesCallTimeUpdate, addNote, updateNote, deleteNote } from '../../../redux/apis/sales/salesCalenderApis';
 import { setSalesSession } from '../../../redux/apis/sales/profileApis';
-import { setSelectedCustomer, updateSessionCustomer } from '../../../redux/slices/authSlice';
+import { setSelectedCustomer, updateSessionCustomer, setShowTradeShow } from '../../../redux/slices/authSlice';
 import { useAppDispatch, useAppSelector } from '../../../redux/store';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -243,9 +243,9 @@ const SalesStatusView: React.FC = () => {
       // Update store details with the response from setSalesSession
       if (sessionResponse && typeof sessionResponse === 'object' && 'data' in sessionResponse) {
         const responseData = sessionResponse as any;
-        if (responseData.data?.data) {
-          const storeDetails = responseData.data.data;
-          // Update the store details in Redux state
+        const sessionData = responseData.data?.data ?? responseData.data;
+        if (sessionData) {
+          const storeDetails = sessionData;
           dispatch({
             type: 'auth/updateStoreDetails',
             payload: {
@@ -264,6 +264,9 @@ const SalesStatusView: React.FC = () => {
               Jurisdiction_State: storeDetails.Jurisdiction_State,
             }
           });
+          if (typeof storeDetails.showTradeShow === 'boolean') {
+            dispatch(setShowTradeShow(storeDetails.showTradeShow));
+          }
         }
       }
 

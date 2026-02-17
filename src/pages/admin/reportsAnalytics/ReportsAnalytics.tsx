@@ -21,6 +21,7 @@ import {
   AccountBalanceWallet as AccountBalanceWalletIcon,
   Receipt as ReceiptIcon,
   Schedule as ScheduleIcon,
+  History as HistoryIcon,
   ChevronLeft,
   ChevronRight,
   ExpandMore,
@@ -31,6 +32,7 @@ import CustomerReportTab from './CustomerReportTab';
 import InventoryLabelTab from './InventoryLabelTab';
 import LossQtyReportTab from './LossQtyReportTab';
 import InventorySpotCheckTab from './InventorySpotCheckTab';
+import ReceivingHistoryAdjustmentTab from './ReceivingHistoryAdjustmentTab';
 import ARReportTab from './ARReportTab';
 import ARStatementTab from './ARStatementTab';
 import VelocityReportTab from './VelocityReportTab';
@@ -49,6 +51,7 @@ const ReportsAnalytics: React.FC = () => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'loss-qty') return 3;
     if (tabParam === 'inventory-spot-check') return 5;
+    if (tabParam === 'receiving-adjustment') return 11;
     // Check if any AR tab is selected
     if (tabParam === 'ar-report') return 6;
     if (tabParam === 'ar-statement') return 7;
@@ -64,6 +67,8 @@ const ReportsAnalytics: React.FC = () => {
       setTab(3);
     } else if (tabParam === 'inventory-spot-check') {
       setTab(5);
+    } else if (tabParam === 'receiving-adjustment') {
+      setTab(11);
     } else if (tabParam === 'ar-report') {
       setTab(6);
       setArExpanded(true);
@@ -114,6 +119,8 @@ const ReportsAnalytics: React.FC = () => {
         return <VelocityReportTab />;
       case 5:
         return <InventorySpotCheckTab />;
+      case 11:
+        return <ReceivingHistoryAdjustmentTab />;
       case 6:
         return <ARReportTab />;
       case 7:
@@ -825,6 +832,45 @@ const ReportsAnalytics: React.FC = () => {
                 </Box>
               </Box>
             )}
+          </Box>
+
+          {/* PO Report - Last tab below AR */}
+          <Box
+            onClick={() => {
+              setTab(11);
+              setSearchParams({ tab: 'receiving-adjustment' });
+            }}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: sidebarOpen ? 'flex-start' : 'center',
+              minHeight: 48,
+              height: 48,
+              px: sidebarOpen ? 2 : 1,
+              mx: sidebarOpen ? 0.5 : 0,
+              borderRadius: 1.5,
+              cursor: 'pointer',
+              color: tab === 11 ? theme.palette.primary.main : theme.palette.text.secondary,
+              backgroundColor: tab === 11
+                ? (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.16)' : 'rgba(25, 118, 210, 0.08)')
+                : 'transparent',
+              fontWeight: tab === 11 ? 600 : 400,
+              borderLeft: tab === 11 && sidebarOpen ? `3px solid ${theme.palette.primary.main}` : 'none',
+              transition: 'all 0.2s ease-in-out',
+              '&:hover': {
+                backgroundColor: theme.palette.action.hover,
+                color: theme.palette.text.primary,
+              },
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: sidebarOpen ? 1.5 : 0 }}>
+              <HistoryIcon sx={{ fontSize: 20 }} />
+              {sidebarOpen && (
+                <Typography sx={{ textTransform: 'none', fontSize: '0.875rem' }}>
+                  PO Report
+                </Typography>
+              )}
+            </Box>
           </Box>
         </Box>
       </Paper>

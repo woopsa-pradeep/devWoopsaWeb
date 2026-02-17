@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -40,7 +40,9 @@ import { geocodeAddress } from '../../../utils/geocodingUtils';
 
 const AddRetailer: React.FC = () => {
   const { customerId } = useParams<{ customerId?: string }>();
+  const location = useLocation();
   const isEditMode = !!customerId;
+  const retailerListPath = location.pathname.startsWith('/sales') ? '/sales/retailers' : '/admin/retailers';
   const [submitting, setSubmitting] = useState(false);
   const [originalData, setOriginalData] = useState<any>(null);
   const [salesRepOptions, setSalesRepOptions] = useState<Array<{ label: string; value: string }>>([]);
@@ -705,7 +707,7 @@ const AddRetailer: React.FC = () => {
         await uploadDocuments(customerNumber);
       }
 
-      navigate('/admin/retailers');
+      navigate(retailerListPath);
     } catch (error: any) {
       console.error(`Error ${isEditMode ? 'updating' : 'creating'} retailer:`, error);
       toast.error(error?.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} retailer`);
@@ -2442,7 +2444,7 @@ const AddRetailer: React.FC = () => {
                           type="button"
                           buttonType="cancel"
                           appearance="outlined"
-                          onClick={() => navigate('/admin/retailers')}
+                          onClick={() => navigate(retailerListPath)}
                           sx={{ minWidth: 120 }}
                           fullWidth={false}
                         >
