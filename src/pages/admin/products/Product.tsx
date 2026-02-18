@@ -41,10 +41,10 @@ import PrintIcon from '@mui/icons-material/Print';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/Update';
 import EventIcon from '@mui/icons-material/Event';
-import ViewListIcon from '@mui/icons-material/ViewList';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+// import ViewListIcon from '@mui/icons-material/ViewList';
+// import ViewModuleIcon from '@mui/icons-material/ViewModule';
+// import ToggleButton from '@mui/material/ToggleButton';
+// import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 // import Card from '@mui/material/Card';
 // import CardContent from '@mui/material/CardContent';
 import Pagination from '@mui/material/Pagination';
@@ -181,7 +181,8 @@ const Product = () => {
   const [lossQtyReportModalOpen, setLossQtyReportModalOpen] = useState(false);
 
   // Detailed view state
-  const [viewMode, setViewMode] = useState<'table' | 'detailed'>('detailed');
+  // For now only table view - detailed view tab commented below
+  const [viewMode] = useState<'table' | 'detailed'>('table');
   const [expandedCards, setExpandedCards] = useState<{ [key: string]: boolean }>({});
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: { [section: string]: boolean } }>({});
   
@@ -3560,6 +3561,7 @@ const inactive =
             flexWrap="wrap"
             sx={{ width: { xs: '100%', md: 'auto' } }}
           >
+            {/* View tab commented - showing only table view for now
             <ToggleButtonGroup
               value={viewMode}
               exclusive
@@ -3585,6 +3587,7 @@ const inactive =
                 <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Detailed</Box>
               </ToggleButton>
             </ToggleButtonGroup>
+            */}
             {!isSalesMode && (
               <>
                 <CustomButton 

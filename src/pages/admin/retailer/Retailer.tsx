@@ -40,8 +40,8 @@ import { geocodeAddress } from "../../../utils/geocodingUtils";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import SettingsIcon from "@mui/icons-material/Settings";
 import EditIcon from "@mui/icons-material/Edit";
-import ViewListIcon from "@mui/icons-material/ViewList";
-import ViewModuleIcon from "@mui/icons-material/ViewModule";
+// import ViewListIcon from "@mui/icons-material/ViewList";
+// import ViewModuleIcon from "@mui/icons-material/ViewModule";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { useDebounce } from "../../../hooks/useDebounce";
@@ -141,8 +141,8 @@ const Retailer = () => {
   // Loss Qty Report Modal state
   const [lossQtyReportModalOpen, setLossQtyReportModalOpen] = useState(false);
 
-  // Detailed view state
-  const [viewMode, setViewMode] = useState<"table" | "detailed">("detailed");
+  // Detailed view state - only table view for now (view tab commented out)
+  const viewMode = useState<"table" | "detailed">("table")[0];
   const [detailedData, setDetailedData] = useState<any[]>([]);
   const [detailedLoading, setDetailedLoading] = useState(false);
   const [detailedCurrentPage, setDetailedCurrentPage] = useState(1);
@@ -3850,6 +3850,7 @@ const Retailer = () => {
           flexWrap="wrap"
           sx={{ width: { xs: "100%", md: "auto" } }}
         >
+          {/* View tab commented - showing only table view for now
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -3885,6 +3886,7 @@ const Retailer = () => {
               </Box>
             </ToggleButton>
           </ToggleButtonGroup>
+          */}
           {/* <CustomButton 
             fullWidth={false}
             onClick={() => setLossQtyReportModalOpen(true)}
