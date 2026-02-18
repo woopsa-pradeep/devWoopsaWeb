@@ -24,6 +24,10 @@ export const getCustomerList = async () => {
     return axiosInstance.get('/list/customerList');
 };
 
+export const getCustomerListForEmailModules = async () => {
+    return axiosInstance.get('/distrubutor/getCustomerListForEmailModules');
+};
+
 export const getRegisterCustomerList = async () => {
     return axiosInstance.get('/list/registerCustomerList');
 };

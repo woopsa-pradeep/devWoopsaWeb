@@ -4,7 +4,8 @@ import axiosInstance from "../../../config/axios";
 export interface Order {
   orderNumber: number;
   route: number;
-  stop: number;
+  stop: number | null;
+  c_number?: number;
   customerName: string;
   time: string;
   box: number[];
@@ -12,6 +13,7 @@ export interface Order {
   drink: number[];
   startedAt: string;
   completedAt: string;
+  status?: string;
   invoiced: boolean;
   pickerName: string;
 }

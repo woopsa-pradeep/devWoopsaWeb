@@ -32,7 +32,7 @@ import TextInput from '../../../component/atoms/TextInput';
 import CommonTable from '../../../component/atoms/Table/CommonTable';
 import { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import toast from 'react-hot-toast';
-import { getCustomerList } from '../../../redux/apis/distrubutor/listApis';
+import { getCustomerListForEmailModules } from '../../../redux/apis/distrubutor/listApis';
 import {
   getInvoiceTemplates,
   getInvoiceTemplateById,
@@ -132,7 +132,7 @@ const SAMPLE_INVOICE_ITEMS = (() => {
 
 export type InvoiceGroupBy = 'alphabetSalesCategory' | 'alphabet' | 'sequence' | '';
 
-export type HeaderPageOption = 'all' | 'first' | 'firstPlusSummary';
+export type HeaderPageOption = 'first' | 'firstPlusSummary';
 
 /** Footer layout: message left + totals right (default), or message right + totals left */
 export type FooterLayoutOption = 'messageLeft' | 'messageRight';
@@ -216,7 +216,7 @@ const defaultTemplate = (): Omit<InvoiceTemplate, 'id' | 'createdAt' | 'updatedA
   showLogo: true,
   logoPosition: 'left',
   showTerms: true,
-  headerOnPages: 'all',
+  headerOnPages: 'firstPlusSummary',
   showHeaderMessage: false,
   headerMessageFirstPage: '',
   selectedCustomerIds: [],
@@ -242,12 +242,12 @@ function normalizeGroupBy(value: string | undefined): InvoiceGroupBy {
 }
 
 function normalizeHeaderOnPages(value: string | undefined): HeaderPageOption {
-  if (!value) return 'all';
+  if (!value) return 'firstPlusSummary';
   const v = value.toLowerCase();
   if (v === 'firstplussummary') return 'firstPlusSummary';
   if (v === 'first') return 'first';
-  if (v === 'all') return 'all';
-  return value as HeaderPageOption;
+  if (v === 'all') return 'firstPlusSummary';
+  return 'firstPlusSummary' as HeaderPageOption;
 }
 
 function normalizeFooterLayout(value: string | undefined): FooterLayoutOption {
@@ -329,12 +329,13 @@ const InvoiceTemplateTab: React.FC = () => {
   const [showLogo, setShowLogo] = useState(true);
   const [logoPosition, setLogoPosition] = useState<LogoPosition>('left');
   const [showTerms, setShowTerms] = useState(true);
-  const [headerOnPages, setHeaderOnPages] = useState<HeaderPageOption>('all');
+  const [headerOnPages, setHeaderOnPages] = useState<HeaderPageOption>('firstPlusSummary');
   const [showHeaderMessage, setShowHeaderMessage] = useState(false);
   const [headerMessageFirstPage, setHeaderMessageFirstPage] = useState('');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [customerList, setCustomerList] = useState<{ C_Number: number; C_Name: string }[]>([]);
   const [customerListLoading, setCustomerListLoading] = useState(false);
+  const [mainTemplate, setMainTemplate] = useState(false);
   const [footerLayout, setFooterLayout] = useState<FooterLayoutOption>('messageLeft');
   const [showFooterMessage, setShowFooterMessage] = useState(true);
   const [footerMessageLastPage, setFooterMessageLastPage] = useState('');
@@ -901,11 +902,9 @@ const InvoiceTemplateTab: React.FC = () => {
       const margin = 10;
       const headerHeight = addInvoiceHeaderToPage(doc, 1, 1, logoDataUrl);
       const tableMarginTopNewPages =
-        headerOnPages === 'all'
-          ? headerHeight
-          : headerOnPages === 'firstPlusSummary'
-            ? SUMMARY_HEADER_HEIGHT_MM
-            : margin;
+        headerOnPages === 'firstPlusSummary'
+          ? SUMMARY_HEADER_HEIGHT_MM
+          : margin;
       let yPos = headerHeight + 2;
       const grouped = groupInvoiceItems(SAMPLE_INVOICE_ITEMS);
       // EBT column: show data but no header label in table
@@ -984,9 +983,7 @@ const InvoiceTemplateTab: React.FC = () => {
           if (yPos > minYBeforeFooter) {
             doc.addPage('a4', 'landscape');
             const currentP = doc.getNumberOfPages();
-            if (headerOnPages === 'all') {
-              yPos = addInvoiceHeaderToPage(doc, currentP, totalPagesEstimate, logoDataUrl) + 2;
-            } else if (headerOnPages === 'firstPlusSummary') {
+            if (headerOnPages === 'firstPlusSummary') {
               yPos = addInvoiceSummaryHeaderToPage(doc, currentP, totalPagesEstimate, logoDataUrl) + 2;
             } else {
               yPos = tableMarginTopNewPages + 2;
@@ -1005,9 +1002,7 @@ const InvoiceTemplateTab: React.FC = () => {
           if (yPos > minYBeforeFooter) {
             doc.addPage('a4', 'landscape');
             const currentP = doc.getNumberOfPages();
-            if (headerOnPages === 'all') {
-              yPos = addInvoiceHeaderToPage(doc, currentP, totalPagesEstimate, logoDataUrl) + 2;
-            } else if (headerOnPages === 'firstPlusSummary') {
+            if (headerOnPages === 'firstPlusSummary') {
               yPos = addInvoiceSummaryHeaderToPage(doc, currentP, totalPagesEstimate, logoDataUrl) + 2;
             } else {
               yPos = tableMarginTopNewPages + 2;
@@ -1025,9 +1020,7 @@ const InvoiceTemplateTab: React.FC = () => {
         if (yPos > minYBeforeFooter) {
           doc.addPage('a4', 'landscape');
           const currentP = doc.getNumberOfPages();
-          if (headerOnPages === 'all') {
-            yPos = addInvoiceHeaderToPage(doc, currentP, totalPagesEstimate, logoDataUrl) + 2;
-          } else if (headerOnPages === 'firstPlusSummary') {
+          if (headerOnPages === 'firstPlusSummary') {
             yPos = addInvoiceSummaryHeaderToPage(doc, currentP, totalPagesEstimate, logoDataUrl) + 2;
           } else {
             yPos = tableMarginTopNewPages + 2;
@@ -1109,9 +1102,7 @@ const InvoiceTemplateTab: React.FC = () => {
           if (wouldOverlapFooter) {
             doc.addPage('a4', 'landscape');
             const newPageNum = doc.getNumberOfPages();
-            if (headerOnPages === 'all') {
-              startY = addInvoiceHeaderToPage(doc, newPageNum, newPageNum, logoDataUrl) + 2;
-            } else if (headerOnPages === 'firstPlusSummary') {
+            if (headerOnPages === 'firstPlusSummary') {
               startY = addInvoiceSummaryHeaderToPage(doc, newPageNum, newPageNum, logoDataUrl) + 2;
             } else {
               startY = tableMarginTopNewPages + 2;
@@ -1178,7 +1169,7 @@ const InvoiceTemplateTab: React.FC = () => {
   useEffect(() => {
     if (view === 'edit') {
       setCustomerListLoading(true);
-      getCustomerList()
+      getCustomerListForEmailModules()
         .then((res: unknown) => {
           const data = (res as { data?: { data?: { C_Number: number; C_Name: string }[] } })?.data?.data ?? [];
           setCustomerList(Array.isArray(data) ? data : []);
@@ -1221,6 +1212,7 @@ const InvoiceTemplateTab: React.FC = () => {
     setShowLastBalance(def.showLastBalance);
     setShowTotalAmountDue(def.showTotalAmountDue);
     setShowReportGeneratedByWoopsa(def.showReportGeneratedByWoopsa);
+    setMainTemplate(def.mainTemplate ?? false);
   };
 
   const handleAdd = () => {
@@ -1255,10 +1247,11 @@ const InvoiceTemplateTab: React.FC = () => {
         setShowLogo(template.showLogo);
         setLogoPosition(template.logoPosition ?? 'left');
         setShowTerms(template.showTerms);
-        setHeaderOnPages(template.headerOnPages ?? 'all');
+        setHeaderOnPages(template.headerOnPages ?? 'firstPlusSummary');
         setShowHeaderMessage(template.showHeaderMessage ?? false);
         setHeaderMessageFirstPage(template.headerMessageFirstPage || '');
         setSelectedCustomerIds(template.selectedCustomerIds ?? []);
+        setMainTemplate(template.mainTemplate ?? false);
         setFooterLayout(template.footerLayout ?? 'messageLeft');
         setShowFooterMessage(template.showFooterMessage);
         setFooterMessageLastPage(template.footerMessageLastPage || '');
@@ -1299,10 +1292,11 @@ const InvoiceTemplateTab: React.FC = () => {
         setShowLogo(local.showLogo);
         setLogoPosition(local.logoPosition ?? 'left');
         setShowTerms(local.showTerms);
-        setHeaderOnPages(local.headerOnPages ?? 'all');
+        setHeaderOnPages(local.headerOnPages ?? 'firstPlusSummary');
         setShowHeaderMessage(local.showHeaderMessage ?? false);
         setHeaderMessageFirstPage(local.headerMessageFirstPage || '');
         setSelectedCustomerIds(customerNumbers);
+        setMainTemplate(local.mainTemplate ?? false);
         setFooterLayout(local.footerLayout ?? 'messageLeft');
         setShowFooterMessage(local.showFooterMessage);
         setFooterMessageLastPage(local.footerMessageLastPage || '');
@@ -1764,7 +1758,7 @@ const InvoiceTemplateTab: React.FC = () => {
                             .map((id) => customerList.find((c) => c.C_Number === id)?.C_Name ?? id)
                             .join(', ');
                         }}
-                        disabled={customerListLoading}
+                        disabled={customerListLoading || mainTemplate}
                         sx={{ fontSize: '0.75rem' }}
                       >
                         {customerListLoading && (
@@ -2040,15 +2034,20 @@ const InvoiceTemplateTab: React.FC = () => {
                       </Grid>
                       {showHeaderMessage && (
                         <Grid size={{ xs: 12, md: 6 }}>
-                          <TextInput
-                            value={headerMessageFirstPage}
-                            onChange={(e) => setHeaderMessageFirstPage(e.target.value)}
-                            placeholder="Optional message (max 750 characters)"
-                            multiline
-                            rows={6}
-                            inputProps={{ maxLength: HEADER_MSG_MAX_LENGTH }}
-                            sx={{ mb: 1 }}
-                          />
+                          <Box sx={{ mb: 1 }}>
+                            <TextInput
+                              value={headerMessageFirstPage}
+                              onChange={(e) => setHeaderMessageFirstPage(e.target.value)}
+                              placeholder="Optional message (max 750 characters)"
+                              multiline
+                              rows={6}
+                              inputProps={{ maxLength: HEADER_MSG_MAX_LENGTH }}
+                              sx={{ mb: 0 }}
+                            />
+                            <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mt: 0.5, textAlign: 'right' }}>
+                              {headerMessageFirstPage.length}/{HEADER_MSG_MAX_LENGTH}
+                            </Typography>
+                          </Box>
                         </Grid>
                       )}
                     </Grid>
@@ -2160,15 +2159,20 @@ const InvoiceTemplateTab: React.FC = () => {
                       </Grid>
                       {showFooterMessage && (
                         <Grid size={{ xs: 12 }}>
-                          <TextInput
-                            value={footerMessageLastPage}
-                            onChange={(e) => setFooterMessageLastPage(e.target.value)}
-                            placeholder="Optional footer text (max 1000 characters)"
-                            multiline
-                            rows={6}
-                            inputProps={{ maxLength: FOOTER_MSG_MAX_LENGTH }}
-                            sx={{ mb: 1 }}
-                          />
+                          <Box sx={{ mb: 1 }}>
+                            <TextInput
+                              value={footerMessageLastPage}
+                              onChange={(e) => setFooterMessageLastPage(e.target.value)}
+                              placeholder="Optional footer text (max 1000 characters)"
+                              multiline
+                              rows={6}
+                              inputProps={{ maxLength: FOOTER_MSG_MAX_LENGTH }}
+                              sx={{ mb: 0 }}
+                            />
+                            <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mt: 0.5, textAlign: 'right' }}>
+                              {footerMessageLastPage.length}/{FOOTER_MSG_MAX_LENGTH}
+                            </Typography>
+                          </Box>
                         </Grid>
                       )}
                     </Grid>

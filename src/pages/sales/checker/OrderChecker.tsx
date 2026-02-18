@@ -778,6 +778,7 @@ console.log(getPriceClassesWithTotals);
 
       // Use order number as account number if not available
       const accountNumber = String(selectedOrder.orderNumber);
+      const custNumber = selectedOrder.c_number != null ? String(selectedOrder.c_number) : undefined;
 
       // Print all labels in a single print window
       printAllLabels(
@@ -790,7 +791,7 @@ console.log(getPriceClassesWithTotals);
         undefined, // city
         undefined, // state
         undefined, // zip
-        undefined, // custNumber
+        custNumber,
         deliveryDate
       );
 
@@ -825,6 +826,7 @@ console.log(getPriceClassesWithTotals);
 
       // Use order number as account number if not available
       const accountNumber = String(selectedOrder.orderNumber);
+      const custNumber = selectedOrder.c_number != null ? String(selectedOrder.c_number) : undefined;
 
       // Print packing list with A4 size directly (allContainersList is already in the correct format)
       printAllLabels(
@@ -837,7 +839,7 @@ console.log(getPriceClassesWithTotals);
         undefined, // city
         undefined, // state
         undefined, // zip
-        undefined, // custNumber
+        custNumber,
         deliveryDate
       );
 
@@ -861,6 +863,7 @@ console.log(getPriceClassesWithTotals);
 
       // Use order number as account number if not available
       const accountNumber = String(selectedOrder.orderNumber);
+      const custNumber = selectedOrder.c_number != null ? String(selectedOrder.c_number) : undefined;
 
       // Generate label for the specific container
       generateLabels(
@@ -874,7 +877,7 @@ console.log(getPriceClassesWithTotals);
         undefined, // city
         undefined, // state
         undefined, // zip
-        undefined, // custNumber
+        custNumber,
         deliveryDate
       );
 

@@ -65,9 +65,11 @@ const getLabelDimensions = (size: LabelSize): { width: number; height: number } 
 
 /**
  * Generate 4x3 label HTML
+ * Layout: top = C_number (left) + barcode (right); then customer name; then route/stop; then order number, delivery date, item count, x of y.
  */
 const generate4x3LabelHTML = (data: LabelData): string => {
   const barcodeUrl = generateBarcode(data.boxId);
+  const customerNumber = data.custNumber ?? '';
   return `
 <!DOCTYPE html>
 <html>
@@ -98,31 +100,32 @@ const generate4x3LabelHTML = (data: LabelData): string => {
       display: flex;
       flex-direction: column;
     }
-    .header-section {
+    .top-row {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       margin-bottom: 0.06in;
     }
-    .route-box, .stop-box {
+    .customer-number-left {
       border: 2px solid black;
-      padding: 0.03in 0.1in;
-      font-size: 16pt;
+      padding: 0.03in 0.08in;
+      font-size: 14pt;
       font-weight: bold;
     }
-    .barcode-section {
-      text-align: center;
-      margin: 0.06in 0;
+    .barcode-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
     }
-    .barcode-section img {
-      max-width: 85%;
+    .barcode-right img {
+      max-width: 1.8in;
       height: auto;
       max-height: 0.5in;
     }
     .customer-section {
       border: 2px solid black;
       padding: 0.05in;
-      margin-bottom: 0.05in;
+      margin-bottom: 0.5in;
       font-size: 9pt;
     }
     .customer-name {
@@ -138,6 +141,17 @@ const generate4x3LabelHTML = (data: LabelData): string => {
       text-align: right;
       font-size: 8pt;
       margin-top: 0.03in;
+    }
+    .route-stop-section {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.05in;
+    }
+    .route-box, .stop-box {
+      border: 2px solid black;
+      padding: 0.03in 0.1in;
+      font-size: 16pt;
+      font-weight: bold;
     }
     .bottom-section {
       margin-top: auto;
@@ -165,12 +179,11 @@ const generate4x3LabelHTML = (data: LabelData): string => {
 </head>
 <body>
   <div class="label-container">
-    <div class="header-section">
-      <div class="route-box">ROUTE: ${data.route}</div>
-      <div class="stop-box">STOP: ${data.stop}</div>
-    </div>
-    <div class="barcode-section">
-      <img src="${barcodeUrl}" alt="Barcode ${data.boxId}" />
+    <div class="top-row">
+      <div class="customer-number-left">${customerNumber}</div>
+      <div class="barcode-right">
+        <img src="${barcodeUrl}" alt="Barcode ${data.boxId}" />
+      </div>
     </div>
     <div class="customer-section">
       <div class="customer-name">${data.customerName}</div>
@@ -180,7 +193,11 @@ const generate4x3LabelHTML = (data: LabelData): string => {
           ${data.city || ''}${data.city && data.state ? ', ' : ''}${data.state || ''} ${data.zip || ''}
         </div>
       ` : ''}
-      ${data.custNumber ? `<div class="cust-number">Cust #${data.custNumber}</div>` : ''}
+      ${data.custNumber && data.custNumber !== data.accountNumber ? `<div class="cust-number">Cust #${data.custNumber}</div>` : ''}
+    </div>
+    <div class="route-stop-section">
+      <div class="route-box">ROUTE: ${data.route}</div>
+      <div class="stop-box">STOP: ${data.stop}</div>
     </div>
     <div class="bottom-section">
       <div class="info-row">${data.accountNumber}</div>
@@ -198,9 +215,11 @@ const generate4x3LabelHTML = (data: LabelData): string => {
 
 /**
  * Generate 4x6 label HTML (landscape)
+ * Layout: top = barcode (left) + customer number (right); then customer name; then route/stop; then bottom same as before.
  */
 const generate4x6LabelHTML = (data: LabelData): string => {
   const barcodeUrl = generateBarcode(data.boxId);
+  const customerNumber = data.custNumber ?? '';
   return `
 <!DOCTYPE html>
 <html>
@@ -231,36 +250,31 @@ const generate4x6LabelHTML = (data: LabelData): string => {
       display: flex;
       flex-direction: column;
     }
-    .header-section {
+    .top-row {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
       margin-bottom: 0.08in;
     }
-    .route-box, .stop-box {
-      border: 2px solid black;
+    .customer-number-left {
       padding: 0.04in 0.12in;
-      font-size: 20pt;
+      font-size: 18pt;
       font-weight: bold;
     }
-    .barcode-section {
-      text-align: center;
-      margin: 0.08in 0;
+    .barcode-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
     }
-    .barcode-section img {
-      max-width: 88%;
+    .barcode-right img {
+      max-width: 2.2in;
       height: auto;
       max-height: 0.55in;
-    }
-    .box-id {
-      text-align: center;
-      font-size: 11pt;
-      font-weight: bold;
-      margin-top: 0.04in;
     }
     .customer-section {
       border: 2px solid black;
       padding: 0.06in;
-      margin-bottom: 0.06in;
+      margin-bottom: 0.6in;
       font-size: 10pt;
     }
     .customer-name {
@@ -277,6 +291,17 @@ const generate4x6LabelHTML = (data: LabelData): string => {
       text-align: right;
       font-size: 9pt;
       margin-top: 0.04in;
+    }
+    .route-stop-section {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.08in;
+    }
+    .route-box, .stop-box {
+      border: 2px solid black;
+      padding: 0.04in 0.12in;
+      font-size: 20pt;
+      font-weight: bold;
     }
     .bottom-section {
       margin-top: auto;
@@ -305,13 +330,11 @@ const generate4x6LabelHTML = (data: LabelData): string => {
 </head>
 <body>
   <div class="label-container">
-    <div class="header-section">
-      <div class="route-box">ROUTE: ${data.route}</div>
-      <div class="stop-box">STOP: ${data.stop}</div>
-    </div>
-    <div class="barcode-section">
-      <img src="${barcodeUrl}" alt="Barcode ${data.boxId}" />
-      <div class="box-id">${data.boxId}</div>
+    <div class="top-row">
+      <div class="customer-number-left">${customerNumber}</div>
+      <div class="barcode-right">
+        <img src="${barcodeUrl}" alt="Barcode ${data.boxId}" />
+      </div>
     </div>
     <div class="customer-section">
       <div class="customer-name">${data.customerName}</div>
@@ -321,7 +344,11 @@ const generate4x6LabelHTML = (data: LabelData): string => {
           ${data.city || ''}${data.city && data.state ? ', ' : ''}${data.state || ''} ${data.zip || ''}
         </div>
       ` : ''}
-      ${data.custNumber ? `<div class="cust-number">Cust #${data.custNumber}</div>` : ''}
+      ${data.custNumber && data.custNumber !== data.accountNumber ? `<div class="cust-number">Cust #${data.custNumber}</div>` : ''}
+    </div>
+    <div class="route-stop-section">
+      <div class="route-box">ROUTE: ${data.route}</div>
+      <div class="stop-box">STOP: ${data.stop}</div>
     </div>
     <div class="bottom-section">
       <div class="info-row">${data.accountNumber}</div>
@@ -339,9 +366,11 @@ const generate4x6LabelHTML = (data: LabelData): string => {
 
 /**
  * Generate 3x6 label HTML (landscape)
+ * Layout: top = C_number (left) + barcode (right); then customer name; then route/stop; then order number, delivery date, item count, x of y.
  */
 const generate3x6LabelHTML = (data: LabelData): string => {
   const barcodeUrl = generateBarcode(data.boxId);
+  const customerNumber = data.custNumber ?? '';
   return `
 <!DOCTYPE html>
 <html>
@@ -372,38 +401,32 @@ const generate3x6LabelHTML = (data: LabelData): string => {
       display: flex;
       flex-direction: column;
     }
-    .header-section {
+    .top-row {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 0.1in;
+      margin-bottom: 0.06in;
     }
-    .route-box, .stop-box {
+    .customer-number-left {
       border: 2px solid black;
-      padding: 0.04in 0.12in;
-      font-size: 18pt;
+      padding: 0.04in 0.1in;
+      font-size: 16pt;
       font-weight: bold;
-      text-align: center;
     }
-    .barcode-section {
-      text-align: center;
-      margin: 0.1in 0;
+    .barcode-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
     }
-    .barcode-section img {
-      max-width: 90%;
+    .barcode-right img {
+      max-width: 2.2in;
       height: auto;
       max-height: 0.6in;
-    }
-    .box-id {
-      text-align: center;
-      font-size: 12pt;
-      font-weight: bold;
-      margin-top: 0.05in;
     }
     .customer-section {
       border: 2px solid black;
       padding: 0.06in;
-      margin-bottom: 0.08in;
+      margin-bottom: 0.1in;
       font-size: 10pt;
     }
     .customer-name {
@@ -421,9 +444,20 @@ const generate3x6LabelHTML = (data: LabelData): string => {
       font-size: 9pt;
       margin-top: 0.04in;
     }
+    .route-stop-section {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.06in;
+    }
+    .route-box, .stop-box {
+      border: 2px solid black;
+      padding: 0.04in 0.12in;
+      font-size: 18pt;
+      font-weight: bold;
+    }
     .bottom-section {
       margin-top: auto;
-      padding-top: 0.08in;
+      padding-top: 0.06in;
     }
     .info-row {
       font-size: 9pt;
@@ -442,19 +476,17 @@ const generate3x6LabelHTML = (data: LabelData): string => {
       text-align: center;
       font-size: 16pt;
       font-weight: bold;
-      margin-top: 0.08in;
+      margin-top: 0.06in;
     }
   </style>
 </head>
 <body>
   <div class="label-container">
-    <div class="header-section">
-      <div class="route-box">ROUTE: ${data.route}</div>
-      <div class="stop-box">STOP: ${data.stop}</div>
-    </div>
-    <div class="barcode-section">
-      <img src="${barcodeUrl}" alt="Barcode ${data.boxId}" />
-      <div class="box-id">${data.boxId}</div>
+    <div class="top-row">
+      <div class="customer-number-left">${customerNumber}</div>
+      <div class="barcode-right">
+        <img src="${barcodeUrl}" alt="Barcode ${data.boxId}" />
+      </div>
     </div>
     <div class="customer-section">
       <div class="customer-name">${data.customerName}</div>
@@ -464,12 +496,16 @@ const generate3x6LabelHTML = (data: LabelData): string => {
           ${data.city || ''}${data.city && data.state ? ', ' : ''}${data.state || ''} ${data.zip || ''}
         </div>
       ` : ''}
-      ${data.custNumber ? `<div class="cust-number">Cust #${data.custNumber}</div>` : ''}
+      ${data.custNumber && data.custNumber !== data.accountNumber ? `<div class="cust-number">Cust #${data.custNumber}</div>` : ''}
+    </div>
+    <div class="route-stop-section">
+      <div class="route-box">ROUTE: ${data.route}</div>
+      <div class="stop-box">STOP: ${data.stop}</div>
     </div>
     <div class="bottom-section">
-      <div class="info-row">Account: ${data.accountNumber}</div>
+      <div class="info-row">${data.accountNumber}</div>
       ${data.deliveryDate ? `<div class="delivery-date">Delivery Date: ${data.deliveryDate}</div>` : ''}
-      ${data.itemCount !== undefined ? `<div class="item-count">Items in Container: ${data.itemCount}</div>` : ''}
+      ${data.itemCount !== undefined ? `<div class="item-count">Number of Items in Container: ${data.itemCount}</div>` : ''}
     </div>
     <div class="box-indicator">
       ${data.xOfY}
@@ -630,9 +666,11 @@ const generate3x2LabelHTML = (data: LabelData): string => {
 
 /**
  * Generate 4x4 label HTML
+ * Layout: top = C_number (left) + barcode (right); then customer name; then route/stop; then order number, delivery date, item count, x of y.
  */
 const generate4x4LabelHTML = (data: LabelData): string => {
   const barcodeUrl = generateBarcode(data.boxId);
+  const customerNumber = data.custNumber ?? '';
   return `
 <!DOCTYPE html>
 <html>
@@ -663,36 +701,32 @@ const generate4x4LabelHTML = (data: LabelData): string => {
       display: flex;
       flex-direction: column;
     }
-    .header-section {
+    .top-row {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
       margin-bottom: 0.08in;
     }
-    .route-box, .stop-box {
+    .customer-number-left {
       border: 2px solid black;
       padding: 0.04in 0.12in;
-      font-size: 20pt;
+      font-size: 18pt;
       font-weight: bold;
     }
-    .barcode-section {
-      text-align: center;
-      margin: 0.08in 0;
+    .barcode-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
     }
-    .barcode-section img {
-      max-width: 88%;
+    .barcode-right img {
+      max-width: 2.2in;
       height: auto;
       max-height: 0.55in;
-    }
-    .box-id {
-      text-align: center;
-      font-size: 11pt;
-      font-weight: bold;
-      margin-top: 0.04in;
     }
     .customer-section {
       border: 2px solid black;
       padding: 0.06in;
-      margin-bottom: 0.06in;
+      margin-bottom: 0.6in;
       font-size: 10pt;
     }
     .customer-name {
@@ -709,6 +743,17 @@ const generate4x4LabelHTML = (data: LabelData): string => {
       text-align: right;
       font-size: 9pt;
       margin-top: 0.04in;
+    }
+    .route-stop-section {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.08in;
+    }
+    .route-box, .stop-box {
+      border: 2px solid black;
+      padding: 0.04in 0.12in;
+      font-size: 20pt;
+      font-weight: bold;
     }
     .bottom-section {
       margin-top: auto;
@@ -737,13 +782,11 @@ const generate4x4LabelHTML = (data: LabelData): string => {
 </head>
 <body>
   <div class="label-container">
-    <div class="header-section">
-      <div class="route-box">ROUTE: ${data.route}</div>
-      <div class="stop-box">STOP: ${data.stop}</div>
-    </div>
-    <div class="barcode-section">
-      <img src="${barcodeUrl}" alt="Barcode ${data.boxId}" />
-      <div class="box-id">${data.boxId}</div>
+    <div class="top-row">
+      <div class="customer-number-left">${customerNumber}</div>
+      <div class="barcode-right">
+        <img src="${barcodeUrl}" alt="Barcode ${data.boxId}" />
+      </div>
     </div>
     <div class="customer-section">
       <div class="customer-name">${data.customerName}</div>
@@ -753,7 +796,11 @@ const generate4x4LabelHTML = (data: LabelData): string => {
           ${data.city || ''}${data.city && data.state ? ', ' : ''}${data.state || ''} ${data.zip || ''}
         </div>
       ` : ''}
-      ${data.custNumber ? `<div class="cust-number">Cust #${data.custNumber}</div>` : ''}
+      ${data.custNumber && data.custNumber !== data.accountNumber ? `<div class="cust-number">Cust #${data.custNumber}</div>` : ''}
+    </div>
+    <div class="route-stop-section">
+      <div class="route-box">ROUTE: ${data.route}</div>
+      <div class="stop-box">STOP: ${data.stop}</div>
     </div>
     <div class="bottom-section">
       <div class="info-row">${data.accountNumber}</div>
@@ -1331,7 +1378,11 @@ const generateSingleLabelHTML = (
   const containerItems = allOrderItems.filter(
     item => item.boxId === containerId && item.boxType === containerType
   );
-  const itemCount = containerItems.reduce((sum, item) => sum + item.qty, 0);
+  const rawCount = containerItems.reduce((sum, item) => {
+    const qty = Number((item as any).qty ?? item.qtyShipped ?? item.qtyOrdered ?? 0);
+    return sum + (Number.isFinite(qty) ? qty : 0);
+  }, 0);
+  const itemCount = Number.isFinite(rawCount) ? rawCount : containerItems.length || 0;
   
   const labelData: LabelData = {
     size,
