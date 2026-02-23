@@ -92,6 +92,39 @@ export const testEmailManagement = async (data: any) => {
     return axiosInstance.post('/distrubutor/email-configs/test', data);
 };
 
+// Email Configuration (modules only; each module has emailModuleConfig when configured)
+export const getEmailModules = async () => {
+    const response: any = await axiosInstance.get('/distrubutor/email-modules');
+    const payload = response?.data?.data;
+    const list = payload?.data ?? (Array.isArray(payload) ? payload : []);
+    return list;
+};
+
+export const createEmailModuleConfig = async (data: any) => {
+    return axiosInstance.post('/distrubutor/email-module-configs', data);
+};
+
+export const updateEmailModuleConfig = async (id: number | string, data: any) => {
+    return axiosInstance.put(`/distrubutor/email-module-configs/${id}`, data);
+};
+
+export const testEmailModuleConfig = async (data: {
+    to: string;
+    subject: string;
+    html: string;
+    emailConfig: {
+        host: string;
+        port: number;
+        username: string;
+        secure: boolean;
+        password: string;
+        fromEmail: string;
+        fromName: string;
+    };
+}) => {
+    return axiosInstance.post('/distrubutor/email-configs/test-email', data);
+};
+
 export const createErpUser = async (data: any) => {
     return axiosInstance.post('/distrubutor/createErpUser', data);
 };

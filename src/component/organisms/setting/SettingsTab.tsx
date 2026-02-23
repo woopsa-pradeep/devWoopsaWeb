@@ -63,6 +63,7 @@ import { TableColumn } from "../../atoms/Table/CommonTable";
 import PicklistTemplateTab from "../../../pages/admin/settings/PicklistTemplateTab";
 import InventorySettings from "../../../pages/admin/settings/InventorySettings";
 import InvoiceTemplateTab from '../../../pages/admin/settings/InvoiceTemplateTab';
+import EmailConfigurationTab from "../../../pages/admin/settings/EmailConfigurationTab";
 
 interface TimeSlot {
   id: string;
@@ -356,11 +357,17 @@ const tabConfigs = [
     activeIcon: contactUsIcon,
   },
   {
-    label: "Email Management",
-    apiType: "emailManagement" as const,
+    label: "Email Configuration",
+    apiType: "emailConfiguration" as const,
     icon: emailIcon,
     activeIcon: emailIcon,
   },
+  // {
+  //   label: "Email Management",
+  //   apiType: "emailManagement" as const,
+  //   icon: emailIcon,
+  //   activeIcon: emailIcon,
+  // },
   {
     label: "User",
     apiType: "user" as const,
@@ -466,24 +473,24 @@ const SettingsTabs = () => {
   }, [contactUsData, tab]);
 
   // Effect to populate email management form when data is loaded
-  useEffect(() => {
-    if (
-      tabConfigs[tab].apiType === "emailManagement" &&
-      emailManagementData?.id
-    ) {
-      const existingData = emailManagementData;
-      emailManagementForm.reset({
-        id: existingData.id,
-        host: existingData.host,
-        port: existingData.port,
-        secure: existingData.secure,
-        username: existingData.username,
-        password: existingData.password,
-        fromEmail: existingData.fromEmail,
-        fromName: existingData.fromName,
-      });
-    }
-  }, [emailManagementData, tab]);
+  // useEffect(() => {
+  //   if (
+  //     tabConfigs[tab].apiType === "emailManagement" &&
+  //     emailManagementData?.id
+  //   ) {
+  //     const existingData = emailManagementData;
+  //     emailManagementForm.reset({
+  //       id: existingData.id,
+  //       host: existingData.host,
+  //       port: existingData.port,
+  //       secure: existingData.secure,
+  //       username: existingData.username,
+  //       password: existingData.password,
+  //       fromEmail: existingData.fromEmail,
+  //       fromName: existingData.fromName,
+  //     });
+  //   }
+  // }, [emailManagementData, tab]);
 
   // Effect to populate ERP user form when editing
   useEffect(() => {
@@ -521,9 +528,9 @@ const SettingsTabs = () => {
     } else if (tabConfigs[tab].apiType === "contactUs") {
       // Fetch Contact Us data
       fetchContactUsData();
-    } else if (tabConfigs[tab].apiType === "emailManagement") {
+    // } else if (tabConfigs[tab].apiType === "emailManagement") {
       // Fetch Email Management data
-      fetchEmailManagementData();
+      // fetchEmailManagementData();
     } else if (tabConfigs[tab].apiType === "user") {
       // Fetch ERP Users data
       fetchErpUsers();
@@ -1922,7 +1929,7 @@ const SettingsTabs = () => {
           </Box>
         );
 
-      case "emailManagement":
+      // case "emailManagement":
         return (
           <Box sx={{ p: 2 }}>
             <form
@@ -2190,6 +2197,9 @@ const SettingsTabs = () => {
       case 'invoiceTemplate':
         return <InvoiceTemplateTab />;
 
+      case "emailConfiguration":
+        return <EmailConfigurationTab />;
+
       default:
         return null;
     }
@@ -2290,7 +2300,7 @@ const SettingsTabs = () => {
       >
         <Box sx={{ position: "relative", height: "100%" }}>
           {/* Header - hidden for Invoice Template, User, and Inventory tabs (they have their own headers) */}
-          {!["invoiceTemplate", "user", "inventory"].includes(tabConfigs[tab].apiType) && (
+          {!["invoiceTemplate", "user", "inventory", "emailConfiguration"].includes(tabConfigs[tab].apiType) && (
             <Box sx={{
               display: "flex",
               justifyContent: "space-between",
@@ -2328,7 +2338,7 @@ const SettingsTabs = () => {
           </Box>
 
           {/* Save Button - Hide for tabs that have their own save handling */}
-          {!["demandedItems", "contactUs", "emailManagement", "user", "picklistTemplate", "invoiceTemplate", "inventory"].includes(tabConfigs[tab].apiType) && (
+          {!["demandedItems", "contactUs", "emailManagement", "user", "picklistTemplate", "invoiceTemplate", "inventory", "emailConfiguration"].includes(tabConfigs[tab].apiType) && (
             <Box sx={{
               position: "sticky",
               bottom: 0,
