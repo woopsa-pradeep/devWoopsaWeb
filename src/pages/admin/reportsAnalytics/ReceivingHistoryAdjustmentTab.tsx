@@ -154,6 +154,7 @@ interface PoCigOtpPoDetail {
     UnitOunces?: number;
     Cig_Pack?: number;
     Cig_Sticks?: number;
+    Price_Class?: number;
   };
 }
 
@@ -214,6 +215,7 @@ function flattenCigOtpResponse(poList: PoCigOtpResponseItem[]): ReceivingRow[] {
               UnitOunces: d.Inventory.UnitOunces,
               Cig_Pack: d.Inventory.Cig_Pack,
               Cig_Sticks: d.Inventory.Cig_Sticks,
+              Price_Class: d.Inventory.Price_Class,
             }
           : undefined,
       });
@@ -238,7 +240,8 @@ interface AdjustmentRow {
     PO_Number?: number;
     Date_Received?: string;
     PO_Date?: string;
-    Vendor?: { V_Description?: string };
+    Primary_Vendor?: number;
+    Vendor?: { V_Description?: string; Primary_Vendor?: number };
   };
   Inventory?: {
     Item_Number?: number;
@@ -399,10 +402,10 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
         data = data.filter((r) => r.Sales_Category != null && selectedSalesCategories.includes(r.Sales_Category));
       }
       if (selectedPriceClasses.length && data.length) {
-        data = data.filter(
-          (r) =>
-            r.Inventory?.Price_Class != null && selectedPriceClasses.includes(r.Inventory.Price_Class)
-        );
+        data = data.filter((r) => {
+          const priceClass = (r as { Price_Class?: number }).Price_Class ?? r.Inventory?.Price_Class;
+          return priceClass != null && selectedPriceClasses.includes(priceClass);
+        });
       }
       if (selectedOtpTypes.length) {
         data = data.filter((r) => r.OTP_Number != null && selectedOtpTypes.includes(r.OTP_Number));
@@ -440,17 +443,18 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
         data = data.filter((r) => r.Sales_Category != null && selectedSalesCategories.includes(r.Sales_Category));
       }
       if (selectedPriceClasses.length) {
-        data = data.filter(
-          (r) =>
-            r.Inventory?.Price_Class != null && selectedPriceClasses.includes(r.Inventory.Price_Class)
-        );
+        data = data.filter((r) => {
+          const priceClass = (r as { Price_Class?: number }).Price_Class ?? r.Inventory?.Price_Class;
+          return priceClass != null && selectedPriceClasses.includes(priceClass);
+        });
       }
       if (selectedOtpTypes.length) {
         data = data.filter((r) => r.OTP_Number != null && selectedOtpTypes.includes(r.OTP_Number));
       }
       if (selectedVendors.length) {
         data = data.filter((r) => {
-          const pv = (r as any).POHeader?.Primary_Vendor;
+          const pv =
+            r.POHeader?.Primary_Vendor ?? r.POHeader?.Vendor?.Primary_Vendor;
           if (pv == null) return true;
           return selectedVendors.includes(pv);
         });
@@ -495,6 +499,36 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
   const filteredAdjustmentRows = useMemo(() => {
     return applyFilters.filterAdjustment(adjustmentRows);
   }, [adjustmentRows, applyFilters]);
+
+  /** Sort order for item description: 0=space, 1=symbol, 2=number, 3=letter (then alphabetically). Within numbers: by first digit (1 before 2) then rest. */
+  const getDescriptionSortCategory = (desc: string): number => {
+    const first = (desc ?? '').trimStart().charAt(0);
+    if (first === '' || /\s/.test(first)) return 0;
+    if (/[0-9]/.test(first)) return 2;
+    if (/[a-zA-Z]/.test(first)) return 3;
+    return 1;
+  };
+
+  /** Compare two rows by description (space, symbol, number, alphabetical). Used for both row sort and group sort. */
+  const compareDescription = <T extends { Inventory?: { Description?: string } }>(a: T, b: T): number => {
+    const descA = (a.Inventory?.Description ?? '').trim();
+    const descB = (b.Inventory?.Description ?? '').trim();
+    const catA = getDescriptionSortCategory(descA);
+    const catB = getDescriptionSortCategory(descB);
+    if (catA !== catB) return catA - catB;
+    if (catA === 2 && catB === 2) {
+      const cA = descA.charAt(0);
+      const cB = descB.charAt(0);
+      const numA = cA >= '0' && cA <= '9' ? parseInt(cA, 10) : -1;
+      const numB = cB >= '0' && cB <= '9' ? parseInt(cB, 10) : -1;
+      if (numA !== numB) return numA - numB;
+    }
+    return descA.localeCompare(descB, undefined, { sensitivity: 'base' });
+  };
+
+  const sortRowsByItemDescription = <T extends { Inventory?: { Description?: string } }>(rows: T[]): T[] => {
+    return [...rows].sort((a, b) => compareDescription(a, b));
+  };
 
   const getReceivingGroupKey = (row: ReceivingRow): string | number => {
     switch (reportType) {
@@ -543,7 +577,19 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(row);
     });
-    return Array.from(groups.entries()).map(([key, rows]) => ({ key, rows }));
+    const grouped = Array.from(groups.entries()).map(([key, rows]) => ({
+      key,
+      rows: sortRowsByItemDescription(rows),
+    }));
+    grouped.sort((a, b) => {
+      const rowA = a.rows[0];
+      const rowB = b.rows[0];
+      if (!rowA && !rowB) return 0;
+      if (!rowA) return 1;
+      if (!rowB) return -1;
+      return compareDescription(rowA, rowB);
+    });
+    return grouped;
   }, [filteredReceivingRows, reportType, cigOtpReportGroupBy]);
 
   const adjustmentGrouped = useMemo(() => {
@@ -553,7 +599,19 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(row);
     });
-    return Array.from(groups.entries()).map(([key, rows]) => ({ key, rows }));
+    const grouped = Array.from(groups.entries()).map(([key, rows]) => ({
+      key,
+      rows: sortRowsByItemDescription(rows),
+    }));
+    grouped.sort((a, b) => {
+      const rowA = a.rows[0];
+      const rowB = b.rows[0];
+      if (!rowA && !rowB) return 0;
+      if (!rowA) return 1;
+      if (!rowB) return -1;
+      return compareDescription(rowA, rowB);
+    });
+    return grouped;
   }, [filteredAdjustmentRows, reportType]);
 
   const fetchData = async () => {
@@ -573,28 +631,47 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
           const flatRows = flattenCigOtpResponse(data as PoCigOtpResponseItem[]);
           setReceivingRows(flatRows);
           setAdjustmentRows([]);
+          const total = flatRows.length;
+          const filtered = applyFilters.filterReceiving(flatRows).length;
+          const filterMsg =
+            total !== filtered
+              ? `; ${filtered} match selected filters`
+              : '';
           toast.success(
-            `Loaded ${flatRows.length} CIG/OTP report record(s) (${cigOtpReportGroupBy})`
+            `Loaded ${total} CIG/OTP report record(s) (${cigOtpReportGroupBy})${filterMsg}`
           );
         } else {
           const response = (await getPoReceivingHistoryReport(startStr, endStr)) as any;
-          // API returns { success, message, data: { data: [...] } } - array at response.data.data
           const raw = response?.data;
           const data = Array.isArray(raw?.data?.data) ? raw.data.data : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
-          setReceivingRows(Array.isArray(data) ? data : []);
+          const rows = Array.isArray(data) ? data : [];
+          setReceivingRows(rows);
           setAdjustmentRows([]);
+          const total = rows.length;
+          const filtered = applyFilters.filterReceiving(rows).length;
+          const filterMsg =
+            total !== filtered
+              ? `; ${filtered} match selected filters`
+              : '';
           toast.success(
-            `Loaded ${Array.isArray(data) ? data.length : 0} receiving history record(s) for date range`
+            `Loaded ${total} receiving history record(s) for date range${filterMsg}`
           );
         }
       } else {
         const response = (await getPoTransferAdjustmentReport(startStr, endStr)) as any;
         const raw = response?.data;
         const data = Array.isArray(raw?.data?.data) ? raw.data.data : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
-        setAdjustmentRows(Array.isArray(data) ? data : []);
+        const rows = Array.isArray(data) ? data : [];
+        setAdjustmentRows(rows);
         setReceivingRows([]);
+        const total = rows.length;
+        const filtered = applyFilters.filterAdjustment(rows).length;
+        const filterMsg =
+          total !== filtered
+            ? `; ${filtered} match selected filters`
+            : '';
         toast.success(
-          `Loaded ${Array.isArray(data) ? data.length : 0} adjustment record(s) for date range`
+          `Loaded ${total} adjustment record(s) for date range${filterMsg}`
         );
       }
     } catch (error: any) {
@@ -919,9 +996,10 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
           byPo.get(po)!.push(row);
         });
         byPo.forEach((poRows) => {
+          const sortedPoRows = sortRowsByItemDescription(poRows);
           let poReceived = 0;
           let poExtCost = 0;
-          poRows.forEach((row) => {
+          sortedPoRows.forEach((row) => {
             const qty = row.qtyRecd ?? row.Quantity_Recd ?? 0;
             all.push({ type: 'row', row });
             poReceived += qty;
@@ -1293,7 +1371,7 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
                 String(r.PO_Number ?? ''),
                 formatDate(r.POHeader?.Date_Received),
                 String(r.POHeader?.Invoice_Number ?? ''),
-                formatDate(r.POHeader?.Date_Received),
+                formatDate(r.POHeader?.Invoice_Date ?? r.POHeader?.Date_Received),
                 String(r.Item_Number ?? ''),
                 r.Inventory?.Description ?? '',
                 typeof qty === 'number' ? qty.toLocaleString(undefined, { minimumFractionDigits: 2 }) : String(qty),
@@ -1432,15 +1510,10 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
             };
             if (isReceivingVendorGroup) {
               bodyRows.push([
-                'GRAND TOTAL:',
-                '',
-                '',
-                '',
-                '',
-                '',
-                g.received.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-                '',
-                formatExtCost(g.extCost),
+                {
+                  content: `GRAND TOTAL:  Received: ${g.received.toLocaleString(undefined, { minimumFractionDigits: 2 })}  |  Ext Cost: ${formatExtCost(g.extCost)}`,
+                  colSpan: receivingColCount,
+                },
               ]);
             } else if (isReceivingPoGroup) {
               bodyRows.push([
@@ -1510,16 +1583,10 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
               ]);
             } else {
               bodyRows.push([
-                'GRAND TOTAL:',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                g.received.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-                '',
-                formatExtCost(g.extCost),
+                {
+                  content: `GRAND TOTAL:  Received: ${g.received.toLocaleString(undefined, { minimumFractionDigits: 2 })}  |  Ext Cost: ${formatExtCost(g.extCost)}`,
+                  colSpan: receivingColCount,
+                },
               ]);
             }
           }
@@ -1529,6 +1596,18 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
         dividerRowIndices.forEach((idx) => {
           receivingRowStyles[idx] = { fillColor: [200, 200, 200], minCellHeight: 2, cellPadding: 0 };
         });
+        const receivingColumnStyles: Record<number, { cellWidth: number }> = { 0: { cellWidth: 24 } };
+        if (receivingColCount === 9) {
+          receivingColumnStyles[0] = { cellWidth: 16 };
+          receivingColumnStyles[1] = { cellWidth: 18 };
+          receivingColumnStyles[2] = { cellWidth: 16 };
+          receivingColumnStyles[3] = { cellWidth: 18 };
+          receivingColumnStyles[4] = { cellWidth: 14 };
+          receivingColumnStyles[5] = { cellWidth: 42 };
+          receivingColumnStyles[6] = { cellWidth: 22 };
+          receivingColumnStyles[7] = { cellWidth: 18 };
+          receivingColumnStyles[8] = { cellWidth: 26 };
+        }
         autoTableFn(doc, {
           head: [headRow],
           body: bodyRows,
@@ -1536,7 +1615,7 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
           styles: { fontSize: 7, cellPadding: 1.5 },
           headStyles: { fontSize: 7, fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
           rowStyles: receivingRowStyles,
-          columnStyles: { 0: { cellWidth: 24 } },
+          columnStyles: receivingColumnStyles,
         });
       } else {
         const adjustmentColCount = isAdjustmentAdjGroup ? 5 : 7;
@@ -1644,7 +1723,10 @@ const ReceivingHistoryAdjustmentTab: React.FC = () => {
 
       const pageHeight = doc.internal.pageSize.getHeight();
       const footerY = pageHeight - 6;
-      const totalPagesCount = (doc.internal as { pages: unknown[] }).pages?.length ?? 1;
+      const totalPagesCount =
+        typeof doc.getNumberOfPages === 'function'
+          ? doc.getNumberOfPages()
+          : ((doc.internal as { pages?: unknown[] }).pages?.length ?? 1);
 
       const drawHeaderOnPage = () => {
         const hTop = 8;

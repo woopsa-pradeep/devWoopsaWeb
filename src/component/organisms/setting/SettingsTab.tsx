@@ -2211,41 +2211,49 @@ const SettingsTabs = () => {
       flexDirection={{ xs: "column", md: "row" }}
       mt={2}
       gap={3}
-      height="calc(100vh - 210px)"
+      sx={{
+        minHeight: { xs: 0, md: "calc(100vh - 210px)" },
+        height: { xs: "auto", md: "calc(100vh - 210px)" },
+        flex: { xs: "1 1 auto", md: "0 0 auto" },
+      }}
     >
-      {/* Left Sidebar - Tabs */}
+      {/* Left Sidebar - Tabs: scrollable when many items so it is not cut off */}
       <Paper
         sx={{
           width: { xs: "100%", md: 260 },
-          height: { xs: "auto", md: "100%" },
-          maxHeight: { md: "calc(100vh - 210px)" },
+          flexShrink: 0,
+          minHeight: { xs: 0, md: 0 },
+          maxHeight: { xs: "none", md: "calc(100vh - 210px)" },
           borderRadius: 3,
           boxShadow: "none",
           border: "1px solid",
           borderColor: "divider",
           py: 1,
-          overflow: "hidden",
+          overflowY: "auto",
+          overflowX: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          "&::-webkit-scrollbar": {
+            width: "6px",
+          },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "rgba(0,0,0,0.2)",
+            borderRadius: "4px",
+          },
         }}
       >
         <Tabs
           orientation={isMobile ? "horizontal" : "vertical"}
           variant="scrollable"
-          scrollButtons={false}
+          scrollButtons={isMobile ? "auto" : false}
           allowScrollButtonsMobile
           value={tab}
           onChange={(_, v) => setTab(v)}
           sx={{
-            height: { md: "100%" },
-            overflowY: { md: "auto" },
+            minHeight: { md: "min-content" },
+            flex: { md: "0 0 auto" },
             overflowX: { xs: "auto", md: "hidden" },
-
-            "&::-webkit-scrollbar": {
-              width: "6px",
-            },
-            "&::-webkit-scrollbar-thumb": {
-              backgroundColor: "rgba(0,0,0,0.2)",
-              borderRadius: "4px",
-            },
+            overflowY: "visible",
           }}
           TabIndicatorProps={{ style: { display: "none" } }}
         >
@@ -2290,15 +2298,18 @@ const SettingsTabs = () => {
       {/* Right Content - Form */}
       <Paper
         sx={{
-          flexGrow: 1,
+          flex: "1 1 0",
+          minWidth: 0,
+          minHeight: { xs: 0, md: "calc(100vh - 210px)" },
           borderRadius: 3,
           boxShadow: "none",
           position: "relative",
-          height: "100%",
-          overflow: "auto",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        <Box sx={{ position: "relative", height: "100%" }}>
+        <Box sx={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           {/* Header - hidden for Invoice Template, User, and Inventory tabs (they have their own headers) */}
           {!["invoiceTemplate", "user", "inventory", "emailConfiguration"].includes(tabConfigs[tab].apiType) && (
             <Box sx={{
@@ -2333,7 +2344,7 @@ const SettingsTabs = () => {
           )}
 
           {/* Form */}
-          <Box sx={{ flexGrow: 1, overflow: "auto" }}>
+          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
             {renderForm()}
           </Box>
 

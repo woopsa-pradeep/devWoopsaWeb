@@ -125,12 +125,15 @@ const AdminOrder = () => {
       const itemNumber = item.Item_Number != null ? String(item.Item_Number) : (item.inventory?.Item_Number != null ? String(item.inventory.Item_Number) : '');
       const sortNumber = item.inventory?.Sequence != null ? Number(item.inventory.Sequence) : index + 1;
       const price = item.Price != null ? Number(item.Price) : 0;
+      const unitPrice = item.inventory?.Unit_Price != null ? Number(item.inventory.Unit_Price) : (item.Unit_Price != null ? Number(item.Unit_Price) : price);
       const otpAmountState = item.OTP_Amount_State != null ? Number(item.OTP_Amount_State) : 0;
       const prepaidTaxAmount = item.PrepaidTax_Amount != null ? Number(item.PrepaidTax_Amount) : 0;
+      // Frontend-only (not from backend): Price w/t with PPD, Price w/t without PPD, Total PPD, Extended total.
       // Price w/t = price + OTP_Amount_State + PrepaidTax_Amount (per unit)
       const priceWithTax = price + otpAmountState + prepaidTaxAmount;
       // Total Price = price w/t * qty
       const totalPrice = priceWithTax * shippedQty;
+      const priceWithTaxWithoutPPD = price + otpAmountState;
       const taxPerUnit = otpAmountState + prepaidTaxAmount;
       subTotal += totalPrice;
       const retail1 = item.inventory?.Retail1 != null ? Number(item.inventory.Retail1) : price;
@@ -138,6 +141,9 @@ const AdminOrder = () => {
       // Deposit (CRV): DepositAmount per unit; line deposit = Quantity_Shipped * DepositAmount
       const depositAmount = item.DepositAmount != null ? Number(item.DepositAmount) : 0;
       const deposit = shippedQty * depositAmount;
+      // Pack (item.Pack); Size = UOM from inventory or item
+      const pack = item.Pack != null ? (typeof item.Pack === 'number' ? item.Pack : Number(item.Pack)) : undefined;
+      const size = (item.inventory?.UOM != null && String(item.inventory.UOM).trim() !== '') ? String(item.inventory.UOM).trim() : (item.UOM != null ? String(item.UOM) : undefined);
       return {
         orderQty,
         shippedQty,
@@ -146,9 +152,15 @@ const AdminOrder = () => {
         itemNumber,
         sortNumber,
         upc: String(upc || ''),
+        pack,
+        size,
         price,
+        unitPrice,
         tax: taxPerUnit * shippedQty,
+        prepaidTaxAmount,
         priceWithTax,
+        priceWithTaxWithPPD: priceWithTax,
+        priceWithTaxWithoutPPD,
         totalPrice,
         retail1,
         ebt: item.EBT === true || item.EBT === 1,
@@ -159,11 +171,24 @@ const AdminOrder = () => {
     const route = header.Route_Number != null ? Number(header.Route_Number) : 0;
     const stop = header.Stop_Number != null ? Number(header.Stop_Number) : 0;
     const fullAddress = [customer.C_Address, customer.C_City, customer.C_State, customer.C_Zip].filter(Boolean).join(', ');
+    const billTo = customer.billTo != null && typeof customer.billTo === 'object'
+      ? (() => {
+          const b = customer.billTo as { C_Name?: string; C_CoName?: string; C_Address?: string; C_City?: string; C_State?: string; C_Zip?: string; C_Phone?: string };
+          const addr = [b.C_Address, b.C_City, b.C_State, b.C_Zip].filter(Boolean).join(', ');
+          return { name: b.C_Name || b.C_CoName || '', address: addr || (b.C_Address || ''), phone: b.C_Phone || '' };
+        })()
+      : undefined;
+    const totalPrepaidTax = items.reduce((sum: number, i: { prepaidTaxAmount?: number; shippedQty: number }) => sum + (Number(i.prepaidTaxAmount ?? 0) * (Number(i.shippedQty) || 0)), 0);
     const deliveryCharge = header.Delivery_Charge != null ? Number(header.Delivery_Charge) : 0;
     const depositTotal = items.reduce((sum: number, i: { deposit?: number }) => sum + (Number(i.deposit) || 0), 0);
     const lastBalance = customer.LastBalance != null ? Number(customer.LastBalance) : 0;
-    const invoiceTotal = header.Invoice_Total != null ? Number(header.Invoice_Total) : subTotal + depositTotal;
-    const totalAmountDue = invoiceTotal > 0 ? invoiceTotal : subTotal + deliveryCharge + depositTotal - lastBalance;
+    const houseCharge = header.HouseChargeApplied != null ? Number(header.HouseChargeApplied) : (header.POS_House != null ? Number(header.POS_House) : 0);
+    const posCheck = header.POS_Check != null ? Number(header.POS_Check) : 0;
+    const posCash = header.POS_Cash != null ? Number(header.POS_Cash) : 0;
+    const posCredit = header.POS_Credit != null ? Number(header.POS_Credit) : 0;
+    const baseTotal = subTotal + deliveryCharge + depositTotal;
+    const invoiceTotal = header.Invoice_Total != null ? Number(header.Invoice_Total) : baseTotal + houseCharge - posCheck - posCash - posCredit;
+    const totalAmountDue = invoiceTotal - lastBalance;
     const invoiceNum = header.Invoice_Number ?? header.LastInvoiceNumber ?? header.Order_Number;
     const invoiceDate = header.Invoice_Date || header.Order_Date || '';
     const salesPerson = header.salesRep?.S_Desc != null ? String(header.salesRep.S_Desc) : '';
@@ -177,6 +202,7 @@ const AdminOrder = () => {
         route,
         stop,
         phone: customer.C_Phone || customer.C_PhoneMobile || '',
+        state: customer.C_State != null ? String(customer.C_State).trim() : undefined,
       },
       distributor: { name: '', address: '' },
       invoiceNumber: String(invoiceNum ?? orderNumber),
@@ -186,9 +212,10 @@ const AdminOrder = () => {
       salesPerson: salesPerson || undefined,
       customerLicense: customerLicense || undefined,
       termsCode,
+      billTo,
       via: header.DeliveryType?.Delivery_Description ?? undefined,
       items,
-      totals: { subTotal, deliveryCharge, deposit: depositTotal, lastBalance, invoiceTotal, totalAmountDue },
+      totals: { subTotal, deliveryCharge, deposit: depositTotal, lastBalance, invoiceTotal, totalAmountDue, totalPrepaidTax, houseCharge, posCheck, posCash, posCredit },
     };
   };
 

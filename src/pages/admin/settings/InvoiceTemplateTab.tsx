@@ -49,7 +49,7 @@ import { wrapFooterMessage } from '../../../utils/invoicePdfGenerator';
 
 export type LogoPosition = 'left' | 'center' | 'right';
 
-// Invoice column field definitions. Order: qty, shipped, item #, description, pack, size, upc, short #, EBT, SRP, deposit, unit price, tax, ext price, Total price.
+// Invoice column field definitions. Total PPD, Price w/t without PPD, Extended total, Price w/t with PPD are frontend-calculated only (not from backend).
 const INVOICE_COLUMN_FIELDS = [
   { key: 'orderQty', label: 'qty' },
   { key: 'shippedQty', label: 'Shipped' },
@@ -62,11 +62,43 @@ const INVOICE_COLUMN_FIELDS = [
   { key: 'ebt', label: 'EBT' },
   { key: 'retail1', label: 'SRP' },
   { key: 'deposit', label: 'Deposit' },
-  { key: 'price', label: 'Unit Price' },
+  { key: 'price', label: 'Price' },
+  { key: 'unitPrice', label: 'Unit price' },
   { key: 'tax', label: 'Tax' },
-  { key: 'priceWithTax', label: 'Ext Price' },
-  { key: 'totalPrice', label: 'Total Price' },
+  { key: 'prepaidTaxAmount', label: 'Prepaid tax amount' },
+  { key: 'totalPPD', label: 'Total PPD' },
+  { key: 'priceWithTaxWithPPD', label: 'EXT Price with PPD' },
+  { key: 'priceWithTaxWithoutPPD', label: 'EXT Price without PPD' },
+  { key: 'extendedTotal', label: 'Extended total' },
 ];
+
+/** Return selected column keys in display order: default = fixed order; custom = by columnOrder (1-based position). */
+function getOrderedSelectedKeys(
+  selectedColumns: { [key: string]: boolean },
+  columnPlacement: 'default' | 'custom',
+  columnOrder: { [key: string]: number }
+): string[] {
+  const selected = INVOICE_COLUMN_FIELDS.filter((f) => selectedColumns[f.key]).map((f) => f.key);
+  if (columnPlacement !== 'custom' || !columnOrder || Object.keys(columnOrder).length === 0) {
+    return selected;
+  }
+  return selected.sort((a, b) => (columnOrder[a] ?? 999) - (columnOrder[b] ?? 999));
+}
+
+/** Ensure each selected key has a unique 1-based position (fixes duplicate positions from API or legacy data). */
+function normalizeColumnOrder(
+  columnOrder: { [key: string]: number },
+  selectedKeys: string[]
+): { [key: string]: number } {
+  if (selectedKeys.length === 0) return {};
+  const withPos = selectedKeys.map((key) => ({ key, pos: columnOrder[key] ?? 999 }));
+  withPos.sort((a, b) => a.pos - b.pos || a.key.localeCompare(b.key));
+  const next: { [key: string]: number } = {};
+  withPos.forEach(({ key }, i) => {
+    next[key] = i + 1;
+  });
+  return next;
+}
 
 // UPC display options
 const UPC_OPTIONS = [
@@ -104,11 +136,11 @@ const HEADER_MSG_MAX_LENGTH = 750;
 const FOOTER_MSG_MAX_LENGTH = 1000;
 /** Height of full footer zone on last page (totals + report line). */
 const SAMPLE_INVOICE_ITEMS_BASE = [
-  { orderQty: 1, shippedQty: 1, description: 'GAME 2/129 MVP WATERMELON 30CT', itemNumber: 44077, sortNumber: 1, upc: '123456789012', pack: '2', size: '30CT', deposit: 0.5, price: 12.99, tax: 1.04, priceWithTax: 14.03, totalPrice: 14.03, retail1: 15.99, ebt: true, salesCategory: 'Cigarettes' },
-  { orderQty: 2, shippedQty: 2, description: 'DUTCH 2/129 COCOA 2PKT 30CT', itemNumber: 41742, sortNumber: 2, upc: '123456789013', pack: '2', size: '30CT', deposit: 0.5, price: 11.50, tax: 0.92, priceWithTax: 12.42, totalPrice: 24.84, retail1: 13.99, ebt: false, salesCategory: 'Cigarettes' },
-  { orderQty: 1, shippedQty: 1, description: 'SWISHER 2/1.39 RED 30CT', itemNumber: 44013, sortNumber: 3, upc: '123456789014', pack: '2', size: '30CT', deposit: 0.25, price: 8.99, tax: 0.72, priceWithTax: 9.71, totalPrice: 9.71, retail1: 10.99, ebt: true, salesCategory: 'Cigars' },
-  { orderQty: 1, shippedQty: 1, description: 'SWISHER 2/1.39 GRAPE 30CT', itemNumber: 44018, sortNumber: 4, upc: '123456789015', pack: '2', size: '30CT', deposit: 0.25, price: 8.99, tax: 0.72, priceWithTax: 9.71, totalPrice: 9.71, retail1: 10.99, ebt: false, salesCategory: 'Cigars' },
-  { orderQty: 3, shippedQty: 3, description: 'GAME 2/129 BLUE 30CT', itemNumber: 44021, sortNumber: 5, upc: '123456789021', pack: '2', size: '30CT', deposit: 0.5, price: 12.99, tax: 1.04, priceWithTax: 14.03, totalPrice: 42.09, retail1: 15.99, ebt: true, salesCategory: 'Cigarettes' },
+  { orderQty: 1, shippedQty: 1, description: 'GAME 2/129 MVP WATERMELON 30CT', itemNumber: 44077, sortNumber: 1, upc: '123456789012', pack: '2', size: '30CT', deposit: 0.5, price: 12.99, unitPrice: 12.99, tax: 1.04, prepaidTaxAmount: 0.10, priceWithTax: 14.03, priceWithTaxWithPPD: 14.03, priceWithTaxWithoutPPD: 13.93, totalPrice: 14.03, retail1: 15.99, ebt: true, salesCategory: 'Cigarettes' },
+  { orderQty: 2, shippedQty: 2, description: 'DUTCH 2/129 COCOA 2PKT 30CT', itemNumber: 41742, sortNumber: 2, upc: '123456789013', pack: '2', size: '30CT', deposit: 0.5, price: 11.50, unitPrice: 11.50, tax: 0.92, prepaidTaxAmount: 0.08, priceWithTax: 12.42, priceWithTaxWithPPD: 12.42, priceWithTaxWithoutPPD: 12.34, totalPrice: 24.84, retail1: 13.99, ebt: false, salesCategory: 'Cigarettes' },
+  { orderQty: 1, shippedQty: 1, description: 'SWISHER 2/1.39 RED 30CT', itemNumber: 44013, sortNumber: 3, upc: '123456789014', pack: '2', size: '30CT', deposit: 0.25, price: 8.99, unitPrice: 0, tax: 0.72, prepaidTaxAmount: 0.06, priceWithTax: 9.71, priceWithTaxWithPPD: 9.71, priceWithTaxWithoutPPD: 9.65, totalPrice: 9.71, retail1: 10.99, ebt: true, salesCategory: 'Cigars' },
+  { orderQty: 1, shippedQty: 1, description: 'SWISHER 2/1.39 GRAPE 30CT', itemNumber: 44018, sortNumber: 4, upc: '123456789015', pack: '2', size: '30CT', deposit: 0.25, price: 8.99, unitPrice: 8.99, tax: 0.72, prepaidTaxAmount: 0.06, priceWithTax: 9.71, priceWithTaxWithPPD: 9.71, priceWithTaxWithoutPPD: 9.65, totalPrice: 9.71, retail1: 10.99, ebt: false, salesCategory: 'Cigars' },
+  { orderQty: 3, shippedQty: 3, description: 'GAME 2/129 BLUE 30CT', itemNumber: 44021, sortNumber: 5, upc: '123456789021', pack: '2', size: '30CT', deposit: 0.5, price: 12.99, unitPrice: 12.99, tax: 1.04, prepaidTaxAmount: 0.10, priceWithTax: 14.03, priceWithTaxWithPPD: 14.03, priceWithTaxWithoutPPD: 13.93, totalPrice: 42.09, retail1: 15.99, ebt: true, salesCategory: 'Cigarettes' },
 ];
 
 const SAMPLE_INVOICE_ITEMS = (() => {
@@ -116,6 +148,7 @@ const SAMPLE_INVOICE_ITEMS = (() => {
   for (let i = 0; i < 100; i++) {
     const base = SAMPLE_INVOICE_ITEMS_BASE[i % SAMPLE_INVOICE_ITEMS_BASE.length];
     const qty = (i % 3) + 1;
+    const totalPrice = Math.round(base.priceWithTax * qty * 100) / 100;
     items.push({
       ...base,
       orderQty: qty,
@@ -123,7 +156,7 @@ const SAMPLE_INVOICE_ITEMS = (() => {
       itemNumber: base.itemNumber + i * 10,
       sortNumber: i + 1,
       upc: String((123456789012 + i) % 1e12).padStart(12, '0'),
-      totalPrice: Math.round(base.priceWithTax * qty * 100) / 100,
+      totalPrice,
       ebt: i % 3 !== 1,
     });
   }
@@ -144,6 +177,12 @@ export interface InvoiceTemplate {
   groupBy: InvoiceGroupBy;
   showGroupHeader: boolean; // for alphabet+sales category: show header
   selectedColumns: { [key: string]: boolean };
+  /** Optional custom column header labels (key -> display label). Empty string or missing = use default label. */
+  columnHeaderNames?: Record<string, string>;
+  /** 'default' = fixed column order (current line-wise); 'custom' = use columnOrder for placement */
+  columnPlacement: 'default' | 'custom';
+  /** When columnPlacement is 'custom': field key -> 1-based column position (e.g. itemNumber: 5, orderQty: 3) */
+  columnOrder: { [key: string]: number };
   upcOption: string;
   // Header
   showDistributorDetails: boolean;
@@ -173,8 +212,15 @@ export interface InvoiceTemplate {
   showSubTotal: boolean;
   showDeliveryCharge: boolean;
   showDeposit: boolean;
+  showHouseCharge: boolean;
+  showPosCheck: boolean;
+  showPosCash: boolean;
+  showPosCredit: boolean;
+  showInvoiceTotal: boolean;
   showLastBalance: boolean;
   showTotalAmountDue: boolean;
+  /** Custom labels for footer summary lines (netInvoice, totalPPD, deliveryCharge, deposit, houseCharge, posCheck, posCash, posCredit, invoiceTotal, lastBalance, totalDue). Empty = use default. */
+  footerSummaryLabels?: Record<string, string>;
   showReportGeneratedByWoopsa: boolean;
   createdAt: string;
   updatedAt: string;
@@ -183,7 +229,7 @@ export interface InvoiceTemplate {
 const defaultTemplate = (): Omit<InvoiceTemplate, 'id' | 'createdAt' | 'updatedAt'> => ({
   name: '',
   mainTemplate: false,
-  groupBy: '',
+  groupBy: 'alphabetSalesCategory',
   showGroupHeader: true,
   selectedColumns: {
     orderQty: true,
@@ -198,10 +244,17 @@ const defaultTemplate = (): Omit<InvoiceTemplate, 'id' | 'createdAt' | 'updatedA
     retail1: false,
     deposit: false,
     price: true,
+    unitPrice: false,
     tax: false,
-    priceWithTax: true,
-    totalPrice: true,
+    prepaidTaxAmount: false,
+    totalPPD: false,
+    priceWithTaxWithPPD: true,
+    priceWithTaxWithoutPPD: false,
+    extendedTotal: true,
   },
+  columnHeaderNames: {},
+  columnPlacement: 'default',
+  columnOrder: {},
   upcOption: 'barcode_primary',
   showDistributorDetails: true,
   showCustomerDetails: true,
@@ -226,14 +279,20 @@ const defaultTemplate = (): Omit<InvoiceTemplate, 'id' | 'createdAt' | 'updatedA
   showSubTotal: true,
   showDeliveryCharge: true,
   showDeposit: true,
+  showHouseCharge: false,
+  showPosCheck: false,
+  showPosCash: false,
+  showPosCredit: false,
+  showInvoiceTotal: true,
   showLastBalance: true,
   showTotalAmountDue: true,
+  footerSummaryLabels: {},
   showReportGeneratedByWoopsa: true,
 });
 
 /** Normalize API string values that may come as lowercase (e.g. alphabetsalescategory) to expected option values. */
 function normalizeGroupBy(value: string | undefined): InvoiceGroupBy {
-  if (!value) return '';
+  if (!value) return 'alphabetSalesCategory';
   const v = value.toLowerCase();
   if (v === 'alphabetsalescategory') return 'alphabetSalesCategory';
   if (v === 'alphabet') return 'alphabet';
@@ -267,6 +326,13 @@ function apiTemplateToLocal(api: InvoiceTemplateApi): InvoiceTemplate {
     groupBy: normalizeGroupBy(api.groupBy),
     showGroupHeader: api.showGroupHeader ?? true,
     selectedColumns: { ...defaultTemplate().selectedColumns, ...(api.selectedColumns ?? {}) },
+    columnHeaderNames: (api as { columnHeaderNames?: Record<string, string> }).columnHeaderNames ?? {},
+    columnPlacement: api.columnPlacement === 'custom' ? 'custom' : 'default',
+    columnOrder: (() => {
+      const raw = api.columnOrder && typeof api.columnOrder === 'object' ? { ...api.columnOrder } : {};
+      const keys = INVOICE_COLUMN_FIELDS.filter((f) => (api.selectedColumns ?? defaultTemplate().selectedColumns)[f.key]).map((f) => f.key);
+      return normalizeColumnOrder(raw, keys);
+    })(),
     upcOption: api.upcOption || 'barcode_primary',
     showDistributorDetails: api.showDistributorDetails ?? true,
     showCustomerDetails: api.showCustomerDetails ?? true,
@@ -291,8 +357,14 @@ function apiTemplateToLocal(api: InvoiceTemplateApi): InvoiceTemplate {
     showSubTotal: api.showSubTotal ?? true,
     showDeliveryCharge: api.showDeliveryCharge ?? true,
     showDeposit: api.showDeposit ?? true,
+    showHouseCharge: (api as { showHouseCharge?: boolean }).showHouseCharge ?? false,
+    showPosCheck: (api as { showPosCheck?: boolean }).showPosCheck ?? false,
+    showPosCash: (api as { showPosCash?: boolean }).showPosCash ?? false,
+    showPosCredit: (api as { showPosCredit?: boolean }).showPosCredit ?? false,
+    showInvoiceTotal: (api as { showInvoiceTotal?: boolean }).showInvoiceTotal ?? true,
     showLastBalance: api.showLastBalance ?? true,
     showTotalAmountDue: api.showTotalAmountDue ?? true,
+    footerSummaryLabels: (api as { footerSummaryLabels?: Record<string, string> }).footerSummaryLabels ?? {},
     showReportGeneratedByWoopsa: api.showReportGeneratedByWoopsa ?? true,
     createdAt: api.createdAt,
     updatedAt: api.updatedAt,
@@ -310,11 +382,14 @@ const InvoiceTemplateTab: React.FC = () => {
 
   // Form state (single template being edited)
   const [name, setName] = useState('');
-  const [groupBy, setGroupBy] = useState<InvoiceGroupBy>('');
+  const [groupBy, setGroupBy] = useState<InvoiceGroupBy>('alphabetSalesCategory');
   const [showGroupHeader, setShowGroupHeader] = useState(true);
   const [selectedColumns, setSelectedColumns] = useState<{ [key: string]: boolean }>(() => ({
     ...defaultTemplate().selectedColumns,
   }));
+  const [columnHeaderNames, setColumnHeaderNames] = useState<Record<string, string>>(() => ({ ...(defaultTemplate().columnHeaderNames ?? {}) }));
+  const [columnPlacement, setColumnPlacement] = useState<'default' | 'custom'>(defaultTemplate().columnPlacement);
+  const [columnOrder, setColumnOrder] = useState<{ [key: string]: number }>(() => ({ ...defaultTemplate().columnOrder }));
   const [upcOption, setUpcOption] = useState(defaultTemplate().upcOption);
   const [showDistributorDetails, setShowDistributorDetails] = useState(true);
   const [showCustomerDetails, setShowCustomerDetails] = useState(true);
@@ -342,8 +417,14 @@ const InvoiceTemplateTab: React.FC = () => {
   const [showSubTotal, setShowSubTotal] = useState(true);
   const [showDeliveryCharge, setShowDeliveryCharge] = useState(true);
   const [showDeposit, setShowDeposit] = useState(true);
+  const [showHouseCharge, setShowHouseCharge] = useState(false);
+  const [showPosCheck, setShowPosCheck] = useState(false);
+  const [showPosCash, setShowPosCash] = useState(false);
+  const [showPosCredit, setShowPosCredit] = useState(false);
+  const [showInvoiceTotal, setShowInvoiceTotal] = useState(true);
   const [showLastBalance, setShowLastBalance] = useState(true);
   const [showTotalAmountDue, setShowTotalAmountDue] = useState(true);
+  const [footerSummaryLabels, setFooterSummaryLabels] = useState<Record<string, string>>(() => ({ ...(defaultTemplate().footerSummaryLabels ?? {}) }));
   const [showReportGeneratedByWoopsa, setShowReportGeneratedByWoopsa] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -737,33 +818,63 @@ const InvoiceTemplateTab: React.FC = () => {
       let summaryY = footerBlockTop + 5;
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
-      const sampleNetInvoice = 52.28;
-      const sampleDeliveryCharge = 5.0;
-      const sampleDeposit = 2.0;
-      const sampleInvoiceTotal = sampleNetInvoice + sampleDeliveryCharge + sampleDeposit;
+      // Compute footer totals from dummy items; Deposit and Invoice total included in calc but shown only if options true
+      const useWithoutPPD = selectedColumns.priceWithTaxWithoutPPD === true;
+      const sampleNetInvoice = SAMPLE_INVOICE_ITEMS.reduce((s, i) => {
+        const qty = Number(i.shippedQty) || 0;
+        const base = i as { priceWithTaxWithoutPPD?: number; priceWithTax?: number; prepaidTaxAmount?: number; totalPrice?: number };
+        const ext = useWithoutPPD
+          ? (base.priceWithTaxWithoutPPD ?? (Number(base.priceWithTax) - (base.prepaidTaxAmount ?? 0))) * qty
+          : Number(base.totalPrice) || 0;
+        return s + ext;
+      }, 0);
+      const sampleTotalPrepaidTax = SAMPLE_INVOICE_ITEMS.reduce(
+        (s, i) => s + (Number((i as { prepaidTaxAmount?: number }).prepaidTaxAmount ?? 0) * (Number(i.shippedQty) || 0)),
+        0
+      );
+      const sampleDeposit = SAMPLE_INVOICE_ITEMS.reduce((s, i) => s + (Number((i as { deposit?: number }).deposit ?? 0)), 0);
+      const sampleDeliveryCharge = 5;
       const sampleLastBalance = 10;
+      const sampleInvoiceTotal = sampleNetInvoice + sampleDeliveryCharge + sampleDeposit;
       const sampleTotalDue = sampleInvoiceTotal - sampleLastBalance;
-      if (showSubTotal) {
-        doc.text(`Net Invoice: ${formatCurrency(sampleNetInvoice)}`, summaryTextX, summaryY, { align: summaryAlign });
-        summaryY += 4;
-      }
-      if (showDeliveryCharge) {
-        doc.text(`Delivery Charge: ${formatCurrency(sampleDeliveryCharge)}`, summaryTextX, summaryY, { align: summaryAlign });
-        summaryY += 4;
-      }
-      if (showDeposit) {
-        doc.text(`Deposit: ${formatCurrency(sampleDeposit)}`, summaryTextX, summaryY, { align: summaryAlign });
-        summaryY += 4;
-      }
-      doc.text(`Invoice Total: ${formatCurrency(sampleInvoiceTotal)}`, summaryTextX, summaryY, { align: summaryAlign });
+      const lbl = (key: string, d: string) => (footerSummaryLabels[key]?.trim() || d);
+      // When with PPD: first line is Sub total (total price with prepaid tax). When without PPD: Net invoice (without PPD).
+      doc.text(`${lbl('netInvoice', useWithoutPPD ? 'Net invoice' : 'Subtotal')}: ${formatCurrency(sampleNetInvoice)}`, summaryTextX, summaryY, { align: summaryAlign });
       summaryY += 4;
-      if (showLastBalance) {
-        doc.text(`Last Balance: ${formatCurrency(sampleLastBalance)}`, summaryTextX, summaryY, { align: summaryAlign });
+      // Show state Prepaid Sales Tax (e.g. "TN Prepaid Sales Tax"); preview uses sample "TN", real PDF uses C_State
+      if (useWithoutPPD) {
+        doc.text(`${lbl('totalPPD', 'Prepaid Sales Tax')}: ${formatCurrency(sampleTotalPrepaidTax)}`, summaryTextX, summaryY, { align: summaryAlign });
         summaryY += 4;
       }
-      if (showTotalAmountDue) {
-        doc.text(`Total Due: ${formatCurrency(sampleTotalDue)}`, summaryTextX, summaryY, { align: summaryAlign });
+      doc.text(`${lbl('deliveryCharge', 'Delivery Charge')}: ${formatCurrency(sampleDeliveryCharge)}`, summaryTextX, summaryY, { align: summaryAlign });
+      summaryY += 4;
+      if (showDeposit) {
+        doc.text(`${lbl('deposit', 'Deposit')}: ${formatCurrency(sampleDeposit)}`, summaryTextX, summaryY, { align: summaryAlign });
+        summaryY += 4;
       }
+      if (showHouseCharge) {
+        doc.text(`${lbl('houseCharge', 'House Charge')}: ${formatCurrency(0)}`, summaryTextX, summaryY, { align: summaryAlign });
+        summaryY += 4;
+      }
+      if (showPosCheck) {
+        doc.text(`${lbl('posCheck', 'POS Check')}: ${formatCurrency(0)}`, summaryTextX, summaryY, { align: summaryAlign });
+        summaryY += 4;
+      }
+      if (showPosCash) {
+        doc.text(`${lbl('posCash', 'POS Cash')}: ${formatCurrency(0)}`, summaryTextX, summaryY, { align: summaryAlign });
+        summaryY += 4;
+      }
+      if (showPosCredit) {
+        doc.text(`${lbl('posCredit', 'POS Credit')}: ${formatCurrency(0)}`, summaryTextX, summaryY, { align: summaryAlign });
+        summaryY += 4;
+      }
+      if (showInvoiceTotal) {
+        doc.text(`${lbl('invoiceTotal', 'Invoice Total')}: ${formatCurrency(sampleInvoiceTotal)}`, summaryTextX, summaryY, { align: summaryAlign });
+        summaryY += 4;
+      }
+      doc.text(`${lbl('lastBalance', 'Last Balance')}: ${formatCurrency(sampleLastBalance)}`, summaryTextX, summaryY, { align: summaryAlign });
+      summaryY += 4;
+      doc.text(`${lbl('totalDue', 'Total Due')}: ${formatCurrency(sampleTotalDue)}`, summaryTextX, summaryY, { align: summaryAlign });
       if (showFooterMessage && footerMessageLastPage) {
         const plainMsg = footerMessageLastPage.replace(/<[^>]*>/g, '').trim().slice(0, FOOTER_MSG_MAX_LENGTH);
         const msgLines = wrapFooterMessage(doc, plainMsg, messageWidth - 2, 7);
@@ -818,12 +929,18 @@ const InvoiceTemplateTab: React.FC = () => {
   };
 
   const getCategorySummary = (items: typeof SAMPLE_INVOICE_ITEMS): Array<{ category: string; qty: number; extended: number }> => {
+    const useWithoutPPD = selectedColumns.priceWithTaxWithoutPPD === true;
     const map: Record<string, { qty: number; extended: number }> = {};
     items.forEach((item) => {
       const cat = item.salesCategory || 'Other';
       if (!map[cat]) map[cat] = { qty: 0, extended: 0 };
-      map[cat].qty += Number(item.shippedQty) || Number(item.orderQty) || 0;
-      map[cat].extended += Number(item.totalPrice) || 0;
+      const qty = Number(item.shippedQty) || Number(item.orderQty) || 0;
+      map[cat].qty += qty;
+      const base = item as { priceWithTaxWithoutPPD?: number; priceWithTax?: number; prepaidTaxAmount?: number; totalPrice?: number };
+      const ext = useWithoutPPD
+        ? (base.priceWithTaxWithoutPPD ?? (Number(base.priceWithTax) - (base.prepaidTaxAmount ?? 0))) * qty
+        : Number(base.totalPrice) || 0;
+      map[cat].extended += ext;
     });
     return Object.keys(map)
       .sort()
@@ -837,12 +954,39 @@ const InvoiceTemplateTab: React.FC = () => {
   ): string[] => {
     const orderQtySum = items.reduce((s, i) => s + (Number(i.orderQty) || 0), 0);
     const shippedQtySum = items.reduce((s, i) => s + (Number(i.shippedQty) || 0), 0);
-    const totalPriceSum = items.reduce((s, i) => s + (Number(i.totalPrice) || 0), 0);
+    const useWithoutPPD = selectedColumns.priceWithTaxWithoutPPD === true;
+    const extendedTotalSum = items.reduce((s, i) => {
+      const qty = Number(i.shippedQty) || 0;
+      const base = i as { priceWithTaxWithoutPPD?: number; priceWithTax?: number; prepaidTaxAmount?: number; totalPrice?: number };
+      const priceWt = Number(base.priceWithTax) || 0;
+      const ppd = Number(base.prepaidTaxAmount) || 0;
+      const ext = useWithoutPPD
+        ? (base.priceWithTaxWithoutPPD ?? (priceWt - ppd)) * qty
+        : (Number(i.totalPrice) || 0);
+      return s + ext;
+    }, 0);
+    const totalPPDSum = items.reduce((s, i) => s + (Number((i as { prepaidTaxAmount?: number }).prepaidTaxAmount ?? 0) * (Number(i.shippedQty) || 0)), 0);
+    const priceSum = items.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.shippedQty) || 0), 0);
+    const priceWithPPDSum = items.reduce((s, i) => {
+      const qty = Number(i.shippedQty) || 0;
+      const base = i as { priceWithTaxWithPPD?: number; priceWithTax?: number };
+      return s + (Number(base.priceWithTaxWithPPD ?? base.priceWithTax) || 0) * qty;
+    }, 0);
+    const priceWithoutPPDSum = items.reduce((s, i) => {
+      const qty = Number(i.shippedQty) || 0;
+      const base = i as { priceWithTaxWithoutPPD?: number; priceWithTax?: number; prepaidTaxAmount?: number };
+      return s + (base.priceWithTaxWithoutPPD ?? (Number(base.priceWithTax) - (base.prepaidTaxAmount ?? 0))) * qty;
+    }, 0);
     return keys.map((key) => {
       if (key === 'description') return groupLabel;
       if (key === 'orderQty') return String(Math.round(orderQtySum));
       if (key === 'shippedQty') return String(Math.round(shippedQtySum));
-      if (key === 'totalPrice') return totalPriceSum.toFixed(2);
+      if (key === 'price') return priceSum.toFixed(2);
+      if (key === 'priceWithTaxWithPPD') return priceWithPPDSum.toFixed(2);
+      if (key === 'priceWithTaxWithoutPPD') return priceWithoutPPDSum.toFixed(2);
+      if (key === 'extendedTotal') return extendedTotalSum.toFixed(2);
+      if (key === 'totalPPD') return totalPPDSum.toFixed(2);
+      if (key === 'prepaidTaxAmount' || key === 'unitPrice') return '';
       if (key === 'pack' || key === 'size' || key === 'deposit' || key === 'ebt') return '';
       return '';
     });
@@ -893,7 +1037,7 @@ const InvoiceTemplateTab: React.FC = () => {
     setGeneratingPdf(true);
     try {
       const logoDataUrl = await loadLogoAsDataUrl();
-      const selectedKeys = INVOICE_COLUMN_FIELDS.filter((f) => selectedColumns[f.key]).map((f) => f.key);
+      const selectedKeys = getOrderedSelectedKeys(selectedColumns, columnPlacement, columnOrder);
       const upcColIndex = selectedKeys.indexOf('upc');
       const showUpcAsBarcode = upcOption.startsWith('barcode');
       const doc = new jsPDF('landscape', 'mm', 'a4');
@@ -908,7 +1052,11 @@ const InvoiceTemplateTab: React.FC = () => {
       let yPos = headerHeight + 2;
       const grouped = groupInvoiceItems(SAMPLE_INVOICE_ITEMS);
       // EBT column: show data but no header label in table
-      const headerLabels = selectedKeys.map((k) => (k === 'ebt' ? '' : (INVOICE_COLUMN_FIELDS.find((f) => f.key === k)?.label || k)));
+      const headerLabels = selectedKeys.map((k) => {
+        const custom = columnHeaderNames[k]?.trim();
+        if (custom) return custom;
+        return k === 'ebt' ? '' : (INVOICE_COLUMN_FIELDS.find((f) => f.key === k)?.label || k);
+      });
       const autoTableFn = jspdfAutoTable.default || jspdfAutoTable.autoTable || jspdfAutoTable;
       const descriptionColIndex = selectedKeys.indexOf('description');
       const columnStyles: Record<number, { cellWidth: number }> = {};
@@ -1032,9 +1180,25 @@ const InvoiceTemplateTab: React.FC = () => {
         const itemRows = group.items.map((item: (typeof SAMPLE_INVOICE_ITEMS)[0]) =>
           selectedKeys.map((key) => {
             if (key === 'ebt') return item.ebt ? 'E' : '';
-            if (key === 'upc' && showUpcAsBarcode) return ''; // drawn in didDrawCell
-            const v = (item as Record<string, unknown>)[key];
-            return v !== null && v !== undefined ? String(v) : '';
+            if (key === 'upc' && showUpcAsBarcode) return '';
+            let v: unknown = (item as Record<string, unknown>)[key];
+            if (v === undefined || v === null) {
+              if (key === 'totalPPD') v = (Number((item as { prepaidTaxAmount?: number }).prepaidTaxAmount ?? 0) * (Number(item.shippedQty) || 0));
+              else if (key === 'unitPrice') v = (item as { unitPrice?: number }).unitPrice ?? item.price;
+              else if (key === 'extendedTotal') {
+                const useWithoutPPD = selectedColumns.priceWithTaxWithoutPPD === true;
+                const qty = Number(item.shippedQty) || 0;
+                const base = item as { priceWithTaxWithoutPPD?: number; priceWithTax?: number; prepaidTaxAmount?: number; totalPrice?: number };
+                v = useWithoutPPD
+                  ? (base.priceWithTaxWithoutPPD ?? ((base.priceWithTax ?? 0) - (base.prepaidTaxAmount ?? 0))) * qty
+                  : (Number(item.totalPrice) || 0);
+              }
+            }
+            if (v !== null && v !== undefined) {
+              if (typeof v === 'number' && (key === 'extendedTotal' || key === 'totalPPD' || key === 'prepaidTaxAmount' || key === 'price' || key === 'unitPrice' || key === 'priceWithTaxWithPPD' || key === 'priceWithTaxWithoutPPD' || key === 'totalPrice')) return Number(v).toFixed(2);
+              return String(v);
+            }
+            return '';
           })
         );
         const body: string[][] = [...itemRows];
@@ -1185,6 +1349,9 @@ const InvoiceTemplateTab: React.FC = () => {
     setGroupBy(def.groupBy);
     setShowGroupHeader(def.showGroupHeader);
     setSelectedColumns({ ...def.selectedColumns });
+    setColumnHeaderNames({ ...(def.columnHeaderNames ?? {}) });
+    setColumnPlacement(def.columnPlacement);
+    setColumnOrder({ ...def.columnOrder });
     setUpcOption(def.upcOption);
     setShowDistributorDetails(def.showDistributorDetails);
     setShowCustomerDetails(def.showCustomerDetails);
@@ -1209,8 +1376,14 @@ const InvoiceTemplateTab: React.FC = () => {
     setShowSubTotal(def.showSubTotal);
     setShowDeliveryCharge(def.showDeliveryCharge);
     setShowDeposit(def.showDeposit);
+    setShowHouseCharge(def.showHouseCharge ?? false);
+    setShowPosCheck(def.showPosCheck ?? false);
+    setShowPosCash(def.showPosCash ?? false);
+    setShowPosCredit(def.showPosCredit ?? false);
+    setShowInvoiceTotal(def.showInvoiceTotal);
     setShowLastBalance(def.showLastBalance);
     setShowTotalAmountDue(def.showTotalAmountDue);
+    setFooterSummaryLabels({ ...(def.footerSummaryLabels ?? {}) });
     setShowReportGeneratedByWoopsa(def.showReportGeneratedByWoopsa);
     setMainTemplate(def.mainTemplate ?? false);
   };
@@ -1233,6 +1406,9 @@ const InvoiceTemplateTab: React.FC = () => {
         setGroupBy(template.groupBy);
         setShowGroupHeader(template.showGroupHeader);
         setSelectedColumns({ ...template.selectedColumns });
+        setColumnHeaderNames({ ...(template.columnHeaderNames ?? {}) });
+        setColumnPlacement(template.columnPlacement ?? 'default');
+        setColumnOrder(template.columnOrder ? { ...template.columnOrder } : {});
         setUpcOption(template.upcOption);
         setShowDistributorDetails(template.showDistributorDetails);
         setShowCustomerDetails(template.showCustomerDetails);
@@ -1258,8 +1434,14 @@ const InvoiceTemplateTab: React.FC = () => {
         setShowSubTotal(template.showSubTotal);
         setShowDeliveryCharge(template.showDeliveryCharge);
         setShowDeposit(template.showDeposit);
+        setShowHouseCharge(template.showHouseCharge ?? false);
+        setShowPosCheck(template.showPosCheck ?? false);
+        setShowPosCash(template.showPosCash ?? false);
+        setShowPosCredit(template.showPosCredit ?? false);
+        setShowInvoiceTotal(template.showInvoiceTotal);
         setShowLastBalance(template.showLastBalance);
         setShowTotalAmountDue(template.showTotalAmountDue);
+        setFooterSummaryLabels({ ...(template.footerSummaryLabels ?? {}) });
         setShowReportGeneratedByWoopsa(template.showReportGeneratedByWoopsa);
         setView('edit');
         return;
@@ -1278,6 +1460,9 @@ const InvoiceTemplateTab: React.FC = () => {
         setGroupBy(local.groupBy);
         setShowGroupHeader(local.showGroupHeader);
         setSelectedColumns({ ...local.selectedColumns });
+        setColumnHeaderNames({ ...(local.columnHeaderNames ?? {}) });
+        setColumnPlacement(local.columnPlacement ?? 'default');
+        setColumnOrder(local.columnOrder ? { ...local.columnOrder } : {});
         setUpcOption(local.upcOption);
         setShowDistributorDetails(local.showDistributorDetails);
         setShowCustomerDetails(local.showCustomerDetails);
@@ -1303,8 +1488,14 @@ const InvoiceTemplateTab: React.FC = () => {
         setShowSubTotal(local.showSubTotal);
         setShowDeliveryCharge(local.showDeliveryCharge);
         setShowDeposit(local.showDeposit);
+        setShowHouseCharge(local.showHouseCharge ?? false);
+        setShowPosCheck(local.showPosCheck ?? false);
+        setShowPosCash(local.showPosCash ?? false);
+        setShowPosCredit(local.showPosCredit ?? false);
+        setShowInvoiceTotal(local.showInvoiceTotal);
         setShowLastBalance(local.showLastBalance);
         setShowTotalAmountDue(local.showTotalAmountDue);
+        setFooterSummaryLabels({ ...(local.footerSummaryLabels ?? {}) });
         setShowReportGeneratedByWoopsa(local.showReportGeneratedByWoopsa);
       }
       setView('edit');
@@ -1323,7 +1514,17 @@ const InvoiceTemplateTab: React.FC = () => {
   };
 
   const handleColumnToggle = (key: string, checked: boolean) => {
-    setSelectedColumns((prev) => ({ ...prev, [key]: checked }));
+    setSelectedColumns((prev) => {
+      const next = { ...prev, [key]: checked };
+      if (checked && key === 'priceWithTaxWithPPD') next.priceWithTaxWithoutPPD = false;
+      if (checked && key === 'priceWithTaxWithoutPPD') {
+        next.priceWithTaxWithPPD = false;
+        // When selecting Price w/t without PPD, auto-select Prepaid tax amount and Total PPD
+        next.prepaidTaxAmount = true;
+        next.totalPPD = true;
+      }
+      return next;
+    });
   };
 
   const handleSaveTemplate = async () => {
@@ -1334,11 +1535,27 @@ const InvoiceTemplateTab: React.FC = () => {
     }
     setSaving(true);
     try {
+      // Only include column header names that have a custom (non-empty) value; otherwise send {}
+      const columnHeaderNamesPayload = (() => {
+        const o: Record<string, string> = {};
+        Object.entries(columnHeaderNames).forEach(([k, v]) => {
+          if (v != null && String(v).trim() !== '') o[k] = String(v).trim();
+        });
+        return o;
+      })();
+      // Only include footer labels that have a custom (non-empty) value; otherwise send {}
+      const footerSummaryLabelsPayload: Record<string, string> = {};
+      Object.entries(footerSummaryLabels).forEach(([k, v]) => {
+        if (v != null && String(v).trim() !== '') footerSummaryLabelsPayload[k] = String(v).trim();
+      });
       const payload = {
         name: trimmedName,
         groupBy,
         showGroupHeader,
         selectedColumns: { ...selectedColumns },
+        columnHeaderNames: columnHeaderNamesPayload,
+        columnPlacement,
+        columnOrder: columnPlacement === 'custom' ? { ...columnOrder } : {},
         upcOption,
         showDistributorDetails,
         showCustomerDetails,
@@ -1362,8 +1579,14 @@ const InvoiceTemplateTab: React.FC = () => {
         showSubTotal,
         showDeliveryCharge,
         showDeposit,
+        showHouseCharge,
+        showPosCheck,
+        showPosCash,
+        showPosCredit,
+        showInvoiceTotal,
         showLastBalance,
         showTotalAmountDue,
+        footerSummaryLabels: footerSummaryLabelsPayload,
         showReportGeneratedByWoopsa,
       };
       let templateId: number;
@@ -1497,7 +1720,8 @@ const InvoiceTemplateTab: React.FC = () => {
     );
   }
 
-  const columnLabels = INVOICE_COLUMN_FIELDS.filter((f) => selectedColumns[f.key]).map((f) => f.label);
+  const orderedKeys = getOrderedSelectedKeys(selectedColumns, columnPlacement, columnOrder);
+  const columnLabels = orderedKeys.map((key) => INVOICE_COLUMN_FIELDS.find((f) => f.key === key)?.label ?? key);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1598,14 +1822,9 @@ const InvoiceTemplateTab: React.FC = () => {
                       Group By
                     </Typography>
                     <RadioGroup
-                      value={groupBy}
+                      value={groupBy || 'alphabetSalesCategory'}
                       onChange={(e) => setGroupBy(e.target.value as InvoiceGroupBy)}
                     >
-                      <FormControlLabel
-                        value=""
-                        control={<Radio size="small" />}
-                        label={<Typography sx={{ fontSize: '0.7rem' }}>None</Typography>}
-                      />
                       <FormControlLabel
                         value="alphabetSalesCategory"
                         control={<Radio size="small" />}
@@ -1860,6 +2079,149 @@ const InvoiceTemplateTab: React.FC = () => {
                         </Grid>
                       ))}
                     </Grid>
+                    </Box>
+
+                  {/* Custom column header names (optional) */}
+                  <Box sx={{ mt: 2 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        mb: 0.5,
+                        pl: 0.5,
+                        fontWeight: 500,
+                        fontSize: '0.68rem',
+                        display: 'block',
+                        color: 'text.secondary',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Custom column header names (optional)
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 0.5, pl: 0.5 }}>
+                      Override the display name for any column in the invoice table. Leave blank to use the default.
+                    </Typography>
+                    <Grid container spacing={0.5} sx={{ maxHeight: 140, overflowY: 'auto' }}>
+                      {INVOICE_COLUMN_FIELDS.map((field) => (
+                        <Grid size={{ xs: 12, sm: 6, md: 4 }} key={field.key}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography sx={{ fontSize: '0.7rem', minWidth: 100 }}>{field.label}:</Typography>
+                            <TextInput
+                              size="small"
+                              value={columnHeaderNames[field.key] ?? ''}
+                              onChange={(e) =>
+                                setColumnHeaderNames((prev) => ({
+                                  ...prev,
+                                  [field.key]: e.target.value,
+                                }))
+                              }
+                              placeholder={field.label}
+                              sx={{ flex: 1, '& input': { fontSize: '0.7rem' } }}
+                            />
+                          </Box>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </Box>
+
+                  {/* Column placement: Default (fixed order) or Custom (assign position per field) */}
+                  <Box sx={{ mt: 2 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        mb: 0.5,
+                        pl: 0.5,
+                        fontWeight: 500,
+                        fontSize: '0.68rem',
+                        display: 'block',
+                        color: 'text.secondary',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Column placement
+                    </Typography>
+                    <RadioGroup
+                      row
+                      value={columnPlacement}
+                      onChange={(e) => {
+                        const v = e.target.value as 'default' | 'custom';
+                        setColumnPlacement(v);
+                        if (v === 'custom') {
+                          const defaultOrdered = INVOICE_COLUMN_FIELDS.filter((f) => selectedColumns[f.key]).map((f) => f.key);
+                          const next: { [key: string]: number } = {};
+                          defaultOrdered.forEach((key, i) => {
+                            next[key] = columnOrder[key] ?? i + 1;
+                          });
+                          setColumnOrder(normalizeColumnOrder(next, defaultOrdered));
+                        }
+                      }}
+                      sx={{ ml: 0.5 }}
+                    >
+                      <FormControlLabel
+                        value="default"
+                        control={<Radio size="small" />}
+                        label={<Typography sx={{ fontSize: '0.7rem' }}>Default (fixed order)</Typography>}
+                      />
+                      <FormControlLabel
+                        value="custom"
+                        control={<Radio size="small" />}
+                        label={<Typography sx={{ fontSize: '0.7rem' }}>Custom (set column position)</Typography>}
+                      />
+                    </RadioGroup>
+                    {columnPlacement === 'custom' && orderedKeys.length > 0 && (
+                      <Box sx={{ mt: 1, pl: 0.5 }}>
+                        <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', mb: 0.5 }}>
+                          Set position for each field (1 = first column):
+                        </Typography>
+                        <Grid container spacing={0.5}>
+                          {orderedKeys.map((key) => {
+                            const field = INVOICE_COLUMN_FIELDS.find((f) => f.key === key);
+                            const label = field?.label ?? key;
+                            const pos = columnOrder[key] ?? 1;
+                            return (
+                              <Grid size={{ xs: 12, sm: 6 }} key={key}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Typography sx={{ fontSize: '0.7rem', minWidth: 70 }}>{label}</Typography>
+                                  <Select
+                                    size="small"
+                                    value={pos}
+                                    onChange={(e) => {
+                                      const p = Number(e.target.value);
+                                      setColumnOrder((prev) => {
+                                        const currentPos = prev[key];
+                                        if (currentPos === p) return prev;
+                                        const otherKey = orderedKeys.find(
+                                          (k) => k !== key && (prev[k] ?? 999) === p
+                                        );
+                                        const next = { ...prev, [key]: p };
+                                        if (otherKey != null) {
+                                          const assigned = currentPos ?? (() => {
+                                            const used = new Set([...Object.values(next), p]);
+                                            let free = 1;
+                                            while (used.has(free)) free++;
+                                            return free;
+                                          })();
+                                          next[otherKey] = assigned;
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                    sx={{ minWidth: 56, height: 28 }}
+                                  >
+                                    {orderedKeys.map((_, i) => (
+                                      <MenuItem key={i} value={i + 1}>
+                                        {i + 1}
+                                      </MenuItem>
+                                    ))}
+                                  </Select>
+                                </Box>
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      </Box>
+                    )}
                   </Box>
 
                   {/* Header options */}
@@ -2099,63 +2461,101 @@ const InvoiceTemplateTab: React.FC = () => {
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                         <FormControlLabel
-                          control={
-                            <Switch
-                              size="small"
-                              checked={showSubTotal}
-                              onChange={(e) => setShowSubTotal(e.target.checked)}
-                            />
-                          }
-                          label={<Typography sx={{ fontSize: '0.7rem' }}>Sub total</Typography>}
+                          control={<Switch size="small" checked disabled />}
+                          label={<Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Sub total (Net invoice)</Typography>}
                         />
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                         <FormControlLabel
-                          control={
-                            <Switch
-                              size="small"
-                              checked={showDeliveryCharge}
-                              onChange={(e) => setShowDeliveryCharge(e.target.checked)}
-                            />
-                          }
-                          label={<Typography sx={{ fontSize: '0.7rem' }}>Delivery charge</Typography>}
+                          control={<Switch size="small" checked disabled />}
+                          label={<Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Delivery charge</Typography>}
                         />
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                         <FormControlLabel
-                          control={
-                            <Switch
-                              size="small"
-                              checked={showDeposit}
-                              onChange={(e) => setShowDeposit(e.target.checked)}
-                            />
-                          }
+                          control={<Switch size="small" checked={showDeposit} onChange={(e) => setShowDeposit(e.target.checked)} />}
                           label={<Typography sx={{ fontSize: '0.7rem' }}>Deposit (CRV)</Typography>}
                         />
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                         <FormControlLabel
-                          control={
-                            <Switch
-                              size="small"
-                              checked={showLastBalance}
-                              onChange={(e) => setShowLastBalance(e.target.checked)}
-                            />
-                          }
-                          label={<Typography sx={{ fontSize: '0.7rem' }}>Last balance</Typography>}
+                          control={<Switch size="small" checked={showHouseCharge} onChange={(e) => setShowHouseCharge(e.target.checked)} />}
+                          label={<Typography sx={{ fontSize: '0.7rem' }}>House charge</Typography>}
                         />
                       </Grid>
                       <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                         <FormControlLabel
-                          control={
-                            <Switch
-                              size="small"
-                              checked={showTotalAmountDue}
-                              onChange={(e) => setShowTotalAmountDue(e.target.checked)}
-                            />
-                          }
-                          label={<Typography sx={{ fontSize: '0.7rem' }}>Total amount due</Typography>}
+                          control={<Switch size="small" checked={showPosCheck} onChange={(e) => setShowPosCheck(e.target.checked)} />}
+                          label={<Typography sx={{ fontSize: '0.7rem' }}>POS check</Typography>}
                         />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <FormControlLabel
+                          control={<Switch size="small" checked={showPosCash} onChange={(e) => setShowPosCash(e.target.checked)} />}
+                          label={<Typography sx={{ fontSize: '0.7rem' }}>POS cash</Typography>}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <FormControlLabel
+                          control={<Switch size="small" checked={showPosCredit} onChange={(e) => setShowPosCredit(e.target.checked)} />}
+                          label={<Typography sx={{ fontSize: '0.7rem' }}>POS credit</Typography>}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <FormControlLabel
+                          control={<Switch size="small" checked={showInvoiceTotal} onChange={(e) => setShowInvoiceTotal(e.target.checked)} />}
+                          label={<Typography sx={{ fontSize: '0.7rem' }}>Invoice total</Typography>}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <FormControlLabel
+                          control={<Switch size="small" checked disabled />}
+                          label={<Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Last balance</Typography>}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                        <FormControlLabel
+                          control={<Switch size="small" checked disabled />}
+                          label={<Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Total due</Typography>}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.5 }}>
+                          Sub total, Delivery charge, Last balance and Total due are always shown. Deposit, House charge, POS check/cash/credit and Invoice total are optional (House charge/POS default off).
+                        </Typography>
+                      </Grid>
+                      <Grid size={{ xs: 12 }} sx={{ mt: 1 }}>
+                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 500, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.5 }}>
+                          Footer summary labels (optional)
+                        </Typography>
+                        <Grid container spacing={0.5}>
+                          {[
+                            { key: 'netInvoice', default: 'Net invoice' },
+                            { key: 'totalPPD', default: 'Prepaid Sales Tax' },
+                            { key: 'deliveryCharge', default: 'Delivery Charge' },
+                            { key: 'deposit', default: 'Deposit' },
+                            { key: 'houseCharge', default: 'House Charge' },
+                            { key: 'posCheck', default: 'POS Check' },
+                            { key: 'posCash', default: 'POS Cash' },
+                            { key: 'posCredit', default: 'POS Credit' },
+                            { key: 'invoiceTotal', default: 'Invoice Total' },
+                            { key: 'lastBalance', default: 'Last Balance' },
+                            { key: 'totalDue', default: 'Total Due' },
+                          ].map(({ key, default: d }) => (
+                            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={key}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography sx={{ fontSize: '0.7rem', minWidth: 100 }}>{d}:</Typography>
+                                <TextInput
+                                  size="small"
+                                  value={footerSummaryLabels[key] ?? ''}
+                                  onChange={(e) => setFooterSummaryLabels((prev) => ({ ...prev, [key]: e.target.value }))}
+                                  placeholder={d}
+                                  sx={{ flex: 1, '& input': { fontSize: '0.7rem' } }}
+                                />
+                              </Box>
+                            </Grid>
+                          ))}
+                        </Grid>
                       </Grid>
                       {showFooterMessage && (
                         <Grid size={{ xs: 12 }}>

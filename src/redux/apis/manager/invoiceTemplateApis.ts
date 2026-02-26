@@ -17,6 +17,14 @@ export interface InvoiceTemplateApi {
   groupBy: string;
   showGroupHeader: boolean;
   selectedColumns: Record<string, boolean>;
+  /** Optional custom column header labels (key -> display label) */
+  columnHeaderNames?: Record<string, string>;
+  /** 'default' = fixed column order (line-wise); 'custom' = use columnOrder for placement */
+  columnPlacement?: 'default' | 'custom';
+  /** When columnPlacement is 'custom': field key -> 1-based column position (e.g. itemNumber: 5, orderQty: 3) */
+  columnOrder?: Record<string, number>;
+  /** Extended total column = Price w/t with PPD or Price w/t without PPD * qty */
+  extendedTotalBasedOn?: 'withPPD' | 'withoutPPD';
   upcOption: string;
   showDistributorDetails: boolean;
   showCustomerDetails: boolean;
@@ -40,8 +48,14 @@ export interface InvoiceTemplateApi {
   showSubTotal: boolean;
   showDeliveryCharge: boolean;
   showDeposit?: boolean;
+  showHouseCharge?: boolean;
+  showPosCheck?: boolean;
+  showPosCash?: boolean;
+  showPosCredit?: boolean;
+  showInvoiceTotal?: boolean;
   showLastBalance: boolean;
   showTotalAmountDue: boolean;
+  footerSummaryLabels?: Record<string, string>;
   showReportGeneratedByWoopsa: boolean;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +68,13 @@ export interface InvoiceTemplatePayload {
   groupBy?: string;
   showGroupHeader?: boolean;
   selectedColumns?: Record<string, boolean>;
+  /** Optional custom column header labels (key -> display label) */
+  columnHeaderNames?: Record<string, string>;
+  /** 'default' = fixed column order; 'custom' = use columnOrder */
+  columnPlacement?: 'default' | 'custom';
+  /** When columnPlacement is 'custom': field key -> 1-based column position */
+  columnOrder?: Record<string, number>;
+  extendedTotalBasedOn?: 'withPPD' | 'withoutPPD';
   upcOption?: string;
   showDistributorDetails?: boolean;
   showCustomerDetails?: boolean;
@@ -77,8 +98,14 @@ export interface InvoiceTemplatePayload {
   showSubTotal?: boolean;
   showDeliveryCharge?: boolean;
   showDeposit?: boolean;
+  showHouseCharge?: boolean;
+  showPosCheck?: boolean;
+  showPosCash?: boolean;
+  showPosCredit?: boolean;
+  showInvoiceTotal?: boolean;
   showLastBalance?: boolean;
   showTotalAmountDue?: boolean;
+  footerSummaryLabels?: Record<string, string>;
   showReportGeneratedByWoopsa?: boolean;
 }
 
