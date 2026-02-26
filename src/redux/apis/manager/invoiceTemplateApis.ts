@@ -245,6 +245,62 @@ export const bulkRemoveCustomerAssignInvoiceTemplates = async (assignments: Arra
   return response.data;
 };
 
+/** Shape of one customer in customer-by-invoice-id response (C_Number, C_Name). */
+export interface CustomerByInvoiceTemplateItem {
+  C_Number: number;
+  C_Name: string;
+}
+
+/** GET customer-by-invoice-id/:id - get customers assigned to this invoice template (with C_Number, C_Name). */
+export const getCustomersByInvoiceTemplateId = async (
+  id: number
+): Promise<CustomerByInvoiceTemplateItem[]> => {
+  const response = await axiosInstance.get<
+    ApiResponse<
+      | number[]
+      | { customerNumbers?: number[] }
+      | Array<{ customerNumber?: number; C_Number?: number; C_Name?: string }>
+    >
+  >(`${BASE}/customer-by-invoice-id/${id}`);
+  const data = response.data?.data;
+  if (Array.isArray(data)) {
+    if (data.length === 0) return [];
+    const first = data[0];
+    if (typeof first === 'number') {
+      return (data as number[]).map((n) => ({ C_Number: n, C_Name: '' }));
+    }
+    if (first && typeof first === 'object') {
+      if ('C_Number' in first && first.C_Number != null) {
+        return (data as Array<{ C_Number: number; C_Name?: string }>).map((x) => ({
+          C_Number: x.C_Number,
+          C_Name: x.C_Name ?? '',
+        }));
+      }
+      if ('customerNumber' in first && first.customerNumber != null) {
+        return (data as Array<{ customerNumber: number }>).map((x) => ({
+          C_Number: x.customerNumber,
+          C_Name: '',
+        }));
+      }
+    }
+  }
+  if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray((data as { customerNumbers?: number[] }).customerNumbers)) {
+    return ((data as { customerNumbers: number[] }).customerNumbers).map((n) => ({ C_Number: n, C_Name: '' }));
+  }
+  return [];
+};
+
+/** DELETE customer-assign-delete/:customerNumber - remove customer from template (pass templateId as query). */
+export const deleteCustomerFromInvoiceTemplate = async (
+  customerNumber: number,
+  templateId: number
+): Promise<void> => {
+  await axiosInstance.delete<ApiResponse<{ message?: string }>>(
+    `${BASE}/customer-assign-delete/${customerNumber}`,
+    { params: { templateId } }
+  );
+};
+
 /** Get the invoice template to use for a given customer: assigned template or main template. */
 export const getInvoiceTemplateForCustomer = async (
   customerNumber: number

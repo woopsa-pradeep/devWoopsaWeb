@@ -19,7 +19,7 @@ import {
   Checkbox,
   ListItemText,
 } from '@mui/material';
-import { Edit, ArrowBack, PictureAsPdf, Delete } from '@mui/icons-material';
+import { Edit, ArrowBack, PictureAsPdf, Delete, Close } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const jspdfAutoTable = require('jspdf-autotable');
@@ -39,11 +39,11 @@ import {
   createInvoiceTemplate,
   updateInvoiceTemplate,
   deleteInvoiceTemplate,
-  getCustomerAssignInvoiceTemplates,
+  getCustomersByInvoiceTemplateId,
   bulkAddCustomerAssignInvoiceTemplates,
-  bulkRemoveCustomerAssignInvoiceTemplates,
+  deleteCustomerFromInvoiceTemplate,
   type InvoiceTemplateApi,
-  type CustomerAssignInvoiceTemplateApi,
+  type CustomerByInvoiceTemplateItem,
 } from '../../../redux/apis/manager/invoiceTemplateApis';
 import { wrapFooterMessage } from '../../../utils/invoicePdfGenerator';
 
@@ -410,6 +410,8 @@ const InvoiceTemplateTab: React.FC = () => {
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [customerList, setCustomerList] = useState<{ C_Number: number; C_Name: string }[]>([]);
   const [customerListLoading, setCustomerListLoading] = useState(false);
+  const [removingCustomerNumber, setRemovingCustomerNumber] = useState<number | null>(null);
+  const [assignedCustomersWithNames, setAssignedCustomersWithNames] = useState<CustomerByInvoiceTemplateItem[]>([]);
   const [mainTemplate, setMainTemplate] = useState(false);
   const [footerLayout, setFooterLayout] = useState<FooterLayoutOption>('messageLeft');
   const [showFooterMessage, setShowFooterMessage] = useState(true);
@@ -1370,6 +1372,7 @@ const InvoiceTemplateTab: React.FC = () => {
     setShowHeaderMessage(def.showHeaderMessage);
     setHeaderMessageFirstPage(def.headerMessageFirstPage);
     setSelectedCustomerIds(def.selectedCustomerIds ?? []);
+    setAssignedCustomersWithNames([]);
     setFooterLayout(def.footerLayout ?? 'messageLeft');
     setShowFooterMessage(def.showFooterMessage);
     setFooterMessageLastPage(def.footerMessageLastPage);
@@ -1446,13 +1449,14 @@ const InvoiceTemplateTab: React.FC = () => {
         setView('edit');
         return;
       }
-      const [templateRes, assignRes] = await Promise.all([
+      const [templateRes, assignedRes] = await Promise.all([
         getInvoiceTemplateById(templateId),
-        getCustomerAssignInvoiceTemplates({ templateId, limit: 500, page: 1 }),
+        getCustomersByInvoiceTemplateId(templateId),
       ]);
       const apiTemplate = templateRes?.data;
-      const assignments: CustomerAssignInvoiceTemplateApi[] = assignRes?.data?.data ?? [];
-      const customerNumbers = assignments.map((a: CustomerAssignInvoiceTemplateApi) => a.customerNumber);
+      const assigned = Array.isArray(assignedRes) ? assignedRes : [];
+      const customerNumbers = assigned.map((c) => c.C_Number);
+      setAssignedCustomersWithNames(assigned);
       if (apiTemplate) {
         const local = apiTemplateToLocal(apiTemplate);
         local.selectedCustomerIds = customerNumbers;
@@ -1602,15 +1606,13 @@ const InvoiceTemplateTab: React.FC = () => {
         }
       }
       const targetCustomerIds = selectedCustomerIds ?? [];
-      const assignRes = await getCustomerAssignInvoiceTemplates({ templateId, limit: 500, page: 1 });
-      const current: CustomerAssignInvoiceTemplateApi[] = assignRes?.data?.data ?? [];
-      const currentNumbers = new Set(current.map((a: CustomerAssignInvoiceTemplateApi) => a.customerNumber));
-      const toAdd = targetCustomerIds.filter((c) => !currentNumbers.has(c));
-      const toRemove = current.filter((a: CustomerAssignInvoiceTemplateApi) => !targetCustomerIds.includes(a.customerNumber));
-      if (toRemove.length > 0) {
-        await bulkRemoveCustomerAssignInvoiceTemplates(
-          toRemove.map((a) => ({ customerNumber: a.customerNumber, templateId }))
-        );
+      const currentAssigned = await getCustomersByInvoiceTemplateId(templateId);
+      const currentNumbers = currentAssigned.map((c) => c.C_Number);
+      const currentSet = new Set(currentNumbers);
+      const toAdd = targetCustomerIds.filter((c) => !currentSet.has(c));
+      const toRemove = currentNumbers.filter((c) => !targetCustomerIds.includes(c));
+      for (const customerNumber of toRemove) {
+        await deleteCustomerFromInvoiceTemplate(customerNumber, templateId);
       }
       if (toAdd.length > 0) {
         await bulkAddCustomerAssignInvoiceTemplates(
@@ -1645,6 +1647,26 @@ const InvoiceTemplateTab: React.FC = () => {
       toast.error('Failed to delete template');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleRemoveCustomerFromTemplate = async (customerNumber: number) => {
+    const templateId = editingId != null ? (typeof editingId === 'number' ? editingId : parseInt(String(editingId), 10)) : null;
+    if (templateId != null && !Number.isNaN(templateId)) {
+      setRemovingCustomerNumber(customerNumber);
+      try {
+        await deleteCustomerFromInvoiceTemplate(customerNumber, templateId);
+        setSelectedCustomerIds((prev) => prev.filter((id) => id !== customerNumber));
+        setAssignedCustomersWithNames((prev) => prev.filter((c) => c.C_Number !== customerNumber));
+        toast.success('Customer removed from template');
+      } catch (err) {
+        console.error('Error removing customer from template:', err);
+        toast.error('Failed to remove customer');
+      } finally {
+        setRemovingCustomerNumber(null);
+      }
+    } else {
+      setSelectedCustomerIds((prev) => prev.filter((id) => id !== customerNumber));
     }
   };
 
@@ -1963,7 +1985,7 @@ const InvoiceTemplateTab: React.FC = () => {
                         letterSpacing: '0.5px',
                       }}
                     >
-                      Customer
+                      Assign customers
                     </Typography>
                     <FormControl fullWidth size="small">
                       <Select
@@ -1971,12 +1993,7 @@ const InvoiceTemplateTab: React.FC = () => {
                         displayEmpty
                         value={selectedCustomerIds}
                         onChange={(e) => setSelectedCustomerIds((e.target.value as number[]).filter((id): id is number => typeof id === 'number'))}
-                        renderValue={(ids) => {
-                          if (ids.length === 0) return 'Select customers';
-                          return ids
-                            .map((id) => customerList.find((c) => c.C_Number === id)?.C_Name ?? id)
-                            .join(', ');
-                        }}
+                        renderValue={(ids) => (ids.length === 0 ? 'Select customers to assign' : `${ids.length} selected`)}
                         disabled={customerListLoading || mainTemplate}
                         sx={{ fontSize: '0.75rem' }}
                       >
@@ -1991,6 +2008,58 @@ const InvoiceTemplateTab: React.FC = () => {
                         ))}
                       </Select>
                     </FormControl>
+                    {selectedCustomerIds.length > 0 && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          mt: 1,
+                          mb: 0.5,
+                          fontWeight: 500,
+                          fontSize: '0.65rem',
+                          display: 'block',
+                          color: 'text.secondary',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        Assigned customers
+                      </Typography>
+                    )}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+                      {selectedCustomerIds.map((id) => {
+                        const fromApi = assignedCustomersWithNames.find((c) => c.C_Number === id);
+                        const fromList = customerList.find((c) => c.C_Number === id);
+                        const name = fromApi?.C_Name || fromList?.C_Name || '';
+                        const label = name ? `${name} (${id})` : String(id);
+                        const isRemoving = removingCustomerNumber === id;
+                        return (
+                          <Box
+                            key={id}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              py: 0.5,
+                              px: 1,
+                              borderRadius: 1,
+                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                              fontSize: '0.75rem',
+                            }}
+                          >
+                            <Typography sx={{ fontSize: '0.75rem' }}>{label}</Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRemoveCustomerFromTemplate(id)}
+                              disabled={mainTemplate || isRemoving}
+                              sx={{ color: 'error.main', p: 0.25 }}
+                              title="Remove customer from template"
+                            >
+                              {isRemoving ? <CircularProgress size={16} /> : <Close fontSize="small" />}
+                            </IconButton>
+                          </Box>
+                        );
+                      })}
+                    </Box>
                   </Box>
                 </Grid>
 
