@@ -839,11 +839,13 @@ function addInvoiceFooterToPage(
   const posCheck = tot.posCheck ?? 0;
   const posCash = tot.posCash ?? 0;
   const posCredit = tot.posCredit ?? 0;
-  // Invoice total always includes houseCharge and posCheck/posCash/posCredit in the calculation,
-  // even when showHouseCharge/showPosCheck etc. are false (those flags only control display of the line, not the total).
+  // Invoice total = subTotal + deliveryCharge + deposit only. House charge, POS_Check, POS_Cash, POS_Credit are display-only (not in total).
   const baseTotal = subTotal + deliveryCharge + deposit;
-  const invoiceTotal = Number((baseTotal + houseCharge - posCheck - posCash - posCredit).toFixed(2));
-  const totalAmountDue = Number((invoiceTotal - lastBalance).toFixed(2));
+  const invoiceTotal = Number(baseTotal.toFixed(2));
+  // Last balance: if negative then subtract from total (reduces amount due); if positive then add to total (increases amount due).
+  const totalAmountDue = Number(
+    (lastBalance >= 0 ? invoiceTotal + lastBalance : invoiceTotal - lastBalance).toFixed(2)
+  );
 
   // Footer at bottom: Woopsa line at page bottom; on last page, footer block sits just above it (no gap).
   const woopsaY = pageHeight - WOOPSA_LINE_BOTTOM_MM;

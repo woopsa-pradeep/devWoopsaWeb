@@ -837,8 +837,13 @@ const InvoiceTemplateTab: React.FC = () => {
       const sampleDeposit = SAMPLE_INVOICE_ITEMS.reduce((s, i) => s + (Number((i as { deposit?: number }).deposit ?? 0)), 0);
       const sampleDeliveryCharge = 5;
       const sampleLastBalance = 10;
+      const sampleHouseCharge = 25;
+      const samplePosCheck = 50;
+      const samplePosCash = 30;
+      const samplePosCredit = 20;
       const sampleInvoiceTotal = sampleNetInvoice + sampleDeliveryCharge + sampleDeposit;
-      const sampleTotalDue = sampleInvoiceTotal - sampleLastBalance;
+      // Last balance: if negative then subtract from total; if positive then add to total.
+      const sampleTotalDue = sampleLastBalance >= 0 ? sampleInvoiceTotal + sampleLastBalance : sampleInvoiceTotal - sampleLastBalance;
       const lbl = (key: string, d: string) => (footerSummaryLabels[key]?.trim() || d);
       // When with PPD: first line is Sub total (total price with prepaid tax). When without PPD: Net invoice (without PPD).
       doc.text(`${lbl('netInvoice', useWithoutPPD ? 'Net invoice' : 'Subtotal')}: ${formatCurrency(sampleNetInvoice)}`, summaryTextX, summaryY, { align: summaryAlign });
@@ -855,19 +860,19 @@ const InvoiceTemplateTab: React.FC = () => {
         summaryY += 4;
       }
       if (showHouseCharge) {
-        doc.text(`${lbl('houseCharge', 'House Charge')}: ${formatCurrency(0)}`, summaryTextX, summaryY, { align: summaryAlign });
+        doc.text(`${lbl('houseCharge', 'House Charge')}: ${formatCurrency(sampleHouseCharge)}`, summaryTextX, summaryY, { align: summaryAlign });
         summaryY += 4;
       }
       if (showPosCheck) {
-        doc.text(`${lbl('posCheck', 'POS Check')}: ${formatCurrency(0)}`, summaryTextX, summaryY, { align: summaryAlign });
+        doc.text(`${lbl('posCheck', 'POS Check')}: ${formatCurrency(samplePosCheck)}`, summaryTextX, summaryY, { align: summaryAlign });
         summaryY += 4;
       }
       if (showPosCash) {
-        doc.text(`${lbl('posCash', 'POS Cash')}: ${formatCurrency(0)}`, summaryTextX, summaryY, { align: summaryAlign });
+        doc.text(`${lbl('posCash', 'POS Cash')}: ${formatCurrency(samplePosCash)}`, summaryTextX, summaryY, { align: summaryAlign });
         summaryY += 4;
       }
       if (showPosCredit) {
-        doc.text(`${lbl('posCredit', 'POS Credit')}: ${formatCurrency(0)}`, summaryTextX, summaryY, { align: summaryAlign });
+        doc.text(`${lbl('posCredit', 'POS Credit')}: ${formatCurrency(samplePosCredit)}`, summaryTextX, summaryY, { align: summaryAlign });
         summaryY += 4;
       }
       if (showInvoiceTotal) {

@@ -12,6 +12,8 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
+  AttachFile as AttachFileIcon,
+  OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -84,6 +86,23 @@ const ViewRetailerRequest: React.FC = () => {
       </Box>
     );
   }
+
+  const attachmentFields: { key: keyof typeof selectedRequest; label: string }[] = [
+    { key: 'resale_certificate_url', label: 'Resale Certificate' },
+    { key: 'state_tobacco_license_url', label: 'State Tobacco License' },
+    { key: 'business_license_url', label: 'Business License' },
+    { key: 'owner_government_id_url', label: 'Owner Government ID' },
+  ];
+  const attachments = attachmentFields
+    .filter(({ key }) => {
+      const v = selectedRequest[key];
+      return typeof v === 'string' && v.trim() !== '';
+    })
+    .map(({ key, label }) => ({
+      label,
+      url: selectedRequest[key] as string,
+    }));
+  const hasAttachments = attachments.length > 0;
 
   return (
     <Box sx={{ width: '100%', minHeight: '100vh' }}>
@@ -394,6 +413,45 @@ const ViewRetailerRequest: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
+
+          {/* Attachments - show all document URLs when present */}
+          {hasAttachments && (
+            <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+              <Card sx={{ height: '100%', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 1.5, fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <AttachFileIcon sx={{ fontSize: '1rem' }} />
+                    Attachments ({attachments.length})
+                  </Typography>
+                  <Grid container spacing={1.5}>
+                    {attachments.map(({ label, url }) => (
+                      <Grid size={{ xs: 12 }} key={label}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 400, fontSize: '0.7rem', display: 'block' }}>
+                          {label}
+                        </Typography>
+                        <Link
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            mt: 0.25,
+                            fontSize: '0.8rem',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          View / Download
+                          <OpenInNewIcon sx={{ fontSize: '0.875rem' }} />
+                        </Link>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
 
           {/* Financial Information */}
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>

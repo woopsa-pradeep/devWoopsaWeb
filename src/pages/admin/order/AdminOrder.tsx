@@ -187,8 +187,10 @@ const AdminOrder = () => {
     const posCash = header.POS_Cash != null ? Number(header.POS_Cash) : 0;
     const posCredit = header.POS_Credit != null ? Number(header.POS_Credit) : 0;
     const baseTotal = subTotal + deliveryCharge + depositTotal;
-    const invoiceTotal = header.Invoice_Total != null ? Number(header.Invoice_Total) : baseTotal + houseCharge - posCheck - posCash - posCredit;
-    const totalAmountDue = invoiceTotal - lastBalance;
+    // Invoice total = base only; house charge, POS_Check, POS_Cash, POS_Credit are display-only (not in total).
+    const invoiceTotal = header.Invoice_Total != null ? Number(header.Invoice_Total) : baseTotal;
+    // Last balance: if negative then subtract from total; if positive then add to total.
+    const totalAmountDue = lastBalance >= 0 ? invoiceTotal + lastBalance : invoiceTotal - lastBalance;
     const invoiceNum = header.Invoice_Number ?? header.LastInvoiceNumber ?? header.Order_Number;
     const invoiceDate = header.Invoice_Date || header.Order_Date || '';
     const salesPerson = header.salesRep?.S_Desc != null ? String(header.salesRep.S_Desc) : '';
