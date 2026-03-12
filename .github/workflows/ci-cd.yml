@@ -59,6 +59,8 @@ jobs:
             cd /var/www/myapp/devWoopsaWeb
 
             echo "📥 Pulling latest code"
+            git remote set-url origin https://${{ secrets.GIT_TOKEN }}@github.com/woopsa-pradeep/devWoopsaWeb.git
+
             git pull origin dev
 
             echo "📦 Installing dependencies"
