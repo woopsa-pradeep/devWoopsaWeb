@@ -536,14 +536,27 @@ const EpickReportsTab: React.FC = () => {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       
-      // Calculate totals from all pickers if available
+      // Calculate totals - prefer API summary when available, otherwise fall back
       let totalQty = 0;
       let scannedQty = 0;
       let totalLines = 0;
       let scannedLines = 0;
       let overrideRequestCount = 0;
       
-      if (allPickers && Array.isArray(allPickers) && allPickers.length > 0) {
+      const orderSummary = (order as any).summary || (orderInfo as any).summary;
+      
+      if (orderSummary) {
+        // Use summary from API response (Epick order details)
+        totalQty = orderSummary.totalItemsOrdered ?? 0;
+        scannedQty = orderSummary.totalItemsShipped ?? orderSummary.scannedQty ?? 0;
+        totalLines = orderSummary.totalLines ?? 0;
+        scannedLines = orderSummary.scannedLines ?? 0;
+        // Prefer explicit overrideRequests array when present
+        const overrideRequests = (order as any).overrideRequests || (orderInfo as any).overrideRequests;
+        overrideRequestCount = Array.isArray(overrideRequests)
+          ? overrideRequests.length
+          : orderSummary.overrideRequestCount ?? 0;
+      } else if (allPickers && Array.isArray(allPickers) && allPickers.length > 0) {
         allPickers.forEach((picker: any) => {
           totalQty += picker.totalQty || 0;
           scannedQty += picker.scannedQty || 0;

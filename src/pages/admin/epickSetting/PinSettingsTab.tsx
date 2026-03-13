@@ -16,7 +16,8 @@ import {
 // Zod schema for EpickSetting validation
 const epickSettingSchema = z.object({
   pin: z.string().min(1, 'PIN is required'),
-  allowSingleScan: z.boolean()
+  allowSingleScan: z.boolean(),
+  capOrderQtyByInventory: z.boolean()
 });
 
 type EpickSettingFormData = z.infer<typeof epickSettingSchema> & { id?: number };
@@ -25,6 +26,7 @@ interface EpickSettingData {
   id?: number;
   pin: string;
   allowSingleScan: boolean;
+  capOrderQtyByInventory?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -40,6 +42,7 @@ const PinSettingsTab: React.FC = () => {
     defaultValues: {
       pin: '',
       allowSingleScan: false,
+      capOrderQtyByInventory: false,
       id: 0,
     },
   });
@@ -89,6 +92,7 @@ const PinSettingsTab: React.FC = () => {
         id: epickSettings.id,
         pin: epickSettings.pin,
         allowSingleScan: epickSettings.allowSingleScan,
+        capOrderQtyByInventory: epickSettings.capOrderQtyByInventory ?? false,
       });
     }
   }, [epickSettings]);
@@ -110,11 +114,19 @@ const PinSettingsTab: React.FC = () => {
       
       if (epickSettings?.id && epickSettings.id !== 0) {
         // Update existing settings - use the epickSettings ID
-        await updateEpickSetting(epickSettings.id.toString(), formData);
+        await updateEpickSetting(epickSettings.id.toString(), {
+          pin: formData.pin,
+          allowSingleScan: formData.allowSingleScan,
+          capOrderQtyByInventory: formData.capOrderQtyByInventory,
+        });
         showSuccessToast('Epick settings updated successfully!');
       } else {
         // Create new settings
-        await createEpickSetting(formData);
+        await createEpickSetting({
+          pin: formData.pin,
+          allowSingleScan: formData.allowSingleScan,
+          capOrderQtyByInventory: formData.capOrderQtyByInventory,
+        });
         showSuccessToast('Epick settings created successfully!');
       }
       
@@ -157,6 +169,16 @@ const PinSettingsTab: React.FC = () => {
             <SwitchInput
               checked={form.watch('allowSingleScan')}
               onChange={(checked) => form.setValue('allowSingleScan', checked)}
+              sx={{ mb: 0 }}
+              isShowLabel={false}
+            />
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography sx={{ fontSize: 14 }}>Cap Order Qty By Inventory</Typography>
+            <SwitchInput
+              checked={form.watch('capOrderQtyByInventory')}
+              onChange={(checked) => form.setValue('capOrderQtyByInventory', checked)}
               sx={{ mb: 0 }}
               isShowLabel={false}
             />

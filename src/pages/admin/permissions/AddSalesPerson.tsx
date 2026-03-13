@@ -51,6 +51,50 @@ const AddSalesPerson = () => {
           toast.error(permError?.response?.data?.message || permError?.message || 'User created but failed to set permissions. Please set them manually.');
         }
       }
+
+      // If user is sales, automatically create default dashboard-only permissions
+      if (data.role === 'sales' && userId) {
+        try {
+          const userRole = 'sales';
+          const modules = [
+            'Account Receivable',
+            'Return Orders',
+            'Orders',
+            'Ordered Items',
+            'Order History',
+            'Order Confirmation',
+            'Order Checker',
+            'Calendar',
+            'Retailers',
+            'Dashboard',
+            'Product',
+            'Vendor',
+            'Epick',
+            'Track Login Device',
+          ];
+
+          const permissionsPayload = {
+            userId: Number(userId),
+            permissions: modules.map((module) => ({
+              module,
+              add: module === 'Dashboard',
+              view: module === 'Dashboard',
+              edit: module === 'Dashboard',
+              path: generatePath(userRole, module),
+            })),
+          };
+
+          await createRolePermissions(permissionsPayload);
+          toast.success('Default dashboard permissions configured for sales user!');
+        } catch (permError: any) {
+          console.error('Error creating sales permissions:', permError);
+          toast.error(
+            permError?.response?.data?.message ||
+              permError?.message ||
+              'User created but failed to set sales permissions. Please set them manually.'
+          );
+        }
+      }
       
       navigate('/admin/permissions');
     } catch (error: any) {

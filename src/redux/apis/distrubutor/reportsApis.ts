@@ -78,6 +78,66 @@ export const getVelocityReportCustomer = async (
     return axiosInstance.get(finalUrl);
 };
 
+// Velocity Report - Sales Rep
+export const getVelocityReportSalesRep = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/getVelocityReportSalesRep${queryString ? `?${queryString}` : ''}`;
+
+    return axiosInstance.get(finalUrl);
+};
+
+// Velocity Report - Customer (Points: Item)
+export const getCustomerVelocityReportPointsItem = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/getCustomerVelocityReportPointsItem${queryString ? `?${queryString}` : ''}`;
+
+    return axiosInstance.get(finalUrl);
+};
+
+// Velocity Report - Customer (Points: Sales Detail) – same structure as Points Item
+export const getCustomerVelocityReportPoints = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/getCustomerVelocityReportPoints${queryString ? `?${queryString}` : ''}`;
+
+    return axiosInstance.get(finalUrl);
+};
+
+// Price Class Group Rebates Report
+export const getPriceClassGroupRebatesReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/priceClassGroupRebatesReport${queryString ? `?${queryString}` : ''}`;
+
+    return axiosInstance.get(finalUrl);
+};
+
 export const getARUndepositeFund = async (
     startDate?: string,
     endDate?: string
@@ -210,5 +270,87 @@ export const getPoCigOtpReport = async (
     if (endDate) params.append('endDate', endDate);
     const queryString = params.toString();
     const finalUrl = `/distrubutor/poCigOtpReport${queryString ? `?${queryString}` : ''}`;
+    return axiosInstance.get(finalUrl);
+};
+
+// Customer With Profit report
+export const getCustomerWithProfit = async (params: { [key: string]: any } = {}) => {
+    const queryParams = new URLSearchParams();
+
+    Object.keys(params).forEach(key => {
+        const value = params[key];
+        if (value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && value.length === 0)) {
+            if (Array.isArray(value)) {
+                value.forEach(v => {
+                    if (v !== undefined && v !== null && v !== '') {
+                        queryParams.append(key, String(v));
+                    }
+                });
+            } else {
+                queryParams.append(key, String(value));
+            }
+        }
+    });
+
+    const queryString = queryParams.toString();
+    const finalUrl = `/distrubutor/customerWithProfit${queryString ? `?${queryString}` : ''}`;
+
+    return axiosInstance.get(finalUrl);
+};
+
+// Customer Last Sale report
+export const getCustomerLastSaleReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/customerLastSaleReport${queryString ? `?${queryString}` : ''}`;
+    return axiosInstance.get(finalUrl);
+};
+
+// Customer No Sales report
+export const getCustomerNoSalesReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/customerNoSalesReport${queryString ? `?${queryString}` : ''}`;
+    return axiosInstance.get(finalUrl);
+};
+
+// Customer Ranking Sales report
+export const getCustomerRankingSales = async (params: {
+    startDate?: string;
+    endDate?: string;
+    Value_Code?: number;
+} = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.startDate != null && params.startDate !== '')
+        queryParams.append('startDate', params.startDate);
+    if (params.endDate != null && params.endDate !== '')
+        queryParams.append('endDate', params.endDate);
+    if (params.Value_Code !== undefined && params.Value_Code !== null)
+        queryParams.append('Value_Code', String(params.Value_Code));
+    const queryString = queryParams.toString();
+    const finalUrl = `/distrubutor/customerRankingSales${queryString ? `?${queryString}` : ''}`;
+    return axiosInstance.get(finalUrl);
+};
+
+// Daily Sales report
+export const getDailySalesReport = async (
+    startDate?: string,
+    endDate?: string
+) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    const finalUrl = `/distrubutor/dailySalesReport${queryString ? `?${queryString}` : ''}`;
     return axiosInstance.get(finalUrl);
 };

@@ -56,8 +56,8 @@ const CustomSearchDropdown: React.FC<CustomSearchDropdownProps> = ({
 
     const searchLower = searchTerm.toLowerCase().trim();
     const filtered = options.filter(option => {
-      const labelLower = option.label.toLowerCase();
-      const valueLower = option.value.toLowerCase();
+      const labelLower = (option.label ?? '').toLowerCase();
+      const valueLower = (option.value ?? '').toLowerCase();
       
       // Search in both label and value
       return labelLower.includes(searchLower) || valueLower.includes(searchLower);
@@ -65,8 +65,8 @@ const CustomSearchDropdown: React.FC<CustomSearchDropdownProps> = ({
 
     // Sort by relevance - exact matches first, then partial matches
     const sorted = filtered.sort((a, b) => {
-      const aLabel = a.label.toLowerCase();
-      const bLabel = b.label.toLowerCase();
+      const aLabel = (a.label ?? '').toLowerCase();
+      const bLabel = (b.label ?? '').toLowerCase();
       const searchLower = searchTerm.toLowerCase();
 
       // Exact match gets highest priority

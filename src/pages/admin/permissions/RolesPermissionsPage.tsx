@@ -379,9 +379,10 @@ const RolesPermissionsPage = () => {
           currentPage={1}
           totalPages={1}
           totalItems={rows.length}
-          pageSize={10}
+          pageSize={rows.length || 10}
           onPageChange={() => {}}
           onPageSizeChange={() => {}}
+          isPagination={false}
         />
         <Box display="flex" justifyContent="flex-end" mt={3} gap={2}>
           <CustomButton buttonType="cancel" appearance="outlined" onClick={() => navigate('/admin/permissions')} fullWidth={false} sx={{ minWidth: 120 }}>

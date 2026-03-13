@@ -4,6 +4,8 @@ import {
   Typography,
   IconButton,
   Tooltip,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
 import { Edit as EditIcon, Add as AddIcon, Visibility as ViewIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
@@ -23,6 +25,9 @@ import {
   createEpickUser,
   updateEpickUser,
   deleteEpickUser,
+  getPickRightAreasForEpick,
+  type EpickAssignmentType,
+  type PickRightAreaOption,
 } from '../../../redux/apis/distrubutor/epickApis';
 import { getSalesCategoryList, getUserList } from '../../../redux/apis/distrubutor/listApis';
 
@@ -32,7 +37,9 @@ interface EpickUser {
   firstName: string;
   lastName: string;
   userNumber: string;
+  assignmentType?: EpickAssignmentType;
   category: number[];
+  pickRightAreas?: string[];
   order_type: string;
   shortby: string;
   item_sort_by?: string;
@@ -54,11 +61,24 @@ const createEpickUserSchema = z.object({
   lastName: z.string().min(1, 'Last name is required'),
   password: z.string().min(3, 'Password must be at least 3 characters'),
   userNumber: z.string().optional(),
-  category: z.array(z.number()).min(1, 'At least one category is required'),
+  assignmentType: z.enum(['sales_category', 'pickright_area']),
+  category: z.array(z.number()).optional(),
+  pickRightAreas: z.array(z.string()).optional(),
   order_type: z.enum(['order_number', 'qty_number']).optional(),
   shortby: z.enum(['Asc', 'Des']).optional(),
   item_sort_by: z.enum(['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number', 'sales_section_location', 'alphabetically_section_location']).optional(),
   status: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  if (data.assignmentType === 'sales_category') {
+    if (!data.category || data.category.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'At least one category is required', path: ['category'] });
+    }
+  }
+  if (data.assignmentType === 'pickright_area') {
+    if (!data.pickRightAreas || data.pickRightAreas.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'At least one PickRight area is required', path: ['pickRightAreas'] });
+    }
+  }
 });
 
 // Zod schema for update form
@@ -71,11 +91,25 @@ const updateEpickUserSchema = z.object({
     z.literal(''),
   ]).optional(),
   userNumber: z.string().optional(),
+  assignmentType: z.enum(['sales_category', 'pickright_area']).optional(),
   category: z.array(z.number()).optional(),
+  pickRightAreas: z.array(z.string()).optional(),
   order_type: z.enum(['order_number', 'qty_number']).optional(),
   shortby: z.enum(['Asc', 'Des']).optional(),
   item_sort_by: z.enum(['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number', 'sales_section_location', 'alphabetically_section_location']).optional(),
   status: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  const assignmentType = data.assignmentType ?? 'sales_category';
+  if (assignmentType === 'sales_category') {
+    if (data.category !== undefined && data.category.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'At least one category is required', path: ['category'] });
+    }
+  }
+  if (assignmentType === 'pickright_area') {
+    if (data.pickRightAreas !== undefined && data.pickRightAreas.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'At least one PickRight area is required', path: ['pickRightAreas'] });
+    }
+  }
 });
 
 type CreateEpickUserFormData = z.infer<typeof createEpickUserSchema>;
@@ -85,6 +119,7 @@ const CreateEpickUserTab: React.FC = () => {
   const [users, setUsers] = useState<EpickUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [pickRightAreasList, setPickRightAreasList] = useState<PickRightAreaOption[]>([]);
   const [userNumberOptions, setUserNumberOptions] = useState<{ label: string; value: string }[]>([]);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -104,7 +139,9 @@ const CreateEpickUserTab: React.FC = () => {
       lastName: '',
       password: '',
       userNumber: '0',
+      assignmentType: 'sales_category',
       category: [],
+      pickRightAreas: [],
       order_type: 'order_number',
       shortby: 'Des',
       item_sort_by: 'line_number',
@@ -121,7 +158,9 @@ const CreateEpickUserTab: React.FC = () => {
       lastName: '',
       password: '',
       userNumber: '',
+      assignmentType: 'sales_category',
       category: [],
+      pickRightAreas: [],
       order_type: 'order_number',
       shortby: 'Des',
       item_sort_by: 'line_number',
@@ -188,6 +227,19 @@ const CreateEpickUserTab: React.FC = () => {
     }
   };
 
+  // Fetch PickRight areas for EPICK (when assignment type is pickright_area)
+  const fetchPickRightAreas = async () => {
+    try {
+      const response = await getPickRightAreasForEpick();
+      const data = response?.data ?? [];
+      setPickRightAreasList(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to fetch PickRight areas:', error);
+      showErrorToast('Failed to fetch PickRight areas');
+      setPickRightAreasList([]);
+    }
+  };
+
   // Handle open create modal
   const handleOpenCreateModal = () => {
     createForm.reset({
@@ -196,7 +248,9 @@ const CreateEpickUserTab: React.FC = () => {
       lastName: '',
       password: '',
       userNumber: '0',
+      assignmentType: 'sales_category',
       category: [],
+      pickRightAreas: [],
       order_type: 'order_number',
       shortby: 'Des',
       item_sort_by: 'line_number',
@@ -223,12 +277,15 @@ const CreateEpickUserTab: React.FC = () => {
     const itemSortBy = (user.item_sort_by && ['section_location', 'alphabetically', 'item_number', 'short_number', 'line_number', 'sales_section_location'].includes(user.item_sort_by)
       ? user.item_sort_by
       : 'line_number') as 'section_location' | 'alphabetically' | 'item_number' | 'short_number' | 'line_number' | 'sales_section_location';
+    const assignmentType: EpickAssignmentType = user.assignmentType === 'pickright_area' ? 'pickright_area' : 'sales_category';
     updateForm.reset({
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       userNumber: user.userNumber || '',
+      assignmentType,
       category: user.category || [],
+      pickRightAreas: user.pickRightAreas || [],
       order_type: orderType,
       shortby: shortbyValue,
       item_sort_by: itemSortBy,
@@ -290,24 +347,32 @@ const CreateEpickUserTab: React.FC = () => {
   const handleCreateUser = async (data: CreateEpickUserFormData) => {
     setProcessing(true);
     try {
+      const assignmentType = data.assignmentType ?? 'sales_category';
       const payload: any = {
         email: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
         password: data.password,
-        category: data.category,
+        assignmentType,
         order_type: data.order_type || 'order_number',
         shortby: data.shortby || 'Des',
         item_sort_by: data.item_sort_by || 'line_number',
         status: data.status ?? true,
         isActive: true,
       };
-      
-      // Always include userNumber if it's defined (including "0")
+
       if (data.userNumber !== undefined && data.userNumber !== null) {
         payload.userNumber = data.userNumber;
       }
-      
+
+      if (assignmentType === 'sales_category') {
+        payload.category = data.category ?? [];
+        payload.pickRightAreas = [];
+      } else {
+        payload.pickRightAreas = data.pickRightAreas ?? [];
+        payload.category = [];
+      }
+
       await createEpickUser(payload);
       showSuccessToast('Epick user created successfully!');
       await fetchEpickUsers();
@@ -326,19 +391,25 @@ const CreateEpickUserTab: React.FC = () => {
     
     setProcessing(true);
     try {
+      const assignmentType = data.assignmentType ?? selectedUser.assignmentType ?? 'sales_category';
       const payload: any = {};
       if (data.email) payload.email = data.email;
       if (data.firstName) payload.firstName = data.firstName;
       if (data.lastName) payload.lastName = data.lastName;
-      // Only include password if it's provided and not empty
       if (data.password && data.password.trim() !== '') {
         payload.password = data.password;
       }
-      // Always include userNumber if it's defined (including "0")
       if (data.userNumber !== undefined && data.userNumber !== null) {
         payload.userNumber = data.userNumber;
       }
-      if (data.category !== undefined) payload.category = data.category;
+      payload.assignmentType = assignmentType;
+      if (assignmentType === 'sales_category') {
+        payload.category = data.category ?? [];
+        payload.pickRightAreas = [];
+      } else {
+        payload.pickRightAreas = data.pickRightAreas ?? [];
+        payload.category = [];
+      }
       if (data.order_type !== undefined) payload.order_type = data.order_type;
       if (data.shortby !== undefined) payload.shortby = data.shortby;
       if (data.item_sort_by !== undefined) payload.item_sort_by = data.item_sort_by;
@@ -376,6 +447,21 @@ const CreateEpickUserTab: React.FC = () => {
       return category ? category.Category_Desc : id.toString();
     });
     return categoryNames.join(', ');
+  };
+
+  // Format PickRight areas display (optionally with descriptions from list)
+  const formatPickRightAreas = (areaIds: string[]): string => {
+    if (!areaIds || areaIds.length === 0) return 'N/A';
+    return areaIds.join(', ');
+  };
+
+  // Format assignment display for table/detail: "Categories: 10, 12" or "Areas: AREA-A, AREA-B"
+  const formatAssignmentDisplay = (user: EpickUser): string => {
+    const type = user.assignmentType === 'pickright_area' ? 'pickright_area' : 'sales_category';
+    if (type === 'pickright_area' && user.pickRightAreas?.length) {
+      return `Areas: ${formatPickRightAreas(user.pickRightAreas)}`;
+    }
+    return `Categories: ${formatCategories(user.category || []).replace('N/A', '—')}`;
   };
 
   // Format order type display
@@ -416,6 +502,12 @@ const CreateEpickUserTab: React.FC = () => {
       }))
   ];
 
+  // PickRight area options for multi-select (label: description, value: pickArea)
+  const pickRightAreaOptions = pickRightAreasList.map(area => ({
+    label: area.pickAreaDescription ? `${area.pickArea} – ${area.pickAreaDescription}` : area.pickArea,
+    value: area.pickArea,
+  }));
+
   // Table columns
   const columns: TableColumn<EpickUser>[] = [
     {
@@ -449,12 +541,22 @@ const CreateEpickUserTab: React.FC = () => {
       ),
     },
     {
-      id: 'category',
-      label: 'Categories',
-      minWidth: 200,
+      id: 'assignmentType',
+      label: 'Assignment type',
+      minWidth: 140,
       render: (row) => (
         <Typography fontSize={14} fontWeight={400}>
-          {formatCategories(row.category || [])}
+          {row.assignmentType === 'pickright_area' ? 'PickRight Area' : 'Sales Category'}
+        </Typography>
+      ),
+    },
+    {
+      id: 'assignment',
+      label: 'Categories / Areas',
+      minWidth: 220,
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {formatAssignmentDisplay(row)}
         </Typography>
       ),
     },
@@ -542,6 +644,13 @@ const CreateEpickUserTab: React.FC = () => {
     fetchCategories();
     fetchUserList();
   }, []);
+
+  // Fetch PickRight areas when create or edit modal opens (for dropdown when assignment type is PickRight Area)
+  useEffect(() => {
+    if (createModalOpen || editModalOpen) {
+      fetchPickRightAreas();
+    }
+  }, [createModalOpen, editModalOpen]);
 
   return (
     <Box sx={{ flexGrow: 1, overflow: "auto", p: 2 }}>
@@ -648,10 +757,31 @@ const CreateEpickUserTab: React.FC = () => {
               )}
             />
 
-            <Controller
-              name="category"
-              control={createForm.control}
-              render={({ field, fieldState }) => {
+            <Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 500, mb: 1 }}>Assignment type</Typography>
+              <Controller
+                name="assignmentType"
+                control={createForm.control}
+                render={({ field }) => (
+                  <ToggleButtonGroup
+                    value={field.value}
+                    exclusive
+                    onChange={(_, value) => value != null && field.onChange(value)}
+                    size="small"
+                    fullWidth
+                  >
+                    <ToggleButton value="sales_category">Sales Category</ToggleButton>
+                    <ToggleButton value="pickright_area">PickRight Area</ToggleButton>
+                  </ToggleButtonGroup>
+                )}
+              />
+            </Box>
+
+            {createForm.watch('assignmentType') === 'sales_category' && (
+              <Controller
+                name="category"
+                control={createForm.control}
+                render={({ field, fieldState }) => {
                 const categoryValues = Array.isArray(field.value) ? field.value : [];
                 const allCategoryIds = categories
                   .filter(cat => cat && cat.Sales_Category != null)
@@ -717,6 +847,24 @@ const CreateEpickUserTab: React.FC = () => {
                 );
               }}
             />
+            )}
+
+            {createForm.watch('assignmentType') === 'pickright_area' && (
+              <Controller
+                name="pickRightAreas"
+                control={createForm.control}
+                render={({ field, fieldState }) => (
+                  <MultiSelectInput
+                    label="PickRight Area"
+                    options={pickRightAreaOptions}
+                    value={Array.isArray(field.value) ? field.value : []}
+                    onChange={(values: string[]) => field.onChange(values)}
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                  />
+                )}
+              />
+            )}
 
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Controller
@@ -899,10 +1047,31 @@ const CreateEpickUserTab: React.FC = () => {
               helperText={updateForm.formState.errors.password?.message}
             />
 
-            <Controller
-              name="category"
-              control={updateForm.control}
-              render={({ field, fieldState }) => {
+            <Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 500, mb: 1 }}>Assignment type</Typography>
+              <Controller
+                name="assignmentType"
+                control={updateForm.control}
+                render={({ field }) => (
+                  <ToggleButtonGroup
+                    value={field.value ?? 'sales_category'}
+                    exclusive
+                    onChange={(_, value) => value != null && field.onChange(value)}
+                    size="small"
+                    fullWidth
+                  >
+                    <ToggleButton value="sales_category">Sales Category</ToggleButton>
+                    <ToggleButton value="pickright_area">PickRight Area</ToggleButton>
+                  </ToggleButtonGroup>
+                )}
+              />
+            </Box>
+
+            {updateForm.watch('assignmentType') === 'sales_category' && (
+              <Controller
+                name="category"
+                control={updateForm.control}
+                render={({ field, fieldState }) => {
                 const categoryValues = Array.isArray(field.value) ? field.value : [];
                 const allCategoryIds = categories
                   .filter(cat => cat && cat.Sales_Category != null)
@@ -968,6 +1137,24 @@ const CreateEpickUserTab: React.FC = () => {
                 );
               }}
             />
+            )}
+
+            {updateForm.watch('assignmentType') === 'pickright_area' && (
+              <Controller
+                name="pickRightAreas"
+                control={updateForm.control}
+                render={({ field, fieldState }) => (
+                  <MultiSelectInput
+                    label="PickRight Area"
+                    options={pickRightAreaOptions}
+                    value={Array.isArray(field.value) ? field.value : []}
+                    onChange={(values: string[]) => field.onChange(values)}
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                  />
+                )}
+              />
+            )}
 
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Controller
@@ -1134,10 +1321,21 @@ const CreateEpickUserTab: React.FC = () => {
 
               <Box sx={{ gridColumn: '1 / -1' }}>
                 <Typography fontSize={12} fontWeight={600} color="text.secondary" mb={0.5}>
-                  Categories
+                  Assignment type
                 </Typography>
                 <Typography fontSize={14} fontWeight={400}>
-                  {formatCategories(selectedUserForView.category || [])}
+                  {selectedUserForView.assignmentType === 'pickright_area' ? 'PickRight Area' : 'Sales Category'}
+                </Typography>
+              </Box>
+
+              <Box sx={{ gridColumn: '1 / -1' }}>
+                <Typography fontSize={12} fontWeight={600} color="text.secondary" mb={0.5}>
+                  {selectedUserForView.assignmentType === 'pickright_area' ? 'PickRight Areas' : 'Categories'}
+                </Typography>
+                <Typography fontSize={14} fontWeight={400}>
+                  {selectedUserForView.assignmentType === 'pickright_area'
+                    ? formatPickRightAreas(selectedUserForView.pickRightAreas || [])
+                    : formatCategories(selectedUserForView.category || [])}
                 </Typography>
               </Box>
 
