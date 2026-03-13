@@ -263,6 +263,10 @@ const Order = () => {
   const pendingApiCallRef = useRef<{ [key: string]: boolean }>({});
   // Add debounce timer ref for quantity changes
   const quantityDebounceRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  // Track latest inventory request to avoid race conditions between responses
+  const inventoryRequestIdRef = useRef(0);
+  // Track last inventory params to avoid duplicate API calls with same filters
+  const lastInventoryParamsRef = useRef<string | null>(null);
   
   // Debounce search term to prevent too many API calls
   React.useEffect(() => {
@@ -419,6 +423,29 @@ const Order = () => {
     setIsHistoryModalOpen(true);
   };
   const getInventoryData = useCallback(async () => {
+    // Build a key representing the current inventory parameters/state
+    const paramsKey = JSON.stringify({
+      mode: viewAllType ? 'viewAll' : 'normal',
+      viewAllType,
+      page: currentPage,
+      limit: pageSize,
+      search: debouncedSearchTerm,
+      masterSearch: masterSearchTerm,
+      salesCategoryId: salesCategory.map(cat => cat.value),
+      priceClassId: priceClass.map(pc => pc.value),
+      salesCategory: userSalesCategory,
+      viewMode
+    });
+
+    // If nothing has changed since the last call, skip making another request
+    if (lastInventoryParamsRef.current === paramsKey) {
+      return;
+    }
+    lastInventoryParamsRef.current = paramsKey;
+
+    // Increment request id and capture for this invocation
+    const requestId = ++inventoryRequestIdRef.current;
+
     setLoading(true);
     setError(null);
     
@@ -448,6 +475,11 @@ const Order = () => {
           stockCount: item.showTheInventoryStock ? item.Inventory_OnHand : undefined
         };
       });
+
+      // Ignore if a newer request has been started
+      if (requestId !== inventoryRequestIdRef.current) {
+        return;
+      }
       
       setData(transformedDashboardData);
       setTotalItems(dashboardItems.length);
@@ -461,6 +493,11 @@ const Order = () => {
       const customerId = selectedCustomer?.C_Number;
       
       if (!customerId) {
+        // Ignore if this request is already stale
+        if (requestId !== inventoryRequestIdRef.current) {
+          return;
+        }
+
         setError('Customer ID not found');
         setData([]);
         setTotalItems(0);
@@ -497,6 +534,11 @@ const Order = () => {
         response = await getInventoryItems(customerId.toString(), params);
       }
       
+      // Ignore stale responses
+      if (requestId !== inventoryRequestIdRef.current) {
+        return;
+      }
+
       // Transform API response to match Product interface
       const transformedData = (response?.data?.finalProductList || []).map((apiProduct: ApiProduct) => 
         transformApiProduct(apiProduct)
@@ -507,13 +549,22 @@ const Order = () => {
       setTotalPages(Math.ceil(response?.data?.totalCount / pageSize) || 0);
     } catch (error) {
       console.log(error);
+
+      // Ignore errors from stale requests
+      if (requestId !== inventoryRequestIdRef.current) {
+        return;
+      }
+
       setError('Failed to load inventory data. Please try again.');
       // Set empty data on error
       setData([]);
       setTotalItems(0);
       setTotalPages(0);
     } finally {
-      setLoading(false);
+      // Only clear loading if this is the latest request
+      if (requestId === inventoryRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [currentPage, pageSize, debouncedSearchTerm, masterSearchTerm, salesCategory, priceClass, selectedCustomer, viewAllType, salesDashboardData, dispatch, viewMode, userSalesCategory]);
 
