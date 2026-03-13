@@ -56,11 +56,20 @@ const SalesLogin = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && role === 'sales') {
-      if(checker.module?.some((moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true)) {
-        navigate('/sales/dashboard');
-      } else {
-        navigate('/sales/order-checker');
+      const hasAnyModuleAccess = checker.module?.some((moduleItem: any) => moduleItem?.view === true);
+      const hasDashboardAccess = checker.module?.some(
+        (moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true
+      );
 
+      // If no modules at all, show no-permission page.
+      // If Dashboard is accessible, go to dashboard.
+      // Otherwise (some modules but no Dashboard), go to order-checker.
+      if (!hasAnyModuleAccess) {
+        navigate("/sales/no-permission");
+      } else if (hasDashboardAccess) {
+        navigate("/sales/dashboard");
+      } else {
+        navigate("/sales/order-checker");
       }
     } else if (isAuthenticated && role) {
       // Redirect to appropriate dashboard based on role
@@ -94,11 +103,19 @@ const SalesLogin = () => {
       console.log(result);
       if (result.success) {
         toast.success("Sales login successful!");
-        // Navigate to sales dashboard after successful login
-        if(result?.data?.rolesPermission?.some((moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true)) {
-          navigate('/sales/dashboard');
+        // Navigate based on sales module permissions
+        const modules = result?.data?.rolesPermission || [];
+        const hasAnyModuleAccess = modules.some((moduleItem: any) => moduleItem?.view === true);
+        const hasDashboardAccess = modules.some(
+          (moduleItem: any) => moduleItem.module === "Dashboard" && moduleItem?.view === true
+        );
+
+        if (!hasAnyModuleAccess) {
+          navigate("/sales/no-permission");
+        } else if (hasDashboardAccess) {
+          navigate("/sales/dashboard");
         } else {
-          navigate('/sales/order-checker');
+          navigate("/sales/order-checker");
         }
       } else {
         toast.error(result.error || "Login failed");

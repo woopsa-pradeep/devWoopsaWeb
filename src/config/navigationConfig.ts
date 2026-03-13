@@ -161,12 +161,12 @@ export const adminNavigationConfig: NavigationItem[] = [
     icon: "promo",
     check: "distributor",
   },
-  {
-    name: "Tradeshow Management",
-    path: "/admin/tradeshow-management",
-    icon: "tradeshow-management",
-    check: "distributor",
-  },
+  // {
+  //   name: "Tradeshow Management",
+  //   path: "/admin/tradeshow-management",
+  //   icon: "tradeshow-management",
+  //   check: "distributor",
+  // },
   {
     name: "Reports & Analytics",
     path: "/admin/reports-analytics",

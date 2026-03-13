@@ -4,7 +4,10 @@ import { Box, Typography, useMediaQuery, Paper, IconButton, CircularProgress, Se
 import CommonTable, {
   TableColumn,
 } from "../../../component/atoms/Table/CommonTable";
-import { VisibilityOutlined, Print as PrintIcon, Receipt as ReceiptIcon } from "@mui/icons-material";
+import { VisibilityOutlined,
+   Print as PrintIcon,
+    // Receipt as ReceiptIcon
+   } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { getOrderHistory, getOrderDetailByOrderNumberForInvoice, getOrderForPickListConfirmation, getCreateInvoice, getCustomerInvoiceTemplate } from "../../../redux/apis/distrubutor/orderDistrubutorApis";
 import { getCustomerList } from "../../../redux/apis/distrubutor/listApis";
@@ -35,7 +38,7 @@ const AdminOrder = () => {
   const [selectedEndDate, setSelectedEndDate] = useState<any>(null);
   const [printingOrder, setPrintingOrder] = useState<string | null>(null);
   const [printingInvoiceOrder, setPrintingInvoiceOrder] = useState<string | null>(null);
-  
+  console.log("printingInvoiceOrder", printingInvoiceOrder);
   // Bulk picklist drawer
   type Option = { label: string; value: string };
   const [bulkPicklistDrawerOpen, setBulkPicklistDrawerOpen] = useState(false);
@@ -181,7 +184,13 @@ const AdminOrder = () => {
     const totalPrepaidTax = items.reduce((sum: number, i: { prepaidTaxAmount?: number; shippedQty: number }) => sum + (Number(i.prepaidTaxAmount ?? 0) * (Number(i.shippedQty) || 0)), 0);
     const deliveryCharge = header.Delivery_Charge != null ? Number(header.Delivery_Charge) : 0;
     const depositTotal = items.reduce((sum: number, i: { deposit?: number }) => sum + (Number(i.deposit) || 0), 0);
-    const lastBalance = customer.LastBalance != null ? Number(customer.LastBalance) : 0;
+    // Prefer backend-provided previousBalance when available; fall back to customer's LastBalance.
+    const lastBalance =
+      createInvoiceData?.previousBalance != null
+        ? Number(createInvoiceData.previousBalance)
+        : customer.LastBalance != null
+          ? Number(customer.LastBalance)
+          : 0;
     const houseCharge = header.HouseChargeApplied != null ? Number(header.HouseChargeApplied) : (header.POS_House != null ? Number(header.POS_House) : 0);
     const posCheck = header.POS_Check != null ? Number(header.POS_Check) : 0;
     const posCash = header.POS_Cash != null ? Number(header.POS_Cash) : 0;
@@ -357,7 +366,7 @@ const AdminOrder = () => {
       setPrintingInvoiceOrder(null);
     }
   };
-
+console.log("handleGenerateInvoice", handleGenerateInvoice);
   const selectedOrderNumbers = selectedBulkOrderNumbers.map((o) => o.value);
 
   const handleBulkPicklistPrint = async () => {
@@ -521,33 +530,33 @@ const AdminOrder = () => {
         );
       },
     },
-    {
-      id: "Invoice",
-      label: "Invoice",
-      render: (row) => {
-        const showInvoice = row.Invoice_Number != null && row.Invoice_Number > 0;
-        if (!showInvoice) {
-          return <Typography fontSize={12} color="text.secondary">—</Typography>;
-        }
-        return (
-          <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
-            <IconButton
-              size="small"
-              onClick={() => handleGenerateInvoice(row.Order_Number)}
-              disabled={printingInvoiceOrder === row.Order_Number}
-              sx={{ p: 0.5 }}
-              title="Generate Invoice"
-            >
-              {printingInvoiceOrder === row.Order_Number ? (
-                <CircularProgress size={16} />
-              ) : (
-                <ReceiptIcon sx={{ fontSize: 18, color: "primary.main", cursor: "pointer" }} />
-              )}
-            </IconButton>
-          </Box>
-        );
-      },
-    },
+    // {
+    //   id: "Invoice",
+    //   label: "Invoice",
+    //   render: (row) => {
+    //     const showInvoice = row.Invoice_Number != null && row.Invoice_Number > 0;
+    //     if (!showInvoice) {
+    //       return <Typography fontSize={12} color="text.secondary">—</Typography>;
+    //     }
+    //     return (
+    //       <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+    //         <IconButton
+    //           size="small"
+    //           onClick={() => handleGenerateInvoice(row.Order_Number)}
+    //           disabled={printingInvoiceOrder === row.Order_Number}
+    //           sx={{ p: 0.5 }}
+    //           title="Generate Invoice"
+    //         >
+    //           {printingInvoiceOrder === row.Order_Number ? (
+    //             <CircularProgress size={16} />
+    //           ) : (
+    //             <ReceiptIcon sx={{ fontSize: 18, color: "primary.main", cursor: "pointer" }} />
+    //           )}
+    //         </IconButton>
+    //       </Box>
+    //     );
+    //   },
+    // },
     {
       id: "actions",
       label: "Actions",

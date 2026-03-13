@@ -287,9 +287,8 @@ const InventoryReportTab: React.FC = () => {
   const [fullFilteredData, setFullFilteredData] = useState<Product[]>([]); // Store full dataset for CSV/PDF generation
   const [reportType, setReportType] = useState<'standard' | '4week' | '8week'>('standard');
 
-  // Fetch total count and filter options on mount
+  // Fetch filter options on mount (do not load inventory data yet)
   useEffect(() => {
-    fetchTotalCount();
     fetchSalesCategories();
     fetchPriceClasses();
   }, []);
@@ -319,17 +318,6 @@ const InventoryReportTab: React.FC = () => {
       toast.error('Failed to load price classes');
     } finally {
       setLoadingPriceClasses(false);
-    }
-  };
-
-  const fetchTotalCount = async () => {
-    try {
-      const res = await inventoryForReport();
-      const products: any = (res as any)?.data || res || [];
-      return Array.isArray(products) ? products.length : 0;
-    } catch (error) {
-      console.error('Error fetching total count:', error);
-      return 0;
     }
   };
 

@@ -300,6 +300,11 @@ export const OrderChecker = lazyLoad(
   "Loading Order Checker..."
 );
 
+export const SalesNoModulePermission = lazyLoad(
+  () => import("../pages/sales/NoModulePermission"),
+  "Loading No Module Permission..."
+);
+
 export const SalesCalenderViewPage = lazyLoad(
   () => import("../pages/sales/calender/SalesStatusView"),
   "Loading Sales Calendar View..."

@@ -368,6 +368,12 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     redirectPath: '/sales/dashboard'
   },
 
+  '/sales/no-permission': {
+    path: '/sales/no-permission',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+
 
   '/sales/order-confirmation': {
     path: '/sales/order-confirmation',

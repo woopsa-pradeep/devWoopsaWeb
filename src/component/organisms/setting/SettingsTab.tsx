@@ -62,7 +62,8 @@ import PromotedItemsSelector from "./PromotedItemsSelector";
 import { TableColumn } from "../../atoms/Table/CommonTable";
 import PicklistTemplateTab from "../../../pages/admin/settings/PicklistTemplateTab";
 import InventorySettings from "../../../pages/admin/settings/InventorySettings";
-import InvoiceTemplateTab from '../../../pages/admin/settings/InvoiceTemplateTab';
+// import InvoiceTemplateTab from '../../../pages/admin/settings/InvoiceTemplateTab';
+// import InvoiceTemplateTab from '../../../pages/admin/settings/InvoiceTemplateTab';
 import EmailConfigurationTab from "../../../pages/admin/settings/EmailConfigurationTab";
 
 interface TimeSlot {
@@ -380,12 +381,12 @@ const tabConfigs = [
     icon: userIcon, // Using placeholder icon
     activeIcon: userActiveIcon
   },
-  {
-    label: 'Invoice Template',
-    apiType: 'invoiceTemplate' as const,
-    icon: userIcon,
-    activeIcon: userActiveIcon
-  },
+  // {
+  //   label: 'Invoice Template',
+  //   apiType: 'invoiceTemplate' as const,
+  //   icon: userIcon,
+  //   activeIcon: userActiveIcon
+  // },
   {
     label: "Inventory",
     apiType: "inventory" as const,
@@ -2194,8 +2195,8 @@ const SettingsTabs = () => {
       case "picklistTemplate":
         return <PicklistTemplateTab />;
 
-      case 'invoiceTemplate':
-        return <InvoiceTemplateTab />;
+      // case 'invoiceTemplate':
+      //   return <InvoiceTemplateTab />;
 
       case "emailConfiguration":
         return <EmailConfigurationTab />;

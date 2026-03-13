@@ -71,15 +71,31 @@ export const getEpickUsers = async () => {
     return response.data;
 }
 
+// PickRight areas for EPICK dropdown (when assignmentType === 'pickright_area')
+export interface PickRightAreaOption {
+    pickArea: string;
+    pickAreaDescription: string;
+}
+
+export const getPickRightAreasForEpick = async (): Promise<{ success: boolean; data: PickRightAreaOption[] }> => {
+    const response = await axiosInstance.get<{ success: boolean; data: PickRightAreaOption[] }>('/distrubutor/pickRightAreasForEpick');
+    return response.data;
+}
+
+export type EpickAssignmentType = 'sales_category' | 'pickright_area';
+
 export const createEpickUser = async (data: {
     email: string;
     firstName: string;
     lastName: string;
     password: string;
-    userNumber?: string;
-    category: number[];
+    userNumber?: string | number;
+    assignmentType: EpickAssignmentType;
+    category?: number[];
+    pickRightAreas?: string[];
     order_type?: string;
     shortby?: string;
+    item_sort_by?: string;
     status?: boolean;
     isActive?: boolean;
 }) => {
@@ -92,11 +108,15 @@ export const updateEpickUser = async (id: number, data: {
     firstName?: string;
     lastName?: string;
     userNumber?: string;
+    assignmentType?: EpickAssignmentType;
     category?: number[];
+    pickRightAreas?: string[];
     order_type?: string;
     shortby?: string;
+    item_sort_by?: string;
     status?: boolean;
     isActive?: boolean;
+    password?: string;
 }) => {
     const response = await axiosInstance.put(`/distrubutor/updateEpickUser/${id}`, data);
     return response.data;
