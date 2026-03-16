@@ -79,3 +79,8 @@ export const getHighDemandItems = async (params?: { fromDate?: string; toDate?: 
     const response = await axiosInstance.get(url);
     return response.data;
 };
+
+export const getLatestVersion = async () => {
+    const response = await axiosInstance.get('https://adminapi.woopsa.app/api/v1/new-versions/latest-version');
+    return response.data;
+};

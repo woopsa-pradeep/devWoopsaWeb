@@ -13,10 +13,11 @@ import {
   Tab,
   Badge,
   TextField,
-  Theme
+  Theme,
 } from "@mui/material";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
-import MoreVertIcon from '@mui/icons-material/MoreVert';
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import NewReleasesIcon from "@mui/icons-material/NewReleases";
 import { useSelector } from "react-redux";
 import logo from "../../../assets/Vector.svg";
 import { RootState } from "../../../redux/store";
@@ -44,6 +45,8 @@ import Story from "../../../pages/admin/story/Story";
 import Stories from "../../../pages/retailer/stories/Stories";
 import { getStories } from "../../../redux/apis/retailer/stories";
 import ViewStory from "../../../assets/ViewStory.svg";
+import { getLatestVersion } from "../../../redux/apis/dashboardApis";
+import CommonModal from "../../atoms/CommonModal";
   // import AddIcon from '../../../assets/AddStory.svg'
 // import { showErrorToast } from "../../../utils/toastUtils";
 
@@ -83,6 +86,8 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
   const [storyModalOpen, setStoryModalOpen] = useState(false);
   const [storiesModalOpen, setStoriesModalOpen] = useState(false);
   const [storiesCount, setStoriesCount] = useState(0);
+  const [latestVersion, setLatestVersion] = useState<any | null>(null);
+  const [latestVersionModalOpen, setLatestVersionModalOpen] = useState(false);
 
   // Function to fetch stories count
   const fetchStoriesCount = async () => {
@@ -148,6 +153,25 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
       dispatch(fetchNotificationCount());
     }
   }, [dispatch, auth?.role, auth?.isAuthenticated, auth?.emailPhone, isOnTradeShowRoute, isOnSalesTradeShowRoute]);
+
+  // Fetch latest version info for distributor users
+  useEffect(() => {
+    if (auth?.role === "distributor") {
+      getLatestVersion()
+        .then((response: any) => {
+          const latestData = response?.success && response?.data?.isActive && response?.data?.showDistributor
+            ? response.data
+            : null;
+          setLatestVersion(latestData);
+        })
+        .catch((error: any) => {
+          console.error("Error fetching latest version info:", error);
+          setLatestVersion(null);
+        });
+    } else {
+      setLatestVersion(null);
+    }
+  }, [auth?.role]);
 
   // Fetch customer list for sales users
   useEffect(() => {
@@ -1099,6 +1123,20 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
               </IconButton>
             );
           })()}
+          {/* Latest Version Icon - Only for Distributor and only when data exists */}
+          {auth?.role === "distributor" && latestVersion && (
+            <IconButton
+              color="primary"
+              onClick={() => setLatestVersionModalOpen(true)}
+              sx={{
+                "&:hover": {
+                  backgroundColor: "rgba(60, 119, 149, 0.08)",
+                },
+              }}
+            >
+              <NewReleasesIcon />
+            </IconButton>
+          )}
 
           <AvatarMenu />
         </Box>
@@ -1129,6 +1167,56 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
             fetchStoriesCount(); // Refresh stories count when modal closes
           }}
         />
+      )}
+      {/* Latest Version Modal - Distributor Only */}
+      {auth?.role === "distributor" && latestVersion && (
+        <CommonModal
+          open={latestVersionModalOpen}
+          onClose={() => setLatestVersionModalOpen(false)}
+          size="xl"
+          title="New Version Available"
+        >
+          <Box>
+            <Typography variant="subtitle1" gutterBottom>
+              Latest Updates
+            </Typography>
+            {latestVersion.createdAt && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+                gutterBottom
+              >
+                Published on {new Date(latestVersion.createdAt).toLocaleString()}
+              </Typography>
+            )}
+            {latestVersion.description && (
+              <Box
+                mt={1}
+                sx={{
+                  "& ul": { pl: 3, mb: 1 },
+                  "& p": { mb: 1 },
+                  "& a": { color: "primary.main" },
+                }}
+                dangerouslySetInnerHTML={{ __html: latestVersion.description }}
+              />
+            )}
+            {Array.isArray(latestVersion.link) && latestVersion.link.length > 0 && (
+              <Box mt={2}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Related links
+                </Typography>
+                {latestVersion.link.map((url: string, index: number) => (
+                  <Typography key={index} variant="body2">
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      {url}
+                    </a>
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </CommonModal>
       )}
     </AppBar>
   );
