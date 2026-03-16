@@ -28,7 +28,7 @@ import { fetchCartItems } from '../../../redux/slices/cartSlice';
 import { useSelector } from 'react-redux';
 import { validateAddToCart, validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
 import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
-import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
+import { useShowPrepaidTax, calculateDisplayPrice, getBasePriceFromPriceWithTax } from '../../../utils/prepaidTaxDisplayUtils';
 import scanIcon from '../../../assets/elements.svg';
 
 // API Response Interface
@@ -278,6 +278,10 @@ const Order = () => {
   const quantityDebounceRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   // Add debounce timer ref for manual quantity input changes
   const manualInputDebounceRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  // Track latest inventory request to avoid race conditions between responses
+  const inventoryRequestIdRef = useRef(0);
+  // Track last inventory params to avoid duplicate API calls with same filters
+  const lastInventoryParamsRef = useRef<string | null>(null);
   
   // Debounce search term to prevent too many API calls
   React.useEffect(() => {
@@ -636,6 +640,28 @@ const Order = () => {
   };
 
   const getInventoryData = useCallback(async () => {
+    // Build a key representing the current inventory parameters/state
+    const paramsKey = JSON.stringify({
+      mode: viewAllType ? 'viewAll' : 'normal',
+      viewAllType,
+      page: currentPage,
+      limit: pageSize,
+      search: debouncedSearchTerm,
+      masterSearch: masterSearchTerm,
+      salesCategoryId: salesCategory.map(cat => cat.value),
+      priceClassId: priceClass.map(pc => pc.value),
+      salesCategory: userSalesCategory
+    });
+
+    // If nothing has changed since the last call, skip making another request
+    if (lastInventoryParamsRef.current === paramsKey) {
+      return;
+    }
+    lastInventoryParamsRef.current = paramsKey;
+
+    // Increment request id and capture for this invocation
+    const requestId = ++inventoryRequestIdRef.current;
+
     setLoading(true);
     setError(null);
     
@@ -666,6 +692,11 @@ const Order = () => {
         };
       });
       
+      // Ignore if a newer request has been started
+      if (requestId !== inventoryRequestIdRef.current) {
+        return;
+      }
+
       setData(transformedDashboardData);
       setTotalItems(dashboardItems.length);
       setTotalPages(1);
@@ -687,6 +718,11 @@ const Order = () => {
       
       const response:any = await getInventoryItems(params);
       
+      // Ignore stale responses
+      if (requestId !== inventoryRequestIdRef.current) {
+        return;
+      }
+
       // Transform API response to match Product interface
       const transformedData = (response?.data?.finalProductList || []).map((apiProduct: ApiProduct) => 
         transformApiProduct(apiProduct)
@@ -697,13 +733,22 @@ const Order = () => {
       setTotalPages(Math.ceil(response?.data?.totalCount / pageSize) || 0);
     } catch (error) {
       console.log(error);
+
+      // Ignore errors from stale requests
+      if (requestId !== inventoryRequestIdRef.current) {
+        return;
+      }
+
       setError('Failed to load inventory data. Please try again.');
       // Set empty data on error
       setData([]);
       setTotalItems(0);
       setTotalPages(0);
     } finally {
-      setLoading(false);
+      // Only clear loading if this is the latest request
+      if (requestId === inventoryRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [currentPage, pageSize, debouncedSearchTerm, masterSearchTerm, salesCategory, priceClass, viewAllType, dashboardData, userSalesCategory]);
 
@@ -3281,31 +3326,39 @@ const Order = () => {
               .filter(id => orderItems[id]) // Only include items that still exist
               .map((id) => {
                 const item = orderItems[id];
-              // Try to get product data from cartItemsData first, then from data array
-              const productData = cartItemsData[id] || data.find((p: any) => p.id === id);
-              // Get base price components for display price calculation
-              const basePrice = Number(productData?.price) || 0;
-              const taxRate = Number(productData?.Tax_Rate) || 0;
-              const prepaidTaxRate = Number(productData?.prepaidTaxRate) || 0;
-              
-              return {
-                id,
-                name: item.Description,
-                quantity: item.quantity,
-                price: item.price,
-                priceWithTax: item.price, // Use the price as priceWithTax since it's already the main price
-                placedBySalesPerson: item?.placedBySalesPerson,
-                showWithOutPrice: productData?.showWithOutPrice,
-                // Add quantity discount fields
-                hasQtyDiscount: productData?.hasQtyDiscount,
-                qtyDiscount: productData?.qtyDiscount,
-                originalPrice: Number(productData?.price) || 0,
-                // Base price components for display price calculation
-                basePrice,
-                taxRate,
-                prepaidTaxRate
-              };
-            })}
+                // Try to get product data from cartItemsData first, then from data array
+                const productData = cartItemsData[id] || data.find((p: any) => p.id === id);
+                // Get base price components for display price calculation
+                const basePrice = Number(productData?.price) || 0;
+                const taxRate = Number(productData?.Tax_Rate) || 0;
+                const prepaidTaxRate = Number(productData?.prepaidTaxRate) || 0;
+                // If cart has discounted price (e.g. case discount), derive discounted base via prepaid tax util so display is calculated like regular items.
+                // IMPORTANT: Compare against original (pre-discount) price with tax, which is derived from the original base price,
+                // not the possibly already-discounted priceWithTax coming from the cart.
+                const originalPriceWithTax = (basePrice + taxRate) * (1 + prepaidTaxRate);
+                const hasDiscountedPrice = productData && Math.abs(Number(item.price) - Number(originalPriceWithTax)) > 0.005;
+                const displayBasePrice = hasDiscountedPrice
+                  ? getBasePriceFromPriceWithTax(Number(item.price), taxRate, prepaidTaxRate)
+                  : basePrice;
+
+                return {
+                  id,
+                  name: item.Description,
+                  quantity: item.quantity,
+                  price: item.price,
+                  priceWithTax: item.price, // Use the price as priceWithTax since it's already the main price
+                  placedBySalesPerson: item?.placedBySalesPerson,
+                  showWithOutPrice: productData?.showWithOutPrice,
+                  // Add quantity discount fields
+                  hasQtyDiscount: productData?.hasQtyDiscount,
+                  qtyDiscount: productData?.qtyDiscount,
+                  originalPrice: Number(productData?.price) || 0,
+                  // Always pass base components so prepaid tax and display are calculated like regular items
+                  basePrice: displayBasePrice,
+                  taxRate,
+                  prepaidTaxRate
+                };
+              })}
             onQuantityChange={handleOrderDetailsQuantityChange}
             onRemoveItem={handleRemoveItem}
             onClear={handleClearOrder}
