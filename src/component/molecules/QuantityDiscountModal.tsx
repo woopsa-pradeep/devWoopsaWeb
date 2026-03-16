@@ -56,19 +56,19 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
     // Reset when modal opens
   }, [open]);
 
-  // Helper function to get the product name and price with prepaid tax
+  // Shared helper to calculate price with prepaid tax: (basePrice + Tax_Rate) * (1 + prepaidTaxRate)
+  const calculatePriceWithPrepaidTax = (basePrice: number, prepaidTaxRate: number = 0, taxRate: number = 0) => {
+    const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
+    return Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+  };
+
+  // Helper function to get the product name and pricing info (base + with prepaid tax)
   const getProductInfo = () => {
-    if (!product) return { name: 'Product', priceWithTax: 0 };
-    
-    // Calculate price with prepaid tax: (price + Tax_Rate) * (1 + prepaidTaxRate)
-    const calculatePriceWithPrepaidTax = (basePrice: number, prepaidTaxRate: number = 0, taxRate: number = 0) => {
-      const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
-      return Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
-    };
+    if (!product) return { name: 'Product', basePrice: 0, priceWithTax: 0, taxRate: 0, prepaidTaxRate: 0 };
     
     // Handle cart item structure
     if (product.Description && product.Product) {
-      // Use originalPrice if available (for cart items), otherwise use Price or price
+      // Use originalPrice if available (for cart items), otherwise use Price or price as BASE price
       const basePrice = Number(product.Product.originalPrice) || Number(product.Product.Price) || Number(product.price) || 0;
       const prepaidTaxRate = Number(product.prepaidTaxRate) || 0;
       const taxRate = Number(product.Product.Tax_Rate) || 0;
@@ -77,7 +77,10 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
       
       return {
         name: product.Description,
-        priceWithTax: priceWithTax
+        basePrice,
+        priceWithTax,
+        taxRate,
+        prepaidTaxRate
       };
     }
     
@@ -90,7 +93,10 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
     
     return {
       name: product.name || 'Product',
-      priceWithTax: calculatedPriceWithTax
+      basePrice,
+      priceWithTax: calculatedPriceWithTax,
+      taxRate,
+      prepaidTaxRate
     };
   };
 
@@ -99,8 +105,10 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
   const handleCaseDiscountApply = () => {
     if (!qtyDiscountData || !product) return;
     
-    const discountAmount = (productInfo.priceWithTax * qtyDiscountData.percentageCaseDiscount) / 100;
-    const finalPrice = productInfo.priceWithTax - discountAmount;
+    // Apply discount to BASE price first (to match payload logic), then recalculate price with tax
+    const discountAmount = (productInfo.basePrice * qtyDiscountData.percentageCaseDiscount) / 100;
+    const discountedBasePrice = Math.max(0, productInfo.basePrice - discountAmount);
+    const finalPrice = calculatePriceWithPrepaidTax(discountedBasePrice, productInfo.prepaidTaxRate, productInfo.taxRate);
     
     const discountData = {
       type: 'case',
@@ -118,13 +126,16 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
   const handleTierDiscountAdd = (discount: QtyDiscountItem) => {
     if (!product) return;
     
-    let finalPrice = productInfo.priceWithTax;
+    // Apply discount to BASE price first (to match payload logic), then recalculate price with tax
+    let discountedBasePrice = productInfo.basePrice;
     if (discount.hasPercentageDiscount) {
-      const discountAmount = (productInfo.priceWithTax * discount.perDiscount) / 100;
-      finalPrice = productInfo.priceWithTax - discountAmount;
+      const discountAmount = (productInfo.basePrice * discount.perDiscount) / 100;
+      discountedBasePrice = productInfo.basePrice - discountAmount;
     } else {
-      finalPrice = productInfo.priceWithTax - discount.amountDiscount;
+      discountedBasePrice = productInfo.basePrice - discount.amountDiscount;
     }
+    
+    const finalPrice = calculatePriceWithPrepaidTax(Math.max(0, discountedBasePrice), productInfo.prepaidTaxRate, productInfo.taxRate);
     
     const discountData = {
       type: 'quantity',
@@ -141,7 +152,10 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
   const renderCaseDiscount = () => {
     if (!qtyDiscountData || !qtyDiscountData.isCaseDiscount) return null;
     
-    const finalPrice = productInfo.priceWithTax - (productInfo.priceWithTax * qtyDiscountData.percentageCaseDiscount / 100);
+    // Display price using same base-first discount logic
+    const baseDiscountAmount = (productInfo.basePrice * qtyDiscountData.percentageCaseDiscount) / 100;
+    const discountedBasePrice = Math.max(0, productInfo.basePrice - baseDiscountAmount);
+    const finalPrice = calculatePriceWithPrepaidTax(discountedBasePrice, productInfo.prepaidTaxRate, productInfo.taxRate);
     
     return (
       <Box sx={{ p: 1 }}>
@@ -233,17 +247,20 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
             </TableHead>
             <TableBody>
               {qtyDiscountData.qtyDiscount.map((discount, index) => {
-                let finalPrice = productInfo.priceWithTax;
+                // Apply discount to BASE price first (to match payload logic), then recalculate price with tax
+                let discountedBasePrice = productInfo.basePrice;
                 let discountText = '';
                 
                 if (discount.hasPercentageDiscount) {
-                  const discountAmount = (productInfo.priceWithTax * discount.perDiscount) / 100;
-                  finalPrice = productInfo.priceWithTax - discountAmount;
+                  const discountAmount = (productInfo.basePrice * discount.perDiscount) / 100;
+                  discountedBasePrice = productInfo.basePrice - discountAmount;
                   discountText = `${discount.perDiscount}%`;
                 } else {
-                  finalPrice = productInfo.priceWithTax - discount.amountDiscount;
+                  discountedBasePrice = productInfo.basePrice - discount.amountDiscount;
                   discountText = `$${discount.amountDiscount.toFixed(2)}`;
                 }
+
+                const finalPrice = calculatePriceWithPrepaidTax(Math.max(0, discountedBasePrice), productInfo.prepaidTaxRate, productInfo.taxRate);
 
                 return (
                   <TableRow 

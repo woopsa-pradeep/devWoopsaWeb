@@ -28,7 +28,7 @@ import { fetchCartItems } from '../../../redux/slices/cartSlice';
 import { useSelector } from 'react-redux';
 import { validateAddToCart, validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
 import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
-import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
+import { useShowPrepaidTax, calculateDisplayPrice, getBasePriceFromPriceWithTax } from '../../../utils/prepaidTaxDisplayUtils';
 import scanIcon from '../../../assets/elements.svg';
 
 // API Response Interface
@@ -3326,31 +3326,39 @@ const Order = () => {
               .filter(id => orderItems[id]) // Only include items that still exist
               .map((id) => {
                 const item = orderItems[id];
-              // Try to get product data from cartItemsData first, then from data array
-              const productData = cartItemsData[id] || data.find((p: any) => p.id === id);
-              // Get base price components for display price calculation
-              const basePrice = Number(productData?.price) || 0;
-              const taxRate = Number(productData?.Tax_Rate) || 0;
-              const prepaidTaxRate = Number(productData?.prepaidTaxRate) || 0;
-              
-              return {
-                id,
-                name: item.Description,
-                quantity: item.quantity,
-                price: item.price,
-                priceWithTax: item.price, // Use the price as priceWithTax since it's already the main price
-                placedBySalesPerson: item?.placedBySalesPerson,
-                showWithOutPrice: productData?.showWithOutPrice,
-                // Add quantity discount fields
-                hasQtyDiscount: productData?.hasQtyDiscount,
-                qtyDiscount: productData?.qtyDiscount,
-                originalPrice: Number(productData?.price) || 0,
-                // Base price components for display price calculation
-                basePrice,
-                taxRate,
-                prepaidTaxRate
-              };
-            })}
+                // Try to get product data from cartItemsData first, then from data array
+                const productData = cartItemsData[id] || data.find((p: any) => p.id === id);
+                // Get base price components for display price calculation
+                const basePrice = Number(productData?.price) || 0;
+                const taxRate = Number(productData?.Tax_Rate) || 0;
+                const prepaidTaxRate = Number(productData?.prepaidTaxRate) || 0;
+                // If cart has discounted price (e.g. case discount), derive discounted base via prepaid tax util so display is calculated like regular items.
+                // IMPORTANT: Compare against original (pre-discount) price with tax, which is derived from the original base price,
+                // not the possibly already-discounted priceWithTax coming from the cart.
+                const originalPriceWithTax = (basePrice + taxRate) * (1 + prepaidTaxRate);
+                const hasDiscountedPrice = productData && Math.abs(Number(item.price) - Number(originalPriceWithTax)) > 0.005;
+                const displayBasePrice = hasDiscountedPrice
+                  ? getBasePriceFromPriceWithTax(Number(item.price), taxRate, prepaidTaxRate)
+                  : basePrice;
+
+                return {
+                  id,
+                  name: item.Description,
+                  quantity: item.quantity,
+                  price: item.price,
+                  priceWithTax: item.price, // Use the price as priceWithTax since it's already the main price
+                  placedBySalesPerson: item?.placedBySalesPerson,
+                  showWithOutPrice: productData?.showWithOutPrice,
+                  // Add quantity discount fields
+                  hasQtyDiscount: productData?.hasQtyDiscount,
+                  qtyDiscount: productData?.qtyDiscount,
+                  originalPrice: Number(productData?.price) || 0,
+                  // Always pass base components so prepaid tax and display are calculated like regular items
+                  basePrice: displayBasePrice,
+                  taxRate,
+                  prepaidTaxRate
+                };
+              })}
             onQuantityChange={handleOrderDetailsQuantityChange}
             onRemoveItem={handleRemoveItem}
             onClear={handleClearOrder}

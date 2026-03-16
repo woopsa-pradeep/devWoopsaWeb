@@ -25,7 +25,7 @@ import { useSelector } from 'react-redux';
 import { fetchSalesCartItems } from '../../../redux/slices/salesCartSlice';
 import { validateAddToCart, validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
 import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
-import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
+import { useShowPrepaidTax, calculateDisplayPrice, getBasePriceFromPriceWithTax } from '../../../utils/prepaidTaxDisplayUtils'; // eslint-disable-line @typescript-eslint/no-unused-vars -- used in OrderDetails items mapping
 import scanIcon from '../../../assets/elements.svg';
 import ViewModeToggleSales from '../../../component/atoms/ViewModeToggleSales';
 import QuantityDiscountModal from '../../../component/molecules/QuantityDiscountModal';
@@ -3043,7 +3043,15 @@ const Order = () => {
                 const basePrice = Number(productData?.price) || 0;
                 const taxRate = Number(productData?.Tax_Rate) || 0;
                 const prepaidTaxRate = Number(productData?.prepaidTaxRate) || 0;
-                
+                // If cart has discounted price (e.g. case discount), derive discounted base via prepaid tax util so display is calculated like regular items.
+                // IMPORTANT: Compare against original (pre-discount) price with tax, which is derived from the original base price,
+                // not the possibly already-discounted priceWithTax coming from the cart.
+                const originalPriceWithTax = (basePrice + taxRate) * (1 + prepaidTaxRate);
+                const hasDiscountedPrice = productData && Math.abs(Number(item.price) - Number(originalPriceWithTax)) > 0.005;
+                const displayBasePrice = hasDiscountedPrice
+                  ? getBasePriceFromPriceWithTax(Number(item.price), taxRate, prepaidTaxRate)
+                  : basePrice;
+
                 return {
                   id,
                   name: item.Description,
@@ -3056,8 +3064,8 @@ const Order = () => {
                   hasQtyDiscount: productData?.hasQtyDiscount,
                   qtyDiscount: productData?.qtyDiscount,
                   originalPrice: Number(productData?.price) || 0,
-                  // Base price components for display price calculation
-                  basePrice,
+                  // Always pass base components so prepaid tax and display are calculated like regular items
+                  basePrice: displayBasePrice,
                   taxRate,
                   prepaidTaxRate
                 };

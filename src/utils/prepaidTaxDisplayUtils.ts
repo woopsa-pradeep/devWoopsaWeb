@@ -88,3 +88,21 @@ export const calculatePrepaidTaxAmount = (
   return Number(Number(prepaidTaxAmount).toFixed(2));
 };
 
+/**
+ * Derive base price from price-with-tax (inverse of calculateDisplayPrice when showWithPerpaidTax is true).
+ * Used when cart has a discounted/final price so display can use the same prepaid tax logic as regular items.
+ * Formula: priceWithTax = (basePrice + taxRate) * (1 + prepaidTaxRate) => basePrice = priceWithTax / (1 + prepaidTaxRate) - taxRate
+ */
+export const getBasePriceFromPriceWithTax = (
+  priceWithTax: number,
+  taxRate: number,
+  prepaidTaxRate: number = 0
+): number => {
+  const price = Number(priceWithTax) || 0;
+  const tax = Number(taxRate) || 0;
+  const prepaid = Number(prepaidTaxRate) || 0;
+  const onePlusPrepaid = 1 + prepaid;
+  const basePrice = price / onePlusPrepaid - tax;
+  return Math.max(0, Number(Number(basePrice).toFixed(2)));
+};
+
