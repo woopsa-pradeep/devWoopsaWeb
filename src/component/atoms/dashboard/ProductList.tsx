@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { validateAddToCart, validateUpdateQuantity } from "../../../utils/cartValidationUtils";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { showErrorToast } from "../../../utils/toastUtils";
-import { roundPrepaidTax } from "../../../utils/prepaidTaxUtils";
+import { calculateTotalPrepaidTax } from "../../../utils/prepaidTaxUtils";
 import { useShowPrepaidTax, calculateDisplayPrice } from "../../../utils/prepaidTaxDisplayUtils";
 
 interface ProductListProps {
@@ -98,7 +98,6 @@ const ProductList: React.FC<ProductListProps> = ({ title, type, onDiscountModalO
     
     let priceWithTax: number;
     let price: number;
-    let prepaidTaxPerUnit: number;
     let totalPrepaidTax: number;
     
     if (finalPriceWithTax !== undefined) {
@@ -111,10 +110,8 @@ const ProductList: React.FC<ProductListProps> = ({ title, type, onDiscountModalO
       // Calculate price from basePriceWithTax: basePriceWithTax - Tax_Rate
       price = basePriceWithTax - taxRate;
       
-      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-      totalPrepaidTax = prepaidTaxPerUnit * quantity;
+      // Prepaid tax: round per-unit first, then multiply by qty
+      totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, quantity);
     } else {
       // Standard calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
       const basePriceWithTax = basePrice + taxRate;
@@ -123,10 +120,8 @@ const ProductList: React.FC<ProductListProps> = ({ title, type, onDiscountModalO
       priceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
       price = basePrice;
       
-      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-      totalPrepaidTax = prepaidTaxPerUnit * quantity;
+      // Prepaid tax: round per-unit first, then multiply by qty
+      totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, quantity);
     }
     
     // Calculate total price with tax: Price_With_Tax * qty
@@ -141,7 +136,7 @@ const ProductList: React.FC<ProductListProps> = ({ title, type, onDiscountModalO
       TotalPriceWithTax: Number(totalPriceWithTax.toFixed(2)),
       originalPrice: Number(basePrice.toFixed(2)),
       prepaidTaxRate: Number(prepaidTaxRate.toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
+      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
     };
   };
 

@@ -27,7 +27,7 @@ import type { LabelSize } from '../../../utils/labelGenerator';
 import { generateBarcode } from '../../../utils/labelGenerator';
 import { getSalesCategoryList } from '../../../redux/apis/distrubutor/listApis';
 import { getInventoryItemsForOrderConfirmation, placeOrderForCustomer } from '../../../redux/apis/sales/orderConfirmApis';
-import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
+import { calculateTotalPrepaidTax, roundAmount, roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
 
 const OrderConfirmationDetail = () => {
   const navigate = useNavigate();
@@ -1395,23 +1395,22 @@ const OrderConfirmationDetail = () => {
     const priceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
     const price = basePrice;
     
-    // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-    const prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-    // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-    const totalPrepaidTax = prepaidTaxPerUnit * qty;
+    // Prepaid tax: round per-unit first, then multiply by qty
+    const totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, qty);
     
-    // Calculate total price with tax: Price_With_Tax * qty
-    const totalPriceWithTax = priceWithTax * qty;
+    // Always round unit Price_With_Tax first, then multiply
+    const unitPriceWithTax = roundAmount(priceWithTax);
+    const totalPriceWithTax = unitPriceWithTax * qty;
     
     return {
       Price: Number(Number(price).toFixed(2)),
-      Price_With_Tax: Number(Number(priceWithTax).toFixed(2)),
+      Price_With_Tax: unitPriceWithTax,
       Qty: Number(qty),
       Tax_Rate: Number(Number(taxRate).toFixed(2)),
       TotalPrice: Number(Number(price * qty).toFixed(2)),
       TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
       prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)),
-      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
+      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
     };
   }, []);
 

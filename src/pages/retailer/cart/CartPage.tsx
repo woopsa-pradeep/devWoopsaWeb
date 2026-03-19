@@ -24,7 +24,7 @@ import { RootState, useAppDispatch } from '../../../redux/store';
 import { fetchCartItems, clearCart } from '../../../redux/slices/cartSlice';
 import toast from 'react-hot-toast';
 import { validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
-import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
+import { calculateTotalPrepaidTax, roundAmount, roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
 import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
 
 // Interface for cart item from API
@@ -247,7 +247,6 @@ const CartPage: React.FC = () => {
     
     let priceWithTax: number;
     let price: number;
-    let prepaidTaxPerUnit: number;
     let totalPrepaidTax: number;
     
     if (finalPriceWithTax !== undefined) {
@@ -260,39 +259,36 @@ const CartPage: React.FC = () => {
       // Calculate price from basePriceWithTax: basePriceWithTax - Tax_Rate
       price = basePriceWithTax - taxRate;
       
-      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-      totalPrepaidTax = prepaidTaxPerUnit * qty;
+      // Prepaid tax: round per-unit first, then multiply by qty
+      totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, qty);
     } else {
       // Standard calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
       const basePriceWithTax = basePrice + taxRate;
       
       // Calculate final Price_With_Tax: basePriceWithTax * (1 + prepaidTaxRate)
-      priceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
+      priceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
       price = basePrice;
       
-      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-      totalPrepaidTax = prepaidTaxPerUnit * qty;
+      // Prepaid tax: round per-unit first, then multiply by qty
+      totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, qty);
     }
     
-    // Calculate total price with tax: Price_With_Tax * qty
-    const totalPriceWithTax = priceWithTax * qty;
+    // Always round unit Price_With_Tax first, then multiply
+    const unitPriceWithTax = roundAmount(priceWithTax);
+    const totalPriceWithTax = unitPriceWithTax * qty;
     
     return {
       Customer_Number: item.Product.Customer_Number,
       Item_Number: item.Item_Number,
       Price: Number(Number(price).toFixed(2)),
-      Price_With_Tax: Number(Number(priceWithTax).toFixed(2)),
+      Price_With_Tax: unitPriceWithTax,
       Qty: Number(qty),
       Tax_Rate: Number(Number(taxRate).toFixed(2)),
       TotalPrice: Number(Number(price * qty).toFixed(2)),
       TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
       originalPrice: Number(Number(basePrice).toFixed(2)),
       prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
+      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
     };
   };
 
@@ -379,7 +375,7 @@ const CartPage: React.FC = () => {
       
       // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
       const basePriceWithTax = Number(Number(discountedBasePrice + taxRate).toFixed(2));
-      const finalPriceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+      const finalPriceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
 
       console.log('Item Product ID:', item.Product.id);
       console.log('Item Product:', item.Product);
@@ -519,7 +515,7 @@ const CartPage: React.FC = () => {
       
       // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
       const basePriceWithTax = Number(Number(discountedBasePrice + taxRate).toFixed(2));
-      const finalPriceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+      const finalPriceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
 
       const payload = calculateCartPayload(item, qty, discountApplied ? finalPriceWithTax : undefined);
       await updateCartItem(item.Product.id, payload);
@@ -600,7 +596,7 @@ const CartPage: React.FC = () => {
         const prepaidTaxRate = Number(cartItem?.prepaidTaxRate || 0);
         const taxRate = Number(item.Product.Tax_Rate || 0);
         const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
-        const priceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+        const priceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
         
         const payload = calculateCartPayload(cartItem, item.Product.Qty, priceWithTax);
         await updateCartItem(item.Product.id, {
@@ -942,10 +938,14 @@ const CartPage: React.FC = () => {
       );
     }
     
-    const basePrice = Number(row.Product.Price || 0);
     const taxRate = Number(row.Product.Tax_Rate || 0);
     const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
-    const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+    const serverPriceWithTax = Number(row.Product.Price_With_Tax || 0);
+    const basePrice = Number(row.Product.Price || 0);
+    // Always prefer server-calculated unit price to avoid drift across views.
+    const displayPrice = showWithPerpaidTax && serverPriceWithTax > 0
+      ? serverPriceWithTax
+      : calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
     
     return (
       <Box display="flex" alignItems="center" gap={1}>
@@ -970,18 +970,12 @@ const CartPage: React.FC = () => {
             </Box>
           );
         }
-        
-        const basePrice = Number(row.Product.Price || 0);
-        const taxRate = Number(row.Product.Tax_Rate || 0);
-        const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
-        const qty = Number(row.Product.Qty || 0);
-        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
-        const totalPrice = displayPrice * qty;
-        
+        // Use server TotalPriceWithTax so table matches Price Details subtotal (no recalculation drift)
+        const totalPriceWithTax = Number(row.Product.TotalPriceWithTax || 0);
         return (
           <Box display="flex" alignItems="center" gap={1}>
             <Typography fontSize={12} fontWeight={400} color="text.secondary">
-              ${Number(Number(totalPrice).toFixed(2))}
+              ${Number(totalPriceWithTax).toFixed(2)}
             </Typography>
           </Box>
         );
@@ -1145,7 +1139,7 @@ const CartPage: React.FC = () => {
         
         // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
         const basePriceWithTax = discountedBasePrice + taxRate;
-        const discountedPrice = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+        const discountedPrice = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
         
         // Add to cart via API with discounted price
         setTimeout(async () => {

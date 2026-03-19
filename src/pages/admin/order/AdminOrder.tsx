@@ -6,7 +6,7 @@ import CommonTable, {
 } from "../../../component/atoms/Table/CommonTable";
 import { VisibilityOutlined,
    Print as PrintIcon,
-    // Receipt as ReceiptIcon
+  //  Receipt as ReceiptIcon
    } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { getOrderHistory, getOrderDetailByOrderNumberForInvoice, getOrderForPickListConfirmation, getCreateInvoice, getCustomerInvoiceTemplate } from "../../../redux/apis/distrubutor/orderDistrubutorApis";
@@ -366,7 +366,7 @@ const AdminOrder = () => {
       setPrintingInvoiceOrder(null);
     }
   };
-console.log("handleGenerateInvoice", handleGenerateInvoice);
+  console.log("handleGenerateInvoice", handleGenerateInvoice);
   const selectedOrderNumbers = selectedBulkOrderNumbers.map((o) => o.value);
 
   const handleBulkPicklistPrint = async () => {

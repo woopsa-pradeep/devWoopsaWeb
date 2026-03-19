@@ -14,7 +14,7 @@ export interface InventoryParams {
   jurisdiction?: string;
 }
 
-export const getInventoryItems = async (params: InventoryParams) => {
+export const getInventoryItems = async (params: InventoryParams, signal?: AbortSignal) => {
     const storeDetail = store.getState().auth.storeDetail;
     const payload = {
         ...params,
@@ -23,7 +23,7 @@ export const getInventoryItems = async (params: InventoryParams) => {
         jurisdiction: storeDetail?.Jurisdiction_State
     };
     
-    const response = await axiosInstance.post('/retailer/getInventory', payload);
+    const response = await axiosInstance.post('/retailer/getInventory', payload, { signal } as any);
     return response.data;
 }
 

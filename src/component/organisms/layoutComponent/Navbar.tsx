@@ -40,7 +40,7 @@ import { clearCart } from "../../../redux/slices/cartSlice";
 import { clearSalesCart } from "../../../redux/slices/salesCartSlice";
 import { clearDashboardData } from "../../../redux/slices/dashboardSlice";
 import { clearSalesDashboardData } from "../../../redux/slices/salesDashboardSlice";
-import { validateCartForCheckout } from "../../../utils/cartValidationUtils";
+// import { validateCartForCheckout } from "../../../utils/cartValidationUtils";
 import Story from "../../../pages/admin/story/Story";
 import Stories from "../../../pages/retailer/stories/Stories";
 import { getStories } from "../../../redux/apis/retailer/stories";
@@ -948,6 +948,7 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                 onChange={handleCustomerSelect}
                 placeholder="Select Retailer"
                 loading={customerLoading}
+              clearOnFocus
               />
               ) : (
                 <TextField 
@@ -1086,31 +1087,16 @@ const Navbar: React.FC<NavbarProps> = ({ onDrawerToggle, onTabChange, selectedTa
                     navigate("/sales/trade-show/cart");
                     return;
                   }
-                  // Transform cart items to match the validation function interface (regular cart)
-                  const cartItemsForValidation = cart.items.map((item: any) => ({
-                    id: item.Description,
-                    quantity: item.Product.Qty,
-                    price: item.price,
-                    priceWithTax: item.priceWithTax || item.price,
-                    hasProductLimit: item.hasProductLimit || false,
-                    productLimit: item.productLimit || null
-                  }));
 
-                  const validationData = {
-                    userLimitMinOrderAmount: cart.userLimitMinOrderAmount,
-                    totalAmountWithTax: cart.totalAmountWithTax,
-                    totalAmount: cart.totalAmount
-                  };
-
-                  if (validateCartForCheckout(cartItemsForValidation, validationData)) {
-                    if (auth?.role === "retailer") {
-                      navigate('/retailer/cart');
-                    } else if (auth?.role === "sales") {
-                      const isOnReturnOrderPage = location.pathname.includes('/sales/return-order');
-                      navigate(isOnReturnOrderPage ? '/sales/return-cart' : '/sales/cart');
-                    } else {
-                      navigate('/sales/cart');
-                    }
+                  // Directly navigate to the appropriate cart page without extra validation.
+                  // Validation is already handled in the respective Order/Cart flows.
+                  if (auth?.role === "retailer") {
+                    navigate('/retailer/cart');
+                  } else if (auth?.role === "sales") {
+                    const isOnReturnOrderPage = location.pathname.includes('/sales/return-order');
+                    navigate(isOnReturnOrderPage ? '/sales/return-cart' : '/sales/cart');
+                  } else {
+                    navigate('/sales/cart');
                   }
                 }}
                 disabled={isOnCartPage}

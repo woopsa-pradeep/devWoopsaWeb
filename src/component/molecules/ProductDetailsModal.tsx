@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import CommonModal from '../atoms/CommonModal';
 import img1 from '../../assets/Default-Product-Image.jpg';
+import { useShowPrepaidTax, calculateDisplayPrice, calculatePrepaidTaxAmount } from '../../utils/prepaidTaxDisplayUtils';
 
 interface ProductDetailsModalProps {
   open: boolean;
@@ -22,6 +23,8 @@ interface ProductDetailsModalProps {
     UnitOunces: string;
     price: number;
     Tax_Rate: number;
+    prepaidTaxRate?: number;
+    showWithOutPrice?: boolean;
     upc?: string;
     crv?: string;
     category?: string;
@@ -43,6 +46,15 @@ const Field = ({ label, value }: { label: string; value: string | number }) => (
 
 const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({ open, onClose, product }) => {
   if (!product) return null;
+  const { showWithPerpaidTax } = useShowPrepaidTax();
+
+  const basePrice = Number(product.price) || 0;
+  const taxRate = Number(product.Tax_Rate) || 0;
+  const prepaidTaxRate = Number(product.prepaidTaxRate) || 0;
+  const showPrepaidTax = !showWithPerpaidTax && prepaidTaxRate > 0;
+
+  const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+  const prepaidTaxAmount = calculatePrepaidTaxAmount(basePrice, taxRate, prepaidTaxRate);
   return (
     <CommonModal open={open} onClose={onClose} size="lg" title="Product Details">
       <Box sx={{ p: 1 }}>
@@ -75,9 +87,22 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({ open, onClose
                   backgroundColor: '#fff',
                 }}
               />
-              <Typography fontSize="13px" color="text.primary" mb={0.5}>
-                ${(product.price + (product.Tax_Rate || 0)).toFixed(2)}
-              </Typography>
+              {!product.showWithOutPrice ? (
+                <Box>
+                  <Typography fontSize="13px" color="text.primary" mb={0.25}>
+                    ${Number(displayPrice).toFixed(2)}
+                  </Typography>
+                  {showPrepaidTax && prepaidTaxAmount > 0 && (
+                    <Typography fontSize="11.5px" color="text.secondary">
+                      Prepaid tax: ${Number(prepaidTaxAmount).toFixed(2)}
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Typography fontSize="13px" color="text.secondary" mb={0.5}>
+                  -
+                </Typography>
+              )}
               
             </Box>
           </Grid>

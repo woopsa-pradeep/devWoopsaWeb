@@ -22,7 +22,7 @@ import {
   Tooltip,
 } from "recharts";
 import CommonTable, { TableColumn } from "../../../component/atoms/Table/CommonTable";
-import { roundPrepaidTax } from "../../../utils/prepaidTaxUtils";
+import { calculateTotalPrepaidTax, roundAmount } from "../../../utils/prepaidTaxUtils";
 
 const SalesDashboard = () => {
   const theme = useTheme();
@@ -166,50 +166,46 @@ const SalesDashboard = () => {
     
     let priceWithTax: number;
     let price: number;
-    let prepaidTaxPerUnit: number;
     let totalPrepaidTax: number;
     
     if (finalPriceWithTax !== undefined) {
-      // For discounted items, use the provided finalPriceWithTax
-      priceWithTax = finalPriceWithTax;
+      // For discounted items, use the provided finalPriceWithTax, rounded with our prepaid rule
+      priceWithTax = roundAmount(finalPriceWithTax);
       
       // Calculate base Price_With_Tax (before prepaid tax): finalPriceWithTax / (1 + prepaidTaxRate)
-      const basePriceWithTax = prepaidTaxRate > 0 ? finalPriceWithTax / (1 + prepaidTaxRate) : finalPriceWithTax;
+      const basePriceWithTax = prepaidTaxRate > 0 ? priceWithTax / (1 + prepaidTaxRate) : priceWithTax;
       
       // Calculate price from basePriceWithTax: basePriceWithTax - Tax_Rate
       price = basePriceWithTax - taxRate;
       
-      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-      totalPrepaidTax = prepaidTaxPerUnit * quantity;
+      // Prepaid tax: round per-unit first, then multiply by qty
+      totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, quantity);
     } else {
       // Standard calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
       const basePriceWithTax = basePrice + taxRate;
       
       // Calculate final Price_With_Tax: basePriceWithTax * (1 + prepaidTaxRate)
-      priceWithTax = basePriceWithTax * (1 + prepaidTaxRate);
+      priceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
       price = basePrice;
       
-      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-      totalPrepaidTax = prepaidTaxPerUnit * quantity;
+      // Prepaid tax: round per-unit first, then multiply by qty
+      totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, quantity);
     }
     
-    // Calculate total price with tax: Price_With_Tax * qty
-    const totalPriceWithTax = priceWithTax * quantity;
+    // Always round unit Price_With_Tax first, then multiply
+    const unitPriceWithTax = roundAmount(priceWithTax);
+    const totalPriceWithTax = unitPriceWithTax * quantity;
     
     return {
       Price: Number(price.toFixed(2)),
-      Price_With_Tax: Number(priceWithTax.toFixed(2)),
+      Price_With_Tax: unitPriceWithTax,
       Qty: quantity,
       Tax_Rate: Number(taxRate.toFixed(2)),
       TotalPrice: Number((price * quantity).toFixed(2)),
       TotalPriceWithTax: Number(totalPriceWithTax.toFixed(2)),
       originalPrice: Number(basePrice.toFixed(2)),
       prepaidTaxRate: Number(prepaidTaxRate.toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
+      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
     };
   };
 

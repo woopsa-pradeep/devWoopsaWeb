@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { getInventoryShowPrepaidTax } from '../redux/apis/retailer/orderApis';
 import { getInventoryShowPrepaidTax as getSalesInventoryShowPrepaidTax } from '../redux/apis/sales/salesOrderApis';
+import { roundAmount, roundPrepaidTax } from './prepaidTaxUtils';
 
 /**
  * Hook to get showWithPerpaidTax setting
@@ -67,10 +68,10 @@ export const calculateDisplayPrice = (
   
   if (showWithPerpaidTax) {
     // Current behavior: include prepaid tax in display
-    return Number(Number(basePriceWithTax * (1 + prepaid)).toFixed(2));
+    return roundAmount(basePriceWithTax * (1 + prepaid));
   } else {
     // New behavior: exclude prepaid tax from display
-    return Number(Number(basePriceWithTax).toFixed(2));
+    return roundAmount(basePriceWithTax);
   }
 };
 
@@ -85,7 +86,7 @@ export const calculatePrepaidTaxAmount = (
 ): number => {
   const basePriceWithTax = basePrice + taxRate;
   const prepaidTaxAmount = basePriceWithTax * prepaidTaxRate;
-  return Number(Number(prepaidTaxAmount).toFixed(2));
+  return roundPrepaidTax(prepaidTaxAmount);
 };
 
 /**
@@ -102,7 +103,12 @@ export const getBasePriceFromPriceWithTax = (
   const tax = Number(taxRate) || 0;
   const prepaid = Number(prepaidTaxRate) || 0;
   const onePlusPrepaid = 1 + prepaid;
+  // IMPORTANT:
+  // Do NOT round the derived base price to 2 decimals here.
+  // Rounding the base before re-applying prepaid tax can drift the final
+  // Price_With_Tax total (e.g. 26.24 -> base rounds to 18.50 -> 26.25).
+  // Keep higher precision and let calculateDisplayPrice apply final rounding.
   const basePrice = price / onePlusPrepaid - tax;
-  return Math.max(0, Number(Number(basePrice).toFixed(2)));
+  return Math.max(0, Number(basePrice.toFixed(6)));
 };
 

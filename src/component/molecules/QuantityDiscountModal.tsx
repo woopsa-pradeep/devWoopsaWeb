@@ -12,6 +12,7 @@ import {
   Chip,
   // Divider,
 } from '@mui/material';
+import { roundAmount } from '../../utils/prepaidTaxUtils';
 import CustomButton from '../atoms/CustomButton';
 import CommonModal from '../atoms/CommonModal';
 
@@ -58,8 +59,8 @@ const QuantityDiscountModal: React.FC<QuantityDiscountModalProps> = ({
 
   // Shared helper to calculate price with prepaid tax: (basePrice + Tax_Rate) * (1 + prepaidTaxRate)
   const calculatePriceWithPrepaidTax = (basePrice: number, prepaidTaxRate: number = 0, taxRate: number = 0) => {
-    const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
-    return Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+    const basePriceWithTax = Number(basePrice) + Number(taxRate);
+    return roundAmount(basePriceWithTax * (1 + (Number(prepaidTaxRate) || 0)));
   };
 
   // Helper function to get the product name and pricing info (base + with prepaid tax)

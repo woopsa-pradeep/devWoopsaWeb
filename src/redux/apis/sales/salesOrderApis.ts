@@ -36,7 +36,7 @@ export const placeOrder = async (customerId: string, params: any) => {
     });
     return response.data;
 }
-export const getInventoryItems = async (customerId: string, params?: any) => {
+export const getInventoryItems = async (customerId: string, params?: any, signal?: AbortSignal) => {
     const storeDetail = store.getState().auth.storeDetail;
     const payload = {
         ...(params || {}),
@@ -48,11 +48,12 @@ export const getInventoryItems = async (customerId: string, params?: any) => {
     const response = await axiosInstance.post(`/sales/getInventoryItems/${customerId}`, payload, {
         headers: {
             'customer': customerId
-        }
-    });
+        },
+        ...(signal !== undefined && { signal })
+    } as any);
     return response.data;
 }
-export const getInventoryItemsBySalesRep = async (customerId: string, params?: any) => {
+export const getInventoryItemsBySalesRep = async (customerId: string, params?: any, signal?: AbortSignal) => {
     const storeDetail = store.getState().auth.storeDetail;
     const payload = {
         ...(params || {}),
@@ -64,8 +65,9 @@ export const getInventoryItemsBySalesRep = async (customerId: string, params?: a
     const response = await axiosInstance.post(`/sales/getInventoryItemsBySalesMan/${customerId}`, payload, {
         headers: {
             'customer': customerId
-        }
-    });
+        },
+        ...(signal !== undefined && { signal })
+    } as any);
     return response.data;
 }
 export const getCartItem = async (customerId: string) => {

@@ -24,7 +24,7 @@ import { RootState, useAppDispatch } from '../../../redux/store';
 import { fetchSalesCartItems, clearSalesCart } from '../../../redux/slices/salesCartSlice';
 import toast from 'react-hot-toast';
 import { validateUpdateQuantity, validateCartForCheckout } from '../../../utils/cartValidationUtils';
-import { roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
+import { calculateTotalPrepaidTax, roundAmount, roundPrepaidTax } from '../../../utils/prepaidTaxUtils';
 import { useShowPrepaidTax, calculateDisplayPrice } from '../../../utils/prepaidTaxDisplayUtils';
 
 // Interface for cart item from API
@@ -259,7 +259,6 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
     
     let priceWithTax: number;
     let price: number;
-    let prepaidTaxPerUnit: number;
     let totalPrepaidTax: number;
     
     if (finalPriceWithTax !== undefined) {
@@ -272,37 +271,34 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       // Calculate price from basePriceWithTax: basePriceWithTax - Tax_Rate
       price = basePriceWithTax - taxRate;
       
-      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-      totalPrepaidTax = prepaidTaxPerUnit * qty;
+      // Prepaid tax: round per-unit first, then multiply by qty
+      totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, qty);
     } else {
       // Standard calculation: Price_With_Tax = (price + Tax_Rate) * (1 + prepaidTaxRate)
       const basePriceWithTax = basePrice + taxRate;
       
       // Calculate final Price_With_Tax: basePriceWithTax * (1 + prepaidTaxRate)
-      priceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+      priceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
       price = basePrice;
       
-      // Calculate prepaid tax per unit: basePriceWithTax * prepaidTaxRate
-      prepaidTaxPerUnit = basePriceWithTax * prepaidTaxRate;
-      // Calculate total prepaid tax: (basePriceWithTax * prepaidTaxRate) * qty
-      totalPrepaidTax = prepaidTaxPerUnit * qty;
+      // Prepaid tax: round per-unit first, then multiply by qty
+      totalPrepaidTax = calculateTotalPrepaidTax(basePriceWithTax, prepaidTaxRate, qty);
     }
     
-    // Calculate total price with tax: Price_With_Tax * qty
-    const totalPriceWithTax = priceWithTax * qty;
+    // Always round unit Price_With_Tax first, then multiply
+    const unitPriceWithTax = roundAmount(priceWithTax);
+    const totalPriceWithTax = unitPriceWithTax * qty;
     
     return {
       Price: Number(Number(price).toFixed(2)),
-      Price_With_Tax: Number(Number(priceWithTax).toFixed(2)),
+      Price_With_Tax: unitPriceWithTax,
       Qty: Number(qty),
       Tax_Rate: Number(Number(taxRate).toFixed(2)),
       TotalPrice: Number(Number(price * qty).toFixed(2)),
       TotalPriceWithTax: Number(Number(totalPriceWithTax).toFixed(2)),
       originalPrice: Number(Number(basePrice).toFixed(2)),
       prepaidTaxRate: Number(Number(prepaidTaxRate).toFixed(4)), // Pass actual prepaidTaxRate from API
-      TotalprepaidTaxRate: roundPrepaidTax(totalPrepaidTax)
+      TotalprepaidTaxRate: Number(totalPrepaidTax.toFixed(2))
     };
   };
 
@@ -389,7 +385,7 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       
       // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
       const basePriceWithTax = Number(Number(discountedBasePrice + taxRate).toFixed(2));
-      const finalPriceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+      const finalPriceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
 
       console.log('Item Product ID:', item.Product?.id);
       console.log('Item Product:', item.Product);
@@ -542,7 +538,7 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       
       // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
       const basePriceWithTax = Number(Number(discountedBasePrice + taxRate).toFixed(2));
-      const finalPriceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+      const finalPriceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
 
       console.log('Item Product ID:', item.Product?.id);
       console.log('Item Product:', item.Product);
@@ -667,7 +663,7 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
         const prepaidTaxRate = Number(cartItem?.prepaidTaxRate || 0);
         const taxRate = Number(item.Product.Tax_Rate || 0);
         const basePriceWithTax = Number(Number(basePrice + taxRate).toFixed(2));
-        const priceWithTax = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+        const priceWithTax = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
         
         const payload = calculateCartPayload(cartItem, item.Product.Qty, priceWithTax);
         await updateCartItem(item.Product.id.toString(), {
@@ -896,29 +892,25 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
 
   // Calculate price details
   const calculatePriceDetails = () => {
-    // Calculate subtotal with discounts applied per item
+    // Calculate subtotal BEFORE discounts (discount shown separately)
     let subtotal: number;
     let totalPrepaidTax = 0;
     
     if (showWithPerpaidTax) {
       // Current behavior: include prepaid tax in subtotal
       subtotal = Number(cartItems.reduce((sum: any, item: any) => {
-        const discountPerUnit = itemDiscounts[item.Product.id] || 0;
-        const qty = item.Product.Qty || 1;
-        const totalDiscount = discountPerUnit * qty;
-        const itemTotal = item.showWithOutPrice ? 0 : (Number(item.Product.TotalPriceWithTax) - totalDiscount);
+        const itemTotal = item.showWithOutPrice ? 0 : Number(item.Product.TotalPriceWithTax);
         return sum + itemTotal;
       }, 0).toFixed(2));
     } else {
       // New behavior: exclude prepaid tax from subtotal, calculate it separately
       subtotal = Number(cartItems.reduce((sum: any, item: any) => {
         if (item.showWithOutPrice) return sum;
-        const discountPerUnit = itemDiscounts[item.Product.id] || 0;
         const basePrice = Number(item.Product.Price || 0);
         const taxRate = Number(item.Product.Tax_Rate || 0);
         const qty = item.Product.Qty || 1;
         const priceWithoutPrepaidTax = basePrice + taxRate;
-        const itemTotal = (priceWithoutPrepaidTax * qty) - (discountPerUnit * qty);
+        const itemTotal = priceWithoutPrepaidTax * qty;
         return sum + itemTotal;
       }, 0).toFixed(2));
       
@@ -938,7 +930,12 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
     const discount = calculateTotalDiscount();
     const crv = Number(0).toFixed(2); // No CRV for now
     const deliveryCharges = Number(deliveryCharge).toFixed(2); // No delivery charges for now
-    const estimatedTotal = Number((subtotal + Number(crv) + Number(deliveryCharges) + (showWithPerpaidTax ? 0 : totalPrepaidTax)).toFixed(2));
+    const estimatedTotal = Number(
+      Math.max(
+        0,
+        (subtotal - discount) + Number(crv) + Number(deliveryCharges) + (showWithPerpaidTax ? 0 : totalPrepaidTax)
+      ).toFixed(2)
+    );
 
     return {
       subtotal,
@@ -1078,10 +1075,14 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
           );
         }
         
-        const basePrice = Number(row.Product.Price || 0);
         const taxRate = Number(row.Product.Tax_Rate || 0);
         const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
-        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
+        const serverPriceWithTax = Number(row.Product.Price_With_Tax || 0);
+        const basePrice = Number(row.Product.Price || 0);
+        // Always prefer server-calculated unit price to avoid drift across views.
+        const displayPrice = showWithPerpaidTax && serverPriceWithTax > 0
+          ? serverPriceWithTax
+          : calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
         
         return (
           <Box display="flex" alignItems="center" gap={1}>
@@ -1189,17 +1190,12 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
             </Box>
           );
         }
-        
-        const discountPerUnit = itemDiscounts[row.Product.id] || 0;
-        const basePrice = Number(row.Product.Price || 0);
-        const taxRate = Number(row.Product.Tax_Rate || 0);
-        const prepaidTaxRate = Number(row.prepaidTaxRate || 0);
+        // Use server TotalPriceWithTax so table matches Price Details subtotal (no recalculation drift)
+        const totalPriceWithTax = Number(row.Product.TotalPriceWithTax || 0);
         const qty = Number(row.Product.Qty || 1);
-        const displayPrice = calculateDisplayPrice(basePrice, taxRate, prepaidTaxRate, showWithPerpaidTax);
-        const totalPrice = displayPrice * qty;
+        const discountPerUnit = itemDiscounts[row.Product.id] || 0;
         const totalDiscount = discountPerUnit * qty;
-        const discountedTotal = Math.max(0, totalPrice - totalDiscount);
-        
+        const discountedTotal = Math.max(0, totalPriceWithTax - totalDiscount);
         return (
           <Box display="flex" alignItems="center" gap={1}>
             <Typography fontSize={12} fontWeight={400} color="text.secondary">
@@ -1352,7 +1348,7 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
         
         // Calculate Price_With_Tax from discounted base price: (discountedBasePrice + Tax_Rate) * (1 + prepaidTaxRate)
         const basePriceWithTax = Number(Number(discountedBasePrice + taxRate).toFixed(2));
-        const discountedPrice = Number(Number(basePriceWithTax * (1 + prepaidTaxRate)).toFixed(2));
+        const discountedPrice = roundAmount(basePriceWithTax * (1 + prepaidTaxRate));
         
         // Add to cart via API with discounted price
         setTimeout(async () => {

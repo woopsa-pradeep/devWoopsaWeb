@@ -28,3 +28,33 @@ export const roundPrepaidTax = (value: number): number => {
   return Number(truncated.toFixed(2));
 };
 
+/**
+ * Prepaid tax should be rounded PER UNIT first, then multiplied by quantity.
+ * This prevents mismatches like:
+ * - per unit raw: 1.540625 -> rounded: 1.55
+ * - qty 5 total should be 1.55 * 5 = 7.75 (not round(1.540625 * 5) = 7.70)
+ */
+export const calculatePrepaidTaxPerUnit = (
+  basePriceWithTax: number,
+  prepaidTaxRate: number
+): number => {
+  const base = Number(basePriceWithTax) || 0;
+  const rate = Number(prepaidTaxRate) || 0;
+  if (base <= 0 || rate <= 0) return 0;
+  return roundPrepaidTax(base * rate);
+};
+
+export const calculateTotalPrepaidTax = (
+  basePriceWithTax: number,
+  prepaidTaxRate: number,
+  qty: number
+): number => {
+  const quantity = Number(qty) || 0;
+  if (quantity <= 0) return 0;
+  const perUnit = calculatePrepaidTaxPerUnit(basePriceWithTax, prepaidTaxRate);
+  return Number((perUnit * quantity).toFixed(2));
+};
+
+// Same rounding rule for monetary amounts (Price_With_Tax etc.)
+export const roundAmount = (value: number): number => roundPrepaidTax(value);
+

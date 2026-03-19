@@ -29,6 +29,9 @@ interface CustomSearchDropdownProps {
   loading?: boolean;
   disabled?: boolean;
   sx?: any;
+  // When true, clicking/focusing the field clears the current label
+  // and opens the dropdown with an empty search so user can type immediately.
+  clearOnFocus?: boolean;
 }
 
 const CustomSearchDropdown: React.FC<CustomSearchDropdownProps> = ({
@@ -38,7 +41,8 @@ const CustomSearchDropdown: React.FC<CustomSearchDropdownProps> = ({
   placeholder = "Search",
   loading = false,
   disabled = false,
-  sx = {}
+  sx = {},
+  clearOnFocus = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,8 +158,11 @@ const CustomSearchDropdown: React.FC<CustomSearchDropdownProps> = ({
   const handleInputFocus = () => {
     if (!disabled) {
       setIsOpen(true);
-      // Always show the current value when focusing
-      if (value) {
+      if (clearOnFocus) {
+        // Clear label so user can start typing immediately
+        setSearchTerm('');
+      } else if (value) {
+        // Default behavior: show current value when focusing
         setSearchTerm(value.label);
       }
     }
@@ -184,6 +191,9 @@ const CustomSearchDropdown: React.FC<CustomSearchDropdownProps> = ({
     if (!disabled) {
       setIsOpen(!isOpen);
       if (!isOpen) {
+        if (clearOnFocus) {
+          setSearchTerm('');
+        }
         inputRef.current?.focus();
       }
     }

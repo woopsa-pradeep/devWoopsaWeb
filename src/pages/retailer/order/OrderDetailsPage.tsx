@@ -191,7 +191,8 @@ const OrderDetailsPage = () => {
   
   // Calculate subtotal: when showWithPerpaidTax is false, subtract prepaid tax from subtotal
   // If invoice is generated, use Invoice_Total instead
-  let subtotal = isInvoiceGenerated ? invoiceTotal : originalSubtotal;
+  // Match sales view: subtotal before discount = originalSubtotal + discount (so discount row and math are clear)
+  let subtotal = isInvoiceGenerated ? invoiceTotal : (originalSubtotal + discount);
   if (!isInvoiceGenerated && !showWithPerpaidTax && totalPrepaidTax > 0) {
     subtotal = subtotal - totalPrepaidTax;
   }
@@ -334,7 +335,7 @@ const OrderDetailsPage = () => {
           {/* Price Details */}
           <PriceDetails
             subtotal={subtotal}
-            // discount={discount}
+            discount={discount}
             crv={crv}
             deliveryCharges={deliveryCharges}
             estimatedTotal={estimatedTotal}
