@@ -134,7 +134,9 @@ const DistributorCalendar: React.FC = () => {
     navigate('/admin/calender/view', { 
       state: { 
         selectedDate: formattedDate,
-        customers: getCustomersForDate(today)
+        customers: getCustomersForDate(today),
+        salesRepNumber: selectedSalesRep.map(rep => rep.value),
+        routeNumber: selectedRoute.map(route => route.value),
       } 
     });
   };
@@ -174,7 +176,9 @@ const DistributorCalendar: React.FC = () => {
     navigate('/admin/calender/view', { 
       state: { 
         selectedDate: formattedDate,
-        customers: getCustomersForDate(date)
+        customers: getCustomersForDate(date),
+        salesRepNumber: selectedSalesRep.map(rep => rep.value),
+        routeNumber: selectedRoute.map(route => route.value),
       } 
     });
   };

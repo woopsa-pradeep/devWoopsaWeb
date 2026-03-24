@@ -16,15 +16,21 @@ export const getCustomerListForDistrubutorCalender = async (params: any) => {
 }
 
 export const getCustomerOrderList = async (params: any) => {
-    const queryParams = new URLSearchParams();
-    
-    // Add required parameters
-    queryParams.append('orderDate', params.orderDate);
-    queryParams.append('orderDay', params.orderDay);
-    queryParams.append('page', params.page);
-    queryParams.append('limit', params.limit);
-    
-    const response = await axiosInstance.get(`/distrubutor/getCustomerOrderByCalenderDate?${queryParams.toString()}`);
+    const payload: any = {
+        orderDate: params.orderDate,
+        orderDay: params.orderDay,
+        page: params.page,
+        limit: params.limit,
+    };
+
+    if (params.salesRepNumber && params.salesRepNumber.length > 0) {
+        payload.salesRepNumber = params.salesRepNumber;
+    }
+    if (params.routeNumber && params.routeNumber.length > 0) {
+        payload.routeNumber = params.routeNumber;
+    }
+
+    const response = await axiosInstance.post('/distrubutor/getCustomerOrderByCalenderDate', payload);
     return response.data;
 }
 
@@ -39,12 +45,18 @@ export const getCustomerById = async (customerId: any) => {
 }
 
 export const getCustomerTotalOrderByCustomer = async (params: any) => {
-    const queryParams = new URLSearchParams();
-    
-    // Add required parameters
-    queryParams.append('orderDate', params.orderDate);
-    queryParams.append('orderDay', params.orderDay);
-    
-    const response = await axiosInstance.get(`/distrubutor/getCustomerTotalOrderByCustomer?${queryParams.toString()}`);
+    const payload: any = {
+        orderDate: params.orderDate,
+        orderDay: params.orderDay,
+    };
+
+    if (params.salesRepNumber && params.salesRepNumber.length > 0) {
+        payload.salesRepNumber = params.salesRepNumber;
+    }
+    if (params.routeNumber && params.routeNumber.length > 0) {
+        payload.routeNumber = params.routeNumber;
+    }
+
+    const response = await axiosInstance.post('/distrubutor/getCustomerTotalOrderByCustomer', payload);
     return response.data;
 }

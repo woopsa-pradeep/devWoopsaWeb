@@ -141,7 +141,7 @@ const AddRetailer: React.FC = () => {
       C_StatusCode: 0,
       Delivery_Charge: 0,
       Delivery_Amount: 0,
-      C_CaseDiscount: 0,
+      C_CaseDiscount: 1,
       C_OtherLicenseNumber: '',
       C_OtherLicenseNumber2: '',
       C_OtherLicenseNumber3: '',

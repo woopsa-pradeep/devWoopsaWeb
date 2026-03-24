@@ -444,9 +444,11 @@ const InventoryLabelTab = () => {
       } else {
         // Calculate based on label dimensions
         const [w, h] = size.split('x').map(Number);
+        const minDim = Math.min(w, h);
+        const maxDim = Math.max(w, h);
         const isLandscape = orientation === 'landscape';
-        const effectiveWidth = isLandscape ? h : w;
-        const effectiveHeight = isLandscape ? w : h;
+        const effectiveWidth = isLandscape ? maxDim : minDim;
+        const effectiveHeight = isLandscape ? minDim : maxDim;
         const area = effectiveWidth * effectiveHeight;
         
         // Scale barcode based on label area
@@ -749,8 +751,7 @@ const InventoryLabelTab = () => {
     let detailsHTML = '';
     if (fieldOptions.itemNumber) {
       detailsHTML += `<div class="label-detail-item">
-        <span class="label-detail-label">ITEM NUMBER:</span>
-        <span class="label-detail-value">${itemNumber}</span>
+        <span class="label-detail-value label-item-number-highlight">${itemNumber}</span>
       </div>`;
     }
     if (fieldOptions.pack) {
@@ -828,10 +829,12 @@ const InventoryLabelTab = () => {
       }
     } else {
       const [width, height] = size.split('x').map(Number);
+      const minDim = Math.min(width, height);
+      const maxDim = Math.max(width, height);
       const isLandscape = orientation === 'landscape';
-      // Swap dimensions for landscape
-      pageWidth = isLandscape ? `${height}in` : `${width}in`;
-      pageHeight = isLandscape ? `${width}in` : `${height}in`;
+      // Portrait = tall page (min × max); landscape = wide page (max × min). Fixes 4×3 where W>H in the size string.
+      pageWidth = isLandscape ? `${maxDim}in` : `${minDim}in`;
+      pageHeight = isLandscape ? `${minDim}in` : `${maxDim}in`;
     }
 
     // Calculate responsive sizes based on label dimensions, orientation, and rows
@@ -854,9 +857,11 @@ const InventoryLabelTab = () => {
       }
       if (size === 'A4') return `${base * 1.5}px`;
       const [w, h] = size.split('x').map(Number);
+      const minDim = Math.min(w, h);
+      const maxDim = Math.max(w, h);
       const isLandscape = orientation === 'landscape';
-      const effectiveWidth = isLandscape ? h : w;
-      const effectiveHeight = isLandscape ? w : h;
+      const effectiveWidth = isLandscape ? maxDim : minDim;
+      const effectiveHeight = isLandscape ? minDim : maxDim;
       const area = effectiveWidth * effectiveHeight;
       
       // More aggressive scaling for smaller labels
@@ -959,8 +964,9 @@ const InventoryLabelTab = () => {
       }
       .label-details-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: ${size === 'A4' ? '0.06in' : '0.05in'};
+        grid-template-columns: minmax(0, 1.28fr) 1fr;
+        column-gap: ${size === 'A4' ? '0.14in' : '0.12in'};
+        row-gap: ${size === 'A4' ? '0.06in' : '0.05in'};
         flex: 1;
       }
       .label-detail-item {
@@ -987,6 +993,12 @@ const InventoryLabelTab = () => {
         font-weight: 700;
         color: #000000;
         word-break: break-word;
+      }
+      .label-detail-value.label-item-number-highlight {
+        font-size: ${getSize(20)};
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        line-height: 1.1;
       }
       .label-detail-value.price-value {
         font-size: ${getSize(24)};

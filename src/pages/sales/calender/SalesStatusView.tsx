@@ -102,10 +102,6 @@ const SalesStatusView: React.FC = () => {
   const customers = state?.customers || [];
   const customerDay = customers[0]?.C_OrderDay;
 
-
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
   const [customerOrderData, setCustomerOrderData] = useState<any[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -712,55 +708,103 @@ const SalesStatusView: React.FC = () => {
     }
   ];
 
+  const doneCount = customerOrderData.filter((row: any) => {
+    const status = String(row?.status || '').toLowerCase();
+    return status === 'done' || status === 'completed';
+  }).length;
+  const pendingCount = customerOrderData.length - doneCount;
+
   return (
-    <Box sx={{ width: '100%', p: 1 }}>
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={2}
-        flexWrap="wrap"
-        gap={1}
-      >
-        <Typography fontSize="16px" fontWeight={500} display="flex" alignItems="center" gap={1}>
-          <ArrowBackIcon onClick={handleBackClick} sx={{ cursor: 'pointer', color: theme.palette.primary.main, fontSize: '18px' }} />
-          Sales Status for {moment(selectedDate).format('dddd, MMMM D, YYYY')}
+    <Box p={2}>
+      <Box display="flex" alignItems="center" mb={2} gap={1}>
+        <ArrowBackIcon onClick={handleBackClick} sx={{ cursor: 'pointer', color: 'primary.main', fontSize: '20px' }} />
+        <Typography variant="h6" fontWeight={500} color="text.secondary">
+          Sales Calendar View
         </Typography>
       </Box>
 
-      <Paper
-        elevation={2}
-        sx={{
-          p: 2,
-          backgroundColor: theme.palette.background.paper,
-          border: `1px solid ${theme.palette.divider}`
-        }}
-      >
+      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Typography variant="subtitle1" color="primary" fontWeight={500}>
+              {selectedDate ? moment(selectedDate).format('MMMM DD, YYYY') : 'N/A'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Order Day: {customers[0]?.OrderDayName || 'N/A'}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Box display="flex" gap={1} flexWrap="wrap" justifyContent="flex-end">
+              <Chip
+                label={`${customerOrderData.length} Customers`}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
+              <Chip
+                label={`${pendingCount} Pending`}
+                color="warning"
+                variant="outlined"
+                size="small"
+              />
+              <Chip
+                label={`${doneCount} Completed`}
+                color="success"
+                variant="outlined"
+                size="small"
+              />
+              <Chip
+                label={`${doneCount} Customers Ordered`}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Paper elevation={1}>
+        <Box p={1.5}>
+          <Typography variant="subtitle1" fontWeight={500} color="primary" gutterBottom>
+            Customer Orders
+          </Typography>
         {selectedDate ? (
           <>
             <CommonTable
               data={customerOrderData}
               columns={columns}
-              currentPage={currentPage}
-              totalPages={Math.ceil(customerOrderData.length / pageSize)}
+              isPagination={false}
+              currentPage={1}
+              totalPages={1}
               totalItems={customerOrderData.length}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
-              pageSizeOptions={[5, 10, 25, 50]}
-              showPageSizeSelector={true}
-              showTotalItems={true}
-              showPageNumbers={true}
-              maxPageNumbers={5}
+              pageSize={customerOrderData.length || 1}
+              onPageChange={() => {}}
+              onPageSizeChange={() => {}}
+              pageSizeOptions={[customerOrderData.length || 1]}
+              showPageSizeSelector={false}
+              showTotalItems={false}
+              showPageNumbers={false}
               stickyHeader={true}
-              containerHeight="500px"
+              // containerHeight="500px"
               loading={loading}
               getRowStyle={(row) => {
                 const isCurrentCustomer = currentSalesman?.C_Number === row.C_Number;
-                return isCurrentCustomer ? {
-                  backgroundColor: `${theme.palette.success.main}15`, // Light green background
-                  borderLeft: `4px solid ${theme.palette.success.main}`,
-                } : {};
+                if (isCurrentCustomer) {
+                  return {
+                    backgroundColor: `${theme.palette.info.main}1A`,
+                    borderLeft: `4px solid ${theme.palette.info.main}`,
+                  };
+                }
+
+                const status = String(row?.status || '').toLowerCase();
+                if (status === 'done' || status === 'completed') {
+                  return {
+                    backgroundColor: `${theme.palette.success.main}33`,
+                    borderLeft: `4px solid ${theme.palette.success.main}`,
+                  };
+                }
+                return {};
               }}
               emptyStateComponent={
                 <Typography
@@ -782,6 +826,7 @@ const SalesStatusView: React.FC = () => {
             No date selected. Please go back to the calendar and select a date.
           </Typography>
         )}
+        </Box>
       </Paper>
 
       {/* Confirmation Dialog */}

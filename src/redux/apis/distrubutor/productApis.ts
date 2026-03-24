@@ -69,6 +69,27 @@ export const bulkUpdateInventory = async (params: {
     return axiosInstance.post('/distrubutor/bulkUpdateInventory', params);
 };
 
+// Product list by search (for dropdowns)
+export const getProductListBySearch = async (params: { search: string }) => {
+    return axiosInstance.get(`/list/productListBySearch?search=${params.search || ''}`);
+};
+
+// Upload image for bulk image upload (distributor/uploadImages)
+export const uploadDistributorImage = async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return axiosInstance.post('/distrubutor/uploadImages', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+};
+
+// Bulk upload item images
+export const bulkUploadItemImages = async (params: {
+    items: Array<{ itemNumber: string | number; img_url: string }>;
+}) => {
+    return axiosInstance.post('/distrubutor/bulkUploadItemImages', params);
+};
+
 // Future Pricing APIs
 export const getAllFuturePricings = async () => {
     return axiosInstance.get('/distrubutor/future-pricing');

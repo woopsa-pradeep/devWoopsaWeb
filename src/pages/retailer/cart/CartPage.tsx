@@ -130,6 +130,7 @@ const CartPage: React.FC = () => {
   // Debounced input state
   const [inputValues, setInputValues] = useState<{ [key: number]: number }>({});
   const debounceTimeouts = useRef<{ [key: number]: NodeJS.Timeout }>({});
+  const placeOrderInFlightRef = useRef(false);
 
   // Get cart state from Redux
   const { items: cartItems, userLimitMinOrderAmount, totalAmountWithTax, totalAmount } = useSelector((state: RootState) => state.cart) as any;
@@ -655,13 +656,14 @@ const CartPage: React.FC = () => {
 
   // Handle place order
   const handlePlaceOrder = async () => {
+    if (placeOrderInFlightRef.current) return;
+    placeOrderInFlightRef.current = true;
     setPlaceOrderLoading(true);
     try {
       // Refresh cart items from server before placing order
       const result = await dispatch(fetchCartItems());
       if (!fetchCartItems.fulfilled.match(result)) {
         toast.error('Failed to refresh cart items. Please try again.');
-        setPlaceOrderLoading(false);
         return;
       }
       
@@ -685,7 +687,6 @@ const CartPage: React.FC = () => {
       };
 
       if (!validateCartForCheckout(cartItemsForValidation, validationData)) {
-        setPlaceOrderLoading(false);
         return;
       }
 
@@ -749,6 +750,7 @@ const CartPage: React.FC = () => {
       console.error('Failed to place order:', error);
       toast.error(error?.response?.data?.message || 'Failed to place order. Please try again.');
     } finally {
+      placeOrderInFlightRef.current = false;
       setPlaceOrderLoading(false);
     }
   };

@@ -125,6 +125,7 @@ const CartPage: React.FC = () => {
   // Debounced input state
   const [inputValues, setInputValues] = useState<{ [key: number]: number }>({});
   const debounceTimeouts = useRef<{ [key: number]: NodeJS.Timeout }>({});
+  const placeOrderInFlightRef = useRef(false);
 
   // Get cart state from Redux
   const { items: cartItems, userLimitMinOrderAmount, totalAmountWithTax, totalAmount } = useSelector((state: RootState) => state.salesCart) as any;
@@ -722,13 +723,14 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
 
   // Handle place order
   const handlePlaceOrder = async () => {
+    if (placeOrderInFlightRef.current) return;
+    placeOrderInFlightRef.current = true;
     setPlaceOrderLoading(true);
     try {
       // Refresh cart items from server before placing order
       const result = await dispatch(fetchSalesCartItems());
       if (!fetchSalesCartItems.fulfilled.match(result)) {
         toast.error('Failed to refresh cart items. Please try again.');
-        setPlaceOrderLoading(false);
         return;
       }
       
@@ -752,7 +754,6 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       };
 
       if (!validateCartForCheckout(cartItemsForValidation, validationData)) {
-        setPlaceOrderLoading(false);
         return;
       }
 
@@ -828,6 +829,7 @@ const warehouseAddress = `${wareHouseDetail?.[0]?.D_Addr1 || ''} ,${wareHouseDet
       console.error('Failed to place order:', error);
       toast.error(error?.response?.data?.message || 'Failed to place order. Please try again.');
     } finally {
+      placeOrderInFlightRef.current = false;
       setPlaceOrderLoading(false);
     }
   };

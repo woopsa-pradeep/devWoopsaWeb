@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -69,6 +69,8 @@ interface CustomerDetails {
 interface LocationState {
   selectedDate: string;
   customers: CustomerData[];
+  salesRepNumber?: number[];
+  routeNumber?: number[];
 }
 
 const DistributorStatusView: React.FC = () => {
@@ -80,10 +82,12 @@ const DistributorStatusView: React.FC = () => {
   const selectedDate = state?.selectedDate;
   const customers = state?.customers || [];
   const customerDay = customers[0]?.C_OrderDay;
+  const salesRepNumber = state?.salesRepNumber || [];
+  const routeNumber = state?.routeNumber || [];
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(200);
   const [loading, setLoading] = useState(false);
   const [customerOrderData, setCustomerOrderData] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -100,6 +104,32 @@ const DistributorStatusView: React.FC = () => {
   const [selectedCustomerForOrder, setSelectedCustomerForOrder] = useState<any>(null);
   const [customerTotalOrder, setCustomerTotalOrder] = useState<any>(null);
 
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedCustomerOrderData = useMemo(() => {
+    if (!sortField || sortField !== 'Routes.Route_Number') return customerOrderData;
+    const key = 'Routes.Route_Number' as const;
+    return [...customerOrderData].sort((a, b) => {
+      let aVal = Number(a[key]);
+      let bVal = Number(b[key]);
+      if (Number.isNaN(aVal)) aVal = 0;
+      if (Number.isNaN(bVal)) bVal = 0;
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [customerOrderData, sortField, sortDirection]);
+
   // Fetch customer order data
   const fetchCustomerOrderData = async (page: number = currentPage, limit: number = pageSize) => {
     if (!selectedDate || !customerDay) return;
@@ -110,7 +140,9 @@ const DistributorStatusView: React.FC = () => {
         orderDate: selectedDate,
         orderDay: customerDay,
         page: page,
-        limit: limit
+        limit: limit,
+        salesRepNumber,
+        routeNumber,
       };
 
       const response: any = await getCustomerOrderList(params);
@@ -178,6 +210,8 @@ const DistributorStatusView: React.FC = () => {
     const params: any = {
       orderDate: selectedDate,
       orderDay: customerDay,
+      salesRepNumber,
+      routeNumber,
     };
     try {
       const response: any = await getCustomerTotalOrderByCustomer(params);
@@ -246,6 +280,7 @@ const DistributorStatusView: React.FC = () => {
       label: 'Route',
       minWidth: 60,
       align: 'center',
+      sortable: true,
       render: (row: any) => row['Routes.Route_Number'] || '-',
     },
     {
@@ -367,7 +402,7 @@ const DistributorStatusView: React.FC = () => {
           </Typography>
           <CommonTable
             columns={columns}
-            data={customerOrderData}
+            data={sortedCustomerOrderData}
             loading={loading}
             isPagination={true}
             currentPage={currentPage}
@@ -376,7 +411,10 @@ const DistributorStatusView: React.FC = () => {
             pageSize={pageSize}
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
-            pageSizeOptions={[10, 25, 50, 100]}
+            pageSizeOptions={[10, 25, 50, 100, 200]}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleSort}
             getRowStyle={(row) => {
               const status = row.status?.toLowerCase();
               if (status === 'done' || status === 'completed') {

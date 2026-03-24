@@ -18,9 +18,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useModulePermission } from '../../../hooks/useModulePermission';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import { useDebounce } from '../../../hooks/useDebounce';
-import { createProductLimit, productList, productListWithTax, updateProductImageByImageId, updateProductLimit, uploadProductImage, getProductById} from '../../../redux/apis/distrubutor/productApis';
+import { createProductLimit, productList, productListWithTax, updateProductImageByImageId, updateProductLimit, uploadProductImage, getProductById, getProductListBySearch, uploadDistributorImage, bulkUploadItemImages } from '../../../redux/apis/distrubutor/productApis';
 import TextInput from '../../../component/atoms/TextInput';
-import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
+import SearchableDropdown, { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
 import img from '../../../assets/Default-Product-Image.jpg';
 import CommonModal from '../../../component/atoms/CommonModal';
 import CustomButton from '../../../component/atoms/CustomButton';
@@ -41,6 +41,8 @@ import PrintIcon from '@mui/icons-material/Print';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/Update';
 import EventIcon from '@mui/icons-material/Event';
+import ImageIcon from '@mui/icons-material/Image';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 // import ViewListIcon from '@mui/icons-material/ViewList';
 // import ViewModuleIcon from '@mui/icons-material/ViewModule';
 // import ToggleButton from '@mui/material/ToggleButton';
@@ -100,6 +102,11 @@ interface LimitModalData {
   Item_Number: string;
   QtyLimit: number;
   markAsBundle?: boolean;
+}
+
+interface BulkImageRow {
+  product: { label: string; value: string } | null;
+  file: File | null;
 }
 
 // Barcode cache outside component to persist across renders
@@ -179,6 +186,15 @@ const Product = () => {
 
   // Loss Qty Report Modal state
   const [lossQtyReportModalOpen, setLossQtyReportModalOpen] = useState(false);
+
+  // Bulk Image Modal state
+  const [bulkImageModalOpen, setBulkImageModalOpen] = useState(false);
+  const [bulkImageItems, setBulkImageItems] = useState<BulkImageRow[]>([{ product: null, file: null }]);
+  const [bulkImageProductSearch, setBulkImageProductSearch] = useState('');
+  const bulkImageProductSearchDebounced = useDebounce(bulkImageProductSearch, 500);
+  const [bulkImageProductOptions, setBulkImageProductOptions] = useState<{ label: string; value: string }[]>([]);
+  const [bulkImageProductLoading, setBulkImageProductLoading] = useState(false);
+  const [bulkImageSubmitting, setBulkImageSubmitting] = useState(false);
 
   // Detailed view state
   // For now only table view - detailed view tab commented below
@@ -461,6 +477,33 @@ useEffect(() => {
   });
 }, [expandedCards, viewMode]);
 
+  // Fetch product options for bulk image modal when search changes
+  useEffect(() => {
+    if (!bulkImageModalOpen) return;
+    if (!bulkImageProductSearchDebounced.trim()) {
+      setBulkImageProductOptions([]);
+      return;
+    }
+    const searchProducts = async () => {
+      setBulkImageProductLoading(true);
+      try {
+        const response: any = await getProductListBySearch({ search: bulkImageProductSearchDebounced });
+        const products = response?.data?.data || response?.data || [];
+        const options = (Array.isArray(products) ? products : []).map((p: { Item_Number: number; Description?: string }) => ({
+          label: `${p.Item_Number}${p.Description ? ` - ${p.Description}` : ''}`,
+          value: String(p.Item_Number),
+        }));
+        setBulkImageProductOptions(options);
+      } catch (err) {
+        console.error('Error searching products:', err);
+        toast.error('Failed to search products');
+        setBulkImageProductOptions([]);
+      } finally {
+        setBulkImageProductLoading(false);
+      }
+    };
+    searchProducts();
+  }, [bulkImageProductSearchDebounced, bulkImageModalOpen]);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -494,6 +537,67 @@ useEffect(() => {
       toast.error('Upload failed');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleBulkImageModalOpen = () => {
+    setBulkImageItems([{ product: null, file: null }]);
+    setBulkImageProductSearch('');
+    setBulkImageProductOptions([]);
+    setBulkImageModalOpen(true);
+  };
+
+  const handleBulkImageAddRow = () => {
+    setBulkImageItems((prev) => [...prev, { product: null, file: null }]);
+  };
+
+  const handleBulkImageRemoveRow = (index: number) => {
+    setBulkImageItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleBulkImageProductChange = (index: number, value: { label: string; value: string } | null) => {
+    setBulkImageItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], product: value };
+      return next;
+    });
+  };
+
+  const handleBulkImageFileChange = (index: number, file: File | null) => {
+    setBulkImageItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], file };
+      return next;
+    });
+  };
+
+  const handleBulkImageSubmit = async () => {
+    const validRows = bulkImageItems.filter((row) => row.product && row.file);
+    if (validRows.length === 0) {
+      toast.error('Add at least one product with an image.');
+      return;
+    }
+    setBulkImageSubmitting(true);
+    try {
+      const items: Array<{ itemNumber: string | number; img_url: string }> = [];
+      for (const row of validRows) {
+        const res: any = await uploadDistributorImage(row.file!);
+        const imgUrl = res?.data?.url ?? res?.data?.data?.url ?? res?.url ?? res?.data ?? '';
+        if (!imgUrl || typeof imgUrl !== 'string') {
+          toast.error(`Upload failed for product ${row.product!.value}`);
+          return;
+        }
+        items.push({ itemNumber: row.product!.value, img_url: imgUrl });
+      }
+      await bulkUploadItemImages({ items });
+      toast.success('Bulk images uploaded successfully.');
+      setBulkImageModalOpen(false);
+      refreshProducts(currentPage);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.response?.data?.message || 'Bulk image upload failed.');
+    } finally {
+      setBulkImageSubmitting(false);
     }
   };
 
@@ -689,10 +793,12 @@ useEffect(() => {
       }
     } else {
       const [width, height] = size.split('x').map(Number);
+      const minDim = Math.min(width, height);
+      const maxDim = Math.max(width, height);
       const isLandscape = orientation === 'landscape';
-      // Swap dimensions for landscape
-      pageWidth = isLandscape ? `${height}in` : `${width}in`;
-      pageHeight = isLandscape ? `${width}in` : `${height}in`;
+      // Portrait = tall page (min × max); landscape = wide page (max × min). Fixes 4×3 where W>H in the size string.
+      pageWidth = isLandscape ? `${maxDim}in` : `${minDim}in`;
+      pageHeight = isLandscape ? `${minDim}in` : `${maxDim}in`;
     }
 
     // Calculate responsive sizes based on label dimensions, orientation, and rows
@@ -715,9 +821,11 @@ useEffect(() => {
       }
       if (size === 'A4') return `${base * 1.5}px`;
       const [w, h] = size.split('x').map(Number);
+      const minDim = Math.min(w, h);
+      const maxDim = Math.max(w, h);
       const isLandscape = orientation === 'landscape';
-      const effectiveWidth = isLandscape ? h : w;
-      const effectiveHeight = isLandscape ? w : h;
+      const effectiveWidth = isLandscape ? maxDim : minDim;
+      const effectiveHeight = isLandscape ? minDim : maxDim;
       const area = effectiveWidth * effectiveHeight;
       
       if (area >= 24) return `${base * 1.1}px`; // 4x6, 3x6
@@ -843,8 +951,9 @@ useEffect(() => {
       }
       .label-details-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: ${size === 'A4' ? '0.06in' : '0.05in'};
+        grid-template-columns: minmax(0, 1.28fr) 1fr;
+        column-gap: ${size === 'A4' ? '0.14in' : '0.12in'};
+        row-gap: ${size === 'A4' ? '0.06in' : '0.05in'};
         flex: 1;
       }
       .label-small .label-details-grid {
@@ -881,6 +990,12 @@ useEffect(() => {
         font-weight: 700;
         color: #000000;
         word-break: break-word;
+      }
+      .label-detail-value.label-item-number-highlight {
+        font-size: ${getSize(20)};
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        line-height: 1.1;
       }
       .label-small .label-detail-value {
         font-size: ${getSize(8)};
@@ -1463,8 +1578,7 @@ useEffect(() => {
                 <div class="label-description">${productName}</div>
                 <div class="label-details-grid">
                   <div class="label-detail-item">
-                    <span class="label-detail-label">ITEM NUMBER:</span>
-                    <span class="label-detail-value">${itemNumber}</span>
+                    <span class="label-detail-value label-item-number-highlight">${itemNumber}</span>
                   </div>
                   <div class="label-detail-item">
                     <span class="label-detail-label">PACK:</span>
@@ -1494,8 +1608,7 @@ useEffect(() => {
                 <div class="label-description">${productName}</div>
                 <div class="label-details-grid">
                   <div class="label-detail-item">
-                    <span class="label-detail-label">ITEM NUMBER:</span>
-                    <span class="label-detail-value">${itemNumber}</span>
+                    <span class="label-detail-value label-item-number-highlight">${itemNumber}</span>
                   </div>
                   <div class="label-detail-item">
                     <span class="label-detail-label">PACK:</span>
@@ -3626,6 +3739,23 @@ const inactive =
                 </CustomButton>
                 <CustomButton 
                   fullWidth={false}
+                  onClick={handleBulkImageModalOpen}
+                  icon={<ImageIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
+                  iconPosition="left"
+                  sx={{ 
+                    mt: 0,
+                    fontSize: { xs: '0.75rem', md: '0.875rem' },
+                    px: { xs: 1, md: 1.5 },
+                    '& .MuiButton-startIcon': {
+                      mr: { xs: 0.5, md: 1 }
+                    }
+                  }} 
+                >
+                  <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Bulk Image</Box>
+                  <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Images</Box>
+                </CustomButton>
+                <CustomButton 
+                  fullWidth={false}
                   onClick={() => setPrintLabelDrawerOpen(true)}
                   icon={<PrintIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
                   iconPosition="left"
@@ -4248,6 +4378,127 @@ const inactive =
           </Box>
         </Box>
       </CommonModal>
+
+      {/* Bulk Image Modal */}
+      <CommonModal
+        open={bulkImageModalOpen}
+        onClose={() => setBulkImageModalOpen(false)}
+        title="Bulk Image Upload"
+        size="lg"
+      >
+        <Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Add product and image for each row. Images will be uploaded and assigned to the selected products.
+          </Typography>
+          {bulkImageItems.map((row, index) => (
+            <Box
+              key={index}
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 2,
+                mb: 2,
+                p: 2,
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 1,
+              }}
+            >
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <SearchableDropdown
+                  placeholder="Search and select product"
+                  options={bulkImageProductOptions}
+                  value={row.product}
+                  onChange={(value) => handleBulkImageProductChange(index, value)}
+                  onSearchChange={(value) => setBulkImageProductSearch(value)}
+                  loading={bulkImageProductLoading}
+                  sx={{ mb: 0 }}
+                />
+              </Box>
+              <Box
+                sx={{
+                  width: 120,
+                  height: 120,
+                  flexShrink: 0,
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  '&:hover': { borderColor: 'primary.main' },
+                }}
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'image/*';
+                  input.onchange = (e: any) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleBulkImageFileChange(index, f);
+                  };
+                  input.click();
+                }}
+              >
+                {row.file ? (
+                  <img
+                    src={URL.createObjectURL(row.file)}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'text.secondary',
+                      bgcolor: 'action.hover',
+                    }}
+                  >
+                    <AddPhotoAlternateIcon sx={{ fontSize: 32 }} />
+                    <Typography variant="caption">Upload</Typography>
+                  </Box>
+                )}
+              </Box>
+              <IconButton
+                size="small"
+                onClick={() => handleBulkImageRemoveRow(index)}
+                disabled={bulkImageItems.length <= 1}
+                sx={{ mt: 0.5 }}
+                color="error"
+              >
+                <DeleteOutlineIcon />
+              </IconButton>
+            </Box>
+          ))}
+          <CustomButton
+            icon={<AddIcon />}
+            iconPosition="left"
+            onClick={handleBulkImageAddRow}
+            appearance="outlined"
+            fullWidth={false}
+            sx={{ mb: 2 }}
+          >
+            Add row
+          </CustomButton>
+          <Box display="flex" justifyContent="flex-end" gap={2} mt={2}>
+            <CustomButton appearance="outlined" onClick={() => setBulkImageModalOpen(false)} fullWidth={false}>
+              Cancel
+            </CustomButton>
+            <CustomButton
+              onClick={handleBulkImageSubmit}
+              disabled={bulkImageSubmitting}
+              icon={bulkImageSubmitting ? <CircularProgress size={20} /> : null}
+              fullWidth={false}
+            >
+              {bulkImageSubmitting ? 'Uploading...' : 'Upload Images'}
+            </CustomButton>
+          </Box>
+        </Box>
+      </CommonModal>
+
       <DistrubutorProductDetailModal 
         open={detailModalOpen} 
         onClose={() => setDetailModalOpen(false)} 

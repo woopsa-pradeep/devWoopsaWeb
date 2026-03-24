@@ -1,630 +1,474 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, momentLocalizer, Views } from 'react-big-calendar';
 import moment from 'moment';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { 
-  Box, 
-  Typography, 
-  // Paper, 
+import {
+  Box,
+  Typography,
   Card,
   CardContent,
-  useTheme, 
+  useTheme,
   alpha,
-  Fade,
 } from '@mui/material';
-  import { useNavigate } from 'react-router-dom';
-  import { getCustomerListForSalesCalender } from '../../redux/apis/sales/salesCalenderApis';
-  import LoadingSpinner from './loader/LoadingSpinner';
+import { useNavigate } from 'react-router-dom';
+import { getCustomerListForSalesCalender } from '../../redux/apis/sales/salesCalenderApis';
+import LoadingSpinner from './loader/LoadingSpinner';
 
-  const localizer = momentLocalizer(moment);
+interface CustomerData {
+  C_Number: number;
+  C_Name: string;
+  C_CoName: string;
+  C_OrderDay: number;
+  OrderDayName: string;
+}
 
-  interface CustomerData {
-    C_Number: number;
-    C_Name: string;
-    C_CoName: string;
-    C_OrderDay: number;
-    OrderDayName: string;
-  }
+interface CalendarEvent {
+  id: number;
+  title: string;
+  start: Date;
+  end: Date;
+  customer: CustomerData;
+  allCustomers: CustomerData[];
+}
 
-  interface CalendarEvent {
-    id: number;
-    title: string;
-    start: Date;
-    end: Date;
-    customer: CustomerData;
-    allCustomers: CustomerData[];
-  }
+const SalesCalendar: React.FC = () => {
+  const theme = useTheme();
+  const navigate = useNavigate();
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
 
-  
+  const isCurrentMonth = (date: Date): boolean => {
+    return (
+      date.getMonth() === currentDate.getMonth() &&
+      date.getFullYear() === currentDate.getFullYear()
+    );
+  };
 
-  const SalesCalendar: React.FC = () => {
-    const theme = useTheme();
-    const navigate = useNavigate();
-    const [events, setEvents] = useState<CalendarEvent[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    // const [currentMonth, setCurrentMonth] = useState(new Date());
+  const isToday = (date: Date): boolean => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
 
-    // Check if a date is in the current month
-    const isCurrentMonth = (date: Date): boolean => {
-      const currentDate = new Date();
-      return date.getMonth() === currentDate.getMonth() && 
-             date.getFullYear() === currentDate.getFullYear();
-    };
+  const generateEventsForMonth = (customers: CustomerData[], viewDate: Date): CalendarEvent[] => {
+    const generatedEvents: CalendarEvent[] = [];
+    const currentMonth = viewDate.getMonth();
+    const currentYear = viewDate.getFullYear();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-    // Generate events for the current month based on customer order days
-    const generateEventsForMonth = (customers: CustomerData[], currentDate: Date): CalendarEvent[] => {
-      const events: CalendarEvent[] = [];
-      const currentMonth = currentDate.getMonth();
-      const currentYear = currentDate.getFullYear();
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const customersByDay: { [key: string]: CustomerData[] } = {};
 
-      // Group customers by their order day
-      const customersByDay: { [key: string]: CustomerData[] } = {};
-      
-      customers.forEach((customer) => {
-        // For each day in the month, check if it matches the customer's order day
-        for (let day = 1; day <= daysInMonth; day++) {
-          const date = new Date(currentYear, currentMonth, day);
-          const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-          
-          // Convert customer's order day (1-7) to match JavaScript's day format (0-6)
-          const customerOrderDay = customer.C_OrderDay === 7 ? 0 : customer.C_OrderDay;
-          
-          if (dayOfWeek === customerOrderDay) {
-            const dateKey = date.toDateString();
-            if (!customersByDay[dateKey]) {
-              customersByDay[dateKey] = [];
-            }
-            customersByDay[dateKey].push(customer);
+    customers.forEach((customer) => {
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(currentYear, currentMonth, day);
+        const dayOfWeek = date.getDay();
+        const customerOrderDay = customer.C_OrderDay === 7 ? 0 : customer.C_OrderDay;
+
+        if (dayOfWeek === customerOrderDay) {
+          const dateKey = date.toDateString();
+          if (!customersByDay[dateKey]) {
+            customersByDay[dateKey] = [];
           }
+          customersByDay[dateKey].push(customer);
         }
-      });
-
-      // Create one event per day with all customers for that day
-      Object.keys(customersByDay).forEach(dateKey => {
-        const date = new Date(dateKey);
-        const customersForDay = customersByDay[dateKey];
-        
-        const startTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0); // 9 AM
-        const endTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 17, 0); // 5 PM
-        
-        events.push({
-          id: date.getTime(), // Use timestamp as unique ID
-          title: `${customersForDay.length} customers`,
-          start: startTime,
-          end: endTime,
-          customer: customersForDay[0], // Store first customer as reference
-          allCustomers: customersForDay // Store all customers for this day
-        });
-      });
-
-      return events;
-    };
-
-    // Get customers for a specific date
-    const getCustomersForDate = (date: Date): CustomerData[] => {
-      // Find the event for this specific date
-      const eventForDate = events.find(event => {
-        const eventDate = new Date(event.start);
-        return eventDate.toDateString() === date.toDateString();
-      });
-      
-      if (!eventForDate) {
-        return [];
       }
-      
-      // Return all customers for this day
-      return eventForDate.allCustomers;
-    };
+    });
 
-    
+    Object.keys(customersByDay).forEach((dateKey) => {
+      const date = new Date(dateKey);
+      const customersForDay = customersByDay[dateKey];
+      const startTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0);
+      const endTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 17, 0);
 
-      // Handle date click
+      generatedEvents.push({
+        id: date.getTime(),
+        title: `${customersForDay.length} customers`,
+        start: startTime,
+        end: endTime,
+        customer: customersForDay[0],
+        allCustomers: customersForDay,
+      });
+    });
+
+    return generatedEvents;
+  };
+
+  const getCustomersForDate = (date: Date): CustomerData[] => {
+    const eventForDate = events.find((event) => {
+      const eventDate = new Date(event.start);
+      return eventDate.toDateString() === date.toDateString();
+    });
+
+    return eventForDate ? eventForDate.allCustomers : [];
+  };
+
+  const getCustomerCountForDate = (date: Date): number => {
+    return getCustomersForDate(date).length;
+  };
+
+  const handleToday = () => {
+    const today = new Date();
+    setCurrentDate(today);
+
+    const formattedDate = moment(today).format('YYYY-MM-DD');
+    navigate('/sales/calender/view', {
+      state: {
+        selectedDate: formattedDate,
+        customers: getCustomersForDate(today),
+      },
+    });
+  };
+
+  const generateCalendarDays = (): Date[] => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - startDate.getDay());
+
+    const days: Date[] = [];
+    const current = new Date(startDate);
+
+    for (let i = 0; i < 42; i++) {
+      days.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+
+    return days;
+  };
+
   const handleDateClick = (date: Date) => {
-    // Only allow clicks on current month dates
     if (!isCurrentMonth(date)) {
-      console.log('Date not in current month, click ignored');
       return;
     }
 
     const formattedDate = moment(date).format('YYYY-MM-DD');
-    
-    // Navigate to SalesStatusView page with the selected date
-    navigate('/sales/calender/view', { 
-      state: { 
+    navigate('/sales/calender/view', {
+      state: {
         selectedDate: formattedDate,
-        customers: getCustomersForDate(date)
-      } 
+        customers: getCustomersForDate(date),
+      },
     });
   };
 
-    useEffect(() => {
-      const fetchCalendarData = async () => {
-        try {
-          setLoading(true);
-          setError(null);
-          
-          const response:any = await getCustomerListForSalesCalender({});
-          
-          if (response.success && response.data) {
-            const currentDate = new Date();
-            const generatedEvents = generateEventsForMonth(response.data, currentDate);
-            setEvents(generatedEvents);
-          } else {
-            setError('Failed to fetch calendar data');
-          }
-        } catch (err) {
-          console.error('Error fetching calendar data:', err);
-          setError('Error loading calendar data');
-        } finally {
-          setLoading(false);
-        }
-      };
+  useEffect(() => {
+    const fetchCalendarData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      fetchCalendarData();
-    }, []);
+        const response: any = await getCustomerListForSalesCalender({});
 
-    const eventStyleGetter = (event: CalendarEvent) => {
-      console.log(event);
-      return {
-        style: {
-          backgroundColor: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
-          color: theme.palette.primary.contrastText,
-          borderRadius: '8px',
-          border: 'none',
-          padding: '4px 8px',
-          fontSize: '11px',
-          cursor: 'pointer',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          fontWeight: '500',
-          transition: 'all 0.2s ease-in-out',
-          '&:hover': {
-            backgroundColor: theme.palette.primary.dark,
-            transform: 'translateY(-1px)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-          }
+        if (response.success && response.data) {
+          const generatedEvents = generateEventsForMonth(response.data, currentDate);
+          setEvents(generatedEvents);
+        } else {
+          setError('Failed to fetch calendar data');
         }
-      };
+      } catch (fetchError) {
+        console.error('Error fetching calendar data:', fetchError);
+        setError('Error loading calendar data');
+      } finally {
+        setLoading(false);
+      }
     };
 
-    const EventComponent = ({ event }: { event: CalendarEvent }) => {
-      // Extract count from the event title
-      const count = event.title.split(' ')[0];
-      
-      return (
-        <Fade in={true} timeout={300}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            gap: 0.5,
-            width: '100%',
-            minHeight: '20px'
-          }}>
-            {/* <Box sx={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              backgroundColor: 'rgba(255,255,255,0.9)',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }} /> */}
-            <Typography variant="caption" sx={{ 
-              fontWeight: '500', 
-              display: 'block',
-              color: 'white',
-              fontSize: '11px',
-              lineHeight: '1.2',
-              textAlign: 'center'
-            }}>
-              {count} {event.allCustomers.length > 1 ? 'Targets' : 'Target'}
-            </Typography>
-          </Box>
-        </Fade>
-      );
-    };
+    fetchCalendarData();
+  }, [currentDate]);
 
-                                                       // Custom day cell component to handle date clicks
-     const DayCellComponent = ({ children, value }: any) => {
-       const isCurrentMonthDate = isCurrentMonth(value);
-       const isToday = moment(value).isSame(moment(), 'day');
-       
-       const handleDayClick = (e: React.MouseEvent) => {
-         e.preventDefault();
-         e.stopPropagation();
-         
-         // Only allow clicks on current month dates
-         if (isCurrentMonthDate) {
-           handleDateClick(value);
-         }
-       };
-       
-       return (
-         <Box 
-           sx={{ 
-             height: '100%', 
-             width: '100%',
-             position: 'relative',
-             cursor: isCurrentMonthDate ? 'pointer' : 'not-allowed',
-             opacity: isCurrentMonthDate ? 1 : 0.4,
-             transition: 'all 0.2s ease-in-out',
-             '&:hover': {
-               backgroundColor: isCurrentMonthDate ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
-               transform: isCurrentMonthDate ? 'scale(1.02)' : 'none',
-             }
-           }}
-           onClick={handleDayClick}
-         >
-           <Box sx={{ 
-             position: 'absolute', 
-             top: 0, 
-             left: 0, 
-             right: 0, 
-             bottom: 0, 
-             zIndex: 0,
-             cursor: isCurrentMonthDate ? 'pointer' : 'not-allowed',
-             borderRadius: isToday ? '8px' : '4px',
-             border: isToday ? `2px solid ${theme.palette.primary.main}` : 'none',
-             backgroundColor: isToday ? alpha(theme.palette.primary.main, 0.1) : 'transparent'
-           }} />
-           <Box sx={{ 
-             position: 'relative', 
-             zIndex: 1,
-             height: '100%',
-             width: '100%',
-             display: 'flex',
-             flexDirection: 'column',
-             alignItems: 'center',
-             justifyContent: 'flex-start',
-             p: 0.5,
-             cursor: isCurrentMonthDate ? 'pointer' : 'not-allowed',
-             pointerEvents: 'auto'
-           }}>
-             {children}
-           </Box>
-         </Box>
-       );
-     };
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const calendarDays = generateCalendarDays();
 
-    if (loading) {
-      return (
-        <Card elevation={3} sx={{ 
+  if (loading) {
+    return (
+      <Card
+        elevation={3}
+        sx={{
           minHeight: '500px',
           background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)}, ${alpha(theme.palette.secondary.main, 0.05)})`,
-          borderRadius: 3
-        }}>
-          <CardContent sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
+          borderRadius: 3,
+        }}
+      >
+        <CardContent
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
             height: '100%',
-            minHeight: '500px'
-          }}>
-            <LoadingSpinner message="Loading calendar data..." />
-          </CardContent>
-        </Card>
-      );
-    }
+            minHeight: '500px',
+          }}
+        >
+          <LoadingSpinner message="Loading sales calendar data..." />
+        </CardContent>
+      </Card>
+    );
+  }
 
-    if (error) {
-      return (
-        <Card elevation={3} sx={{ 
+  if (error) {
+    return (
+      <Card
+        elevation={3}
+        sx={{
           minHeight: '500px',
           background: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.05)}, ${alpha(theme.palette.warning.main, 0.05)})`,
-          borderRadius: 3
-        }}>
-          <CardContent sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
+          borderRadius: 3,
+        }}
+      >
+        <CardContent
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
             height: '100%',
-            minHeight: '500px'
-          }}>
-            <Box textAlign="center">
-              <Typography color="error" variant="h6" gutterBottom>
-                ⚠️ Error Loading Calendar
-              </Typography>
-              <Typography color="error" variant="body2">
-                {error}
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return (
-      <>
-        <Card 
-          elevation={4} 
-          sx={{ 
-            p: 0, 
-            // height: '650px',
-            background: `linear-gradient(135deg, ${theme.palette.background.paper}, ${alpha(theme.palette.primary.main, 0.02)})`,
-            color: theme.palette.text.primary,
-            borderRadius: 3,
-            overflow: 'hidden',
-            border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-            boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.1)}`
+            minHeight: '500px',
           }}
-                       onClick={(e) => {
-              // Handle clicks on empty calendar areas
-              const target = e.target as HTMLElement;
-              
-              // Check if clicked on any calendar-related element
-              if (target.classList.contains('rbc-day-slot') || 
-                  target.classList.contains('rbc-date-cell') ||
-                  target.closest('.rbc-day-slot') ||
-                  target.closest('.rbc-date-cell')) {
-                
-                // Find the closest date element
-                let dateElement = target.closest('[data-date]');
-                if (!dateElement) {
-                  // Try to find date from parent elements
-                  const daySlot = target.closest('.rbc-day-slot');
-                  if (daySlot) {
-                    const dateCell = daySlot.querySelector('[data-date]');
-                    if (dateCell) {
-                      dateElement = dateCell;
-                    }
-                  }
-                }
-                
-                if (dateElement) {
-                  const dateAttr = dateElement.getAttribute('data-date');
-                  if (dateAttr) {
-                    const date = new Date(dateAttr);
-                    // Only allow clicks on current month dates
-                    if (isCurrentMonth(date)) {
+        >
+          <Box textAlign="center">
+            <Typography color="error" variant="h6" gutterBottom>
+              Error Loading Calendar
+            </Typography>
+            <Typography color="error" variant="body2">
+              {error}
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card
+        elevation={0}
+        sx={{
+          borderRadius: 3,
+          overflow: 'hidden',
+          border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+          background: theme.palette.background.paper,
+          boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.04)}`,
+        }}
+      >
+        <Box
+          sx={{
+            px: { xs: 1.5, sm: 2, md: 3 },
+            py: { xs: 1, sm: 1.25, md: 1.5 },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)}, ${alpha(theme.palette.primary.main, 0.02)})`,
+            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+            flexWrap: { xs: 'wrap', sm: 'nowrap' },
+            gap: { xs: 1, sm: 0 },
+          }}
+        >
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 600,
+              fontSize: { xs: '0.85rem', sm: '0.9rem', md: '1rem' },
+              color: theme.palette.text.primary,
+              letterSpacing: { xs: '0.2px', sm: '0.25px', md: '0.3px' },
+            }}
+          >
+            {moment(currentDate).format('MMMM YYYY')}
+          </Typography>
+          <Box
+            onClick={handleToday}
+            sx={{
+              px: { xs: 1.5, sm: 1.75, md: 2 },
+              py: { xs: 0.25, sm: 0.5, md: 0.625 },
+              borderRadius: { xs: 1.5, sm: 2 },
+              cursor: 'pointer',
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+              backgroundColor: 'transparent',
+              color: theme.palette.primary.main,
+              fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' },
+              fontWeight: 600,
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.common.white,
+              },
+            }}
+          >
+            Today
+          </Box>
+        </Box>
+
+        <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 } }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, 1fr)',
+              gap: { xs: 0.25, sm: 0.5, md: 0.75 },
+              mb: { xs: 0.5, sm: 0.75, md: 1 },
+              pb: { xs: 0.5, sm: 0.75, md: 1 },
+              borderBottom: `2px solid ${alpha(theme.palette.divider, 0.1)}`,
+            }}
+          >
+            {dayNames.map((day, index) => {
+              const today = new Date();
+              const todayDayOfWeek = today.getDay();
+              const isTodayDay = index === todayDayOfWeek;
+              return (
+                <Typography
+                  key={day}
+                  sx={{
+                    textAlign: 'center',
+                    fontWeight: isTodayDay ? 700 : 600,
+                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' },
+                    color: isTodayDay ? theme.palette.primary.main : theme.palette.text.secondary,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    py: { xs: 0.25, sm: 0.375, md: 0.5 },
+                    position: 'relative',
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: { xs: '-6px', sm: '-7px', md: '-9px' },
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: isTodayDay ? '30px' : '20px',
+                      height: '2px',
+                      borderRadius: '2px',
+                      background: isTodayDay
+                        ? theme.palette.primary.main
+                        : alpha(theme.palette.primary.main, 0.3),
+                    },
+                  }}
+                >
+                  {day}
+                </Typography>
+              );
+            })}
+          </Box>
+
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, 1fr)',
+              gap: { xs: 0.5, sm: 0.75, md: 1 },
+            }}
+          >
+            {calendarDays.map((date, index) => {
+              const isCurrentMonthDate = isCurrentMonth(date);
+              const isTodayDate = isToday(date);
+              const customerCount = getCustomerCountForDate(date);
+              const hasCustomers = customerCount > 0;
+
+              return (
+                <Box
+                  key={index}
+                  onClick={() => {
+                    if (isCurrentMonthDate) {
                       handleDateClick(date);
                     }
-                  }
-                }
-              }
-            }}
-         >
-          <Box sx={{ p: 2, height: '550px' }}>
-            <Calendar
-              localizer={localizer}
-              events={events}
-              startAccessor="start"
-              endAccessor="end"
-              style={{ 
-                // height: '500px',
-                color: theme.palette.text.primary,
-              }}
-                       views={['month']}
-            defaultView={Views.MONTH}
-            components={{
-              event: EventComponent,
-              dateCellWrapper: DayCellComponent
-            }}
-            eventPropGetter={eventStyleGetter}
-            tooltipAccessor={(event:any) => `${event.customer.C_Name} - ${event.customer.OrderDayName}`}
-            selectable={true}
-            onSelectSlot={(slotInfo) => {
-              if (slotInfo.action === 'select' && isCurrentMonth(slotInfo.start)) {
-                handleDateClick(slotInfo.start);
-              }
-            }}
-            onSelectEvent={(event) => {
-              if (isCurrentMonth(event.start)) {
-                handleDateClick(event.start);
-              }
-            }}
-            onDoubleClickEvent={(event) => {
-              if (isCurrentMonth(event.start)) {
-                handleDateClick(event.start);
-              }
-            }}
-            onNavigate={(newDate) => {
-              // This will be called when navigating between months
-              console.log('Navigated to:', newDate);
-            }}
-              popup={true}
-              className="sales-calendar"
-              dayPropGetter={() => ({
-                style: {
-                  backgroundColor: 'transparent',
-                }
-              })}
-              slotPropGetter={() => ({
-                style: {
-                  backgroundColor: 'transparent',
-                }
-              })}
-            />
+                  }}
+                  sx={{
+                    minHeight: { xs: '55px', sm: '65px', md: '75px', lg: '80px' },
+                    p: { xs: 0.75, sm: 0.875, md: 1 },
+                    borderRadius: { xs: 1.5, sm: 2 },
+                    cursor: isCurrentMonthDate ? 'pointer' : 'default',
+                    position: 'relative',
+                    background: isTodayDate
+                      ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.primary.main, 0.05)})`
+                      : 'transparent',
+                    border: isTodayDate
+                      ? `2px solid ${theme.palette.primary.main}`
+                      : `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    opacity: isCurrentMonthDate ? 1 : 0.35,
+                    '&:hover': isCurrentMonthDate
+                      ? {
+                          transform: 'translateY(-2px)',
+                          boxShadow: `0 8px 16px ${alpha(theme.palette.primary.main, 0.15)}`,
+                          borderColor: theme.palette.primary.main,
+                          backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                        }
+                      : {},
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'flex-start',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: {
+                        xs: isTodayDate ? '24px' : '22px',
+                        sm: isTodayDate ? '28px' : '26px',
+                        md: isTodayDate ? '32px' : '28px',
+                      },
+                      height: {
+                        xs: isTodayDate ? '24px' : '22px',
+                        sm: isTodayDate ? '28px' : '26px',
+                        md: isTodayDate ? '32px' : '28px',
+                      },
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: isTodayDate ? theme.palette.primary.main : 'transparent',
+                      mb: { xs: 0.25, sm: 0.375, md: 0.5 },
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontWeight: isTodayDate ? 700 : 500,
+                        fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem', lg: '0.875rem' },
+                        color: isTodayDate
+                          ? theme.palette.common.white
+                          : isCurrentMonthDate
+                          ? theme.palette.text.primary
+                          : alpha(theme.palette.text.primary, 0.4),
+                        lineHeight: 1,
+                      }}
+                    >
+                      {date.getDate()}
+                    </Typography>
+                  </Box>
+
+                  {hasCustomers && isCurrentMonthDate && (
+                    <Box
+                      sx={{
+                        mt: 'auto',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: { xs: 0.4, sm: 0.5, md: 0.6 },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: { xs: '5px', sm: '6px', md: '7px' },
+                          height: { xs: '5px', sm: '6px', md: '7px' },
+                          borderRadius: '50%',
+                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                          boxShadow: `0 2px 4px ${alpha(theme.palette.primary.main, 0.3)}`,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <Typography
+                        sx={{
+                          fontSize: { xs: '0.65rem', sm: '0.7rem', md: '0.75rem' },
+                          color: theme.palette.text.secondary,
+                          fontWeight: 400,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {customerCount} {customerCount === 1 ? 'customer' : 'customers'}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
           </Box>
-        </Card>
+        </Box>
+      </Card>
+    </>
+  );
+};
 
-        
-
-        <style>{`
-          .sales-calendar .rbc-calendar {
-            background: transparent !important;
-            color: ${theme.palette.text.primary} !important;
-            font-family: ${theme.typography.fontFamily} !important;
-          }
-          
-          .sales-calendar .rbc-header {
-            background: ${theme.palette.primary.main} !important;
-            color: ${theme.palette.common.white} !important;
-            padding: 12px 8px !important;
-            font-weight: 700 !important;
-            font-size: 14px !important;
-            border-bottom: 2px solid ${theme.palette.primary.main} !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.5px !important;
-          }
-          
-          .sales-calendar .rbc-month-view {
-            background: transparent !important;
-          }
-          
-          .sales-calendar .rbc-month-row {
-            border-right: 1px solid ${alpha(theme.palette.divider, 0.3)} !important;
-            border-bottom: 1px solid ${alpha(theme.palette.divider, 0.3)} !important;
-            max-width: content-box !important;
-          }
-          
-          .sales-calendar .rbc-date-cell {
-            border-right: 1px solid ${alpha(theme.palette.divider, 0.2)} !important;
-            color: ${theme.palette.text.primary} !important;
-            font-weight: 500 !important;
-            transition: all 0.2s ease-in-out !important;
-          }
-          
-          .sales-calendar .rbc-off-range-bg {
-            background: ${alpha(theme.palette.action.disabledBackground, 0.3)} !important;
-          }
-          
-          .sales-calendar .rbc-today {
-            background: linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)}, ${alpha(theme.palette.primary.main, 0.05)}) !important;
-            border-radius: 8px !important;
-            box-shadow: 0 4px 12px ${alpha(theme.palette.primary.main, 0.2)} !important;
-            position: relative !important;
-          }
-          
-          .sales-calendar .rbc-today::before {
-            position: absolute !important;
-            top: 0px !important;
-            right: 0px !important;
-            background: ${theme.palette.primary.main} !important;
-            color: white !important;
-            padding: 2px 6px !important;
-            border-radius: 4px !important;
-            font-size: 10px !important;
-            font-weight: 600 !important;
-            z-index: 10 !important;
-          }
-          
-          .sales-calendar .rbc-today .rbc-date-cell {
-            font-weight: 700 !important;
-            color: ${theme.palette.primary.main} !important;
-          }
-          
-          .sales-calendar .rbc-event {
-            background: linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark}) !important;
-            color: ${theme.palette.primary.contrastText} !important;
-            border-radius: 6px !important;
-            border: none !important;
-            box-shadow: 0 2px 8px ${alpha(theme.palette.primary.main, 0.3)} !important;
-            transition: all 0.2s ease-in-out !important;
-            font-weight: 500 !important;
-            max-width: 100px !important;
-          }
-          
-          .sales-calendar .rbc-event:hover {
-            background: linear-gradient(135deg, ${theme.palette.primary.dark}, ${theme.palette.primary.main}) !important;
-            transform: translateY(-1px) !important;
-            box-shadow: 0 4px 12px ${alpha(theme.palette.primary.main, 0.4)} !important;
-          }
-          
-          .sales-calendar .rbc-selected {
-            background: ${alpha(theme.palette.primary.main, 0.1)} !important;
-            color: ${theme.palette.primary.main} !important;
-            border-radius: 6px !important;
-          }
-          
-          .sales-calendar .rbc-selected * {
-            color: ${theme.palette.primary.main} !important;
-          }
-          
-          .sales-calendar .rbc-day-slot .rbc-event {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            min-height: 20px !important;
-            margin-bottom: 2px !important;
-          }
-          
-          .sales-calendar .rbc-date-cell {
-            cursor: pointer !important;
-            pointer-events: auto !important;
-            transition: all 0.2s ease-in-out !important;
-          }
-          
-          .sales-calendar .rbc-date-cell:hover {
-            background: ${alpha(theme.palette.primary.main, 0.05)} !important;
-            transform: scale(1.02) !important;
-          }
-          
-          .sales-calendar .rbc-day-slot {
-            cursor: pointer !important;
-            pointer-events: auto !important;
-            position: relative !important;
-            transition: all 0.2s ease-in-out !important;
-            min-height: 60px !important;
-          }
-          
-          .sales-calendar .rbc-day-slot:hover {
-            background: ${alpha(theme.palette.primary.main, 0.03)} !important;
-          }
-          
-          .sales-calendar .rbc-day-slot * {
-            pointer-events: auto !important;
-          }
-          
-          .sales-calendar .rbc-day-slot .rbc-events-container {
-            pointer-events: auto !important;
-            cursor: pointer !important;
-          }
-          
-          .sales-calendar .rbc-month-row {
-            cursor: pointer !important;
-          }
-          
-          .sales-calendar .rbc-month-row * {
-            pointer-events: auto !important;
-          }
-          
-          .sales-calendar .rbc-row-segment {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-          }
-          
-          .sales-calendar .rbc-off-range {
-            opacity: 0.4 !important;
-            cursor: not-allowed !important;
-          }
-          
-          .sales-calendar .rbc-off-range * {
-            cursor: not-allowed !important;
-          }
-          
-          .sales-calendar .rbc-off-range:hover {
-            background: transparent !important;
-            transform: none !important;
-          }
-          
-          .sales-calendar .rbc-toolbar {
-            margin-bottom: 16px !important;
-          }
-          
-          .sales-calendar .rbc-toolbar button {
-            background: ${alpha(theme.palette.primary.main, 0.1)} !important;
-            color: ${theme.palette.primary.main} !important;
-            border: 1px solid ${alpha(theme.palette.primary.main, 0.3)} !important;
-            border-radius: 6px !important;
-            padding: 8px 16px !important;
-            font-weight: 600 !important;
-            transition: all 0.2s ease-in-out !important;
-            margin-right: 10px !important;
-          }
-          
-          .sales-calendar .rbc-toolbar button:hover {
-            background: ${theme.palette.primary.main} !important;
-            color: white !important;
-            transform: translateY(-1px) !important;
-            box-shadow: 0 4px 8px ${alpha(theme.palette.primary.main, 0.3)} !important;
-          }
-        `}</style>
-      </>
-    );
-  };
-
-  export default SalesCalendar; 
+export default SalesCalendar;

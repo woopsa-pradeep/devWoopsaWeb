@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Box, Typography, Paper, RadioGroup, TextField, Select, MenuItem, FormControl } from '@mui/material';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import StoreOutlinedIcon from '@mui/icons-material/StoreOutlined';
@@ -58,6 +58,13 @@ const ShippingDetails: React.FC<ShippingDetailsProps> = ({
   const [deliveryInstructions, setDeliveryInstructions] = useState('');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [selectedPickupTimeSlot, setSelectedPickupTimeSlot] = useState<string>('');
+  const confirmPlaceOrderLockRef = useRef(false);
+
+  useEffect(() => {
+    if (!loading) {
+      confirmPlaceOrderLockRef.current = false;
+    }
+  }, [loading]);
 
   // Get current day
   const getCurrentDay = () => {
@@ -401,10 +408,14 @@ const ShippingDetails: React.FC<ShippingDetailsProps> = ({
               size="small"
               sx={{ minWidth: 80, borderRadius: '6px' }}
               onClick={() => {
+                if (confirmPlaceOrderLockRef.current || loading) return;
+                confirmPlaceOrderLockRef.current = true;
                 setIsConfirmModalOpen(false);
                 onPlaceOrder();
               }}
               appearance="filled"
+              disabled={loading}
+              loading={loading}
             >
               Yes
             </CustomButton>

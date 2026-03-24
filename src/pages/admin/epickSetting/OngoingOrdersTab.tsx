@@ -228,6 +228,27 @@ interface CompleteOrderDetails {
     totalItemsShipped: number;
     totalItems: number;
   };
+  checkerSummary?: {
+    totalQtyDeltaByChecker?: number;
+    totalBundlesDeltaByChecker?: number;
+    photoActionsCount?: number;
+    lastCheckerActionAt?: string;
+    checkerUserIds?: number[];
+  };
+  checkerActionLogs?: CheckerActionLog[];
+}
+
+interface CheckerActionLog {
+  id: number;
+  checkerUserId: number;
+  actionType: string;
+  itemNumber: number | null;
+  lineNumber: number | null;
+  boxId: number | null;
+  deltaQty: number;
+  deltaBundles: number;
+  meta?: Record<string, unknown> | null;
+  createdAt: string;
 }
 
 const OngoingOrdersTab: React.FC = () => {
@@ -912,6 +933,150 @@ const OngoingOrdersTab: React.FC = () => {
           }
         />
       ),
+    },
+  ];
+
+  const getCheckerMetaValue = (row: CheckerActionLog, key: string): string | number => {
+    if (!row.meta || typeof row.meta !== 'object' || Array.isArray(row.meta)) return 'N/A';
+    const value = (row.meta as Record<string, unknown>)[key];
+    return value === null || value === undefined || value === '' ? 'N/A' : String(value);
+  };
+
+  const checkerActionLogsColumns: TableColumn<CheckerActionLog>[] = [
+    {
+      id: 'createdAt',
+      label: 'Action At',
+      minWidth: 150,
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {formatDateTime(row.createdAt)}
+        </Typography>
+      ),
+    },
+    {
+      id: 'checkerUserId',
+      label: 'Checker User ID',
+      minWidth: 120,
+      align: 'center',
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {row.checkerUserId}
+        </Typography>
+      ),
+    },
+    {
+      id: 'actionType',
+      label: 'Action Type',
+      minWidth: 140,
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {row.actionType ? row.actionType.replace(/_/g, ' ').toUpperCase() : 'N/A'}
+        </Typography>
+      ),
+    },
+    {
+      id: 'itemNumber',
+      label: 'Item #',
+      minWidth: 100,
+      align: 'center',
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {row.itemNumber ?? 'N/A'}
+        </Typography>
+      ),
+    },
+    {
+      id: 'lineNumber',
+      label: 'Line #',
+      minWidth: 90,
+      align: 'center',
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {row.lineNumber ?? 'N/A'}
+        </Typography>
+      ),
+    },
+    {
+      id: 'boxId',
+      label: 'Box ID',
+      minWidth: 90,
+      align: 'center',
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {row.boxId ?? 'N/A'}
+        </Typography>
+      ),
+    },
+    {
+      id: 'deltaQty',
+      label: 'Delta Qty',
+      minWidth: 100,
+      align: 'center',
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {row.deltaQty ?? 0}
+        </Typography>
+      ),
+    },
+    {
+      id: 'deltaBundles',
+      label: 'Delta Bundles',
+      minWidth: 120,
+      align: 'center',
+      render: (row) => (
+        <Typography fontSize={14} fontWeight={400}>
+          {row.deltaBundles ?? 0}
+        </Typography>
+      ),
+    },
+    {
+      id: 'previousQty',
+      label: 'Previous Qty',
+      minWidth: 110,
+      align: 'center',
+      render: (row) => <Typography fontSize={14} fontWeight={400}>{getCheckerMetaValue(row, 'previousQty')}</Typography>,
+    },
+    {
+      id: 'newQty',
+      label: 'New Qty',
+      minWidth: 100,
+      align: 'center',
+      render: (row) => <Typography fontSize={14} fontWeight={400}>{getCheckerMetaValue(row, 'newQty')}</Typography>,
+    },
+    {
+      id: 'totalQtyShipped',
+      label: 'Total Qty Shipped',
+      minWidth: 130,
+      align: 'center',
+      render: (row) => <Typography fontSize={14} fontWeight={400}>{getCheckerMetaValue(row, 'totalQtyShipped')}</Typography>,
+    },
+    {
+      id: 'sourceBoxId',
+      label: 'Source Box',
+      minWidth: 100,
+      align: 'center',
+      render: (row) => <Typography fontSize={14} fontWeight={400}>{getCheckerMetaValue(row, 'sourceBoxId')}</Typography>,
+    },
+    {
+      id: 'destinationBoxId',
+      label: 'Destination Box',
+      minWidth: 120,
+      align: 'center',
+      render: (row) => <Typography fontSize={14} fontWeight={400}>{getCheckerMetaValue(row, 'destinationBoxId')}</Typography>,
+    },
+    {
+      id: 'containerType',
+      label: 'Container Type',
+      minWidth: 120,
+      align: 'center',
+      render: (row) => <Typography fontSize={14} fontWeight={400}>{getCheckerMetaValue(row, 'containerType')}</Typography>,
+    },
+    {
+      id: 'totalImages',
+      label: 'Total Images',
+      minWidth: 100,
+      align: 'center',
+      render: (row) => <Typography fontSize={14} fontWeight={400}>{getCheckerMetaValue(row, 'totalImages')}</Typography>,
     },
   ];
 
@@ -2079,6 +2244,63 @@ const OngoingOrdersTab: React.FC = () => {
                         </Typography>
                       </Box>
                     </>
+                  )}
+                </Box>
+
+                <Divider sx={{ my: 1.5 }} />
+
+                {/* Checker Action Logs */}
+                <Box sx={{ mb: 2 }}>
+                  <Typography fontSize={15} fontWeight={600} sx={{ mb: 1 }}>
+                    Checker Action Logs ({orderDetails.checkerActionLogs?.length || 0})
+                  </Typography>
+                  {orderDetails.checkerSummary && (
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, mb: 1 }}>
+                      <Typography fontSize={13} color="text.secondary">
+                        Qty Delta: <strong>{orderDetails.checkerSummary.totalQtyDeltaByChecker ?? 0}</strong>
+                      </Typography>
+                      <Typography fontSize={13} color="text.secondary">
+                        Bundles Delta: <strong>{orderDetails.checkerSummary.totalBundlesDeltaByChecker ?? 0}</strong>
+                      </Typography>
+                      <Typography fontSize={13} color="text.secondary">
+                        Photo Actions: <strong>{orderDetails.checkerSummary.photoActionsCount ?? 0}</strong>
+                      </Typography>
+                      <Typography fontSize={13} color="text.secondary">
+                        Last Checker Action: <strong>{formatDateTime(orderDetails.checkerSummary.lastCheckerActionAt || '')}</strong>
+                      </Typography>
+                      <Typography fontSize={13} color="text.secondary" sx={{ gridColumn: '1 / -1' }}>
+                        Checker Users: <strong>
+                          {orderDetails.checkerSummary.checkerUserIds && orderDetails.checkerSummary.checkerUserIds.length > 0
+                            ? orderDetails.checkerSummary.checkerUserIds.join(', ')
+                            : 'N/A'}
+                        </strong>
+                      </Typography>
+                    </Box>
+                  )}
+                  {orderDetails.checkerActionLogs && orderDetails.checkerActionLogs.length > 0 ? (
+                    <CommonTable
+                      data={orderDetails.checkerActionLogs}
+                      columns={checkerActionLogsColumns}
+                      currentPage={1}
+                      totalPages={1}
+                      totalItems={orderDetails.checkerActionLogs.length}
+                      pageSize={orderDetails.checkerActionLogs.length}
+                      onPageChange={() => {}}
+                      onPageSizeChange={() => {}}
+                      loading={false}
+                      isPagination={false}
+                      stickyLastColumn={true}
+                      containerHeight="auto"
+                      emptyStateComponent={
+                        <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                          <Typography color="text.secondary">No checker action logs found</Typography>
+                        </Box>
+                      }
+                    />
+                  ) : (
+                    <Box display="flex" justifyContent="center" alignItems="center" py={1}>
+                      <Typography color="text.secondary">No checker action logs found</Typography>
+                    </Box>
                   )}
                 </Box>
 

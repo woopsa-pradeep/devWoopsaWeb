@@ -2515,7 +2515,7 @@ const Order = () => {
                       Description: row.name,
                       price: getDisplayUnitPrice(row),
                       productId: prev[row.id]?.productId || 0,
-                      placedBySalesPerson: prev[row.id]?.placedBySalesPerson ?? row?.Product?.placedBySalesPerson ?? false
+                      placedBySalesPerson: prev[row.id]?.placedBySalesPerson ?? row?.Product?.placedBySalesPerson ?? true
                     }
                   }));
                   setCartItemsData(prev => ({ ...prev, [row.id]: row }));
@@ -2772,7 +2772,7 @@ const Order = () => {
             price: discountedPrice, // Use discounted price
             priceWithTax: discountedPrice, // Also update priceWithTax to maintain consistency
             productId: prev[product.id]?.productId || 0,
-            placedBySalesPerson: product?.Product?.placedBySalesPerson || false
+            placedBySalesPerson: prev[product.id]?.placedBySalesPerson ?? product?.Product?.placedBySalesPerson ?? true
           }
         }));
         // Add to insertion order if it's a new item
@@ -2846,7 +2846,7 @@ const Order = () => {
             price: originalPriceWithTax, // Use calculated price with prepaid tax (no discount)
             priceWithTax: originalPriceWithTax, // Also update priceWithTax to maintain consistency
             productId: prev[product.id]?.productId || 0,
-            placedBySalesPerson: product?.Product?.placedBySalesPerson || false
+            placedBySalesPerson: prev[product.id]?.placedBySalesPerson ?? product?.Product?.placedBySalesPerson ?? true
           }
         }));
         // Add to insertion order if it's a new item
