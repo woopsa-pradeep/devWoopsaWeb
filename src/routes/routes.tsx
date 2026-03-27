@@ -934,6 +934,14 @@ export const salesRoutes = [
               </RoleBasedRoute>
             ),
           },
+          {
+            path: "promo",
+            element: (
+              <RoleBasedRoute path="/sales/promo">
+                <AdminPromo />
+              </RoleBasedRoute>
+            ),
+          },
 
           {
             path: "policies",

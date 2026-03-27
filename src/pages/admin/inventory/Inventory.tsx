@@ -260,15 +260,16 @@ const Inventory: React.FC = () => {
                 // Ensure myKey is preserved if it exists
                 const upcsWithKey = inventoryData.upcData.map((u: any) => ({
                   ...u,
+                  UPC_Number: u?.UPC_Number !== undefined && u?.UPC_Number !== null ? String(u.UPC_Number) : '',
                   myKey: u.myKey,
                 }));
                 setUpcData(upcsWithKey);
                 const primary = upcsWithKey.find((u: UPCData) => u.UPC_Type === 'Primary');
                 const caseU = upcsWithKey.find((u: UPCData) => u.UPC_Type === 'Case');
                 const retail = upcsWithKey.find((u: UPCData) => u.UPC_Type === 'Retail');
-                if (primary) setPrimaryUPC(primary.UPC_Number);
-                if (caseU) setCaseUPC(caseU.UPC_Number);
-                if (retail) setRetailUPC(retail.UPC_Number);
+                if (primary) setPrimaryUPC(String(primary.UPC_Number ?? ''));
+                if (caseU) setCaseUPC(String(caseU.UPC_Number ?? ''));
+                if (retail) setRetailUPC(String(retail.UPC_Number ?? ''));
               } else if (inventoryData.UPCList && Array.isArray(inventoryData.UPCList)) {
                 // Handle alternative UPC format - preserve myKey for edit mode
                 const upcs: UPCData[] = inventoryData.UPCList.map((upc: any, index: number) => {
@@ -287,7 +288,7 @@ const Inventory: React.FC = () => {
                   }
                   
                   return {
-                    UPC_Number: upc.UPC_Number || upc,
+                    UPC_Number: String(upc?.UPC_Number ?? upc ?? ''),
                     UPC_Type: upcType,
                     Status: upc.Status !== undefined ? upc.Status : (upcType === 'Primary' ? 0 : upcType === 'Case' ? 1 : 2),
                     Priority: upc.Priority || 1,
@@ -299,9 +300,9 @@ const Inventory: React.FC = () => {
                 const primary = upcs.find((u) => u.UPC_Type === 'Primary');
                 const caseU = upcs.find((u) => u.UPC_Type === 'Case');
                 const retail = upcs.find((u) => u.UPC_Type === 'Retail');
-                if (primary) setPrimaryUPC(primary.UPC_Number);
-                if (caseU) setCaseUPC(caseU.UPC_Number);
-                if (retail) setRetailUPC(retail.UPC_Number);
+                if (primary) setPrimaryUPC(String(primary.UPC_Number ?? ''));
+                if (caseU) setCaseUPC(String(caseU.UPC_Number ?? ''));
+                if (retail) setRetailUPC(String(retail.UPC_Number ?? ''));
               }
             }
           } catch (error) {
@@ -770,9 +771,9 @@ const Inventory: React.FC = () => {
     const savedCase = newUPCs.find(upc => upc.UPC_Type === 'Case');
     const savedRetail = newUPCs.find(upc => upc.UPC_Type === 'Retail');
     
-    setPrimaryUPC(savedPrimary?.UPC_Number || '');
-    setCaseUPC(savedCase?.UPC_Number || '');
-    setRetailUPC(savedRetail?.UPC_Number || '');
+    setPrimaryUPC(String(savedPrimary?.UPC_Number ?? ''));
+    setCaseUPC(String(savedCase?.UPC_Number ?? ''));
+    setRetailUPC(String(savedRetail?.UPC_Number ?? ''));
     
     // Reset image state (will reload if Primary UPC exists)
     setProductImageUrl(null);
@@ -809,13 +810,13 @@ const Inventory: React.FC = () => {
     const existingRetail = upcData.find(upc => upc.UPC_Type === 'Retail');
 
     // Also check Basic Information section for UPCs
-    const basicPrimary = primaryUPC.trim() || existingPrimary?.UPC_Number || '';
-    const basicCase = caseUPC.trim() || existingCase?.UPC_Number || '';
-    const basicRetail = retailUPC.trim() || existingRetail?.UPC_Number || '';
+    const basicPrimary = primaryUPC.trim() || String(existingPrimary?.UPC_Number ?? '');
+    const basicCase = caseUPC.trim() || String(existingCase?.UPC_Number ?? '');
+    const basicRetail = retailUPC.trim() || String(existingRetail?.UPC_Number ?? '');
 
-    setPrimaryUPC(basicPrimary);
-    setCaseUPC(basicCase);
-    setRetailUPC(basicRetail);
+    setPrimaryUPC(String(basicPrimary));
+    setCaseUPC(String(basicCase));
+    setRetailUPC(String(basicRetail));
     setUpcValidationErrors({});
     setShowUPCPopup(true);
   };

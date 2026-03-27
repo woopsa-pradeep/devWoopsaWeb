@@ -91,6 +91,14 @@ const RolesPermissionsPage = () => {
       {
         salesId: id,
         name: name,
+        module: 'Promo & marketing',
+        add: false,
+        view: false,
+        edit: false,
+      },
+      {
+        salesId: id,
+        name: name,
         module: 'Retailers',
         add: false,
         view: false,

@@ -355,7 +355,7 @@ export const salesNavigationConfig: NavigationItem[] = [
     check: "sales",
   },
   {
-    name: "Promo & Discounts",
+    name: "Promo & marketing",
     path: "/sales/promo",
     icon: "promo",
     check: "sales",
