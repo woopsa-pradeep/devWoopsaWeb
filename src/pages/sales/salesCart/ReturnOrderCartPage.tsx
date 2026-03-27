@@ -11,7 +11,7 @@ import { TableColumn } from "../../../component/atoms/Table/CommonTable";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
 import deleteIcon from "../../../assets/icons/delete.svg";
-import { updateCartItem, removeFromCart, getSalesWarehouseProfile, getDeliveryCharge, addToCart, clearCart as clearCartApi } from '../../../redux/apis/sales/salesOrderApis';
+import { updateCartItem, removeFromCart, getSalesWarehouseProfile, addToCart, clearCart as clearCartApi } from '../../../redux/apis/sales/salesOrderApis';
 import DeleteConfirmationModal from '../../../component/atoms/DeleteConfirmationModal';
 import PriceChangeModal from '../../../component/molecules/PriceChangeModal';
 import InactiveItemsModal from '../../../component/molecules/InactiveItemsModal';
@@ -96,7 +96,6 @@ const ReturnOrderCartPage: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<CartItem | null>(null);
   const [clearCartModalOpen, setClearCartModalOpen] = useState(false);
-  const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
   const [priceChangeModalOpen, setPriceChangeModalOpen] = useState(false);
   const [priceChangeItems, setPriceChangeItems] = useState<any[]>([]);
   const [inactiveItemsModalOpen, setInactiveItemsModalOpen] = useState(false);
@@ -500,7 +499,7 @@ const ReturnOrderCartPage: React.FC = () => {
       });
 
       const payload = {
-        Delivery_Charge: Number(deliveryCharge).toFixed(2),  
+        Delivery_Charge: Number(0).toFixed(2),
         orderPlayload: orderPayload,
         shippingMethod: shippingMethod,
         pickupTime: shippingMethod === 'pickup' ? selectedTimeSlot : null,
@@ -540,20 +539,12 @@ const ReturnOrderCartPage: React.FC = () => {
   //   console.log('Saving changes...');
   // };
 
-  useEffect(() => {
-    const fetchDeliveryCharge = async () => {
-      const response: any = await getDeliveryCharge(selectedCustomer?.C_Number?.toString() || '');
-      setDeliveryCharge(response.data);
-    }
-    fetchDeliveryCharge();
-  }, []);
-
   // Calculate price details
   const calculatePriceDetails = () => {
     const subtotal = Number(cartItems.reduce((sum: any, item: any) => sum + (item.Product.Price_With_Tax * item.Product.Qty), 0).toFixed(2));
     //  const discount = 0; // No discount for now
     const crv = Number(0).toFixed(2); // No CRV for now
-    const deliveryCharges = Number(deliveryCharge).toFixed(2); // No delivery charges for now
+    const deliveryCharges = Number(0).toFixed(2);
     const estimatedTotal = Number((subtotal + Number(crv) + Number(deliveryCharges)).toFixed(2));
 
     return {
