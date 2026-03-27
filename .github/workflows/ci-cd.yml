@@ -3,7 +3,7 @@ name: Dev Auto Deploy
 on:
   push:
     branches:
-      - dev
+      - dev_stable_v
 
 jobs:
   deploy:
