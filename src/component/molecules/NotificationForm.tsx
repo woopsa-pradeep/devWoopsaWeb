@@ -322,7 +322,7 @@ const NotificationForm: React.FC<NotificationFormProps> = ({
                   backgroundColor: 'grey.50',
                 }}
               >
-                <Typography variant="subtitle2" fontWeight={600} color="text.secondary">
+                <Typography variant="subtitle2" fontWeight={600} color="grey.700">
                   Selected Users ({watch('userId').length})
                 </Typography>
               </Box>

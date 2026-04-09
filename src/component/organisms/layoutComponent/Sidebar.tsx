@@ -78,6 +78,7 @@ const iconMap: { [key: string]: string } = {
   "e-pick-settings": EpickSettingIcon,
   "inventory": InventoryIcon,
   "reports-analytics": ReportsAnalyticsIcon,
+  "driver-management": UserManagementIcon,
   orderChecker: OrderIcon,
 };
 

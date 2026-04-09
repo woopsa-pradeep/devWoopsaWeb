@@ -334,6 +334,61 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['distributor'],
     redirectPath: '/admin/dashboard'
   },
+  '/admin/driver-management': {
+    path: '/admin/driver-management',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/create-route-automatic': {
+    path: '/admin/driver-management/create-route-automatic',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/create-route-manual': {
+    path: '/admin/driver-management/create-route-manual',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/select-driver-vehicle': {
+    path: '/admin/driver-management/select-driver-vehicle',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/view-route': {
+    path: '/admin/driver-management/view-route',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/drivers': {
+    path: '/admin/driver-management/drivers',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/vehicles': {
+    path: '/admin/driver-management/vehicles',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/route-optimization': {
+    path: '/admin/driver-management/route-optimization',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/manual-route-optimize': {
+    path: '/admin/driver-management/manual-route-optimize',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/cancelled-orders': {
+    path: '/admin/driver-management/cancelled-orders',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/admin/driver-management/settings': {
+    path: '/admin/driver-management/settings',
+    allowedRoles: ['distributor'],
+    redirectPath: '/admin/dashboard'
+  },
   // Sales routes
   '/sales/dashboard': {
     path: '/sales/dashboard',

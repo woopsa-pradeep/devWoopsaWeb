@@ -233,6 +233,12 @@ export const adminNavigationConfig: NavigationItem[] = [
     icon: "e-pick-settings",
     check: "distributor",
   },
+  {
+    name: "Driver Management",
+    path: "/admin/driver-management",
+    icon: "driver-management",
+    check: "distributor",
+  },
   
   
   // {

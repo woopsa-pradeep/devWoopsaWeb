@@ -18,22 +18,30 @@ const MapImage: React.FC<MapImageProps> = ({
   address,
   onClick
 }) => {
+  const latNum = parseFloat(latitude);
+  const lngNum = parseFloat(longitude);
+  const pad = 0.02;
+  const bboxValid =
+    !Number.isNaN(latNum) &&
+    !Number.isNaN(lngNum) &&
+    Number.isFinite(latNum) &&
+    Number.isFinite(lngNum);
+
   const handleClick = () => {
     if (onClick) {
       onClick();
-    } else {
-      // Default behavior: open Google Maps
-      const lat = parseFloat(latitude);
-      const lng = parseFloat(longitude);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-        window.open(googleMapsUrl, '_blank', 'noopener,noreferrer');
-      }
+    } else if (bboxValid) {
+      // OpenStreetMap in browser — no API key (unlike Google Maps Embed API).
+      const osmUrl = `https://www.openstreetmap.org/?mlat=${latNum}&mlon=${lngNum}#map=15/${latNum}/${lngNum}`;
+      window.open(osmUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
-  // Create a free Google Maps iframe URL (no API key required)
-  const googleMapsIframeUrl = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${latitude},${longitude}&zoom=15&maptype=roadmap`;
+  /** OSM embed (public, no key). Falls back to empty src if coordinates invalid. */
+  const osmEmbedUrl =
+    bboxValid
+      ? `https://www.openstreetmap.org/export/embed.html?bbox=${lngNum - pad},${latNum - pad},${lngNum + pad},${latNum + pad}&layer=mapnik&marker=${latNum},${lngNum}`
+      : '';
 
   return (
     <Box
@@ -68,16 +76,15 @@ const MapImage: React.FC<MapImageProps> = ({
           backgroundColor: '#f8f9fa'
         }}
       >
-        {/* Google Maps iframe */}
         <iframe
-          src={googleMapsIframeUrl}
+          src={bboxValid ? osmEmbedUrl : 'about:blank'}
           width="100%"
           height="100%"
           frameBorder="0"
           scrolling="no"
           marginHeight={0}
           marginWidth={0}
-          title="Google Maps Location"
+          title="Map location"
           style={{
             border: 'none',
             borderRadius: '8px'
@@ -125,7 +132,7 @@ const MapImage: React.FC<MapImageProps> = ({
             textShadow: '0 1px 2px rgba(0, 0, 0, 0.8)'
           }}
         >
-          Click to open in Google Maps
+          Click to open in OpenStreetMap
         </Typography>
       </Box>
     </Box>

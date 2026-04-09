@@ -24,7 +24,6 @@ export const updateProfile = async (data: any) => {
   return axiosInstance.put("/distrubutor/distributorUpdate", data);
 };
 
-
 // New API functions for different settings tabs
 export const updateSalesRepSetting = async (data: any) => {
     return axiosInstance.put('/distrubutor/updateSalesRepSetting', data);
@@ -261,3 +260,46 @@ export const makeBulkPickListPrinted = async (orderNumbers: (string | number)[])
     const response: any = await axiosInstance.put('/distrubutor/makeBulkPickListPrinted', payload);
     return response?.data;
 };
+
+// Drivers APIs 
+
+export const getDrivers = async (params?: {
+  page?: number;
+  limit?: number;
+}) => {
+  return axiosInstance.get("/distrubutor/drivers", { params });
+};
+
+export const createDriver = async (data: any) => {
+  return axiosInstance.post("/distrubutor/drivers", data);
+};
+
+export const updateDriver = async (
+  id: number | string,
+  data: any
+) => {
+  return axiosInstance.put(`/distrubutor/drivers/${id}`, data);
+};
+
+//  VEHICLES APIs 
+
+export const getVehicles = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isActive?: boolean;
+}) => {
+  return axiosInstance.get("/distrubutor/vehicles", { params });
+};
+
+export const createVehicle = async (data: any) => {
+  return axiosInstance.post("/distrubutor/vehicles", data);
+};
+
+export const updateVehicle = async (
+  id: number | string,
+  data: any
+) => {
+  return axiosInstance.put(`/distrubutor/vehicles/${id}`, data);
+};
+

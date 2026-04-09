@@ -198,6 +198,11 @@ export const getCustomerRouteList =async () => {
     return response.data.data;
 }
 
+export const getRetailerList = async () => {
+    const response: any = await axiosInstance.get('/list/listOfRetailer');
+    return response.data.data;
+};
+
 
 export const uploadAttachment = async (params: any) => {
     const formData = new FormData();

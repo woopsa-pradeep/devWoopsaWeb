@@ -22,6 +22,8 @@ interface CommonModalProps {
   isCloseIcon?: boolean;
   title?: string;
   children: React.ReactNode;
+  /** Tighter padding and title spacing for data-dense forms */
+  dense?: boolean;
 }
 
 const sizeMap = {
@@ -44,6 +46,7 @@ const CommonModal: React.FC<CommonModalProps> = ({
   sx = [],
   isCloseIcon = true,
   children,
+  dense = false,
 }) => {
   const modalWidth = width ?? sizeMap[size];
 
@@ -70,8 +73,10 @@ const CommonModal: React.FC<CommonModalProps> = ({
               minWidth: minWidth ?? 280,
               bgcolor: 'background.paper',
               boxShadow: 24,
-              borderRadius: 2,
-              p: { xs: "16px 24px 24px", sm: "16px 24px 24px" },
+              borderRadius: dense ? 1.5 : 2,
+              p: dense
+                ? { xs: '8px 12px 12px', sm: '10px 16px 14px' }
+                : { xs: "16px 24px 24px", sm: "16px 24px 24px" },
               outline: 'none',
               overflowY: 'auto',
               maxHeight: '90vh',
@@ -80,15 +85,23 @@ const CommonModal: React.FC<CommonModalProps> = ({
             ...(Array.isArray(sx) ? sx : [sx]),
           ]}
         >
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} sx={{ position: 'sticky', top: 0, backgroundColor: 'background.paper', zIndex: 1 }}>
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="space-between"
+            mb={dense ? 1 : 2}
+            sx={{ position: 'sticky', top: 0, backgroundColor: 'background.paper', zIndex: 1, pb: dense ? 0.25 : 0 }}
+          >
           {title && (
-            <Typography fontSize={18} fontWeight={500} color="primary.main">
+            <Typography fontSize={dense ? 16 : 18} fontWeight={dense ? 600 : 500} color="primary.main" lineHeight={1.2}>
               {title}
             </Typography>
           )}
           {isCloseIcon && (
             <IconButton
               onClick={onClose}
+              size={dense ? 'small' : 'medium'}
+              sx={{ p: dense ? 0.5 : 1 }}
             >
               <CloseIcon sx={{ color: "primary.main" }} fontSize="small" />
             </IconButton>

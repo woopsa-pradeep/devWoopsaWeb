@@ -45,7 +45,8 @@ import PromoForm from '../../molecules/PromoForm';
 import PromoViewModal from '../../molecules/PromoViewModal';
 import SwitchInput from '../../atoms/SwitchInput';
 import DeleteModal from '../../atoms/DeleteModal';
-import { createPromo, updatePromo, getPromoList, deletePromo, createEmailMarketing, getAllEmailMarketing, getEmailForCampaign, getCustomerRouteList, uploadAttachment, sendDraftEmail } from '../../../redux/apis/distrubutor/promoApis';
+import { createPromo, updatePromo, getPromoList, deletePromo, createEmailMarketing, getAllEmailMarketing, getEmailForCampaign, getCustomerRouteList, uploadAttachment, sendDraftEmail, getRetailerList
+ } from '../../../redux/apis/distrubutor/promoApis';
 import { toast } from 'react-hot-toast';
 import Links from '../../../pages/admin/links/Links';
 import ProductCatalog from './ProductCatalog';
@@ -88,6 +89,11 @@ interface RouteOption {
 }
 
 interface DayOption {
+    value: string;
+    label: string;
+}
+
+interface RetailerOption {
     value: string;
     label: string;
 }
@@ -181,6 +187,9 @@ const PromoTabs = () => {
     const [sendDraftModalOpen, setSendDraftModalOpen] = useState(false);
     const [selectedDraftCampaign, setSelectedDraftCampaign] = useState<EmailCampaign | null>(null);
     const [sendDraftLoading, setSendDraftLoading] = useState(false);
+    const [retailerOptions, setRetailerOptions] = useState<RetailerOption[]>([]);
+   const [selectedRetailers, setSelectedRetailers] = useState<RetailerOption[]>([]);
+   const [retailerLoading, setRetailerLoading] = useState(false);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -288,6 +297,26 @@ const PromoTabs = () => {
             setRouteOptionsLoading(false);
         }
     }, []);
+
+        const fetchRetailers = useCallback(async () => {
+    setRetailerLoading(true);
+    try {
+        const response = await getRetailerList();
+        console.log("Retailer Response:", response);
+
+        const options: RetailerOption[] = response.map((item: any, index: number) => ({
+            value: `${item._id || item.id || item.C_ID || index}`,
+            label: item.C_Name || item.name
+        }));
+
+        setRetailerOptions(options);
+    } catch (error) {
+        console.error("Error fetching retailers:", error);
+        toast.error("Failed to load retailers");
+    } finally {
+        setRetailerLoading(false);
+    }
+}, []);
 
     const initializeDayOptions = useCallback(() => {
         const days: DayOption[] = [
@@ -456,24 +485,30 @@ const PromoTabs = () => {
     };
 
     // Email Marketing handlers
-    const handleAddEmailCampaign = async () => {
-        setEmailFormData({
-            to: [],
-            subject: '',
-            body: '',
-            attachments: []
-        });
-        setSelectedRecipients([]);
-        setSelectedRoutes([]);
-        setSelectedDays([]);
-        setAttachments([]);
-        setEmailModalOpen(true);
-        
-        // Initialize day options and fetch route options and email options when modal opens
-        initializeDayOptions();
-        await Promise.all([fetchRouteOptions(), fetchEmailOptions()]);
-    };
+      const handleAddEmailCampaign = async () => {
+       setEmailFormData({
+        to: [],
+        subject: '',
+        body: '',
+        attachments: []
+    });
 
+     setSelectedRecipients([]);
+     setSelectedRoutes([]);
+     setSelectedDays([]);
+     setSelectedRetailers([]);  
+     setAttachments([]);
+
+     setEmailModalOpen(true);
+
+     initializeDayOptions();
+
+     await Promise.all([
+        fetchRouteOptions(),
+        fetchEmailOptions(),
+        fetchRetailers()   
+     ]);
+ };
 
     const handleRecipientsChange = (selectedOptions: EmailOption[]) => {
         // Check if "select all" option is selected
@@ -503,6 +538,28 @@ const PromoTabs = () => {
             }));
         }
     };
+     
+      const handleRetailersChange = (selectedOptions: RetailerOption[]) => {
+    const hasSelectAll = selectedOptions.some(
+        option => option.value === "select-all-retailers"
+    );
+
+    if (hasSelectAll) {
+        const allRetailers = retailerOptions.map(option => ({
+            label: option.label,
+            value: option.value
+        }));
+
+        setSelectedRetailers(allRetailers);
+    } else {
+        const filtered = selectedOptions.filter(
+            option => option.value !== "select-all-retailers"
+        );
+
+        setSelectedRetailers(filtered);
+    }
+};
+
 
     const handleRoutesChange = async (selectedOptions: RouteOption[]) => {
         setSelectedRoutes(selectedOptions);
@@ -1235,10 +1292,12 @@ const PromoTabs = () => {
                 fullWidth
                 PaperProps={{
                     sx: {
-                        height: '90vh',
-                        maxHeight: '90vh',
-                        borderRadius: 3,
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+                        // height: '90vh',
+                        // maxHeight: '90vh',
+                        // borderRadius: 3,
+                        // boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+                        bgcolor: 'background.paper',
+                        color: 'text.primary',
                     }
                 }}
             >
@@ -1261,12 +1320,12 @@ const PromoTabs = () => {
                     px: 3
                 }}>
                     {/* Filters Section */}
-                    <Box sx={{ 
-                        p: 2, 
-                        bgcolor: 'grey.50', 
-                        borderRadius: 2,
-                        border: '1px solid',
-                        borderColor: 'grey.200'
+                   <Box sx={{ 
+                    p: 2,
+                    bgcolor: 'background.default',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider'
                     }}>
                         <Typography variant="h6" sx={{ 
                             mb: 2, 
@@ -1304,6 +1363,37 @@ const PromoTabs = () => {
                             </Box>
                         </Box>
                     </Box>
+
+                           {/* Retailers Section */}
+                         <Box>
+                            <Typography
+                              variant="h6"
+                               sx={{
+                                   mb: 2,
+                                   fontSize: 16,
+                                    fontWeight: 600,
+                                   color: 'text.primary'
+                                   }}
+                                    >
+                                   Retailers
+                                </Typography>
+
+                               <MultiSearchableDropdown
+                                label=""
+                                options={[
+                             {
+                              label: `Select All Retailers (${retailerOptions.length})`,
+                              value: "select-all-retailers",
+                              },
+                              ...retailerOptions
+                             ]}
+                             value={selectedRetailers}
+                            onChange={handleRetailersChange}
+                             placeholder="Select retailers..."
+                            loading={retailerLoading}
+                            sx={{ mb: 0 }}
+                             />
+                      </Box>
 
                     {/* Recipients Section */}
                     <Box>
@@ -1373,7 +1463,7 @@ const PromoTabs = () => {
                             flexGrow: 1, 
                             minHeight: 300,
                             border: '1px solid',
-                            borderColor: 'grey.300',
+                            borderColor: 'divider',
                             borderRadius: 2,
                             overflow: 'hidden'
                         }}>
@@ -1398,17 +1488,17 @@ const PromoTabs = () => {
                         </Typography>
                         
                         <Box sx={{ 
-                            border: '2px dashed',
-                            borderColor: 'grey.300',
-                            borderRadius: 2,
-                            p: 2,
-                            bgcolor: 'grey.50',
-                            transition: 'all 0.2s ease',
-                            '&:hover': {
-                                borderColor: 'primary.main',
-                                bgcolor: 'primary.50'
-                            }
-                        }}>
+                        border: '2px dashed',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        p: 2,
+                        bgcolor: 'background.default',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                        borderColor: 'primary.main',
+                        bgcolor: 'action.hover'
+                       }
+                      }}>
                             {/* Upload Area */}
                             <Box sx={{ 
                                 display: 'flex', 
@@ -1451,7 +1541,7 @@ const PromoTabs = () => {
                             
                             {/* Attachments List */}
                             {attachments.length > 0 && (
-                                <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'grey.200' }}>
+                                <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                                     <Typography variant="subtitle2" sx={{ 
                                         mb: 1.5, 
                                         color: 'text.secondary',
@@ -1486,13 +1576,14 @@ const PromoTabs = () => {
                     </Box>
                 </DialogContent>
                 
-                <DialogActions sx={{ 
-                    p: 3, 
-                    pt: 2,
-                    borderTop: '1px solid',
-                    borderColor: 'grey.200',
-                    bgcolor: 'grey.50'
-                }}>
+                  <DialogActions sx={{ 
+                  p: 3, 
+                  pt: 2,
+                  borderTop: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper'
+                 }}>
+                    
                     <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'flex-end' }}>
                         <CustomButton
                             onClick={() => setEmailModalOpen(false)}
@@ -1548,7 +1639,7 @@ const PromoTabs = () => {
                             {/* Subject */}
                             <Box>
                                 <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>Subject</Typography>
-                                <Typography variant="body1" sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                                <Typography variant="body1" sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1, color: 'grey.700' }}>
                                     {selectedEmailCampaign.subject}
                                 </Typography>
                             </Box>
@@ -1596,7 +1687,7 @@ const PromoTabs = () => {
                             {/* Created At */}
                             <Box>
                                 <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>Created At</Typography>
-                                <Typography variant="body1" sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                                <Typography variant="body1" sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1, color: 'grey.700'}}>
                                     {dayjs(selectedEmailCampaign.createdAt).format('YYYY/MM/DD HH:mm:ss')}
                                 </Typography>
                             </Box>
@@ -1626,10 +1717,10 @@ const PromoTabs = () => {
                                 <Box 
                                     sx={{ 
                                         p: 2, 
-                                        bgcolor: 'grey.50', 
+                                        bgcolor: 'background.default', 
                                         borderRadius: 1,
                                         border: '1px solid',
-                                        borderColor: 'grey.300',
+                                        borderColor: 'divider',
                                         minHeight: 200,
                                         maxHeight: 400,
                                         overflow: 'auto'

@@ -4682,7 +4682,7 @@ const CreateTradeshow: React.FC = () => {
                       color: "#fff",
                     }}
                   >
-                    {step4NextSubmitting ? "Saving..." : "Next"}
+                   {step4NextSubmitting ? "Saving..." : "Save & Finish"}
                   </Button>
                 </Stack>
               </Box>
@@ -5028,7 +5028,7 @@ const CreateTradeshow: React.FC = () => {
                   }}
                   sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, px: 2.5, color: "white" }}
                 >
-                  Finish
+                  Close
                 </Button>
               </Stack>
             </Box>

@@ -218,15 +218,29 @@ const PoliciesTabs = () => {
                   {updating ? 'Saving...' : 'Save'}
                 </CustomButton>
                 <CustomButton
-                  onClick={handleCancel}
-                  disabled={updating}
-                  buttonType="cancel"
-                  appearance="outlined"
-                  size="medium"
-                  fullWidth={false}
-                >
-                  Cancel
-                </CustomButton>
+               onClick={handleCancel}
+              disabled={updating}
+              buttonType="cancel"
+              appearance="outlined"
+              size="medium"
+             fullWidth={false}
+             sx={{
+             color: 'text.primary',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+           "&:hover": {
+            bgcolor: 'action.hover',
+            borderColor: 'primary.main'
+            },
+          "&.Mui-disabled": {
+           color: 'text.disabled',
+           borderColor: 'divider',
+          bgcolor: 'action.disabledBackground'
+      }
+    }}
+        >
+         Cancel
+        </CustomButton>
               </Box>
             </Box>
           ) : (

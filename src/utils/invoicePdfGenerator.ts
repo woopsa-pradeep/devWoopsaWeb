@@ -213,7 +213,7 @@ export interface InvoiceTemplateConfig {
   showLastBalance: boolean;
   showTotalAmountDue: boolean;
   showReportGeneratedByWoopsa: boolean;
-  /** Custom labels for footer summary lines (netInvoice, totalPPD, deliveryCharge, deposit, houseCharge, posCheck, posCash, posCredit, invoiceTotal, lastBalance, totalDue). */
+  /** Custom labels for footer summary lines (netInvoice, totalPPD, deliveryCharge, deposit, houseCharge, posCheck, posCash, posCredit, invoiceTotal). */
   footerSummaryLabels?: Record<string, string>;
   /** Custom column header labels (column key -> display label), e.g. { orderQty: "Quantity", itemNumber: "Item" }. */
   columnHeaderNames?: Record<string, string>;
@@ -834,7 +834,6 @@ function addInvoiceFooterToPage(
   const subTotal = tot.subTotal ?? 0;
   const deliveryCharge = tot.deliveryCharge ?? 0;
   const deposit = tot.deposit ?? 0;
-  const lastBalance = tot.lastBalance ?? 0;
   const houseCharge = tot.houseCharge ?? 0;
   const posCheck = tot.posCheck ?? 0;
   const posCash = tot.posCash ?? 0;
@@ -842,11 +841,6 @@ function addInvoiceFooterToPage(
   // Invoice total = subTotal + deliveryCharge + deposit only. House charge, POS_Check, POS_Cash, POS_Credit are display-only (not in total).
   const baseTotal = subTotal + deliveryCharge + deposit;
   const invoiceTotal = Number(baseTotal.toFixed(2));
-  // Last balance: if negative then subtract from total (reduces amount due); if positive then add to total (increases amount due).
-  const totalAmountDue = Number(
-    (lastBalance >= 0 ? invoiceTotal + lastBalance : invoiceTotal - lastBalance).toFixed(2)
-  );
-
   // Footer at bottom: Woopsa line at page bottom; on last page, footer block sits just above it (no gap).
   const woopsaY = pageHeight - WOOPSA_LINE_BOTTOM_MM;
   const gapFooterToWoopsaMM = 1;
@@ -933,14 +927,6 @@ function addInvoiceFooterToPage(
     }
     doc.text(`${lbl('invoiceTotal', 'Invoice Total')}: ${formatCurrency(invoiceTotal)}`, summaryTextX, summaryY, { align: summaryAlign });
     summaryY += 4;
-    if (template.showLastBalance) {
-      doc.text(`${lbl('lastBalance', 'Last Balance')}: ${formatCurrency(lastBalance)}`, summaryTextX, summaryY, { align: summaryAlign });
-      summaryY += 4;
-    }
-    if (template.showTotalAmountDue) {
-      doc.text(`${lbl('totalDue', 'Total Due')}: ${formatCurrency(totalAmountDue)}`, summaryTextX, summaryY, { align: summaryAlign });
-    }
-
     if (template.showFooterMessage && template.footerMessageLastPage) {
       const plainMsg = stripHtmlAndTruncate(template.footerMessageLastPage, 1000);
       const msgLines = wrapFooterMessage(doc, plainMsg, messageWidth - 2, 7);

@@ -83,11 +83,15 @@ export const uploadDistributorImage = async (file: File) => {
     });
 };
 
-// Bulk upload item images
-export const bulkUploadItemImages = async (params: {
-    items: Array<{ itemNumber: string | number; img_url: string }>;
-}) => {
-    return axiosInstance.post('/distrubutor/bulkUploadItemImages', params);
+// Bulk upload item images (multipart: field name `images`)
+export const bulkUploadItemImages = async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => {
+        formData.append('images', file);
+    });
+    return axiosInstance.post('/distrubutor/bulk-upload-item-images', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
 };
 
 // Future Pricing APIs

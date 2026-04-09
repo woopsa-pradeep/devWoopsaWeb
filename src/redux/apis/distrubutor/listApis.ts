@@ -47,6 +47,15 @@ export const getListOfLossQuantityReport = async () => {
     return axiosInstance.get('/list/listofLossQuantityReport');
 };
 
+/** Same paths as https://apidev.woopsa.app/api/list/listOfDrivers — uses REACT_APP_API_URL base */
+export const getListOfDrivers = async (params?: { date?: string }) => {
+    return axiosInstance.get('/list/listOfDrivers', { params: params ?? {} });
+};
+
+export const getListOfVehicles = async (params?: { date?: string }) => {
+    return axiosInstance.get('/list/listOfVehicles', { params: params ?? {} });
+};
+
 export const getShortShipmentReport = async (params: { fromDate?: string; toDate?: string; [key: string]: any }) => {
     const queryParams = new URLSearchParams();
     if (params.fromDate) queryParams.append('fromDate', params.fromDate);

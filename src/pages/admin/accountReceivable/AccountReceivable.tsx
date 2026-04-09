@@ -17,7 +17,7 @@ import {
   Tabs,
   Tab,
 } from "@mui/material";
-import dayjs from "dayjs";
+import { formatApiDate } from "../../../utils/formatApiDate";
 // import charges from "../../../assets/totalCharges.svg";
 // import credit from "../../../assets/totalCredit.svg";
 // import payment from "../../../assets/totalPayment.svg";
@@ -63,32 +63,6 @@ interface CustomerInfo {
 const toPositiveAmount = (amount: string | number) => {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
   return Math.abs(num || 0).toString();
-};
-
-// Helper function to format date - keep mm/dd/yyyy as is, convert others to mm/dd/yyyy
-const formatDate = (dateString: string | null | undefined): string => {
-  if (!dateString) return "-";
-  
-  const trimmedDate = dateString.trim();
-  
-  // Check if date is already in mm/dd/yyyy format (e.g., "12/31/2023")
-  const mmddyyyyPattern = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
-  if (mmddyyyyPattern.test(trimmedDate)) {
-    return trimmedDate;
-  }
-  
-  // Parse and convert to mm/dd/yyyy format (handles ISO format like "2025-11-29T00:00:00.000Z")
-  try {
-    const date = dayjs(trimmedDate);
-    if (date.isValid()) {
-      return date.format("MM/DD/YYYY");
-    }
-  } catch (error) {
-    console.error('Error formatting date:', error);
-  }
-  
-  // If parsing fails, return original string
-  return trimmedDate;
 };
 
 // Columns for Charges and Refunds tabs
@@ -148,7 +122,7 @@ const defaultColumns: TableColumn<AccountReceivableItem>[] = [
     align: 'center',
     render: (row) => (
       <Typography fontSize={14} fontWeight={400} color="text.secondary">
-        {formatDate(row.invoiceDate)}
+        {formatApiDate(row.invoiceDate) || "-"}
       </Typography>
     ),
   },
@@ -211,7 +185,7 @@ const paymentColumns: TableColumn<AccountReceivableItem>[] = [
     align: 'center',
     render: (row) => (
       <Typography fontSize={14} fontWeight={400} color="text.secondary">
-        {formatDate(row.postingDate)}
+        {formatApiDate(row.postingDate) || "-"}
       </Typography>
     ),
   },

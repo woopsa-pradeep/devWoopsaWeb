@@ -4,7 +4,7 @@ import CommonTable, {
 } from "../../component/atoms/Table/CommonTable";
 import { getAccountReceivablesRetailerList } from "../../redux/apis/retailer/accountReceivableApis";
 import { Box, Typography, Paper, Grid, Tabs, Tab } from "@mui/material";
-import dayjs from "dayjs";
+import { formatApiDate } from "../../utils/formatApiDate";
 import TextInput from "../../component/atoms/TextInput";
 
 interface AccountReceivableItem {
@@ -84,7 +84,7 @@ const defaultColumns: TableColumn<AccountReceivableItem>[] = [
     align: 'center',
     render: (row) => (
       <Typography fontSize={14} fontWeight={400} color="text.secondary">
-        {row.invoiceDate ? dayjs(row.invoiceDate).format("YYYY/MM/DD") : "-"}
+        {formatApiDate(row.invoiceDate) || "-"}
       </Typography>
     ),
   },
@@ -147,7 +147,7 @@ const paymentColumns: TableColumn<AccountReceivableItem>[] = [
     align: 'center',
     render: (row) => (
       <Typography fontSize={14} fontWeight={400} color="text.secondary">
-        {row.postingDate ? dayjs(row.postingDate).format("YYYY/MM/DD") : "-"}
+        {formatApiDate(row.postingDate) || "-"}
       </Typography>
     ),
   },

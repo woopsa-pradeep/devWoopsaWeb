@@ -210,7 +210,6 @@ const TradeshowManagement: React.FC = () => {
             >
               <Table
                 size="small"
-                stickyHeader
                 sx={{
                   "& th, & td": {
                     borderBottom: `1px solid ${theme.palette.divider}`,
@@ -219,16 +218,26 @@ const TradeshowManagement: React.FC = () => {
                     paddingX: 1,
                   },
                   "& th": {
-                    fontWeight: 500,
-                    color: theme.palette.text.secondary,
-                    backgroundColor:
-                      theme.palette.mode === "dark"
-                        ? "rgba(255,255,255,0.02)"
-                        : "rgba(0,0,0,0.02)",
-                  },
+                   fontWeight: 500,
+                   color: theme.palette.text.secondary,
+                   backgroundColor:
+                  theme.palette.mode === "dark"
+                  ? "rgba(255,255,255,0.02)"
+                  : "rgba(0,0,0,0.02)",
+                 position: "sticky",
+                 top: 0,
+                 zIndex: 1,
+              },
                 }}
               >
-                <TableHead>
+                  <TableHead
+                   sx={{
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 2,
+                  backgroundColor: theme.palette.background.paper,
+        }}
+              >
                   <TableRow>
                     <TableCell>Name</TableCell>
                     <TableCell>Trade Show Date</TableCell>

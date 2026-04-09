@@ -150,6 +150,8 @@ const ContactUsRequestForm: React.FC = () => {
     removeOwnerOriginal(index);
   };
 
+  const notifyFileUploadError = (msg: string) => toast.error(msg);
+
   // Watch values for conditional rendering
   const watchedValues = watch();
   
@@ -868,6 +870,9 @@ const ContactUsRequestForm: React.FC = () => {
                       field.onChange(file);
                     }}
                     accept=".pdf,.jpg,.jpeg,.png"
+                    maxFileSizeBytes={10 * 1024 * 1024}
+                    enforceAccept
+                    onValidationError={notifyFileUploadError}
                     value={field.value}
                   />
                 )}
@@ -885,6 +890,9 @@ const ContactUsRequestForm: React.FC = () => {
                       field.onChange(file);
                     }}
                     accept=".pdf,.jpg,.jpeg,.png"
+                    maxFileSizeBytes={10 * 1024 * 1024}
+                    enforceAccept
+                    onValidationError={notifyFileUploadError}
                     value={field.value}
                   />
                 )}
@@ -902,6 +910,9 @@ const ContactUsRequestForm: React.FC = () => {
                       field.onChange(file);
                     }}
                     accept=".pdf,.jpg,.jpeg,.png"
+                    maxFileSizeBytes={10 * 1024 * 1024}
+                    enforceAccept
+                    onValidationError={notifyFileUploadError}
                     value={field.value}
                   />
                 )}
@@ -919,6 +930,9 @@ const ContactUsRequestForm: React.FC = () => {
                       field.onChange(file);
                     }}
                     accept=".pdf,.jpg,.jpeg,.png"
+                    maxFileSizeBytes={10 * 1024 * 1024}
+                    enforceAccept
+                    onValidationError={notifyFileUploadError}
                     value={field.value}
                   />
                 )}

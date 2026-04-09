@@ -139,7 +139,7 @@ const AdminOrder = () => {
       const priceWithTaxWithoutPPD = price + otpAmountState;
       const taxPerUnit = otpAmountState + prepaidTaxAmount;
       subTotal += totalPrice;
-      const retail1 = item.inventory?.Retail1 != null ? Number(item.inventory.Retail1) : price;
+      const retail1 = item?.Retail1 != null ? Number(item?.Retail1) : price;
       const salesCategory = item.inventory?.SalesCategory?.Category_Desc || item.Sales_Category_Desc || (item.Sales_Category != null ? String(item.Sales_Category) : '');
       // Deposit (CRV): DepositAmount per unit; line deposit = Quantity_Shipped * DepositAmount
       const depositAmount = item.DepositAmount != null ? Number(item.DepositAmount) : 0;
@@ -184,13 +184,14 @@ const AdminOrder = () => {
     const totalPrepaidTax = items.reduce((sum: number, i: { prepaidTaxAmount?: number; shippedQty: number }) => sum + (Number(i.prepaidTaxAmount ?? 0) * (Number(i.shippedQty) || 0)), 0);
     const deliveryCharge = header.Delivery_Charge != null ? Number(header.Delivery_Charge) : 0;
     const depositTotal = items.reduce((sum: number, i: { deposit?: number }) => sum + (Number(i.deposit) || 0), 0);
-    // Prefer backend-provided previousBalance when available; fall back to customer's LastBalance.
-    const lastBalance =
-      createInvoiceData?.previousBalance != null
-        ? Number(createInvoiceData.previousBalance)
-        : customer.LastBalance != null
-          ? Number(customer.LastBalance)
-          : 0;
+    // Last balance is temporarily disabled for invoice calculation.
+    // const lastBalance =
+    //   createInvoiceData?.previousBalance != null
+    //     ? Number(createInvoiceData.previousBalance)
+    //     : customer.LastBalance != null
+    //       ? Number(customer.LastBalance)
+    //       : 0;
+    const lastBalance = 0;
     const houseCharge = header.HouseChargeApplied != null ? Number(header.HouseChargeApplied) : (header.POS_House != null ? Number(header.POS_House) : 0);
     const posCheck = header.POS_Check != null ? Number(header.POS_Check) : 0;
     const posCash = header.POS_Cash != null ? Number(header.POS_Cash) : 0;
@@ -198,8 +199,8 @@ const AdminOrder = () => {
     const baseTotal = subTotal + deliveryCharge + depositTotal;
     // Invoice total = base only; house charge, POS_Check, POS_Cash, POS_Credit are display-only (not in total).
     const invoiceTotal = header.Invoice_Total != null ? Number(header.Invoice_Total) : baseTotal;
-    // Last balance: if negative then subtract from total; if positive then add to total.
-    const totalAmountDue = lastBalance >= 0 ? invoiceTotal + lastBalance : invoiceTotal - lastBalance;
+    // Total due currently ignores last balance.
+    const totalAmountDue = invoiceTotal;
     const invoiceNum = header.Invoice_Number ?? header.LastInvoiceNumber ?? header.Order_Number;
     const invoiceDate = header.Invoice_Date || header.Order_Date || '';
     const salesPerson = header.salesRep?.S_Desc != null ? String(header.salesRep.S_Desc) : '';

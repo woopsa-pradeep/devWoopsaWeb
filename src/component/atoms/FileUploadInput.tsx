@@ -12,6 +12,30 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ClearIcon from '@mui/icons-material/Clear';
 import CommonModal from "./CommonModal";
 
+const EXT_TO_MIME: Record<string, string[]> = {
+  ".pdf": ["application/pdf"],
+  ".jpg": ["image/jpeg", "image/jpg"],
+  ".jpeg": ["image/jpeg", "image/jpg"],
+  ".png": ["image/png"],
+};
+
+function parseAcceptExtensions(accept: string): string[] {
+  return accept
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .map((token) => (token.startsWith(".") ? token : `.${token}`));
+}
+
+function formatAcceptLabel(accept: string): string {
+  const exts = parseAcceptExtensions(accept);
+  const raw = exts.map((e) => e.replace(/^\./, "").toUpperCase());
+  const labels = raw.filter((v, i) => raw.indexOf(v) === i);
+  if (labels.length === 0) return "allowed";
+  if (labels.length === 1) return labels[0];
+  return `${labels.slice(0, -1).join(", ")}, or ${labels[labels.length - 1]}`;
+}
+
 type Props = {
   label: string;
   onChange: (file: File | null) => void;
@@ -21,6 +45,12 @@ type Props = {
   accept?: string;
   value?: File | null;
   id?: string;
+  /** When set, max file size in bytes for all types (overrides default image/video/document limits). */
+  maxFileSizeBytes?: number;
+  /** When true, file extension (and MIME when present) must match `accept`. */
+  enforceAccept?: boolean;
+  /** Called when client-side validation fails (e.g. show a toast). */
+  onValidationError?: (message: string) => void;
 };
 
 const FileUploadInput: React.FC<Props> = ({
@@ -32,6 +62,9 @@ const FileUploadInput: React.FC<Props> = ({
   accept = '*',
   value,
   id,
+  maxFileSizeBytes,
+  enforceAccept,
+  onValidationError,
 }) => {
   const theme = useTheme();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -53,24 +86,49 @@ const FileUploadInput: React.FC<Props> = ({
 
   // Validate file size and type
   const validateFile = (file: File): { isValid: boolean; error: string } => {
-    // Check file size based on type
-    let maxSize = maxDocumentSize; // Default to document size
-    
-    if (file.type.startsWith('image/')) {
-      maxSize = maxImageSize;
-    } else if (file.type.startsWith('video/')) {
-      maxSize = maxVideoSize;
+    if (enforceAccept && accept && accept !== "*") {
+      const allowedExts = parseAcceptExtensions(accept);
+      const lastDot = file.name.lastIndexOf(".");
+      const ext =
+        lastDot >= 0 ? file.name.slice(lastDot).toLowerCase() : "";
+      if (!ext || !allowedExts.includes(ext)) {
+        return {
+          isValid: false,
+          error: `Invalid file type. Only ${formatAcceptLabel(accept)} files are allowed.`,
+        };
+      }
+      const allowedMime = EXT_TO_MIME[ext];
+      if (allowedMime && file.type && !allowedMime.includes(file.type)) {
+        return {
+          isValid: false,
+          error: `Invalid file type. Only ${formatAcceptLabel(accept)} files are allowed.`,
+        };
+      }
     }
-    
+
+    let maxSize: number;
+    if (maxFileSizeBytes != null) {
+      maxSize = maxFileSizeBytes;
+    } else {
+      maxSize = maxDocumentSize;
+      if (file.type.startsWith("image/")) {
+        maxSize = maxImageSize;
+      } else if (file.type.startsWith("video/")) {
+        maxSize = maxVideoSize;
+      }
+    }
+
     if (file.size > maxSize) {
-      const maxSizeMB = (maxSize / 1024 / 1024).toFixed(0);
+      const maxSizeMB = (maxSize / 1024 / 1024).toFixed(
+        maxSize % (1024 * 1024) === 0 ? 0 : 1
+      );
       return {
         isValid: false,
-        error: `File size must be ${maxSizeMB}MB or less`
+        error: `File size must be ${maxSizeMB} MB or less.`,
       };
     }
-    
-    return { isValid: true, error: '' };
+
+    return { isValid: true, error: "" };
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,6 +142,7 @@ const FileUploadInput: React.FC<Props> = ({
         onChange(file);
       } else {
         setFileError(validation.error);
+        onValidationError?.(validation.error);
         setSelectedFile(null);
         onChange(null);
         // Clear the input value

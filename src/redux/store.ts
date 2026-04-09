@@ -17,6 +17,7 @@ import orderConfirmReducer from "./slices/orderConfirmSlice";
 import tradeShowReducer from "./slices/tradeShowSlice";
 import retailerTradeShowCartReducer from "./slices/retailerTradeShowCartSlice";
 import salesTradeShowCartReducer from "./slices/salesTradeShowCartSlice";
+import routeOptimizationReducer from "./slices/routeOptimizationSlice";
 import { useDispatch, useSelector } from 'react-redux';
 
 const formPersistConfig = {
@@ -54,6 +55,30 @@ const salesCartPersistConfig = {
   whitelist: ['items', 'count', 'totalItems', 'totalAmountWithTax', 'totalAmount', 'userItemLimitQty', 'userLimitMinOrderAmount']
 };
 
+const routeOptimizationPersistConfig = {
+  key: 'routeOptimization',
+  storage,
+  whitelist: [
+    'draftSelectedOrdersById',
+    'selectedOrders',
+    'selectedDriverId',
+    'selectedDriverName',
+    'selectedVehicleId',
+    'selectedVehicleLabel',
+    'googleMapRoute',
+    'googleMapOptimizedStops',
+    'googleMapSnapshotKey',
+    'driverVehicleAssignmentsById',
+    'multiPreviewRoutes',
+    'multiPreviewSnapshotKey',
+    'lastFetchedMultiPreview',
+    'activeMapViewDriverId',
+    'manualSelectedDriverId',
+    'manualSelectedVehicleId',
+    'manualStops',
+  ],
+};
+
 const tradeShowPersistConfig = {
   key: 'tradeShow',
   storage,
@@ -81,6 +106,10 @@ const persistDashboardReducer = persistReducer(dashboardPersistConfig, dashboard
 const persistedCartReducer = persistReducer(cartPersistConfig, cartReducer);
 const persistedSalesCartReducer = persistReducer(salesCartPersistConfig, salesCartReducer);
 const persistedTradeShowReducer = persistReducer(tradeShowPersistConfig, tradeShowReducer);
+const persistedRouteOptimizationReducer = persistReducer(
+  routeOptimizationPersistConfig,
+  routeOptimizationReducer
+);
 
 export const store = configureStore({
   reducer: {
@@ -100,6 +129,7 @@ export const store = configureStore({
     tradeShow: persistedTradeShowReducer,
     retailerTradeShowCart: retailerTradeShowCartReducer,
     salesTradeShowCart: salesTradeShowCartReducer,
+    routeOptimization: persistedRouteOptimizationReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

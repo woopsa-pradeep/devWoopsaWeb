@@ -9,6 +9,7 @@ interface Props {
   label?: string;
   value: Dayjs | null;
   onChange: (date: Dayjs | null) => void;
+  format?: string;
   sx?: SxProps;
   error?: boolean;
   helperText?: string;
@@ -18,7 +19,7 @@ interface Props {
   disabled?: boolean;
 }
 
-const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {mb: 2.2}, error = false, helperText = "", minDate, maxDate, disablePast = false, disabled = false }) => {
+const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, format = "MM/DD/YYYY", sx = {mb: 2.2}, error = false, helperText = "", minDate, maxDate, disablePast = false, disabled = false }) => {
   return (
     <Box sx={sx}>
       {/* External Label like TextInput */}
@@ -35,6 +36,7 @@ const CustomDatePicker: React.FC<Props> = ({ label = "", value, onChange, sx = {
         <DatePicker
           value={value}
           onChange={onChange}
+          format={format}
           minDate={minDate}
           maxDate={maxDate}
           disablePast={disablePast}

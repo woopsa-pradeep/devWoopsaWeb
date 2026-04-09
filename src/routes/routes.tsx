@@ -4,7 +4,7 @@ import ErrorBoundaryWrapper from "../pages/error/ErrorBoundaryWrapper";
 import PrivateRoute from "../components/PrivateRoute";
 import RoleBasedRoute from "../components/RoleBasedRoute";
 
-import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AddRetailer, AdminPromo, AccountReceivable, Vendors, AddVendor, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, RetailerTradeShow, RetailerTradeShowCart, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, Inventory, BulkUpdate, FuturePricing, SalesOrderConfirmation, SalesOrderConfirmationDetail, SalesReturnOrder, SalesReturnCartPage, OrderChecker, ReportsAnalytics, TradeshowManagement, CreateTradeshow, TradeshowSummaryView, SalesNoModulePermission  } from "./lazyComponents";
+import { Dashboard, ForgotPassword, LoginOtp, Order, OTPVerification, Profile, ResetPasswordPage, WarehouseSelection, SupportTickets,OrderTablePage, OrderDetailsPage, AdminProduct, CartPage, SignUp, Login, SignupOtp, AdminTrackLoginDevices, AdminRetailer, AddRetailer, AdminPromo, AccountReceivable, Vendors, AddVendor, Permissions, AddSalesPerson, ViewSalesPerson, EditSalesPerson, RolesPermissionsPage, SalesLogin, Settings, ProductLicense, TermsAndConditions, PrivacyPolicy, Disclaimer, ReturnPolicy, Policies, AccountReceivableRetailer, RetailerTradeShow, RetailerTradeShowCart, SalesProfile, SalesOrder, SalesOrderTablePage, SalesOrderDetailsPage, SalesCartPage, SalesDashboard, AdminOrder, AdminOrderDetail, AdminDashboard, SalesRetailer, SalesOrderedItems, OrderedItems, AdminProfile, AccountReceivableSales, AdminNotifications,SalesCalenderPage, SalesCalenderViewPage, ProductCatalog, LandingPage, Products, RetailerRequest, AddUpdateRequest, ViewRetailerRequest, ContactUs, ContactUsRequestForm, SalesPolicies, RetailerPolicies, WebTermsConditions, WebPrivacyPolicy, WebSoftwareLicense, AdminCalender, DistributorStatusView, EpickSetting, DriverManagementLayout, DriverManagementMain, CreateRouteAutomatically, CreateRouteManually, SelectDriverVehicleStep, RouteOptimization, ManualrouteOptimize, ViewRoutesPage, DriverManagementSettings, CancelledOrdersPage, Inventory, BulkUpdate, FuturePricing, SalesOrderConfirmation, SalesOrderConfirmationDetail, SalesReturnOrder, SalesReturnCartPage, OrderChecker, ReportsAnalytics, TradeshowManagement, CreateTradeshow, TradeshowSummaryView, SalesNoModulePermission  } from "./lazyComponents";
 import { SalesTradeShow, SalesTradeShowCart } from "./lazyComponents";
 import { Navigate } from "react-router-dom";
 
@@ -672,7 +672,61 @@ export const adminRoutes = [
                 <EpickSetting />
               </RoleBasedRoute>
             ),
-          },  
+          },
+          {
+            path: "driver-management",
+            element: (
+              <RoleBasedRoute path="/admin/driver-management">
+                <DriverManagementLayout />
+              </RoleBasedRoute>
+            ),
+            children: [
+              {
+                index: true,
+                element: <DriverManagementMain />,
+              },
+              {
+                path: "drivers",
+                element: <DriverManagementMain />,
+              },
+              {
+                path: "vehicles",
+                element: <DriverManagementMain />,
+              },
+              {
+                path: "create-route-automatic",
+                element: <CreateRouteAutomatically />,
+              },
+              {
+                path: "create-route-manual",
+                element: <CreateRouteManually />,
+              },
+              {
+                path: "select-driver-vehicle",
+                element: <SelectDriverVehicleStep />,
+              },
+              {
+                path: "route-optimization",
+                element: <RouteOptimization />,
+              },
+              {
+                path: "manual-route-optimize",
+                element: <ManualrouteOptimize />,
+              },
+              {
+                path: "view-route",
+                element: <ViewRoutesPage />,
+              },
+              {
+                path: "cancelled-orders",
+                element: <CancelledOrdersPage />,
+              },
+              {
+                path: "settings",
+                element: <DriverManagementSettings />,
+              },
+            ],
+          },
         ],
       },
     ],

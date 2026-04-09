@@ -218,17 +218,18 @@ const AdminProfile = () => {
           overflow: "hidden",
         }}
       >
-        <Paper
-          elevation={1}
+         <Paper
+         elevation={1}
           sx={{
-            width: isSmallScreen ? "100%" : "250px !important",
-            minWidth: isSmallScreen ? "auto" : "250px !important",
-            borderRadius: 3,
-            overflow: isSmallScreen ? "hidden" : "auto",
-            height: isSmallScreen ? "auto" : "100%",
-            boxShadow: "none",
-          }}
-        >
+       width: isSmallScreen ? "100%" : 250,
+       minWidth: isSmallScreen ? "100%" : 250,
+      borderRadius: 3,
+      boxShadow: "none",
+      height: isSmallScreen ? "auto" : "100%",
+      overflow: isSmallScreen ? "visible" : "auto",
+      flexShrink: 0, 
+    }}
+    >
           <Tabs
             orientation={isSmallScreen ? "horizontal" : "vertical"}
             variant="scrollable"
@@ -314,16 +315,18 @@ const AdminProfile = () => {
             /> */}
           </Tabs>
         </Paper>
-        <Paper
-          elevation={1}
-          sx={{
-            borderRadius: 3,
-            p: 3,
-            overflow: isSmallScreen ? "hidden" : "auto",
-            height: isSmallScreen ? "auto" : "100%",
-            boxShadow: "none",
-          }}
-        >
+       <Paper
+  elevation={1}
+  sx={{
+    borderRadius: 3,
+    p: 3,
+    boxShadow: "none",
+    height: isSmallScreen ? "auto" : "100%",
+    overflow: isSmallScreen ? "visible" : "auto",
+    flexGrow: 1,   
+    minWidth: 0,   
+  }}
+>
           {tab === 0 && (
             <Box>
               <Box
@@ -732,7 +735,7 @@ const AdminProfile = () => {
                   )}
                 </Grid>
 
-                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                {/* <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <Typography fontSize={14}>IT Person</Typography>
                   <Typography fontSize={13} color="text.secondary">
                     {data.D_Lcontact || "-"}
@@ -744,7 +747,7 @@ const AdminProfile = () => {
                   <Typography fontSize={13} color="text.secondary">
                     {data.D_Phone || "-"}
                   </Typography>
-                </Grid>
+                </Grid> */}
 
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <Typography fontSize={14}>Primary Email Address</Typography>

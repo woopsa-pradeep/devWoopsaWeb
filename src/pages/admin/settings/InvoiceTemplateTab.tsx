@@ -836,14 +836,15 @@ const InvoiceTemplateTab: React.FC = () => {
       );
       const sampleDeposit = SAMPLE_INVOICE_ITEMS.reduce((s, i) => s + (Number((i as { deposit?: number }).deposit ?? 0)), 0);
       const sampleDeliveryCharge = 5;
-      const sampleLastBalance = 10;
+      // Last balance is temporarily disabled in preview.
+      // const sampleLastBalance = 10;
       const sampleHouseCharge = 25;
       const samplePosCheck = 50;
       const samplePosCash = 30;
       const samplePosCredit = 20;
       const sampleInvoiceTotal = sampleNetInvoice + sampleDeliveryCharge + sampleDeposit;
-      // Last balance: if negative then subtract from total; if positive then add to total.
-      const sampleTotalDue = sampleLastBalance >= 0 ? sampleInvoiceTotal + sampleLastBalance : sampleInvoiceTotal - sampleLastBalance;
+      // Total due currently ignores last balance in preview.
+      // const sampleTotalDue = sampleLastBalance >= 0 ? sampleInvoiceTotal + sampleLastBalance : sampleInvoiceTotal - sampleLastBalance;
       const lbl = (key: string, d: string) => (footerSummaryLabels[key]?.trim() || d);
       // When with PPD: first line is Sub total (total price with prepaid tax). When without PPD: Net invoice (without PPD).
       doc.text(`${lbl('netInvoice', useWithoutPPD ? 'Net invoice' : 'Subtotal')}: ${formatCurrency(sampleNetInvoice)}`, summaryTextX, summaryY, { align: summaryAlign });
@@ -879,9 +880,9 @@ const InvoiceTemplateTab: React.FC = () => {
         doc.text(`${lbl('invoiceTotal', 'Invoice Total')}: ${formatCurrency(sampleInvoiceTotal)}`, summaryTextX, summaryY, { align: summaryAlign });
         summaryY += 4;
       }
-      doc.text(`${lbl('lastBalance', 'Last Balance')}: ${formatCurrency(sampleLastBalance)}`, summaryTextX, summaryY, { align: summaryAlign });
-      summaryY += 4;
-      doc.text(`${lbl('totalDue', 'Total Due')}: ${formatCurrency(sampleTotalDue)}`, summaryTextX, summaryY, { align: summaryAlign });
+      // doc.text(`${lbl('lastBalance', 'Last Balance')}: ${formatCurrency(sampleLastBalance)}`, summaryTextX, summaryY, { align: summaryAlign });
+      // summaryY += 4;
+      // doc.text(`${lbl('totalDue', 'Total Due')}: ${formatCurrency(sampleTotalDue)}`, summaryTextX, summaryY, { align: summaryAlign });
       if (showFooterMessage && footerMessageLastPage) {
         const plainMsg = footerMessageLastPage.replace(/<[^>]*>/g, '').trim().slice(0, FOOTER_MSG_MAX_LENGTH);
         const msgLines = wrapFooterMessage(doc, plainMsg, messageWidth - 2, 7);
@@ -2595,7 +2596,7 @@ const InvoiceTemplateTab: React.FC = () => {
                       </Grid>
                       <Grid size={{ xs: 12 }}>
                         <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.5 }}>
-                          Sub total, Delivery charge, Last balance and Total due are always shown. Deposit, House charge, POS check/cash/credit and Invoice total are optional (House charge/POS default off).
+                          Sub total and Delivery charge are always shown. Deposit, House charge, POS check/cash/credit and Invoice total are optional (House charge/POS default off). Last balance and Total due are hidden for now.
                         </Typography>
                       </Grid>
                       <Grid size={{ xs: 12 }} sx={{ mt: 1 }}>
@@ -2613,8 +2614,6 @@ const InvoiceTemplateTab: React.FC = () => {
                             { key: 'posCash', default: 'POS Cash' },
                             { key: 'posCredit', default: 'POS Credit' },
                             { key: 'invoiceTotal', default: 'Invoice Total' },
-                            { key: 'lastBalance', default: 'Last Balance' },
-                            { key: 'totalDue', default: 'Total Due' },
                           ].map(({ key, default: d }) => (
                             <Grid size={{ xs: 12, sm: 6, md: 4 }} key={key}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

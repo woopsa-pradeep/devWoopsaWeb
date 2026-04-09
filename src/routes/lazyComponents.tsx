@@ -200,6 +200,46 @@ export const EpickSetting = lazyLoad(
   () => import("../pages/admin/epickSetting/EpickSetting"),
   "Loading Epick Setting..."
 );
+export const DriverManagementLayout = lazyLoad(
+  () => import("../pages/admin/driverManagement/DriverManagementLayout"),
+  "Loading Driver Management..."
+);
+export const DriverManagementMain = lazyLoad(
+  () => import("../component/organisms/driverManagement/DriverManagementContent"),
+  "Loading Driver Management..."
+);
+export const CreateRouteAutomatically = lazyLoad(
+  () => import("../pages/admin/driverManagement/CreateRouteAutomatically"),
+  "Loading Create Route..."
+);
+export const CreateRouteManually = lazyLoad(
+  () => import("../pages/admin/driverManagement/CreateRouteManually"),
+  "Loading Create Route..."
+);
+export const SelectDriverVehicleStep = lazyLoad(
+  () => import("../pages/admin/driverManagement/SelectDriverVehicleStep"),
+  "Loading driver & vehicle..."
+);
+export const RouteOptimization = lazyLoad(
+  () => import("../pages/admin/driverManagement/RouteOptimization"),
+  "Loading Route Optimization..."
+);
+export const ManualrouteOptimize = lazyLoad(
+  () => import("../pages/admin/driverManagement/ManualrouteOptimize"),
+  "Loading Route Optimization..."
+);
+export const ViewRoutesPage = lazyLoad(
+  () => import("../pages/admin/driverManagement/ViewRoutesPage"),
+  "Loading View routes..."
+);
+export const DriverManagementSettings = lazyLoad(
+  () => import("../pages/admin/driverManagement/DriverManagementSettings"),
+  "Loading Driver Management Settings..."
+);
+export const CancelledOrdersPage = lazyLoad(
+  () => import("../pages/admin/driverManagement/CancelledOrdersPage"),
+  "Loading Cancelled Orders..."
+);
 export const Inventory = lazyLoad(
   () => import("../pages/admin/inventory/Inventory"),
   "Loading Inventory..."

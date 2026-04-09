@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   Box, 
   Typography, 
@@ -13,14 +13,15 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Alert,
   } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useModulePermission } from '../../../hooks/useModulePermission';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import { useDebounce } from '../../../hooks/useDebounce';
-import { createProductLimit, productList, productListWithTax, updateProductImageByImageId, updateProductLimit, uploadProductImage, getProductById, getProductListBySearch, uploadDistributorImage, bulkUploadItemImages } from '../../../redux/apis/distrubutor/productApis';
+import { createProductLimit, productList, productListWithTax, updateProductImageByImageId, updateProductLimit, uploadProductImage, getProductById, bulkUploadItemImages } from '../../../redux/apis/distrubutor/productApis';
 import TextInput from '../../../component/atoms/TextInput';
-import SearchableDropdown, { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
+import { MultiSearchableDropdown } from '../../../component/atoms/SearchableDropdown';
 import img from '../../../assets/Default-Product-Image.jpg';
 import CommonModal from '../../../component/atoms/CommonModal';
 import CustomButton from '../../../component/atoms/CustomButton';
@@ -104,10 +105,19 @@ interface LimitModalData {
   markAsBundle?: boolean;
 }
 
-interface BulkImageRow {
-  product: { label: string; value: string } | null;
-  file: File | null;
-}
+const BULK_IMAGE_MAX_COUNT = 30;
+const BULK_IMAGE_MAX_BYTES = 1024 * 1024;
+
+const getBulkImageFilenameStem = (name: string) => {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(0, i) : name;
+};
+
+/** Stem must be the item number only (digits), e.g. 12345.jpg */
+const isValidBulkImageItemNumberName = (fileName: string) => {
+  const stem = getBulkImageFilenameStem(fileName);
+  return stem.length > 0 && /^\d+$/.test(stem);
+};
 
 // Barcode cache outside component to persist across renders
 const barcodeCache = new Map<string, string>();
@@ -189,12 +199,9 @@ const Product = () => {
 
   // Bulk Image Modal state
   const [bulkImageModalOpen, setBulkImageModalOpen] = useState(false);
-  const [bulkImageItems, setBulkImageItems] = useState<BulkImageRow[]>([{ product: null, file: null }]);
-  const [bulkImageProductSearch, setBulkImageProductSearch] = useState('');
-  const bulkImageProductSearchDebounced = useDebounce(bulkImageProductSearch, 500);
-  const [bulkImageProductOptions, setBulkImageProductOptions] = useState<{ label: string; value: string }[]>([]);
-  const [bulkImageProductLoading, setBulkImageProductLoading] = useState(false);
+  const [bulkImageFiles, setBulkImageFiles] = useState<File[]>([]);
   const [bulkImageSubmitting, setBulkImageSubmitting] = useState(false);
+  const bulkImageFileInputRef = useRef<HTMLInputElement>(null);
 
   // Detailed view state
   // For now only table view - detailed view tab commented below
@@ -477,34 +484,6 @@ useEffect(() => {
   });
 }, [expandedCards, viewMode]);
 
-  // Fetch product options for bulk image modal when search changes
-  useEffect(() => {
-    if (!bulkImageModalOpen) return;
-    if (!bulkImageProductSearchDebounced.trim()) {
-      setBulkImageProductOptions([]);
-      return;
-    }
-    const searchProducts = async () => {
-      setBulkImageProductLoading(true);
-      try {
-        const response: any = await getProductListBySearch({ search: bulkImageProductSearchDebounced });
-        const products = response?.data?.data || response?.data || [];
-        const options = (Array.isArray(products) ? products : []).map((p: { Item_Number: number; Description?: string }) => ({
-          label: `${p.Item_Number}${p.Description ? ` - ${p.Description}` : ''}`,
-          value: String(p.Item_Number),
-        }));
-        setBulkImageProductOptions(options);
-      } catch (err) {
-        console.error('Error searching products:', err);
-        toast.error('Failed to search products');
-        setBulkImageProductOptions([]);
-      } finally {
-        setBulkImageProductLoading(false);
-      }
-    };
-    searchProducts();
-  }, [bulkImageProductSearchDebounced, bulkImageModalOpen]);
-
   // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -541,57 +520,86 @@ useEffect(() => {
   };
 
   const handleBulkImageModalOpen = () => {
-    setBulkImageItems([{ product: null, file: null }]);
-    setBulkImageProductSearch('');
-    setBulkImageProductOptions([]);
+    setBulkImageFiles([]);
     setBulkImageModalOpen(true);
   };
 
-  const handleBulkImageAddRow = () => {
-    setBulkImageItems((prev) => [...prev, { product: null, file: null }]);
+  const validateAndMergeBulkImageFiles = (
+    incoming: File[],
+    existing: File[]
+  ): File[] => {
+    const next = [...existing];
+    const existingItemNumbers = new Set(
+      existing.map((file) => getBulkImageFilenameStem(file.name))
+    );
+    const rejected: string[] = [];
+
+    for (const f of incoming) {
+      const itemNumber = getBulkImageFilenameStem(f.name);
+      if (next.length >= BULK_IMAGE_MAX_COUNT) {
+        rejected.push(`${f.name}: max ${BULK_IMAGE_MAX_COUNT} images allowed`);
+      } else if (f.size > BULK_IMAGE_MAX_BYTES) {
+        rejected.push(`${f.name}: must be 1 MB or smaller`);
+      } else if (!isValidBulkImageItemNumberName(f.name)) {
+        rejected.push(`${f.name}: name must be the item number only (e.g. 12345.jpg)`);
+      } else if (existingItemNumbers.has(itemNumber)) {
+        rejected.push(`${f.name}: duplicate item number (${itemNumber})`);
+      } else {
+        next.push(f);
+        existingItemNumbers.add(itemNumber);
+      }
+    }
+
+    if (rejected.length) {
+      toast.error(rejected.slice(0, 5).join(' · ') + (rejected.length > 5 ? ' …' : ''));
+    }
+    return next;
   };
 
-  const handleBulkImageRemoveRow = (index: number) => {
-    setBulkImageItems((prev) => prev.filter((_, i) => i !== index));
+  const handleBulkImageFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files;
+    if (!list?.length) return;
+    const incoming = Array.from(list);
+    const next = validateAndMergeBulkImageFiles(incoming, bulkImageFiles);
+    setBulkImageFiles(next);
+    e.target.value = '';
   };
 
-  const handleBulkImageProductChange = (index: number, value: { label: string; value: string } | null) => {
-    setBulkImageItems((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], product: value };
-      return next;
-    });
+  const handleBulkImagePreview = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!win) {
+      toast.error('Preview blocked by browser popup settings.');
+    }
+    // Revoke URL after a short delay to avoid leaking object URLs.
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
-  const handleBulkImageFileChange = (index: number, file: File | null) => {
-    setBulkImageItems((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], file };
-      return next;
-    });
+  const handleBulkImageRemoveFile = (index: number) => {
+    setBulkImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleBulkImageSubmit = async () => {
-    const validRows = bulkImageItems.filter((row) => row.product && row.file);
-    if (validRows.length === 0) {
-      toast.error('Add at least one product with an image.');
+    if (bulkImageFiles.length === 0) {
+      toast.error('Select at least one image.');
       return;
+    }
+    for (const f of bulkImageFiles) {
+      if (f.size > BULK_IMAGE_MAX_BYTES) {
+        toast.error(`${f.name} exceeds 1 MB.`);
+        return;
+      }
+      if (!isValidBulkImageItemNumberName(f.name)) {
+        toast.error(`Invalid file name: ${f.name}. Use the item number only (e.g. 12345.jpg).`);
+        return;
+      }
     }
     setBulkImageSubmitting(true);
     try {
-      const items: Array<{ itemNumber: string | number; img_url: string }> = [];
-      for (const row of validRows) {
-        const res: any = await uploadDistributorImage(row.file!);
-        const imgUrl = res?.data?.url ?? res?.data?.data?.url ?? res?.url ?? res?.data ?? '';
-        if (!imgUrl || typeof imgUrl !== 'string') {
-          toast.error(`Upload failed for product ${row.product!.value}`);
-          return;
-        }
-        items.push({ itemNumber: row.product!.value, img_url: imgUrl });
-      }
-      await bulkUploadItemImages({ items });
+      await bulkUploadItemImages(bulkImageFiles);
       toast.success('Bulk images uploaded successfully.');
       setBulkImageModalOpen(false);
+      setBulkImageFiles([]);
       refreshProducts(currentPage);
     } catch (err: any) {
       console.error(err);
@@ -4387,109 +4395,90 @@ const inactive =
         size="lg"
       >
         <Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Add product and image for each row. Images will be uploaded and assigned to the selected products.
-          </Typography>
-          {bulkImageItems.map((row, index) => (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2" component="div">
+              Please upload at most {BULK_IMAGE_MAX_COUNT} images. Each file must be under 1 MB. Name each file using
+              only the item number before the extension (for example <strong>12345.jpg</strong>).
+            </Typography>
+          </Alert>
+          <input
+            ref={bulkImageFileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={handleBulkImageFileInputChange}
+          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+            <CustomButton
+              appearance="outlined"
+              fullWidth={false}
+              icon={<AddPhotoAlternateIcon />}
+              iconPosition="left"
+              sx={{ mt: 0 }}
+              onClick={() => bulkImageFileInputRef.current?.click()}
+            >
+              Select images
+            </CustomButton>
+            <Typography variant="body2" color="text.secondary">
+              {bulkImageFiles.length} / {BULK_IMAGE_MAX_COUNT} selected
+            </Typography>
+          </Box>
+          {bulkImageFiles.length > 0 && (
             <Box
-              key={index}
               sx={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 2,
-                mb: 2,
-                p: 2,
+                maxHeight: 280,
+                overflow: 'auto',
                 border: '1px solid',
                 borderColor: 'divider',
                 borderRadius: 1,
+                p: 1,
+                mb: 2,
               }}
             >
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <SearchableDropdown
-                  placeholder="Search and select product"
-                  options={bulkImageProductOptions}
-                  value={row.product}
-                  onChange={(value) => handleBulkImageProductChange(index, value)}
-                  onSearchChange={(value) => setBulkImageProductSearch(value)}
-                  loading={bulkImageProductLoading}
-                  sx={{ mb: 0 }}
-                />
-              </Box>
-              <Box
-                sx={{
-                  width: 120,
-                  height: 120,
-                  flexShrink: 0,
-                  borderRadius: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  '&:hover': { borderColor: 'primary.main' },
-                }}
-                onClick={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.accept = 'image/*';
-                  input.onchange = (e: any) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleBulkImageFileChange(index, f);
-                  };
-                  input.click();
-                }}
-              >
-                {row.file ? (
-                  <img
-                    src={URL.createObjectURL(row.file)}
-                    alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'text.secondary',
-                      bgcolor: 'action.hover',
-                    }}
+              {bulkImageFiles.map((file, index) => (
+                <Box
+                  key={`${file.name}-${index}`}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                    py: 0.75,
+                    px: 1,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    '&:last-child': { borderBottom: 'none' },
+                  }}
+                >
+                  <Typography variant="body2" noWrap sx={{ flex: 1, minWidth: 0 }} title={file.name}>
+                    {file.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                    {(file.size / 1024).toFixed(0)} KB
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => handleBulkImagePreview(file)}
+                    aria-label="Preview file"
                   >
-                    <AddPhotoAlternateIcon sx={{ fontSize: 32 }} />
-                    <Typography variant="caption">Upload</Typography>
-                  </Box>
-                )}
-              </Box>
-              <IconButton
-                size="small"
-                onClick={() => handleBulkImageRemoveRow(index)}
-                disabled={bulkImageItems.length <= 1}
-                sx={{ mt: 0.5 }}
-                color="error"
-              >
-                <DeleteOutlineIcon />
-              </IconButton>
+                    <VisibilityOutlinedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" color="error" onClick={() => handleBulkImageRemoveFile(index)} aria-label="Remove file">
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
             </Box>
-          ))}
-          <CustomButton
-            icon={<AddIcon />}
-            iconPosition="left"
-            onClick={handleBulkImageAddRow}
-            appearance="outlined"
-            fullWidth={false}
-            sx={{ mb: 2 }}
-          >
-            Add row
-          </CustomButton>
+          )}
           <Box display="flex" justifyContent="flex-end" gap={2} mt={2}>
             <CustomButton appearance="outlined" onClick={() => setBulkImageModalOpen(false)} fullWidth={false}>
               Cancel
             </CustomButton>
             <CustomButton
               onClick={handleBulkImageSubmit}
-              disabled={bulkImageSubmitting}
+              disabled={bulkImageSubmitting || bulkImageFiles.length === 0}
               icon={bulkImageSubmitting ? <CircularProgress size={20} /> : null}
               fullWidth={false}
             >
