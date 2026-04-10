@@ -86,6 +86,7 @@ const scrollRowIntoList = (container: HTMLElement | null, row: HTMLElement | nul
     block: 'nearest',
     inline: 'nearest',
     boundary: container,
+    behavior: 'auto',
   });
 };
 
@@ -169,16 +170,12 @@ const SalesKeyboardView: React.FC<SalesKeyboardViewProps> = ({
     if (focusedProductId) {
       const idx = list.findIndex((p) => p.id === focusedProductId);
       if (idx >= 0) {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => scrollToIndex(idx));
-        });
+        scrollToIndex(idx);
       }
       return;
     }
     if (selectedIndex >= 0 && selectedIndex < list.length) {
-      requestAnimationFrame(() => {
-        scrollToIndex(selectedIndex);
-      });
+      scrollToIndex(selectedIndex);
     }
   }, [selectedIndex, focusedProductId, itemsRowKey, searchTerm, scrollToIndex]);
 
@@ -540,7 +537,6 @@ const SalesKeyboardView: React.FC<SalesKeyboardViewProps> = ({
                     borderBottom: '1px solid',
                     borderColor: 'divider',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease',
                     backgroundColor: selectedIndex === index ? 'primary.main' : 'background.paper',
                     '&:hover': {
                       backgroundColor: selectedIndex === index ? 'primary.dark' : 'action.hover',
@@ -689,15 +685,35 @@ const SalesKeyboardView: React.FC<SalesKeyboardViewProps> = ({
                             fontSize: '12px',
                             fontWeight: 500,
                             height: '32px',
+                            color: selectedIndex === index ? 'white' : undefined,
+                          },
+                          '& .MuiInputBase-input': {
+                            color: selectedIndex === index ? 'white' : undefined,
+                          },
+                          '& .MuiInputBase-input::placeholder': {
+                            color:
+                              selectedIndex === index ? 'rgba(255, 255, 255, 0.75)' : undefined,
+                            opacity: 1,
                           },
                         }}
                         InputProps={{
                           endAdornment: (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               {isSubmittingQuantity && focusedProductId === product.id && (
-                                <CircularProgress size={12} sx={{ color: 'primary.main' }} />
+                                <CircularProgress
+                                  size={12}
+                                  sx={{
+                                    color: selectedIndex === index ? 'white' : 'primary.main',
+                                  }}
+                                />
                               )}
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color:
+                                    selectedIndex === index ? 'white' : 'text.secondary',
+                                }}
+                              >
                                 qty
                               </Typography>
                             </Box>
