@@ -646,10 +646,13 @@ const MultiSearchableDropdown: React.FC<MultiSearchableDropdownProps> = ({
                   ? theme.palette.primary.main
                   : theme.palette.text.primary,
                 "&:hover": {
-                  backgroundColor: selected 
-                    ? `${theme.palette.primary.main}20`
-                    : `${theme.palette.action.hover}80`,
-                },
+                 backgroundColor: selected
+                 ? `${theme.palette.primary.main}20`
+                 : theme.palette.mode === "dark"
+                 ? "rgba(255,255,255,0.08)"
+                 : theme.palette.action.hover,
+                 color: theme.palette.text.primary,
+            },
                 transition: "all 0.2s ease",
               }}
             >
@@ -761,31 +764,36 @@ const MultiSearchableDropdown: React.FC<MultiSearchableDropdownProps> = ({
                   label={option.label}
                   size="medium"
                   deleteIcon={<span style={{ fontSize: '22px', fontWeight: 400 }}>×</span>}
-                 sx={{
-  backgroundColor: theme.palette.mode === "dark"
-    ? theme.palette.grey[800]
-    : theme.palette.grey[200],
-  color: theme.palette.text.primary,
-  fontSize: "14px",
-  height: "28px",
-  margin: "4px",
-  fontWeight: 400,
-  borderRadius: "6px",
-  border: `1px solid ${theme.palette.divider}`,
-  "& .MuiChip-label": {
-    padding: "0 12px",
-    color: theme.palette.text.primary
-  },
-  "& .MuiChip-deleteIcon": {
-    color: theme.palette.text.secondary,
-    "&:hover": {
-      color: theme.palette.error.main
-    }
-  },
-  "&:hover": {
-    backgroundColor: theme.palette.action.hover
-  }
-}}
+                  sx={{
+                    backgroundColor:
+                    theme.palette.mode === "dark"
+                    ? "rgba(255,255,255,0.08)"
+                    : theme.palette.grey[100],
+                    color: theme.palette.text.primary,
+                    fontSize: "14px",
+                    height: "28px",
+                    margin: "4px",
+                    fontWeight: 400,
+                    borderRadius: "4px",
+                    border: `1.5px solid ${theme.palette.grey[300]}`,
+                    transition: "all 0.2s ease",
+                    '& .MuiChip-label': {
+                      padding: '0 12px',
+                    },
+                    '& .MuiChip-deleteIcon': {
+                      color: theme.palette.text.secondary,
+                      '&:hover': {
+                        color: theme.palette.error.main,
+                      }
+                    },
+                    "&:hover": {
+                     backgroundColor:
+                     theme.palette.mode === "dark"
+                     ? "rgba(255,255,255,0.12)"
+                    : theme.palette.grey[200],
+                    borderColor: theme.palette.grey[400],
+                  },
+                  }}
                 />
               ))}
             </Box>

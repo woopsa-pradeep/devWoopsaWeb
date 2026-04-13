@@ -26,6 +26,8 @@ import {
   updateItemGlobalSetting,
   updateRetailerSetting,
   updateWarehouseProfileSetting,
+  getNewItemsManualSetting,
+  updateNewItemsManualSetting,
   getHomeSetting,
   updateHomeSetting,
   createContactUs,
@@ -221,10 +223,15 @@ interface FormData {
     showWithOutPrice: boolean;
   };
   itemGlobal: {
-    maxOrderLimit: number;
-    InventoryThreshold: number;
-    MiniMumOrderAmount: number;
-  };
+  maxOrderLimit: number;
+  InventoryThreshold: number;
+  MiniMumOrderAmount: number;
+
+    isErpActive: boolean;          
+
+  addNewItemsOption: boolean;          
+  newItemsManualProducts: number[];    
+};
   showWithPerpaidTax: boolean;
   globalSearchOption: boolean;
   splitSearchOption: boolean;
@@ -776,6 +783,10 @@ const vehicleForm = useForm<VehicleFormData>({
     if (activeApiType === "demandedItems") {
       // Fetch home settings for Demanded Items tab
       getHomeSetting().then((res: any) => {
+      console.log("GET HOME API FULL RESPONSE:", res);
+      console.log("GET HOME DATA:", res.data);
+      console.log("GET RETAILER PRODUCTS:", res.data?.data?.retailerPromotedItems);
+
         setHomeSettings(res.data?.data);
       });
     } else if (activeApiType === "contactUs") {
@@ -798,64 +809,84 @@ const vehicleForm = useForm<VehicleFormData>({
   console.log(contactUsData, "contactUsData");
   // Fetch settings on mount and whenever tab changes
   useEffect(() => {
-    const fetchSettings = async () => {
-      setLoading(true);
-      try {
-        const response: any = await getWarehouseSetting();
-        const data = response.data?.data;
-        setSettings(data);
+const fetchSettings = async () => {
+  setLoading(true);
+  try {
+    const response: any = await getWarehouseSetting();
+    const data = response.data?.data;
 
-        // Initialize form data with API values
-        if (data) {
-          setFormData({
-            salesRep: {
-              showStock: data.salesRep?.showStock ?? true,
-              viewAccountReceivable:
-                data.salesRep?.viewAccountReceivable ?? true,
-              allowOrderInventoryUnAvaible:
-                data.salesRep?.allowOrderInventoryUnAvaible ?? true,
-              showWithOutPrice: data.salesRep?.showWithOutPrice ?? false,
-            },
-            itemGlobal: {
-              maxOrderLimit: data.itemGlobal?.maxOrderLimit ?? 100,
-              InventoryThreshold: data.itemGlobal?.InventoryThreshold ?? 10,
-              MiniMumOrderAmount: data.itemGlobal?.MiniMumOrderAmount ?? 1,
-            },
-            showWithPerpaidTax: data.showWithPerpaidTax ?? true,
-            globalSearchOption: data.globalSearchOption ?? true,
-            splitSearchOption: data.splitSearchOption ?? false,
-            retailer: {
-              showStock: data.retailer?.showStock ?? true,
-              allowOrderInventoryUnAvaible:
-                data.retailer?.allowOrderInventoryUnAvaible ?? true,
-              showWithOutPrice: data.retailer?.showWithOutPrice ?? false,
-            },
-            warehouseProfile: {
-              cutOffTime: data.warehouseProfile?.cutOffTime ?? "17:00:00",
-              storePickup: data.warehouseProfile?.storePickup ?? false,
-              allowShipping: data.warehouseProfile?.allowShipping ?? true,
-              timeSlots: data.warehouseProfile?.timeSlots || [],
-            },
-            orderEmailNotification: data.orderEmailNotification ?? "",
-            demandedItems: {
-              showMostSale: data.demandedItems?.showMostSale ?? true,
-              showAsPerCustomer: data.demandedItems?.showAsPerCustomer ?? true,
-              showCustomerHistory:
-                data.demandedItems?.showCustomerHistory ?? true,
-              showPromotedItems: data.demandedItems?.showPromotedItems ?? true,
-              maxPromotedItems: data.demandedItems?.maxPromotedItems ?? 5,
-              promotedItems: data.demandedItems?.promotedItems || [],
-            },
-          });
-        }
-      } catch (error) {
-        console.error("Failed to fetch settings:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    //  ADD THIS
+    const newItemsRes: any = await getNewItemsManualSetting();
+    const newItemsData = newItemsRes.data?.data;
+     
+  console.log("GET API FULL RESPONSE:", newItemsRes);
+console.log("GET API DATA:", newItemsRes.data);
+console.log("GET PRODUCTS:", newItemsData?.products);
+
+    setSettings(data);
+
+    if (data) {
+      console.log("SETTING FORM DATA PRODUCTS:", newItemsData?.products);
+      setFormData({
+        salesRep: {
+          showStock: data.salesRep?.showStock ?? true,
+          viewAccountReceivable:
+            data.salesRep?.viewAccountReceivable ?? true,
+          allowOrderInventoryUnAvaible:
+            data.salesRep?.allowOrderInventoryUnAvaible ?? true,
+          showWithOutPrice: data.salesRep?.showWithOutPrice ?? false,
+        },
+
+        itemGlobal: {
+       maxOrderLimit: data.itemGlobal?.maxOrderLimit ?? 100,
+       InventoryThreshold: data.itemGlobal?.InventoryThreshold ?? 10,
+       MiniMumOrderAmount: data.itemGlobal?.MiniMumOrderAmount ?? 1,
+
+       isErpActive: newItemsData?.isActive ?? false,   
+        addNewItemsOption: newItemsData?.showManually ?? false,
+       newItemsManualProducts: (newItemsData?.items || []),
+    },
+
+        showWithPerpaidTax: data.showWithPerpaidTax ?? true,
+        globalSearchOption: data.globalSearchOption ?? true,
+        splitSearchOption: data.splitSearchOption ?? false,
+
+        retailer: {
+          showStock: data.retailer?.showStock ?? true,
+          allowOrderInventoryUnAvaible:
+            data.retailer?.allowOrderInventoryUnAvaible ?? true,
+          showWithOutPrice: data.retailer?.showWithOutPrice ?? false,
+        },
+
+        warehouseProfile: {
+          cutOffTime: data.warehouseProfile?.cutOffTime ?? "17:00:00",
+          storePickup: data.warehouseProfile?.storePickup ?? false,
+          allowShipping: data.warehouseProfile?.allowShipping ?? true,
+          timeSlots: data.warehouseProfile?.timeSlots || [],
+        },
+
+        orderEmailNotification: data.orderEmailNotification ?? "",
+
+        demandedItems: {
+          showMostSale: data.demandedItems?.showMostSale ?? true,
+          showAsPerCustomer: data.demandedItems?.showAsPerCustomer ?? true,
+          showCustomerHistory:
+            data.demandedItems?.showCustomerHistory ?? true,
+          showPromotedItems: data.demandedItems?.showPromotedItems ?? true,
+          maxPromotedItems: data.demandedItems?.maxPromotedItems ?? 5,
+          promotedItems: data.demandedItems?.promotedItems || [],
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Failed to fetch settings:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
     fetchSettings();
+    
   }, []);
 
 
@@ -929,6 +960,7 @@ useEffect(() => {
       return;
     }
 
+
     // Handle globalSearchOption and splitSearchOption as mutually exclusive top-level fields (only one true at a time)
     if (field === "globalSearchOption" || field === "splitSearchOption") {
       setFormData((prev) => {
@@ -945,6 +977,55 @@ useEffect(() => {
       });
       return;
     }
+
+      if (section === "itemGlobal") {
+  setFormData((prev) => {
+    if (!prev) return prev;
+
+    let updated = { ...prev.itemGlobal };
+
+    // ERP toggle
+    if (field === "isErpActive") {
+      updated.isErpActive = value;
+
+      if (value === true) {
+        updated.addNewItemsOption = false;
+        updated.newItemsManualProducts = [];
+      } else {
+        //  IMPORTANT: if ERP OFF → manual ON
+        updated.addNewItemsOption = true;
+      }
+    }
+
+    // Manual toggle
+    else if (field === "addNewItemsOption") {
+      updated.addNewItemsOption = value;
+
+      if (value === true) {
+        updated.isErpActive = false;
+      } else {
+        //  IMPORTANT: if manual OFF → ERP ON
+        updated.isErpActive = true;
+        updated.newItemsManualProducts = [];
+      }
+    }
+
+    else {
+      updated = {
+        ...updated,
+        [field]: value,
+      };
+    }
+
+    return {
+      ...prev,
+      itemGlobal: updated,
+    };
+  });
+
+  return;
+}
+
 
     // Handle orderEmailNotification as a top-level field
     if (field === "orderEmailNotification") {
@@ -1006,79 +1087,112 @@ useEffect(() => {
   };
 
   // Update the handleHomeSettingChange function to handle radio button behavior
-  const handleHomeSettingChange = async (field: string, value: any) => {
-    if (!homeSettings) return;
+  const handleHomeSettingChange =  (field: string, value: any) => {
+  if (!homeSettings) return;
 
-    // Create updated data
-    const updatedData = { ...homeSettings, [field]: value };
+  const updatedData = { ...homeSettings };
+  updatedData[field] = value;
 
-    // Ensure only one toggle is true at a time for the first three switches
-    // and ensure at least one is always true
-    if (field === "showMostSale" && value === true) {
-      updatedData.showAsPerCustomer = false;
-      updatedData.showCustomerHistory = false;
-    } else if (field === "showAsPerCustomer" && value === true) {
-      updatedData.showMostSale = false;
-      updatedData.showCustomerHistory = false;
-    } else if (field === "showCustomerHistory" && value === true) {
-      updatedData.showMostSale = false;
-      updatedData.showAsPerCustomer = false;
-    } else if (field === "showMostSale" && value === false) {
-      // If trying to turn off showMostSale, check if it's the last one
-      const otherTwoTrue =
-        updatedData.showAsPerCustomer || updatedData.showCustomerHistory;
-      if (!otherTwoTrue) {
-        // If both others are false, show toast and don't allow turning off
-        showErrorToast("At least one option must be enabled for retailers");
-        return; // Don't update the state
-      }
-    } else if (field === "showAsPerCustomer" && value === false) {
-      // If trying to turn off showAsPerCustomer, check if it's the last one
-      const otherTwoTrue =
-        updatedData.showMostSale || updatedData.showCustomerHistory;
-      if (!otherTwoTrue) {
-        // If both others are false, show toast and don't allow turning off
-        showErrorToast("At least one option must be enabled for retailers");
-        return; // Don't update the state
-      }
-    } else if (field === "showCustomerHistory" && value === false) {
-      // If trying to turn off showCustomerHistory, check if it's the last one
-      const otherTwoTrue =
-        updatedData.showMostSale || updatedData.showAsPerCustomer;
-      if (!otherTwoTrue) {
-        // If both others are false, show toast and don't allow turning off
-        showErrorToast("At least one option must be enabled for retailers");
-        return; // Don't update the state
-      }
+  if (field === "showManually" && value === true) {
+    updatedData.showMostSale = false;
+    updatedData.showAsPerCustomer = false;
+    updatedData.showCustomerHistory = false;
+    // updatedData.showManually = true;
+  }
+
+ 
+  if (field === "showManually" && value === false) {
+  updatedData.retailerPromotedItems = [];
+}
+
+  
+  if (field === "showMostSale" && value === true) {
+    updatedData.showMostSale = true;
+    updatedData.showAsPerCustomer = false;
+    updatedData.showCustomerHistory = false;
+    updatedData.showManually = false;
+  } 
+  else if (field === "showAsPerCustomer" && value === true) {
+    updatedData.showMostSale = false;
+    updatedData.showAsPerCustomer = true;
+    updatedData.showCustomerHistory = false;
+    updatedData.showManually = false;
+  } 
+  else if (field === "showCustomerHistory" && value === true) {
+    updatedData.showMostSale = false;
+    updatedData.showAsPerCustomer = false;
+    updatedData.showCustomerHistory = true;
+    updatedData.showManually = false;
+  }
+
+  
+  if (
+    field === "showMostSale" ||
+    field === "showAsPerCustomer" ||
+    field === "showCustomerHistory" ||
+    field === "showManually"
+  ) {
+    const anyOneTrue =
+      updatedData.showMostSale ||
+      updatedData.showAsPerCustomer ||
+      updatedData.showCustomerHistory ||
+      updatedData.showManually;
+
+    if (!anyOneTrue) {
+      showErrorToast("At least one option must be enabled for retailers");
+      return;
     }
+  }
 
-    // Handle promoted items logic
-    if (field === "showPromotedItems" && value === false) {
-      updatedData.maxPromotedItems = 0;
-      updatedData.promotedItems = [];
-    } else if (field === "maxPromotedItems") {
-      // If maxPromotedItems is changed, ensure promotedItems doesn't exceed the new limit
-      const currentPromotedItems = updatedData.promotedItems || [];
-      if (currentPromotedItems.length > value) {
-        updatedData.promotedItems = currentPromotedItems.slice(0, value);
-      }
+  
+  if (field === "showPromotedItems" && value === false) {
+    updatedData.maxPromotedItems = 0;
+    updatedData.promotedItems = [];
+  }
+
+  
+  if (field === "maxPromotedItems") {
+const current = updatedData.retailerPromotedItems || [];
+    if (current.length > value) {
+      updatedData.retailerPromotedItems = current.slice(0, value);
     }
+  }
 
-    // Update local state first
-    setHomeSettings(updatedData);
+  
+  // if (field === "maxPromotedItemsRetailer") {
+  //   const current = updatedData.retailerPromotedItems || [];
+  //   if (current.length > value) {
+  //     updatedData.retailerPromotedItems = current.slice(0, value);
+  //   }
+  // }
 
-    // Call updateHomeSetting API immediately
-    try {
-      await updateHomeSetting(updatedData);
-      showSuccessToast("Setting updated successfully!");
-    } catch (error) {
-      console.error("Failed to update home setting:", error);
-      showErrorToast("Failed to update setting. Please try again.");
-      // Revert local state if API call fails
-      setHomeSettings(homeSettings);
-    }
-  };
+//  LIMIT CONTROL FOR RETAILER (NO MAX FIELD)
+if (field === "retailerPromotedItems") {
+  const maxLimit = 30;
 
+  if (value.length > maxLimit) {
+    showErrorToast(`You can select max ${maxLimit} items`);
+    return;
+  }
+
+  //  ADD THIS (IMPORTANT)
+  updatedData.retailerPromotedItems = value;
+}
+
+
+  setHomeSettings(updatedData);
+  console.log("BEFORE SAVE HOME SETTINGS:", updatedData);
+console.log("RETAILER PRODUCTS BEFORE SAVE:", updatedData.retailerPromotedItems);
+  
+  // try {
+  //   await updateHomeSetting(updatedData);
+  //   showSuccessToast("Setting updated successfully!");
+  // } catch (error) {
+  //   console.error("Failed to update home setting:", error);
+  //   showErrorToast("Failed to update setting. Please try again.");
+  //   setHomeSettings(updatedData);
+  // }
+};
   // Contact Us handlers
   const fetchContactUsData = async () => {
     // setContactUsLoadingTab(true);
@@ -1497,15 +1611,29 @@ const fetchVehicles = async () => {
           await updateSalesRepSetting({ salesRep: formData.salesRep });
           showSuccessToast("Sales Rep settings updated successfully!");
           break;
-        case "itemGlobal":
-          await updateItemGlobalSetting({
-            itemGlobal: formData.itemGlobal,
-            showWithPerpaidTax: formData.showWithPerpaidTax,
-            globalSearchOption: formData.globalSearchOption ?? true,
-            splitSearchOption: formData.splitSearchOption ?? false,
-          });
-          showSuccessToast("Item Global settings updated successfully!");
-          break;
+          
+      case "itemGlobal":
+      await updateItemGlobalSetting({
+    itemGlobal: formData.itemGlobal,
+    showWithPerpaidTax: formData.showWithPerpaidTax,
+    globalSearchOption: formData.globalSearchOption ?? true,
+    splitSearchOption: formData.splitSearchOption ?? false,
+  });
+
+   await updateNewItemsManualSetting({
+   isActive: formData.itemGlobal.isErpActive,
+   showManually: formData.itemGlobal.addNewItemsOption,
+   items: formData.itemGlobal.newItemsManualProducts ?? [], 
+ });
+
+  showSuccessToast("Item Global settings updated successfully!");
+  console.log("SAVE - formData:", formData.itemGlobal);
+
+console.log(
+  "SAVE - products sending:",
+  formData.itemGlobal.newItemsManualProducts
+);
+  break;
         case "retailer":
           await updateRetailerSetting({ retailer: formData.retailer });
           showSuccessToast("Retailer settings updated successfully!");
@@ -1535,41 +1663,14 @@ const fetchVehicles = async () => {
         }
 
         case "demandedItems":
-          // Handle home settings update with radio switch group behavior
-          const updatedHomeData = { ...homeSettings };
-          if (formData.demandedItems.showMostSale) {
-            updatedHomeData.showAsPerCustomer = false;
-            updatedHomeData.showCustomerHistory = false;
-          } else if (formData.demandedItems.showAsPerCustomer) {
-            updatedHomeData.showMostSale = false;
-            updatedHomeData.showCustomerHistory = false;
-          } else if (formData.demandedItems.showCustomerHistory) {
-            updatedHomeData.showMostSale = false;
-            updatedHomeData.showAsPerCustomer = false;
-          }
-
-          // Handle promoted items logic
-          if (formData.demandedItems.showPromotedItems === false) {
-            updatedHomeData.maxPromotedItems = 0;
-            updatedHomeData.promotedItems = [];
-          } else if (formData.demandedItems.maxPromotedItems !== undefined) {
-            // If maxPromotedItems is changed, ensure promotedItems doesn't exceed the new limit
-            const currentPromotedItems = updatedHomeData.promotedItems || [];
-            if (
-              currentPromotedItems.length >
-              formData.demandedItems.maxPromotedItems
-            ) {
-              updatedHomeData.promotedItems = currentPromotedItems.slice(
-                0,
-                formData.demandedItems.maxPromotedItems,
-              );
-            }
-          }
-
-          // await updateHomeSetting(updatedHomeData); // Assuming updateHomeSetting is available
-          setHomeSettings(updatedHomeData);
-          showSuccessToast("Demanded Items settings updated successfully!");
-          break;
+  try {
+    await updateHomeSetting(homeSettings); //  API CALL HERE ONLY
+    showSuccessToast("Demanded Items settings updated successfully!");
+  } catch (error) {
+    console.error("Failed to update home setting:", error);
+    showErrorToast("Failed to update setting. Please try again.");
+  }
+  break;
       }
 
       // Refresh settings after save
@@ -1582,7 +1683,10 @@ const fetchVehicles = async () => {
       setSaving(false);
     }
   };
-
+console.log(
+  "UI VALUE PRODUCTS:",
+  formData?.itemGlobal?.newItemsManualProducts
+);
   if (loading) {
     return (
       <Box
@@ -1861,6 +1965,84 @@ const fetchVehicles = async () => {
                 isShowLabel={false}
               />
             </Box>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 2,
+              }}
+            >
+              <Typography
+                component="legend"
+                sx={{ fontSize: 14, fontWeight: "bold", color: "primary.main", }}
+              >
+                 New Items
+              </Typography>
+            </Box>
+         
+         {/* ERP Switch */}
+       <Box
+      sx={{
+     display: "flex",
+     alignItems: "center",
+     justifyContent: "space-between",
+     mb: 2,
+   }}
+ >
+  <Typography sx={{ fontSize: 14 }}>
+    From ERP
+  </Typography>
+
+  <SwitchInput
+    checked={formData.itemGlobal.isErpActive ?? false}
+    onChange={(checked) => {
+  handleFieldChange("itemGlobal", "isErpActive", checked);
+  }}
+    sx={{ mb: 0 }}
+    isShowLabel={false}
+  />
+   </Box>
+
+            {/* Add Manually Items Toggle */}
+<Box
+  sx={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    mb: 2,
+  }}
+>
+   <Typography sx={{ fontSize: 14 }}>
+    Show Items Manually
+   </Typography>
+
+   <SwitchInput
+    checked={formData.itemGlobal.addNewItemsOption ?? false}
+   onChange={(checked) => {
+  handleFieldChange("itemGlobal", "addNewItemsOption", checked);
+  }}
+    sx={{ mb: 0 }}
+    isShowLabel={false}
+   />
+  </Box>
+     {formData.itemGlobal.addNewItemsOption && (
+   <Box sx={{ mb: 2 }}>
+    <PromotedItemsSelector
+  label="Select New Products (Max: 30)" 
+  value={(formData.itemGlobal.newItemsManualProducts || []).map(String)}
+  onChange={(items) =>
+    handleFieldChange(
+      "itemGlobal",
+      "newItemsManualProducts",
+      items.map(Number)
+    )
+  }
+  maxItems={30}
+  disabled={!formData.itemGlobal.addNewItemsOption}
+/>
+   </Box>
+)}
           </Box>
         );
 
@@ -2131,6 +2313,69 @@ const fetchVehicles = async () => {
                 isShowLabel={false}
               />
             </Box>
+             {/*  NEW - Retailer Promoted Items */}
+                <Box
+              sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+             }}
+      >
+            <Typography sx={{ fontSize: 14 }}>
+            Show Promoted Items Manually
+           </Typography>
+            <SwitchInput
+         checked={homeSettings.showManually || false}
+         onChange={(checked) =>
+         handleHomeSettingChange("showManually", checked)
+    }
+            sx={{ mb: 0 }}
+            isShowLabel={false}
+            />
+           </Box>
+
+           {/* Max Promoted Items - Only show if showPromotedItems is true */}
+            {/* {homeSettings.showPromotedItemsRetailer && (
+              <Box sx={{ mb: 2 }}>
+                <Typography sx={{ fontSize: 14, mb: 1 }}>
+                  Maximum Promoted Items For Retailers Person
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="number"
+                  value={homeSettings.maxPromotedItemsRetailer || ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const numValue = value === "" ? 0 : Number(value);
+                    handleHomeSettingChange("maxPromotedItemsRetailer", numValue);
+                  }}
+                  size="small"
+                  inputProps={{
+                    min: 0,
+                    step: 1,
+                  }}
+                />
+              </Box>
+            )} */}
+
+            {/* Promoted Items Selector - Only show if showPromotedItems is true and maxPromotedItems > 0 */}
+            { homeSettings.showManually && (
+                <Box sx={{ mb: 2 }}>
+                 <PromotedItemsSelector
+                value={(homeSettings.retailerPromotedItems || []).map(String)}
+                onChange={(items) =>
+                handleHomeSettingChange(
+               "retailerPromotedItems",
+                items.map(Number)
+        )
+     }
+  
+              maxItems={30} //  fixed limit (no input field now)
+              disabled={!homeSettings.showManually}
+             /> 
+                </Box>
+              )}
 
             <hr />
             <Box
@@ -2169,7 +2414,7 @@ const fetchVehicles = async () => {
             </Box>
 
             {/* Max Promoted Items - Only show if showPromotedItems is true */}
-            {homeSettings.showPromotedItems && (
+            {(homeSettings.showPromotedItems ) && (
               <Box sx={{ mb: 2 }}>
                 <Typography sx={{ fontSize: 14, mb: 1 }}>
                   Maximum Promoted Items For Sales Person
@@ -2193,8 +2438,8 @@ const fetchVehicles = async () => {
             )}
 
             {/* Promoted Items Selector - Only show if showPromotedItems is true and maxPromotedItems > 0 */}
-            {homeSettings.showPromotedItems &&
-              homeSettings.maxPromotedItems > 0 && (
+            {(homeSettings.showPromotedItems ) &&
+             homeSettings.maxPromotedItems > 0 && (
                 <Box sx={{ mb: 2 }}>
                   <PromotedItemsSelector
                     value={homeSettings.promotedItems || []}
@@ -2980,7 +3225,7 @@ const fetchVehicles = async () => {
           </Box>
 
           {/* Save Button - Hide for tabs that have their own save handling */}
-          {!["demandedItems", "contactUs", "emailManagement", "user", "picklistTemplate", "invoiceTemplate", "inventory","routeManagement","emailConfiguration"].includes(activeApiType) && (
+          {![ "contactUs", "emailManagement", "user", "picklistTemplate", "invoiceTemplate", "inventory", "emailConfiguration"].includes(tabConfigs[tab].apiType) && (
             <Box sx={{
               position: "sticky",
               bottom: 0,

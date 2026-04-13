@@ -39,6 +39,7 @@ interface PromotedItemsSelectorProps {
   onChange: (items: string[]) => void;
   maxItems: number;
   disabled?: boolean;
+  label?: string;
 }
 
 const PromotedItemsSelector: React.FC<PromotedItemsSelectorProps> = ({
@@ -46,6 +47,7 @@ const PromotedItemsSelector: React.FC<PromotedItemsSelectorProps> = ({
   onChange,
   maxItems,
   disabled = false,
+  label,
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -98,7 +100,7 @@ const PromotedItemsSelector: React.FC<PromotedItemsSelectorProps> = ({
   return (
     <Box>
       <MultiSearchableDropdown
-        label={`Select Promoted Products (Max: ${maxItems})`}
+        label={label || `Select Promoted Products (Max: ${maxItems})`}
         options={products.map((p) => ({
           label: p.Description,
           value: String(p.Item_Number),

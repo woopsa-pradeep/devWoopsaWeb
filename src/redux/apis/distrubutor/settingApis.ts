@@ -8,6 +8,17 @@ export const getWarehouseSetting = async () => {
     return axiosInstance.get('/distrubutor/warehouseSetting');
 };
 
+//  NEW ITEMS MANUAL SETTING 
+
+export const getNewItemsManualSetting = async () => {
+  return axiosInstance.get('/distrubutor/newItemsManualSetting');
+};
+
+//  NEW ITEMS MANUAL SETTING 
+
+export const updateNewItemsManualSetting = async (data: any) => {
+  return axiosInstance.put('/distrubutor/newItemsManualSetting', data);
+};
 
 export const getHomeSetting = async () => {
     return axiosInstance.get('/distrubutor/homeSetting');
