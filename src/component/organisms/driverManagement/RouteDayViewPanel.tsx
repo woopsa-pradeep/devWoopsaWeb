@@ -35,7 +35,7 @@ import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import TableChartOutlinedIcon from "@mui/icons-material/TableChartOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import toast from "react-hot-toast";
-import dayjs, { Dayjs } from "dayjs";
+import { Dayjs } from "dayjs";
 import RouteMap, { type LiveMapMarker, type OptimizedStop, type RouteData } from "../../molecules/RouteMap";
 import {
   concatEncodedPolylines,
@@ -159,37 +159,31 @@ function childRouteIsCompleted(c: RouteFullChild): boolean {
   return String(c.routeStatus ?? "").trim().toLowerCase() === "completed";
 }
 
-/** When all routes are completed, skip 20s driver GPS polling; refresh still loads positions via getRouteFullStops + one-shot getDriverLatLong. */
-function shouldPollDriverLatLongFromDetail(detail: RouteFullGroup, selectedDate: Dayjs): boolean {
-  if (!detail.childRoutes?.length) return false;
-  const allCompleted = detail.childRoutes.every((c) => childRouteIsCompleted(c));
-  if (allCompleted) return false;
-  const selDay = selectedDate.startOf("day");
-  const todayDay = dayjs().startOf("day");
-  const isCalendarToday = selDay.isSame(todayDay, "day");
-  const anyInProgress = detail.childRoutes.some(childRouteIsInProgress);
-  return isCalendarToday || anyInProgress;
-}
-
-/** Drivers to poll when live GPS interval is active — excludes completed routes (no truck tracking needed). */
-function buildLivePollDriverIds(detail: RouteFullGroup, selectedDate: Dayjs): number[] {
-  if (!detail.childRoutes?.length) return [];
-  if (!shouldPollDriverLatLongFromDetail(detail, selectedDate)) return [];
-  const ids: number[] = [];
-  const seen: Record<number, true> = {};
-  for (const c of detail.childRoutes) {
-    if (childRouteIsCompleted(c)) continue;
-    const id = c.driver.id;
-    if (!seen[id]) {
-      seen[id] = true;
-      ids.push(id);
-    }
-  }
-  return ids;
+/** Drivers to poll for live GPS: only selected route when it is in progress. */
+function buildLivePollDriverIds(detail: RouteFullGroup, selectedChildRouteId: number | null): number[] {
+  if (!detail.childRoutes?.length || selectedChildRouteId == null) return [];
+  const selectedChild = detail.childRoutes.find((c) => c.id === selectedChildRouteId);
+  if (!selectedChild || !childRouteIsInProgress(selectedChild) || childRouteIsCompleted(selectedChild)) return [];
+  return [selectedChild.driver.id];
 }
 /** Completed / resolved legs on the map (matches map palette “delivered” gray) */
 const LEG_LINE_DELIVERED = "#9CA3AF";
 const LEG_LINE_PENDING = "#3388ff";
+/** Actual GPS path the driver traveled per stop — overlay on top of the planned route polyline. */
+const DRIVER_ACTUAL_PATH_COLOR = "#1E3A8A";
+
+function collectStopActualPolylines(
+  stops: RouteFullStop[],
+  color: string
+): Array<{ polyline: string; color: string }> {
+  const out: Array<{ polyline: string; color: string }> = [];
+  for (const s of stops) {
+    const p = typeof s.polyline === "string" ? s.polyline.trim() : "";
+    if (!p) continue;
+    out.push({ polyline: p, color });
+  }
+  return out;
+}
 
 function routeColorByChildId(children: RouteFullChild[], childId: number): string {
   const sorted = [...children].sort((a, b) => a.id - b.id);
@@ -282,6 +276,21 @@ function pickRoutePolylineSplit(
   }
 
   const truckSplit = splitPolylineAtNearestPoint(resolvedSplit.remaining, truckLat, truckLng);
+
+  // Loop-route guard: if the route starts and ends near the same origin, the truck at origin can snap to
+  // the END of `remaining` (the return leg) instead of a forward position. Reject when the along-polyline
+  // progress to the snap point is much longer than the straight-line distance from the last resolved stop
+  // to the truck — a clear sign the snap landed on the wrong side of the loop.
+  const remainingPts = decodePolyline(resolvedSplit.remaining);
+  if (remainingPts.length >= 2 && truckSplit.done) {
+    const startPt = remainingPts[0];
+    const straightKm = haversineKm(startPt[0], startPt[1], truckLat, truckLng);
+    const alongKm = pathLengthKm(decodePolyline(truckSplit.done));
+    if (alongKm > Math.max(0.5, straightKm * 2.5)) {
+      return resolvedSplit;
+    }
+  }
+
   if (truckSplit.done && truckSplit.remaining) {
     const mergedDone = concatEncodedPolylines(resolvedSplit.done, truckSplit.done);
     if (mergedDone) {
@@ -761,12 +770,26 @@ interface StopsInnerProps {
   chipDense: typeof chipDenseSx;
   onDeliveredStopClick?: (stop: RouteFullStop) => void;
   /** Master map: one section per driver; when set, replaces flat `stopsSorted` list. */
-  masterSections?: Array<{ routeId: number; driverLabel: string; stops: RouteFullStop[] }> | null;
+  masterSections?: Array<{
+    routeId: number;
+    driverLabel: string;
+    routeStatus: string;
+    totalDurationInMinutes: number;
+    stops: RouteFullStop[];
+  }> | null;
   listTitle?: string;
   /** Right side of the list title row (e.g. collapse control); uses space-between with the title. */
   listTitleAction?: React.ReactNode;
   highlightedStopId?: number | null;
   onStopRowSelect?: (stop: RouteFullStop) => void;
+  selectedRouteInProgress?: boolean;
+  selectedRouteTotalDurationInMinutes?: number;
+}
+
+function estimateMinutesToReach(stopIndex: number, totalStops: number, totalDurationInMinutes: number): number | null {
+  if (totalStops <= 0 || totalDurationInMinutes <= 0) return null;
+  const ratio = (stopIndex + 1) / totalStops;
+  return Math.max(1, Math.round(totalDurationInMinutes * ratio));
 }
 
 const StopsInner: React.FC<StopsInnerProps> = ({
@@ -780,6 +803,8 @@ const StopsInner: React.FC<StopsInnerProps> = ({
   listTitleAction,
   highlightedStopId = null,
   onStopRowSelect,
+  selectedRouteInProgress = false,
+  selectedRouteTotalDurationInMinutes = 0,
 }) => (
   <>
     <Box
@@ -844,6 +869,12 @@ const StopsInner: React.FC<StopsInnerProps> = ({
                   const badgeBg = alpha(statusHex, 0.18);
                   const badgeFg = statusHex;
                   const isDeliveredOnly = normalizeStopStatus(s.status) === StopStatus.DELIVERED;
+                  const stopCompleted = isStopResolvedForRoute(s);
+                  const routeInProgress = String(sec.routeStatus ?? "").trim().toLowerCase() === "in_progress";
+                  const estimatedMins =
+                    routeInProgress && !stopCompleted
+                      ? estimateMinutesToReach(idx, sec.stops.length, sec.totalDurationInMinutes)
+                      : null;
                   const openPod = isDeliveredOnly && onDeliveredStopClick;
                   const rowSelect = openPod
                     ? () => onDeliveredStopClick!(s)
@@ -956,6 +987,11 @@ const StopsInner: React.FC<StopsInnerProps> = ({
                               {dwellM != null ? ` · At stop ${formatDwellForUi(dwellM)}` : ""}
                             </Typography>
                           )}
+                          {estimatedMins != null && (
+                            <Typography sx={{ fontSize: "0.65rem", color: "text.secondary", fontWeight: 400, mt: 0.25, lineHeight: 1.35 }}>
+                              Estimated time to reach: {estimatedMins} min
+                            </Typography>
+                          )}
                           {openPod && (
                             <Typography sx={{ fontSize: "0.62rem", color: "primary.main", fontWeight: 600, mt: 0.5 }}>
                               View POD details — tap stop
@@ -980,6 +1016,11 @@ const StopsInner: React.FC<StopsInnerProps> = ({
           const badgeBg = alpha(statusHex, 0.18);
           const badgeFg = statusHex;
           const isDeliveredOnly = normalizeStopStatus(s.status) === StopStatus.DELIVERED;
+          const stopCompleted = isStopResolvedForRoute(s);
+          const estimatedMins =
+            selectedRouteInProgress && !stopCompleted
+              ? estimateMinutesToReach(idx, stopsSorted.length, selectedRouteTotalDurationInMinutes)
+              : null;
           const openPod = isDeliveredOnly && onDeliveredStopClick;
           const rowSelect = openPod
             ? () => onDeliveredStopClick!(s)
@@ -1092,6 +1133,11 @@ const StopsInner: React.FC<StopsInnerProps> = ({
                     {dwellM != null ? ` · At stop ${formatDwellForUi(dwellM)}` : ""}
                   </Typography>
                 )}
+                {estimatedMins != null && (
+                  <Typography sx={{ fontSize: "0.65rem", color: "text.secondary", fontWeight: 400, mt: 0.25, lineHeight: 1.35 }}>
+                    Estimated time to reach: {estimatedMins} min
+                  </Typography>
+                )}
                 {openPod && (
                   <Typography sx={{ fontSize: "0.62rem", color: "primary.main", fontWeight: 600, mt: 0.5 }}>
                     View POD details — tap stop
@@ -1144,11 +1190,11 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
   const [mapZoomLevel, setMapZoomLevel] = useState<number | null>(null);
   const warehouseHeader = useAppSelector((s) => s.auth.wareHouseDetail?.[0] ?? null);
 
-  /** Live GPS interval: today or in-progress routes, but never when every route is completed; completed child routes are omitted from the poll list. */
+  /** Live GPS interval: only when selected route status is in progress. */
   const livePollDriverIds = useMemo(() => {
     if (!detail?.childRoutes?.length) return [];
-    return buildLivePollDriverIds(detail, selectedDate);
-  }, [detail, selectedDate]);
+    return buildLivePollDriverIds(detail, selectedChildRouteId);
+  }, [detail, selectedChildRouteId]);
 
   /** Stable while driver set unchanged — avoids resetting the poll interval when `detail` refreshes (new object, same drivers). */
   const livePollDriverIdsKey = useMemo(() => {
@@ -1310,7 +1356,7 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
           setDetail(nextDetail);
           onRouteStopsLoadedRef.current?.();
 
-          const pollIds = buildLivePollDriverIds(nextDetail, selectedDate);
+          const pollIds = buildLivePollDriverIds(nextDetail, selectedChildRouteId);
           if (pollIds.length === 0 && nextDetail.childRoutes.length > 0) {
             const allIds = Array.from(new Set(nextDetail.childRoutes.map((c) => c.driver.id)));
             void (async () => {
@@ -1351,7 +1397,7 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedGroupId, detailRefreshTick, selectedDate]);
+  }, [selectedGroupId, detailRefreshTick, selectedDate, selectedChildRouteId]);
 
   const handleRefreshAll = useCallback(() => {
     onRefresh();
@@ -1404,6 +1450,8 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
     return [...detail.childRoutes].sort((a, b) => a.id - b.id).map((child) => ({
       routeId: child.id,
       driverLabel: `${child.driver.firstName} ${child.driver.lastName}`.trim() || child.routeNumber,
+      routeStatus: child.routeStatus,
+      totalDurationInMinutes: child.totalDurationInMinutes,
       stops: [...(child.stops ?? [])].sort((a, b) => a.stopSequence - b.stopSequence),
     }));
   }, [detail, viewMapTarget]);
@@ -1511,6 +1559,7 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
           };
         });
         optimizedAll.push(...optimizedStops);
+        segments.push(...collectStopActualPolylines(stops, DRIVER_ACTUAL_PATH_COLOR));
         if (drvOk) {
           markers.push({
             lat: drvLat,
@@ -1531,6 +1580,8 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
           polyline: segments[0].polyline,
           totalDistanceKm: pathLengthKm(decodePolyline(segments[0].polyline)),
           lastStopToDestinationKm: 0,
+          destinationLat: Number(detail.destinationLat),
+          destinationLng: Number(detail.destinationLng),
         },
         optimizedStops: optimizedAll,
         extraPolylines: segments.slice(1),
@@ -1618,11 +1669,18 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
       return null;
     }
 
+    extraPolylines = [
+      ...extraPolylines,
+      ...collectStopActualPolylines(stopsForMap, DRIVER_ACTUAL_PATH_COLOR),
+    ];
+
     return {
       route: {
         polyline: routePolyline,
         totalDistanceKm: pathLengthKm(decodePolyline(childForMap.polyline)),
         lastStopToDestinationKm: 0,
+        destinationLat: Number(detail.destinationLat),
+        destinationLng: Number(detail.destinationLng),
       },
       optimizedStops,
       extraPolylines,
@@ -2249,6 +2307,8 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
               stopsSorted={stopsSorted}
               chipDense={chipDense}
               onDeliveredStopClick={(stop) => setPodDetailStopId(stop.id)}
+              selectedRouteInProgress={selectedChild != null && String(selectedChild.routeStatus ?? "").trim().toLowerCase() === "in_progress"}
+              selectedRouteTotalDurationInMinutes={selectedChild?.totalDurationInMinutes ?? 0}
             />
           </Paper>
         </Box>
@@ -2472,6 +2532,8 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
                         onDeliveredStopClick={(stop) => setPodDetailStopId(stop.id)}
                         highlightedStopId={mapHighlightedStopId}
                         onStopRowSelect={(s) => setMapHighlightedStopId(s.id)}
+                        selectedRouteInProgress={selectedChild != null && String(selectedChild.routeStatus ?? "").trim().toLowerCase() === "in_progress"}
+                        selectedRouteTotalDurationInMinutes={selectedChild?.totalDurationInMinutes ?? 0}
                       />
                     </Box>
                     {podDetailStopId != null && (
@@ -2582,6 +2644,8 @@ const RouteDayViewPanel: React.FC<RouteDayViewPanelProps> = ({
                   stopsSorted={stopsSorted}
                   chipDense={chipDense}
                   onDeliveredStopClick={(stop) => setPodDetailStopId(stop.id)}
+                  selectedRouteInProgress={selectedChild != null && String(selectedChild.routeStatus ?? "").trim().toLowerCase() === "in_progress"}
+                  selectedRouteTotalDurationInMinutes={selectedChild?.totalDurationInMinutes ?? 0}
                 />
               </Paper>
             </>

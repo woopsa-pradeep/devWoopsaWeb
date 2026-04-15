@@ -333,7 +333,7 @@ const EpickReportsTab: React.FC = () => {
           });
         } else {
           // Single picker or no picker info - use order level data
-          const picker = order.picker || {};
+          const picker = Array.isArray(order.picker) ? order.picker[0] : order.picker || {};
           reportsData.push({
             orderNumber: order.orderNumber,
             customerNumber: customer.customerNumber || customer.C_Number || 0,
@@ -638,14 +638,22 @@ const EpickReportsTab: React.FC = () => {
             }
           }
         });
-        if (totalSeconds > 0) {
-          const hours = Math.floor(totalSeconds / 3600);
-          const minutes = Math.floor((totalSeconds % 3600) / 60);
-          pickingTime = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-        }
-      } else {
-        pickingTime = order.pickingTimeFormatted || 'N/A';
-      }
+         if (totalSeconds > 0) {
+         pickingTime = formatSecondsToTime(totalSeconds);
+   }
+   } else if (orderInfo.startedAt && orderInfo.completedAt) {
+    const start = moment(orderInfo.startedAt);
+    const end = moment(orderInfo.completedAt);
+
+    if (start.isValid() && end.isValid()) {
+    const totalSeconds = end.diff(start, 'seconds');
+    pickingTime = formatSecondsToTime(totalSeconds);
+    } else {
+    pickingTime = 'N/A';
+     }
+   } else {
+  pickingTime = 'N/A';
+}
       
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');

@@ -77,6 +77,8 @@ export interface RouteFullStop {
   arrivedAt: string | null;
   deliveredAt: string | null;
   isActive: boolean;
+  /** Encoded polyline of the driver's actual traveled GPS path to reach this stop (nullable until tracked). */
+  polyline?: string | null;
   C_Name: string;
   C_Address: string;
   C_City: string;

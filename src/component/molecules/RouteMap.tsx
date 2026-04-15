@@ -199,6 +199,9 @@ export interface RouteData {
   lastStopToDestinationKm: number;
   totalDistanceMiles?: number;
   lastStopToDestinationMiles?: number;
+  /** Optional fixed destination for end marker (e.g. group destination depot). */
+  destinationLat?: number | null;
+  destinationLng?: number | null;
 }
 
 /** Live position marker (truck); optional driver/vehicle fields for the popup. */
@@ -432,7 +435,12 @@ const RouteMap: React.FC<RouteMapProps> = ({
         mergedRoutePathRef.current = mergedRoutePath;
 
         const start = allPaths[0][0];
-        const end = allPaths[allPaths.length - 1][allPaths[allPaths.length - 1].length - 1];
+        const fallbackEnd = allPaths[allPaths.length - 1][allPaths[allPaths.length - 1].length - 1];
+        const hasFixedDestination =
+          Number.isFinite(route.destinationLat) && Number.isFinite(route.destinationLng);
+        const end: [number, number] = hasFixedDestination
+          ? [Number(route.destinationLat), Number(route.destinationLng)]
+          : fallbackEnd;
         const nearSame =
           Math.abs(start[0] - end[0]) < 1e-5 && Math.abs(start[1] - end[1]) < 1e-5;
         const endMarkerPos: [number, number] = nearSame ? [end[0] + 0.00025, end[1] + 0.00025] : end;

@@ -17,7 +17,8 @@ import {
 const epickSettingSchema = z.object({
   pin: z.string().min(1, 'PIN is required'),
   allowSingleScan: z.boolean(),
-  capOrderQtyByInventory: z.boolean()
+  capOrderQtyByInventory: z.boolean(),
+  autoApproveOverrideRequests: z.boolean().optional(),
 });
 
 type EpickSettingFormData = z.infer<typeof epickSettingSchema> & { id?: number };
@@ -27,6 +28,7 @@ interface EpickSettingData {
   pin: string;
   allowSingleScan: boolean;
   capOrderQtyByInventory?: boolean;
+  autoApproveOverrideRequests?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -44,6 +46,7 @@ const PinSettingsTab: React.FC = () => {
       allowSingleScan: false,
       capOrderQtyByInventory: false,
       id: 0,
+      autoApproveOverrideRequests: false,
     },
   });
 
@@ -93,6 +96,7 @@ const PinSettingsTab: React.FC = () => {
         pin: epickSettings.pin,
         allowSingleScan: epickSettings.allowSingleScan,
         capOrderQtyByInventory: epickSettings.capOrderQtyByInventory ?? false,
+        autoApproveOverrideRequests: (epickSettings as any)?.autoApproveOverrideRequests ?? false,
       });
     }
   }, [epickSettings]);
@@ -118,6 +122,7 @@ const PinSettingsTab: React.FC = () => {
           pin: formData.pin,
           allowSingleScan: formData.allowSingleScan,
           capOrderQtyByInventory: formData.capOrderQtyByInventory,
+          autoApproveOverrideRequests: formData.autoApproveOverrideRequests,
         });
         showSuccessToast('Epick settings updated successfully!');
       } else {
@@ -126,6 +131,7 @@ const PinSettingsTab: React.FC = () => {
           pin: formData.pin,
           allowSingleScan: formData.allowSingleScan,
           capOrderQtyByInventory: formData.capOrderQtyByInventory,
+          autoApproveOverrideRequests: formData.autoApproveOverrideRequests,        
         });
         showSuccessToast('Epick settings created successfully!');
       }
@@ -152,7 +158,7 @@ const PinSettingsTab: React.FC = () => {
   return (
     <Box sx={{ flexGrow: 1, overflow: "auto", p: 2 }}>
       <form onSubmit={form.handleSubmit(handleSubmit)}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {/* Hidden ID field */}
           <input type="hidden" {...form.register('id')} />
           
@@ -183,8 +189,20 @@ const PinSettingsTab: React.FC = () => {
               isShowLabel={false}
             />
           </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+         <Typography  sx={{ fontSize: 14}}>Auto Approve Override Requests</Typography>
+          <SwitchInput
+         checked={form.watch('autoApproveOverrideRequests')}
+         onChange={(checked) =>
+          form.setValue('autoApproveOverrideRequests', checked)
+           }
+           sx={{ mb: 0 }}
+          isShowLabel={false}
+         />
+         </Box>
           
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 0 }}>
             <CustomButton
               type="submit"
               loading={saving}
