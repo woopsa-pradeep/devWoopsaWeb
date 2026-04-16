@@ -144,7 +144,12 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-const WebView: React.FC = () => {
+interface WebViewPermProps {
+    canAdd?: boolean;
+    canEdit?: boolean;
+}
+
+const WebView: React.FC<WebViewPermProps> = ({ canAdd = true, canEdit: _canEdit = true }) => {
   const [tabValue, setTabValue] = useState(0);
   const [sections, setSections] = useState<SectionData[]>([
     {
@@ -2237,6 +2242,7 @@ const WebView: React.FC = () => {
         >
           Categories
         </Typography>
+        {canAdd && (
         <CustomButton
           appearance="filled"
           onClick={() => handleCategoryModalOpen()}
@@ -2247,6 +2253,7 @@ const WebView: React.FC = () => {
         >
           Add
         </CustomButton>
+        )}
       </Box>
 
       {categoriesLoading ? (
@@ -2364,6 +2371,7 @@ const WebView: React.FC = () => {
         >
           Price Classes
         </Typography>
+        {canAdd && (
         <CustomButton
           appearance="filled"
           onClick={() => handlePriceClassModalOpen()}
@@ -2374,6 +2382,7 @@ const WebView: React.FC = () => {
         >
           Add
         </CustomButton>
+        )}
       </Box>
 
       {priceClassesLoading ? (
@@ -2491,6 +2500,7 @@ const WebView: React.FC = () => {
         >
           Quick Links
         </Typography>
+        {canAdd && (
         <CustomButton
           appearance="filled"
           onClick={() => handleQuickLinkModalOpen()}
@@ -2501,6 +2511,7 @@ const WebView: React.FC = () => {
         >
           Add
         </CustomButton>
+        )}
       </Box>
 
       {quickLinksLoading ? (

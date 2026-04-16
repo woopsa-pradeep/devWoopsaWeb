@@ -33,7 +33,12 @@ interface EpickSettingData {
   updatedAt?: string;
 }
 
-const PinSettingsTab: React.FC = () => {
+interface PinSettingsTabProps {
+  canAdd?: boolean;
+  canEdit?: boolean;
+}
+
+const PinSettingsTab: React.FC<PinSettingsTabProps> = ({ canAdd: _canAdd = true, canEdit = true }) => {
   const [epickSettings, setEpickSettings] = useState<EpickSettingData | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -202,6 +207,7 @@ const PinSettingsTab: React.FC = () => {
          />
          </Box>
           
+          {canEdit && (
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 0 }}>
             <CustomButton
               type="submit"
@@ -212,6 +218,7 @@ const PinSettingsTab: React.FC = () => {
               {saving ? 'Saving...' : (epickSettings?.id ? 'Update' : 'Save')}
             </CustomButton>
           </Box>
+          )}
         </Box>
       </form>
     </Box>

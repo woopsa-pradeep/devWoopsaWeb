@@ -115,7 +115,12 @@ const updateEpickUserSchema = z.object({
 type CreateEpickUserFormData = z.infer<typeof createEpickUserSchema>;
 type UpdateEpickUserFormData = z.infer<typeof updateEpickUserSchema>;
 
-const CreateEpickUserTab: React.FC = () => {
+interface CreateEpickUserTabProps {
+  canAdd?: boolean;
+  canEdit?: boolean;
+}
+
+const CreateEpickUserTab: React.FC<CreateEpickUserTabProps> = ({ canAdd = true, canEdit = true }) => {
   const [users, setUsers] = useState<EpickUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -611,6 +616,7 @@ const CreateEpickUserTab: React.FC = () => {
               <ViewIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          {canEdit && (
           <Tooltip title="Edit User">
             <IconButton
               size="small"
@@ -622,6 +628,8 @@ const CreateEpickUserTab: React.FC = () => {
               <EditIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          )}
+          {canEdit && (
           <Tooltip title="Delete User">
             <IconButton
               size="small"
@@ -633,6 +641,7 @@ const CreateEpickUserTab: React.FC = () => {
               <DeleteIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          )}
         </Box>
       ),
     },
@@ -659,6 +668,7 @@ const CreateEpickUserTab: React.FC = () => {
         <Typography sx={{ fontWeight: 500, fontSize: 16, color: "text.primary" }}>
           Epick Users
         </Typography>
+        {canAdd && (
         <CustomButton
           appearance="filled"
           buttonType="primary"
@@ -669,6 +679,7 @@ const CreateEpickUserTab: React.FC = () => {
         >
           Create User
         </CustomButton>
+        )}
       </Box>
 
       {/* Users Table */}

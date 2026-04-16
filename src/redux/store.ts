@@ -7,6 +7,7 @@ import authReducer from "./slices/authSlice";
 import layoutReducer from "./slices/layoutSlice";
 import cartReducer from "./slices/cartSlice";
 import salesCartReducer from "./slices/salesCartSlice";
+import salesPriceBookCartReducer from "./slices/salesPriceBookCartSlice";
 import globalPopupReducer from "./slices/globalPopupSlice";
 import dashboardReducer from "./slices/dashboardSlice";
 import salesDashboardReducer from "./slices/salesDashboardSlice";
@@ -29,7 +30,7 @@ const formPersistConfig = {
 const authPersistConfig = {
   key: 'auth',
   storage,
-  whitelist: ['token', 'isAuthenticated', 'role', 'wareHouseDetail', 'storeDetail', 'signUpData', 'module', 'selectedCustomer', 'isSessionActive','logo', 'allowDiscount', 'discountLimit', 'allowDeliveryCharge', 'showTradeShow', 'hasMultipleStore', 'stores', 'selectedStore'] // only persist these fields
+  whitelist: ['token', 'isAuthenticated', 'role', 'wareHouseDetail', 'storeDetail', 'signUpData', 'module', 'selectedCustomer', 'isSessionActive','logo', 'allowDiscount', 'discountLimit', 'allowDeliveryCharge', 'showTradeShow', 'hasMultipleStore', 'stores', 'selectedStore', 'priceBook'] // only persist these fields
 };
 
 const salesDashboardPersistConfig = {
@@ -51,6 +52,12 @@ const cartPersistConfig = {
 
 const salesCartPersistConfig = {
   key: 'salesCart',
+  storage,
+  whitelist: ['items', 'count', 'totalItems', 'totalAmountWithTax', 'totalAmount', 'userItemLimitQty', 'userLimitMinOrderAmount']
+};
+
+const salesPriceBookCartPersistConfig = {
+  key: 'salesPriceBookCart',
   storage,
   whitelist: ['items', 'count', 'totalItems', 'totalAmountWithTax', 'totalAmount', 'userItemLimitQty', 'userLimitMinOrderAmount']
 };
@@ -105,6 +112,7 @@ const persistedSalesDashboardReducer = persistReducer(salesDashboardPersistConfi
 const persistDashboardReducer = persistReducer(dashboardPersistConfig, dashboardReducer);
 const persistedCartReducer = persistReducer(cartPersistConfig, cartReducer);
 const persistedSalesCartReducer = persistReducer(salesCartPersistConfig, salesCartReducer);
+const persistedSalesPriceBookCartReducer = persistReducer(salesPriceBookCartPersistConfig, salesPriceBookCartReducer);
 const persistedTradeShowReducer = persistReducer(tradeShowPersistConfig, tradeShowReducer);
 const persistedRouteOptimizationReducer = persistReducer(
   routeOptimizationPersistConfig,
@@ -119,6 +127,7 @@ export const store = configureStore({
     layout: layoutReducer,
     cart: persistedCartReducer,
     salesCart: persistedSalesCartReducer,
+    salesPriceBookCart: persistedSalesPriceBookCartReducer,
     globalPopup: globalPopupReducer,
     dashboard: persistDashboardReducer,
     salesDashboard: persistedSalesDashboardReducer,

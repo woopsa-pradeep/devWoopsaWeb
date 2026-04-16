@@ -11,6 +11,10 @@ export const Order = lazyLoad(
   () => import("../pages/retailer/order/Order"),
   "Loading Order..."
 );
+export const RetailerPriceBook = lazyLoad(
+  () => import("../pages/retailer/priceBook/PriceBook"),
+  "Loading Price Book..."
+);
 export const OrderTablePage = lazyLoad(
   () => import("../pages/retailer/order/OrderTablePage"),
   "Loading Order Table Page..." 
@@ -281,6 +285,14 @@ export const SalesOrder = lazyLoad(
   () => import("../pages/sales/salesOrder/Order"),
   "Loading Sales Order..."
 );
+export const PriceBook = lazyLoad(
+  () => import("../pages/sales/salesPriceBook/PriceBook"),
+  "Loading Price Book..."
+);
+export const PriceBookCartPage = lazyLoad(
+  () => import("../pages/sales/salesPriceBookCart/PriceBookCartPage"),
+  "Loading Price Book Cart..."
+);
 export const SalesOrderTablePage = lazyLoad(
   () => import("../pages/sales/salesOrder/OrderTablePage"),
   "Loading Sales Order Table Page..."
@@ -393,6 +405,10 @@ export const WarehouseSelection = lazyLoad(
 export const CartPage = lazyLoad(
   () => import("../pages/retailer/cart/CartPage"),
   "Loading Cart..."
+);
+export const RetailerPriceBookCartPage = lazyLoad(
+  () => import("../pages/retailer/priceBookCart/PriceBookCartPage"),
+  "Loading Price Book Cart..."
 );
 
 export const RolesPermissionsPage = lazyLoad(

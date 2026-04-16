@@ -32,3 +32,14 @@ export const useModulePermission = (moduleName: string): ModulePermission => {
 
   return { canAdd: false, canEdit: false, canView: false };
 };
+
+/**
+ * Returns add/edit/view permission for a sub-module.
+ * Usage: useSubModulePermission('Product', 'Future Pricing')
+ * Looks up "Product - Future Pricing" in the permissions list.
+ * For distributor (admin): always returns all true.
+ */
+export const useSubModulePermission = (parentModule: string, subModule: string): ModulePermission => {
+  const moduleName = `${parentModule} - ${subModule}`;
+  return useModulePermission(moduleName);
+};

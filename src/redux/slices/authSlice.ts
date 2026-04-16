@@ -70,6 +70,7 @@ interface AuthState {
   stores: Store[] | null;
   selectedStore: Store | null;
   showTradeShow: boolean;
+  priceBook: boolean | null;
 }
 
 const initialState: AuthState = {
@@ -94,6 +95,7 @@ const initialState: AuthState = {
   stores: null,
   selectedStore: null,
   showTradeShow: false,
+  priceBook: null,
 };
 
 const authSlice = createSlice({
@@ -120,6 +122,7 @@ const authSlice = createSlice({
       state.stores = null;
       state.selectedStore = null;
       state.showTradeShow = false;
+      state.priceBook = null;
       localStorage.removeItem('token');
       localStorage.removeItem('role');
       localStorage.removeItem('emailPhone');
@@ -175,6 +178,7 @@ const authSlice = createSlice({
       state.storeDetail = authData.storeDetail;
       state.logo = authData.logo;
       state.showTradeShow = authData.showTradeShow === true;
+      state.priceBook = authData.priceBook ?? null;
       if (emailPhone) {
         state.emailPhone = emailPhone;
         localStorage.setItem('emailPhone', emailPhone);
@@ -217,6 +221,7 @@ const authSlice = createSlice({
         state.otpSent = false;
         state.logo = payload.logo;
         state.showTradeShow = payload.showTradeShow === true;
+        state.priceBook = payload.priceBook === true ? true : (payload.priceBook === false ? false : null);
         localStorage.setItem('token', payload.token);
         localStorage.setItem('role', payload.role);
       })
@@ -243,14 +248,18 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(loginUser.fulfilled, (state, action: any) => {
+        const payload = action.payload?.data ?? action.payload;
         state.loading = false;
         state.isAuthenticated = true;
-        state.token = action.payload.token;
-        state.role = action.payload.role;
-        state.wareHouseDetail = action.payload.wareHouseDetail;
-        state.storeDetail = action.payload.storeDetail;
-        localStorage.setItem('token', action.payload.token);
-        localStorage.setItem('role', action.payload.role);
+        state.token = payload.token;
+        state.role = payload.role;
+        state.wareHouseDetail = payload.wareHouseDetail;
+        state.storeDetail = payload.storeDetail;
+        state.logo = payload.logo ?? state.logo;
+        state.showTradeShow = payload.showTradeShow === true;
+        state.priceBook = payload.priceBook === true ? true : (payload.priceBook === false ? false : null);
+        localStorage.setItem('token', payload.token);
+        localStorage.setItem('role', payload.role);
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
@@ -274,6 +283,7 @@ const authSlice = createSlice({
         state.allowDiscount = data?.profile?.allowDiscount ?? null;
         state.discountLimit = data?.profile?.discountLimit ?? null;
         state.allowDeliveryCharge = data?.profile?.allowDeliveryCharge ?? null;
+        state.priceBook = data?.priceBook ?? null;
         // Convert wholesaledetail object to array
         state.wareHouseDetail = data?.wholeStoreDetail ? [data.wholeStoreDetail] : null;
         localStorage.setItem('token', data.token);

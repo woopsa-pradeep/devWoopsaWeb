@@ -16,7 +16,7 @@ import {
   Alert,
   } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useModulePermission } from '../../../hooks/useModulePermission';
+import { useModulePermission, useSubModulePermission } from '../../../hooks/useModulePermission';
 import CommonTable, { TableColumn } from '../../../component/atoms/Table/CommonTable';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { createProductLimit, productList, productListWithTax, updateProductImageByImageId, updateProductLimit, uploadProductImage, getProductById, bulkUploadItemImages } from '../../../redux/apis/distrubutor/productApis';
@@ -126,6 +126,10 @@ const Product = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { canAdd, canEdit, canView } = useModulePermission('Product');
+  const { canView: canViewFuturePricing } = useSubModulePermission('Product', 'Future Pricing');
+  const { canView: canViewBulkUpdate } = useSubModulePermission('Product', 'Bulk Update');
+  const { canView: canViewBulkImage } = useSubModulePermission('Product', 'Bulk Image');
+  const { canView: canViewPrintLabel } = useSubModulePermission('Product', 'Print Label');
   const isSalesMode = location.pathname.startsWith('/sales');
   const productBasePath = isSalesMode ? '/sales/product' : '/admin/product';
 
@@ -1887,11 +1891,12 @@ useEffect(() => {
           display="flex"
           alignItems="center"
           gap={2}
-          sx={{ cursor: 'pointer' }}
+          sx={{ cursor: canViewBulkImage ? 'pointer' : 'default' }}
           onClick={() => {
+            if (!canViewBulkImage) return;
             setSelectedProduct(row);
             setShowDistributorImage(!!row.showDistributorImage);
-            setModalOpen(true); 
+            setModalOpen(true);
             setFile(null);
           }}
         >
@@ -2059,18 +2064,18 @@ useEffect(() => {
                 />
               </Tooltip>
             )}
-            {!isSalesMode && canEdit && (
+            {canEdit && (
               <Tooltip title="Set Product Limit">
-                <SettingsIcon 
-                  sx={{ fontSize: 20, color: 'secondary.main', cursor: 'pointer' }} 
+                <SettingsIcon
+                  sx={{ fontSize: 20, color: 'secondary.main', cursor: 'pointer' }}
                   onClick={() => handleLimitClick(row)}
                 />
               </Tooltip>
             )}
-            {!isSalesMode && (
+            {canViewPrintLabel && (
               <Tooltip title="Print Label">
-                <PrintIcon 
-                  sx={{ fontSize: 20, color: 'info.main', cursor: 'pointer' }} 
+                <PrintIcon
+                  sx={{ fontSize: 20, color: 'info.main', cursor: 'pointer' }}
                   onClick={() => {
                     setIndividualPrintProduct(row);
                     setIndividualPrintModalOpen(true);
@@ -2175,11 +2180,12 @@ const inactive =
                 justifyContent: 'center',
                 flexShrink: 0,
                 position: 'relative',
-                cursor: 'pointer',
-                '&:hover .edit-overlay': { opacity: 1 }
+                cursor: canViewBulkImage ? 'pointer' : 'default',
+                '&:hover .edit-overlay': { opacity: canViewBulkImage ? 1 : 0 }
               }}
               onClick={(e) => {
                 e.stopPropagation();
+                if (!canViewBulkImage) return;
                 // Open the same modal as table view
                 const productForModal: Product = {
                   id: String(item.Item_Number),
@@ -2322,9 +2328,9 @@ const inactive =
                   </IconButton>
                 </Tooltip>
               )}
-              {!isSalesMode && canEdit && (
+              {canEdit && (
                 <Tooltip title="Set Product Limit">
-                  <IconButton 
+                  <IconButton
                     size="small"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -2373,9 +2379,9 @@ const inactive =
                 </IconButton>
               </Tooltip>
               )}
-              {!isSalesMode && (
+              {canViewPrintLabel && (
                 <Tooltip title="Print Label">
-                  <IconButton 
+                  <IconButton
                     size="small"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -3709,76 +3715,84 @@ const inactive =
               </ToggleButton>
             </ToggleButtonGroup>
             */}
-            {!isSalesMode && (
+            {(canViewFuturePricing || canViewBulkUpdate || canViewBulkImage || canViewPrintLabel) && (
               <>
-                <CustomButton 
+                {canViewFuturePricing && (
+                <CustomButton
                   fullWidth={false}
-                  onClick={() => navigate('/admin/products/future-pricing')}
+                  onClick={() => navigate(isSalesMode ? '/sales/product/future-pricing' : '/admin/products/future-pricing')}
                   icon={<EventIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
                   iconPosition="left"
-                  sx={{ 
+                  sx={{
                     mt: 0,
                     fontSize: { xs: '0.75rem', md: '0.875rem' },
                     px: { xs: 1, md: 1.5 },
                     '& .MuiButton-startIcon': {
                       mr: { xs: 0.5, md: 1 }
                     }
-                  }} 
+                  }}
                 >
                   <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Future Pricing</Box>
                   <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Pricing</Box>
                 </CustomButton>
-                <CustomButton 
+                )}
+                {canViewBulkUpdate && (
+                <CustomButton
                   fullWidth={false}
-                  onClick={() => navigate('/admin/products/bulk-update')}
+                  onClick={() => navigate(isSalesMode ? '/sales/product/bulk-update' : '/admin/products/bulk-update')}
                   icon={<UpdateIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
                   iconPosition="left"
-                  sx={{ 
+                  sx={{
                     mt: 0,
                     fontSize: { xs: '0.75rem', md: '0.875rem' },
                     px: { xs: 1, md: 1.5 },
                     '& .MuiButton-startIcon': {
                       mr: { xs: 0.5, md: 1 }
                     }
-                  }} 
+                  }}
                 >
                   <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Bulk Update</Box>
                   <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Update</Box>
                 </CustomButton>
-                <CustomButton 
+                )}
+                {canViewBulkImage && (
+                <CustomButton
                   fullWidth={false}
                   onClick={handleBulkImageModalOpen}
                   icon={<ImageIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
                   iconPosition="left"
-                  sx={{ 
+                  sx={{
                     mt: 0,
                     fontSize: { xs: '0.75rem', md: '0.875rem' },
                     px: { xs: 1, md: 1.5 },
                     '& .MuiButton-startIcon': {
                       mr: { xs: 0.5, md: 1 }
                     }
-                  }} 
+                  }}
                 >
                   <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Bulk Image</Box>
                   <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Images</Box>
                 </CustomButton>
-                <CustomButton 
+                )}
+                {canViewPrintLabel && (
+                <CustomButton
                   fullWidth={false}
                   onClick={() => setPrintLabelDrawerOpen(true)}
                   icon={<PrintIcon sx={{ fontSize: { xs: 18, md: 20 } }} />}
                   iconPosition="left"
-                  sx={{ 
+                  sx={{
                     mt: 0,
                     fontSize: { xs: '0.75rem', md: '0.875rem' },
                     px: { xs: 1, md: 1.5 },
                     '& .MuiButton-startIcon': {
                       mr: { xs: 0.5, md: 1 }
                     }
-                  }} 
+                  }}
                 >
                   <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Print Label</Box>
                   <Box component="span" sx={{ display: { xs: 'inline', lg: 'none' } }}>Print</Box>
                 </CustomButton>
+                )}
               </>
             )}
             {/* <CustomButton 

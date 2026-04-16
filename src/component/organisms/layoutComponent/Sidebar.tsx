@@ -98,17 +98,23 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isMobile = useMediaQuery("(max-width:1199px)");
   const location = useLocation();
   const mode = useSelector((state: RootState) => state.theme.mode);
-  const { role, module, showTradeShow } = useSelector((state: RootState) => state.auth);
+  const { role, module, showTradeShow, priceBook } = useSelector((state: RootState) => state.auth);
   // Get role-based navigation config
   const salesNavigationConfig = getNavigationConfig(role).filter((item) => item.check === "sales");
-  const filterByRoleModule = salesNavigationConfig.filter((item) => 
-    ["Policies", "Trade Show"].includes(item.name) || 
+  const filterByRoleModule = salesNavigationConfig.filter((item) =>
+    ["Policies", "Trade Show", "Price Book"].includes(item.name) ||
     module?.some((moduleItem: any) => moduleItem.module === item.name && moduleItem?.view === true)
   );
   let navigationConfig = role === "sales" ? filterByRoleModule : getNavigationConfig(role);
   // For retailer and sales: show "Trade Show" tab only when showTradeShow is true
   if ((role === "retailer" || role === "sales") && !showTradeShow) {
     navigationConfig = navigationConfig.filter((item) => item.name !== "Trade Show");
+  }
+  // For sales and retailer: show Price Book nav only when priceBook is true
+  if ((role === "sales" || role === "retailer") && priceBook !== true) {
+    navigationConfig = navigationConfig.filter(
+      (item) => item.name !== "Price Book" && item.name !== "Price Book Cart"
+    );
   }
   const drawerContent = (
     <>

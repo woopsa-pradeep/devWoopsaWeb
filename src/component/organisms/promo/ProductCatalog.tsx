@@ -64,7 +64,12 @@ interface ProductData {
   updatedAt: string;
 }
 
-const ProductCatalog: React.FC = () => {
+interface ProductCatalogPermProps {
+    canAdd?: boolean;
+    canEdit?: boolean;
+}
+
+const ProductCatalog: React.FC<ProductCatalogPermProps> = ({ canAdd = true, canEdit: _canEdit = true }) => {
   const theme = useTheme();
   
   // Modal states
@@ -410,6 +415,7 @@ const ProductCatalog: React.FC = () => {
       <Box display="flex" px={2} justifyContent="space-between" alignItems="center" >
         <Typography fontSize={16} color="text.primary">Product Catalog</Typography>
      
+        {canAdd && (
         <CustomButton
           appearance="filled"
           onClick={handleOpenModal}
@@ -420,6 +426,7 @@ const ProductCatalog: React.FC = () => {
         >
           Add
         </CustomButton>
+        )}
       </Box>
 
       

@@ -251,7 +251,12 @@ interface CheckerActionLog {
   createdAt: string;
 }
 
-const OngoingOrdersTab: React.FC = () => {
+interface OngoingOrdersTabProps {
+  canAdd?: boolean;
+  canEdit?: boolean;
+}
+
+const OngoingOrdersTab: React.FC<OngoingOrdersTabProps> = ({ canAdd: _canAdd = true, canEdit = true }) => {
   const [activeTab, setActiveTab] = useState(0); // 0: Pending, 1: Completed
   
   // Pending tab states
@@ -1321,6 +1326,7 @@ const OngoingOrdersTab: React.FC = () => {
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', pr: 1 }}>
+                    {canEdit && (
                     <Tooltip title="Remove Order">
                       <IconButton
                         size="small"
@@ -1330,7 +1336,7 @@ const OngoingOrdersTab: React.FC = () => {
                         }}
                         disabled={processingOrderNumber === order.orderNumber}
                         color="error"
-                        sx={{ 
+                        sx={{
                           padding: '3px',
                           mr: 0.5,
                           '&:hover': {
@@ -1342,6 +1348,7 @@ const OngoingOrdersTab: React.FC = () => {
                         <DeleteIcon sx={{ fontSize: 16 }} />
                       </IconButton>
                     </Tooltip>
+                    )}
                     {order.flagPass && (
                       <Box
                         sx={{
@@ -1525,7 +1532,7 @@ const OngoingOrdersTab: React.FC = () => {
                               <Typography fontWeight={500} fontSize={11} color="text.primary">
                                 Override Requests ({picker.overrideRequests?.length || 0})
                               </Typography>
-                              {picker.overrideRequests && picker.overrideRequests.length > 0 && (
+                              {canEdit && picker.overrideRequests && picker.overrideRequests.length > 0 && (
                                 <Box sx={{ display: 'flex', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
                                   <CustomButton
                                     buttonType="primary"
@@ -1655,16 +1662,17 @@ const OngoingOrdersTab: React.FC = () => {
                                         {formatDateTime(req.createdAt)}
                                       </Typography>
                                     </Box>
+                                    {canEdit && (
                                     <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
                                       <Tooltip title="Approve">
                                         <IconButton
                                           size="small"
                                           onClick={() => handleOpenApproveModal(req.requestId)}
                                           disabled={processingRequestId === req.requestId}
-                                          sx={{ 
+                                          sx={{
                                             bgcolor: 'success.light',
                                             color: 'success.contrastText',
-                                            '&:hover': { 
+                                            '&:hover': {
                                               bgcolor: 'success.main',
                                             },
                                             transition: 'all 0.3s ease',
@@ -1681,10 +1689,10 @@ const OngoingOrdersTab: React.FC = () => {
                                           size="small"
                                           onClick={() => handleOpenRejectModal(req.requestId)}
                                           disabled={processingRequestId === req.requestId}
-                                          sx={{ 
+                                          sx={{
                                             bgcolor: 'error.light',
                                             color: 'error.contrastText',
-                                            '&:hover': { 
+                                            '&:hover': {
                                               bgcolor: 'error.main',
                                             },
                                             transition: 'all 0.3s ease',
@@ -1697,6 +1705,7 @@ const OngoingOrdersTab: React.FC = () => {
                                         </IconButton>
                                       </Tooltip>
                                     </Box>
+                                    )}
                                   </Box>
                                 ))}
                               </Box>

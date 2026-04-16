@@ -12,6 +12,7 @@ import type { Theme } from '@mui/material/styles';
 import { Settings as SettingsIcon, ShoppingCart as OngoingOrdersIcon, Settings as OrderPreferencesIcon, Assessment as ReportsIcon, PersonAdd as CreateUserIcon } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../../redux/store';
+import { useSubModulePermission } from '../../../hooks/useModulePermission';
 import PinSettingsTab from './PinSettingsTab';
 import OngoingOrdersTab from './OngoingOrdersTab';
 import OrderPreferencesTab from './OrderPreferencesTab';
@@ -40,19 +41,42 @@ const EpickSetting = () => {
   const isMobile = useMediaQuery("(max-width: 899px)");
   const { role } = useSelector((state: RootState) => state.auth);
   const isSales = role === 'sales';
+  const isDistributor = role === 'distributor';
+
+  // Sub-module permissions for Epick (full canAdd/canEdit/canView)
+  const settingsPerms = useSubModulePermission('Epick', 'Settings');
+  const ongoingOrdersPerms = useSubModulePermission('Epick', 'Ongoing Orders');
+  const orderPreferencesPerms = useSubModulePermission('Epick', 'Order Preferences');
+  const reportsPerms = useSubModulePermission('Epick', 'Reports');
+  const createUserPerms = useSubModulePermission('Epick', 'Create User');
+
+  const subModulePermsMap: Record<string, { canAdd: boolean; canEdit: boolean; canView: boolean }> = {
+    settings: settingsPerms,
+    orders: ongoingOrdersPerms,
+    orderPreferences: orderPreferencesPerms,
+    reports: reportsPerms,
+    createUser: createUserPerms,
+  };
 
   const allTabs = useMemo(() => [
-    { id: 'settings', label: 'Settings', icon: SettingsIcon, content: <PinSettingsTab />, showHeader: true },
-    { id: 'orders', label: 'Orders', icon: OngoingOrdersIcon, content: <OngoingOrdersTab />, showHeader: false },
-    { id: 'orderPreferences', label: 'Order Preferences', icon: OrderPreferencesIcon, content: <OrderPreferencesTab />, showHeader: false },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon, content: <PinSettingsTab canAdd={settingsPerms.canAdd} canEdit={settingsPerms.canEdit} />, showHeader: true },
+    { id: 'orders', label: 'Orders', icon: OngoingOrdersIcon, content: <OngoingOrdersTab canAdd={ongoingOrdersPerms.canAdd} canEdit={ongoingOrdersPerms.canEdit} />, showHeader: false },
+    { id: 'orderPreferences', label: 'Order Preferences', icon: OrderPreferencesIcon, content: <OrderPreferencesTab canEdit={orderPreferencesPerms.canEdit} />, showHeader: false },
     { id: 'reports', label: 'E-pick Reports', icon: ReportsIcon, content: <EpickReportsTab />, showHeader: false },
-    { id: 'createUser', label: 'Create Epick User', icon: CreateUserIcon, content: <CreateEpickUserTab />, showHeader: false },
-  ], []);
+    { id: 'createUser', label: 'Create Epick User', icon: CreateUserIcon, content: <CreateEpickUserTab canAdd={createUserPerms.canAdd} canEdit={createUserPerms.canEdit} />, showHeader: false },
+  ], [settingsPerms, ongoingOrdersPerms, orderPreferencesPerms, createUserPerms]);
 
-  const visibleTabs = useMemo(() => 
-    isSales ? allTabs.filter(t => t.id === 'orders' || t.id === 'reports') : allTabs,
-    [isSales, allTabs]
-  );
+  const visibleTabs = useMemo(() => {
+    let tabs = allTabs;
+    if (isSales) {
+      tabs = tabs.filter(t => t.id === 'orders' || t.id === 'reports');
+    }
+    // For sales: filter by sub-module permissions; distributor: show all
+    if (!isDistributor) {
+      tabs = tabs.filter(t => subModulePermsMap[t.id]?.canView !== false);
+    }
+    return tabs;
+  }, [isSales, isDistributor, allTabs, subModulePermsMap]);
 
   const [activeTab, setActiveTab] = useState(0);
 

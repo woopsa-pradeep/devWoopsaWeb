@@ -53,6 +53,23 @@ export const getInventoryItems = async (customerId: string, params?: any, signal
     } as any);
     return response.data;
 }
+export const getPriceBookInventoryItems = async (customerId: string, params?: any, signal?: AbortSignal) => {
+    const storeDetail = store.getState().auth.storeDetail;
+    const payload = {
+        ...(params || {}),
+        state: storeDetail?.C_State,
+        zip: storeDetail?.C_Zip,
+        jurisdiction: storeDetail?.Jurisdiction_State
+    };
+
+    const response = await axiosInstance.post(`/sales/getPriceBookInventoryItems/${customerId}`, payload, {
+        headers: {
+            'customer': customerId
+        },
+        ...(signal !== undefined && { signal })
+    } as any);
+    return response.data;
+}
 export const getInventoryItemsBySalesRep = async (customerId: string, params?: any, signal?: AbortSignal) => {
     const storeDetail = store.getState().auth.storeDetail;
     const payload = {

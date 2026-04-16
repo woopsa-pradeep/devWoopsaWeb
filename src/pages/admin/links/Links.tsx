@@ -43,7 +43,12 @@ interface LinkData {
 
 
 
-const Links: React.FC = () => {
+interface LinksPermProps {
+    canAdd?: boolean;
+    canEdit?: boolean;
+}
+
+const Links: React.FC<LinksPermProps> = ({ canAdd = true, canEdit = true }) => {
   const theme = useTheme();
   
   // Modal states
@@ -497,16 +502,18 @@ const Links: React.FC = () => {
       <Box display="flex" px={2} pt={2} justifyContent="space-between" alignItems="center" >
         <Typography fontSize={16} color="text.primary">Links</Typography>
      
+        {canAdd && (
         <CustomButton
           appearance="filled"
           onClick={handleOpenModal}
           icon={<AddIcon fontSize='small' sx={{fontSize:16}}/>}
-size="small"
-      fullWidth={false}
-      sx={{ mt: 0 }}
+          size="small"
+          fullWidth={false}
+          sx={{ mt: 0 }}
         >
           Add
         </CustomButton>
+        )}
       </Box>
 
       <CommonTable
@@ -1002,18 +1009,22 @@ size="small"
            </ListItemIcon>
            <ListItemText primary="View" />
          </MenuItem>
+         {canEdit && (
          <MenuItem onClick={() => handleMenuAction('edit')}>
            <ListItemIcon>
              <EditIcon fontSize="small" />
            </ListItemIcon>
            <ListItemText primary="Edit" />
          </MenuItem>
+         )}
+         {canEdit && (
          <MenuItem onClick={() => handleMenuAction('delete')}>
            <ListItemIcon>
              <DeleteIcon fontSize="small" />
            </ListItemIcon>
            <ListItemText primary="Delete" />
          </MenuItem>
+         )}
        </Menu>
      </Box>
    );

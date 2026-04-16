@@ -44,7 +44,12 @@ interface StoryData {
 
 
 
-const Stories: React.FC = () => {
+interface StoriesPermProps {
+    canAdd?: boolean;
+    canEdit?: boolean;
+}
+
+const Stories: React.FC<StoriesPermProps> = ({ canAdd = true, canEdit: _canEdit = true }) => {
     const theme = useTheme();
     const [stories, setStories] = useState<StoryData[]>([]);
     const [loading, setLoading] = useState(false);
@@ -129,7 +134,8 @@ const Stories: React.FC = () => {
             <Box>
                 {/* Header */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                    <Typography fontSize={16} color="text.primary">Promotional Stories</Typography> 
+                    <Typography fontSize={16} color="text.primary">Promotional Stories</Typography>
+                    {canAdd && (
                     <CustomButton
                         appearance="filled"
                         onClick={handleOpenStoryModal}
@@ -140,6 +146,7 @@ const Stories: React.FC = () => {
                     >
                         Add Story
                     </CustomButton>
+                    )}
                 </Box>
 
                 {/* Empty State */}
@@ -157,6 +164,7 @@ const Stories: React.FC = () => {
                     <Typography color="text.secondary" sx={{ mb: 3 }}>
                         Create your first promotional story to get started
                     </Typography>
+                    {canAdd && (
                     <CustomButton
                         appearance="filled"
                         onClick={handleOpenStoryModal}
@@ -167,6 +175,7 @@ const Stories: React.FC = () => {
                     >
                         Create First Story
                     </CustomButton>
+                    )}
                 </Box>
 
                 {/* Story Modal */}
@@ -185,6 +194,7 @@ const Stories: React.FC = () => {
 
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <Typography fontSize={16} color="text.primary">Promotional Stories</Typography>
+                {canAdd && (
                 <CustomButton
                     sx={{ mt:0 }}
                     appearance="filled"
@@ -195,6 +205,7 @@ const Stories: React.FC = () => {
                 >
                     Add
                 </CustomButton>
+                )}
             </Box>
 
 

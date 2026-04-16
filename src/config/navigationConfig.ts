@@ -20,6 +20,12 @@ export const retailerNavigationConfig: NavigationItem[] = [
     check: "retailer",
   },
   {
+    name: "Price Book",
+    path: "/retailer/pricebook",
+    icon: "order",
+    check: "retailer",
+  },
+  {
     name: "Order History",
     path: "/retailer/orders/history",
     icon: "order-history",
@@ -278,6 +284,18 @@ export const salesNavigationConfig: NavigationItem[] = [
   {
     name: "Orders",
     path: "/sales/order",
+    icon: "order",
+    check: "sales",
+  },
+  {
+    name: "Price Book",
+    path: "/sales/pricebook",
+    icon: "order",
+    check: "sales",
+  },
+  {
+    name: "Price Book Cart",
+    path: "/sales/pricebook/cart",
     icon: "order",
     check: "sales",
   },

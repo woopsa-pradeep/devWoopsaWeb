@@ -52,6 +52,9 @@ import Links from '../../../pages/admin/links/Links';
 import ProductCatalog from './ProductCatalog';
 import Stories from './Stories';
 import WebView from './WebView';
+import { useSubModulePermission } from '../../../hooks/useModulePermission';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../redux/store';
 
 interface Promo {
     id: number;
@@ -98,11 +101,12 @@ interface RetailerOption {
     label: string;
 }
 
-const tabConfigs = [
+const allTabConfigs = [
     {
         label: 'Active Promos',
         icon: <CampaignIcon />,
         value: 'active',
+        subModule: 'Active Promos',
         filter: (promo: Promo) => {
             const endDate = dayjs(promo.endDate);
             const currentDate = dayjs();
@@ -115,12 +119,14 @@ const tabConfigs = [
         label: 'Stories',
         icon: <StoriesIcon />,
         value: 'stories',
+        subModule: 'Stories',
         filter: () => false,
     },
     {
         label: 'Product Catalog',
         icon: <ProductCatalogIcon />,
         value: 'productCatalog',
+        subModule: 'Product Catalog',
         filter: () => false,
         description: 'Manage product catalog and inventory'
     },
@@ -128,6 +134,7 @@ const tabConfigs = [
         label: 'WebView',
         icon: <WebViewIcon />,
         value: 'webView',
+        subModule: 'WebView',
         filter: () => false,
         description: 'Web view configuration and settings'
     },
@@ -135,6 +142,7 @@ const tabConfigs = [
         label: 'Links',
         icon: <LinksIcon />,
         value: 'links',
+        subModule: 'Links',
         filter: () => false,
         description: 'Manage promotional links and URLs'
     },
@@ -142,6 +150,7 @@ const tabConfigs = [
         label: 'Email Marketing',
         icon: <EmailMarketingIcon />,
         value: 'emailMarketing',
+        subModule: 'Email Marketing',
         filter: () => false,
         description: 'Manage email marketing campaigns and templates'
     }
@@ -150,6 +159,34 @@ const tabConfigs = [
 const PromoTabs = () => {
     const theme = useTheme();
     const [tab, setTab] = useState(0);
+    const { role } = useSelector((state: RootState) => state.auth);
+
+    // Sub-module permissions (canAdd, canEdit, canView for each tab)
+    const activePromosPerms = useSubModulePermission('Promo & marketing', 'Active Promos');
+    const storiesPerms = useSubModulePermission('Promo & marketing', 'Stories');
+    const productCatalogPerms = useSubModulePermission('Promo & marketing', 'Product Catalog');
+    const webViewPerms = useSubModulePermission('Promo & marketing', 'WebView');
+    const linksPerms = useSubModulePermission('Promo & marketing', 'Links');
+    const emailMarketingPerms = useSubModulePermission('Promo & marketing', 'Email Marketing');
+
+    const subModulePermsMap: Record<string, { canAdd: boolean; canEdit: boolean; canView: boolean }> = {
+        'Active Promos': activePromosPerms,
+        'Stories': storiesPerms,
+        'Product Catalog': productCatalogPerms,
+        'WebView': webViewPerms,
+        'Links': linksPerms,
+        'Email Marketing': emailMarketingPerms,
+    };
+
+    // For distributor: show all tabs; for sales: filter by sub-module view permission
+    const tabConfigs = role === 'distributor'
+        ? allTabConfigs
+        : allTabConfigs.filter(t => subModulePermsMap[t.subModule]?.canView !== false);
+
+    // Get current tab's permissions
+    const currentTabPerms = tabConfigs[tab]
+        ? subModulePermsMap[tabConfigs[tab].subModule]
+        : { canAdd: false, canEdit: false, canView: false };
     const [promos, setPromos] = useState<Promo[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
@@ -847,6 +884,7 @@ const PromoTabs = () => {
                     checked={row.status}
                     onChange={() => handleStatusChange(row)}
                     isShowLabel={false}
+                    disabled={!currentTabPerms.canEdit}
                     sx={{ mb: 0 }}
                 />
             ),
@@ -859,18 +897,19 @@ const PromoTabs = () => {
                     checked={row.hasForWeb}
                     onChange={() => handleStatusWebChange(row)}
                     isShowLabel={false}
+                    disabled={!currentTabPerms.canEdit}
                     sx={{ mb: 0 }}
                 />
             ),
         },
-        {
+        ...(currentTabPerms.canEdit ? [{
             id: 'actions',
             label: 'Actions',
-            align: 'center',
-            render: (row) => (
+            align: 'center' as const,
+            render: (row: Promo) => (
                 <IconButton
                     size="small"
-                    onClick={(e) => handleMenuOpen(e, row)}
+                    onClick={(e: React.MouseEvent<HTMLElement>) => handleMenuOpen(e, row)}
                     sx={{
                         color: 'text.secondary',
                         '&:hover': {
@@ -881,7 +920,7 @@ const PromoTabs = () => {
                     <MoreVertIcon fontSize="small" />
                 </IconButton>
             ),
-        },
+        }] : []),
     ];
 
     const emailCampaignColumns: TableColumn<EmailCampaign>[] = [
@@ -991,6 +1030,7 @@ const PromoTabs = () => {
                         {/* Add Promo Button */}
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px:2 }}>
                             <Typography fontSize={16} color="text.primary">Promo Management</Typography>
+                            {currentTabPerms.canAdd && (
                             <CustomButton
                                 sx={{mt:0}}
                                 fullWidth={false}
@@ -1001,6 +1041,7 @@ const PromoTabs = () => {
                             >
                                 Add
                             </CustomButton>
+                            )}
                         </Box>
 
                         {/* Table */}
@@ -1024,7 +1065,7 @@ const PromoTabs = () => {
                 return (
                     <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-                            <Stories />
+                            <Stories canAdd={currentTabPerms.canAdd} canEdit={currentTabPerms.canEdit} />
                         </Box>
                     </Box>
                 );
@@ -1033,7 +1074,7 @@ const PromoTabs = () => {
                 return (
                     <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-                            <ProductCatalog />
+                            <ProductCatalog canAdd={currentTabPerms.canAdd} canEdit={currentTabPerms.canEdit} />
                         </Box>
                     </Box>
                 );
@@ -1042,7 +1083,7 @@ const PromoTabs = () => {
                 return (
                     <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-                            <WebView />
+                            <WebView canAdd={currentTabPerms.canAdd} canEdit={currentTabPerms.canEdit} />
                         </Box>
                     </Box>
                 );
@@ -1051,7 +1092,7 @@ const PromoTabs = () => {
                 return (
                     <Box sx={{ P:2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-                            <Links />
+                            <Links canAdd={currentTabPerms.canAdd} canEdit={currentTabPerms.canEdit} />
                         </Box>
                     </Box>
                 );
@@ -1061,6 +1102,7 @@ const PromoTabs = () => {
                     <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                             <Typography fontSize={16} color="text.primary">Email Marketing</Typography>
+                            {currentTabPerms.canAdd && (
                             <CustomButton
                                 sx={{ mt: 0 }}
                                 fullWidth={false}
@@ -1071,6 +1113,7 @@ const PromoTabs = () => {
                             >
                                 Add Campaign
                             </CustomButton>
+                            )}
                         </Box>
                         
                         {/* Email Campaigns Table */}

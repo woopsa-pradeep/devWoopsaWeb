@@ -31,7 +31,11 @@ interface EpickUser {
   status: boolean;
 }
 
-const OrderPreferencesTab: React.FC = () => {
+interface OrderPreferencesTabProps {
+  canEdit?: boolean;
+}
+
+const OrderPreferencesTab: React.FC<OrderPreferencesTabProps> = ({ canEdit = true }) => {
   const [users, setUsers] = useState<EpickUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [processingUserId, setProcessingUserId] = useState<number | null>(null);
@@ -281,6 +285,7 @@ const OrderPreferencesTab: React.FC = () => {
       align: 'center',
       render: (row) => (
         <Box display="flex" justifyContent="center">
+          {canEdit && (
           <Tooltip title="Edit Preferences">
             <IconButton
               size="small"
@@ -292,6 +297,7 @@ const OrderPreferencesTab: React.FC = () => {
               <EditIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          )}
         </Box>
       ),
     },

@@ -17,6 +17,16 @@ export const routeConfig: { [key: string]: RouteConfig } = {
     allowedRoles: ['retailer'],
     redirectPath: '/admin/dashboard'
   },
+  '/retailer/pricebook': {
+    path: '/retailer/pricebook',
+    allowedRoles: ['retailer'],
+    redirectPath: '/admin/dashboard'
+  },
+  '/retailer/pricebook/cart': {
+    path: '/retailer/pricebook/cart',
+    allowedRoles: ['retailer'],
+    redirectPath: '/admin/dashboard'
+  },
   '/retailer/orders/history': {
     path: '/retailer/orders/history',
     allowedRoles: ['retailer'],
@@ -397,6 +407,16 @@ export const routeConfig: { [key: string]: RouteConfig } = {
   },
   '/sales/order': {
     path: '/sales/order',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/pricebook': {
+    path: '/sales/pricebook',
+    allowedRoles: ['sales'],
+    redirectPath: '/sales/dashboard'
+  },
+  '/sales/pricebook/cart': {
+    path: '/sales/pricebook/cart',
     allowedRoles: ['sales'],
     redirectPath: '/sales/dashboard'
   },

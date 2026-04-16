@@ -27,6 +27,19 @@ export const getInventoryItems = async (params: InventoryParams, signal?: AbortS
     return response.data;
 }
 
+export const getPriceBookInventoryItems = async (params: InventoryParams, signal?: AbortSignal) => {
+    const storeDetail = store.getState().auth.storeDetail;
+    const payload = {
+        ...params,
+        state: storeDetail?.C_State,
+        zip: storeDetail?.C_Zip,
+        jurisdiction: storeDetail?.Jurisdiction_State
+    };
+
+    const response = await axiosInstance.post('/retailer/getPriceBookInventoryItems', payload, { signal } as any);
+    return response.data;
+}
+
 // Cart CRUD Routes
 export const addToCart = async (params: any) => {
     const response = await axiosInstance.post('/retailer/cart/add', params);

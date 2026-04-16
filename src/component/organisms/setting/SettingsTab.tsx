@@ -233,6 +233,7 @@ interface FormData {
   newItemsManualProducts: number[];    
 };
   showWithPerpaidTax: boolean;
+  priceBook: boolean;
   globalSearchOption: boolean;
   splitSearchOption: boolean;
   retailer: {
@@ -590,6 +591,7 @@ const SettingsTabs: React.FC<SettingsTabsProps> = ({ mode = "settings" }) => {
   const [saving, setSaving] = useState(false);
   const isMobile = useMediaQuery("(max-width: 899px)");
   const [homeSettings, setHomeSettings] = useState<any>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [contactUsData, setContactUsData] = useState<ContactUsData | null>(
     null,
   );
@@ -809,7 +811,7 @@ const vehicleForm = useForm<VehicleFormData>({
   console.log(contactUsData, "contactUsData");
   // Fetch settings on mount and whenever tab changes
   useEffect(() => {
-const fetchSettings = async () => {
+  const fetchSettings = async () => {
   setLoading(true);
   try {
     const response: any = await getWarehouseSetting();
@@ -820,8 +822,8 @@ const fetchSettings = async () => {
     const newItemsData = newItemsRes.data?.data;
      
   console.log("GET API FULL RESPONSE:", newItemsRes);
-console.log("GET API DATA:", newItemsRes.data);
-console.log("GET PRODUCTS:", newItemsData?.products);
+  console.log("GET API DATA:", newItemsRes.data);
+  console.log("GET PRODUCTS:", newItemsData?.products);
 
     setSettings(data);
 
@@ -848,6 +850,7 @@ console.log("GET PRODUCTS:", newItemsData?.products);
     },
 
         showWithPerpaidTax: data.showWithPerpaidTax ?? true,
+        priceBook: data.priceBook ?? false,
         globalSearchOption: data.globalSearchOption ?? true,
         splitSearchOption: data.splitSearchOption ?? false,
 
@@ -960,6 +963,18 @@ useEffect(() => {
       return;
     }
 
+    // Handle priceBook as a top-level field
+    if (field === "priceBook") {
+      setFormData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          priceBook: value,
+        };
+      });
+      return;
+    }
+
 
     // Handle globalSearchOption and splitSearchOption as mutually exclusive top-level fields (only one true at a time)
     if (field === "globalSearchOption" || field === "splitSearchOption") {
@@ -985,30 +1000,23 @@ useEffect(() => {
     let updated = { ...prev.itemGlobal };
 
     // ERP toggle
-    if (field === "isErpActive") {
-      updated.isErpActive = value;
+if (field === "isErpActive") {
+  updated.isErpActive = value;
 
-      if (value === true) {
-        updated.addNewItemsOption = false;
-        updated.newItemsManualProducts = [];
-      } else {
-        //  IMPORTANT: if ERP OFF → manual ON
-        updated.addNewItemsOption = true;
-      }
-    }
-
+  if (value === true) {
+    updated.addNewItemsOption = false;
+  } else {
+    updated.addNewItemsOption = true; 
+  }
+}
     // Manual toggle
     else if (field === "addNewItemsOption") {
-      updated.addNewItemsOption = value;
+  updated.addNewItemsOption = value;
 
-      if (value === true) {
-        updated.isErpActive = false;
-      } else {
-        //  IMPORTANT: if manual OFF → ERP ON
-        updated.isErpActive = true;
-        updated.newItemsManualProducts = [];
-      }
-    }
+  if (value === true) {
+    updated.isErpActive = false;
+  }
+}
 
     else {
       updated = {
@@ -1100,12 +1108,10 @@ useEffect(() => {
     // updatedData.showManually = true;
   }
 
- 
   if (field === "showManually" && value === false) {
   updatedData.retailerPromotedItems = [];
 }
 
-  
   if (field === "showMostSale" && value === true) {
     updatedData.showMostSale = true;
     updatedData.showAsPerCustomer = false;
@@ -1125,7 +1131,6 @@ useEffect(() => {
     updatedData.showManually = false;
   }
 
-  
   if (
     field === "showMostSale" ||
     field === "showAsPerCustomer" ||
@@ -1144,13 +1149,11 @@ useEffect(() => {
     }
   }
 
-  
   if (field === "showPromotedItems" && value === false) {
     updatedData.maxPromotedItems = 0;
     updatedData.promotedItems = [];
   }
 
-  
   if (field === "maxPromotedItems") {
 const current = updatedData.retailerPromotedItems || [];
     if (current.length > value) {
@@ -1174,11 +1177,8 @@ if (field === "retailerPromotedItems") {
     showErrorToast(`You can select max ${maxLimit} items`);
     return;
   }
-
-  //  ADD THIS (IMPORTANT)
   updatedData.retailerPromotedItems = value;
 }
-
 
   setHomeSettings(updatedData);
   console.log("BEFORE SAVE HOME SETTINGS:", updatedData);
@@ -1616,16 +1616,20 @@ const fetchVehicles = async () => {
       await updateItemGlobalSetting({
     itemGlobal: formData.itemGlobal,
     showWithPerpaidTax: formData.showWithPerpaidTax,
+    priceBook: formData.priceBook ?? false,
     globalSearchOption: formData.globalSearchOption ?? true,
     splitSearchOption: formData.splitSearchOption ?? false,
   });
 
    await updateNewItemsManualSetting({
-   isActive: formData.itemGlobal.isErpActive,
-   showManually: formData.itemGlobal.addNewItemsOption,
-   items: formData.itemGlobal.newItemsManualProducts ?? [], 
- });
-
+  isActive: formData.itemGlobal.isErpActive,
+  showManually: formData.itemGlobal.addNewItemsOption,
+  items: formData.itemGlobal.newItemsManualProducts ?? [],
+  deleteItems: !formData.itemGlobal.addNewItemsOption
+    ? formData.itemGlobal.newItemsManualProducts.length === 0
+    : false,
+});
+   
   showSuccessToast("Item Global settings updated successfully!");
   console.log("SAVE - formData:", formData.itemGlobal);
 
@@ -1908,6 +1912,26 @@ console.log(
                 isShowLabel={false}
               />
             </Box>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 2,
+              }}
+            >
+              <Typography sx={{ fontSize: 14 }}>
+                Price Book
+              </Typography>
+              <SwitchInput
+                checked={formData.priceBook ?? false}
+                onChange={(checked) =>
+                  handleFieldChange("", "priceBook", checked)
+                }
+                sx={{ mb: 0 }}
+                isShowLabel={false}
+              />
+            </Box>
 
             {/* Search type - same UI as Demanded Items "For Retailers", below Show Price With Prepaid Tax */}
             <Box
@@ -1996,9 +2020,17 @@ console.log(
 
   <SwitchInput
     checked={formData.itemGlobal.isErpActive ?? false}
-    onChange={(checked) => {
+  onChange={(checked) => {
+  if (
+  checked &&
+  formData.itemGlobal.addNewItemsOption &&
+  formData.itemGlobal.newItemsManualProducts.length > 0
+) {
+  setConfirmDeleteOpen(true);
+} else {
   handleFieldChange("itemGlobal", "isErpActive", checked);
-  }}
+}
+}}
     sx={{ mb: 0 }}
     isShowLabel={false}
   />
@@ -2017,14 +2049,27 @@ console.log(
     Show Items Manually
    </Typography>
 
-   <SwitchInput
-    checked={formData.itemGlobal.addNewItemsOption ?? false}
+  <SwitchInput
+  checked={formData.itemGlobal.addNewItemsOption ?? false}
    onChange={(checked) => {
-  handleFieldChange("itemGlobal", "addNewItemsOption", checked);
-  }}
-    sx={{ mb: 0 }}
-    isShowLabel={false}
-   />
+  
+  if (checked) {
+    handleFieldChange("itemGlobal", "addNewItemsOption", true);
+    return;
+  }
+
+  if (!checked) {
+    if (formData.itemGlobal.newItemsManualProducts.length > 0) {
+      setConfirmDeleteOpen(true);
+    } else {
+      handleFieldChange("itemGlobal", "addNewItemsOption", false);
+      handleFieldChange("itemGlobal", "isErpActive", true);
+    }
+  }
+}}
+  sx={{ mb: 0 }}
+  isShowLabel={false}
+/>
   </Box>
      {formData.itemGlobal.addNewItemsOption && (
    <Box sx={{ mb: 2 }}>
@@ -2043,6 +2088,45 @@ console.log(
 />
    </Box>
 )}
+
+     <CommonModal
+  open={confirmDeleteOpen}
+  onClose={() => setConfirmDeleteOpen(false)}
+  title="Delete Selected Products"
+>
+  <Typography sx={{ mb: 2 }}>
+    Are you sure you want to Delete selected products?
+  </Typography>
+
+  <Box display="flex" justifyContent="flex-end" gap={2}>
+    <CustomButton
+  onClick={() => {
+    // Manual OFF
+    handleFieldChange("itemGlobal", "addNewItemsOption", false);
+    handleFieldChange("itemGlobal", "isErpActive", true);
+    handleFieldChange("itemGlobal", "newItemsManualProducts", []);
+
+    setConfirmDeleteOpen(false);
+  }}
+>
+  Yes
+</CustomButton>
+
+<CustomButton
+  appearance="outlined"
+  onClick={() => {
+    // Manual OFF
+    handleFieldChange("itemGlobal", "addNewItemsOption", false);
+    handleFieldChange("itemGlobal", "isErpActive", true);
+    setConfirmDeleteOpen(false);
+  }}
+>
+  No
+</CustomButton>
+  </Box>
+</CommonModal>
+     
+
           </Box>
         );
 
@@ -2319,11 +2403,11 @@ console.log(
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              mb: 2,
+              mb: 3,
              }}
       >
             <Typography sx={{ fontSize: 14 }}>
-            Show Promoted Items Manually
+            Show Items Manually
            </Typography>
             <SwitchInput
          checked={homeSettings.showManually || false}
@@ -2376,7 +2460,7 @@ console.log(
              /> 
                 </Box>
               )}
-
+             
             <hr />
             <Box
               sx={{
@@ -2384,11 +2468,13 @@ console.log(
                 alignItems: "center",
                 justifyContent: "space-between",
                 mb: 2,
+                mt: 2,
+                
               }}
             >
               <Typography
                 component="legend"
-                sx={{ fontSize: 14, fontWeight: "bold", color: "primary.main" }}
+                sx={{ fontSize: 14, fontWeight: "bold", color: "primary.main", mt: 1 }}
               >
                 For Sales Rep
               </Typography>
@@ -3338,6 +3424,8 @@ console.log(
           </Box>
         </form>
       </CommonModal>
+
+      
 
          {/* driver modal */}
          <CommonModal
