@@ -40,7 +40,7 @@ import {
 import { createRetailerLocation, getAllOrderForDriver } from "../../../redux/apis/distrubutor/driverManagementApis";
 import { getListOfRoutes } from "../../../redux/apis/distrubutor/listApis";
 import type { AutoRouteOrderRow } from "./CreateRouteAutomatically";
-import { invoiceAmountFromApi, invoiceUrlFromApi } from "./CreateRouteAutomatically";
+import { calculateReturnInvoiceTotal, invoiceAmountFromApi, invoiceUrlFromApi } from "./CreateRouteAutomatically";
 import { showErrorToast, showSuccessToast } from "../../../utils/toastUtils";
 
 const FUTURE_ROW_BG_LIGHT = "#FFF4D1";
@@ -108,6 +108,7 @@ const CreateRouteManually: React.FC = () => {
   const primary = theme.palette.primary.main;
   const [search, setSearch] = useState("");
   const [routeFilter, setRouteFilter] = useState("");
+  const [orderTypeFilter, setOrderTypeFilter] = useState("regular");
   const [routeOptions, setRouteOptions] = useState<string[]>([]);
   const [pendingRows, setPendingRows] = useState<AutoRouteOrderRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -163,6 +164,7 @@ const CreateRouteManually: React.FC = () => {
           page: page + 1,
           limit: rowsPerPage,
           routeNumber: routeFilter || undefined,
+          orderType: orderTypeFilter || undefined,
         });
         const payload = (res as any)?.data?.data ?? (res as any)?.data;
         const list = payload?.data ?? (Array.isArray(payload) ? payload : []);
@@ -178,6 +180,7 @@ const CreateRouteManually: React.FC = () => {
           const routeNumber = o?.Route_Number ?? o?.routeNumber ?? "";
           const stopNumber = o?.Stop_Number ?? o?.stopNumber ?? 0;
           const cNumber = customer?.C_Number ?? o?.C_Number;
+          const apiOrderType = o?.Order_Type ?? o?.orderType ?? null;
           return {
             id: String(orderNumber),
             srNo: Number(orderNumber),
@@ -191,7 +194,7 @@ const CreateRouteManually: React.FC = () => {
             deliveryDay: routePlanningDateOverride ?? toIsoDateString(orderDate),
             invoiceNumber: String(o?.Invoice_Number ?? ""),
             invoiceDate: toIsoDateString(orderDate),
-            totalBalance: Number(o?.Invoice_Total ?? 0),
+            totalBalance: apiOrderType === 6 ? calculateReturnInvoiceTotal(o) : Number(o?.Invoice_Total ?? 0),
             futureDelivery: isFutureDate(orderDate),
             hasCustomerLocation,
             customerNumber: typeof cNumber === "number" ? cNumber : Number(cNumber),
@@ -200,6 +203,7 @@ const CreateRouteManually: React.FC = () => {
             customerLng,
             invoiceAmount: invoiceAmountFromApi(o),
             invoiceUrl: invoiceUrlFromApi(o),
+            orderType: apiOrderType != null ? Number(apiOrderType) : null,
           };
         });
         if (!alive) return;
@@ -214,7 +218,7 @@ const CreateRouteManually: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [page, rowsPerPage, dispatch, routePlanningDateOverride, routeFilter]);
+  }, [page, rowsPerPage, dispatch, routePlanningDateOverride, routeFilter, orderTypeFilter]);
 
   const sourceRows = pendingRows;
 
@@ -364,6 +368,7 @@ const CreateRouteManually: React.FC = () => {
         page: page + 1,
         limit: rowsPerPage,
         routeNumber: routeFilter || undefined,
+        orderType: orderTypeFilter || undefined,
       });
       const payload = (res as any)?.data?.data ?? (res as any)?.data;
       const list = payload?.data ?? (Array.isArray(payload) ? payload : []);
@@ -379,6 +384,7 @@ const CreateRouteManually: React.FC = () => {
         const routeNumber = o?.Route_Number ?? o?.routeNumber ?? "";
         const stopNumber = o?.Stop_Number ?? o?.stopNumber ?? 0;
         const cNumberInner = customer?.C_Number ?? o?.C_Number;
+        const apiOrderType = o?.Order_Type ?? o?.orderType ?? null;
         return {
           id: String(orderNumber),
           srNo: Number(orderNumber),
@@ -392,7 +398,7 @@ const CreateRouteManually: React.FC = () => {
           deliveryDay: routePlanningDateOverride ?? toIsoDateString(orderDate),
           invoiceNumber: String(o?.Invoice_Number ?? ""),
           invoiceDate: toIsoDateString(orderDate),
-          totalBalance: Number(o?.Invoice_Total ?? 0),
+          totalBalance: apiOrderType === 6 ? calculateReturnInvoiceTotal(o) : Number(o?.Invoice_Total ?? 0),
           futureDelivery: isFutureDate(orderDate),
           hasCustomerLocation,
           customerNumber: typeof cNumberInner === "number" ? cNumberInner : Number(cNumberInner),
@@ -401,6 +407,7 @@ const CreateRouteManually: React.FC = () => {
           customerLng,
           invoiceAmount: invoiceAmountFromApi(o),
           invoiceUrl: invoiceUrlFromApi(o),
+          orderType: apiOrderType != null ? Number(apiOrderType) : null,
         };
       });
       setPendingRows(mapped);
@@ -537,6 +544,23 @@ const CreateRouteManually: React.FC = () => {
                     {r}
                   </MenuItem>
                 ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 150 }, flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+              <InputLabel id="order-type-filter-label">Order Type</InputLabel>
+              <Select
+                labelId="order-type-filter-label"
+                label="Order Type"
+                value={orderTypeFilter}
+                onChange={(e) => {
+                  setOrderTypeFilter(e.target.value as string);
+                  setPage(0);
+                }}
+                sx={{ borderRadius: "8px" }}
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="regular">Regular</MenuItem>
+                <MenuItem value="return">Return</MenuItem>
               </Select>
             </FormControl>
             <Button

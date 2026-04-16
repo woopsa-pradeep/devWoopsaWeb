@@ -384,15 +384,19 @@ const ManualrouteOptimize: React.FC = () => {
         destination: originDestination.destination,
         driverId: Number(selectedDriverId),
         truckId: Number(selectedVehicleId),
-        orders: manualStops.map((s, idx) => ({
-          stopSequence: idx + 1,
-          orderNumber: Number(s.orderNumber),
-          C_Number: Number(s.C_Number),
-          lat: Number(s.lat),
-          lng: Number(s.lng),
-          invoiceUrl: s.invoiceUrl ?? STATIC_ROUTE_ORDER_INVOICE_URL,
-          invoiceAmount: s.invoiceAmount ?? null,
-        })),
+        orders: manualStops.map((s, idx) => {
+          const ord = selectedOrders.find((o) => Number(o.srNo) === Number(s.orderNumber));
+          return {
+            stopSequence: idx + 1,
+            orderNumber: Number(s.orderNumber),
+            C_Number: Number(s.C_Number),
+            lat: Number(s.lat),
+            lng: Number(s.lng),
+            invoiceUrl: s.invoiceUrl ?? STATIC_ROUTE_ORDER_INVOICE_URL,
+            invoiceAmount: s.invoiceAmount ?? null,
+            type: ord?.orderType === 6 ? "return" as const : "regular" as const,
+          };
+        }),
       });
       setCreateOpen(false);
       dispatch(clearManualRouteDraft());
@@ -615,8 +619,8 @@ const ManualrouteOptimize: React.FC = () => {
             minWidth: 0,
             minHeight: 0,
             width: "100%",
-            height: mapMaximized ? "min(78vh, 900px)" : { xs: "calc(100vh - 260px)", lg: "calc(100vh - 210px)" },
-            maxHeight: mapMaximized ? "min(78vh, 900px)" : { xs: "calc(100vh - 260px)", lg: "calc(100vh - 210px)" },
+            height: mapMaximized ? { xs: "calc(100vh - 260px)", lg: "calc(100vh - 210px)" } : { xs: "calc(100vh - 260px)", lg: "calc(100vh - 210px)" },
+            maxHeight: mapMaximized ? { xs: "calc(100vh - 260px)", lg: "calc(100vh - 210px)" } : { xs: "calc(100vh - 260px)", lg: "calc(100vh - 210px)" },
           }}
         >
           <Paper
@@ -629,7 +633,7 @@ const ManualrouteOptimize: React.FC = () => {
               overflow: "hidden",
               minWidth: 0,
               minHeight: 0,
-              height: mapMaximized ? "min(78vh, 900px)" : "100%",
+              height: "100%",
               position: "relative",
             }}
           >

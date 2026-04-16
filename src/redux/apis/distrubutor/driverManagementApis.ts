@@ -36,7 +36,7 @@ export const updateDistributorSetting = async (data: any) => {
 };
 
 // Orders (for driver route creation)
-export const getAllOrderForDriver = async (params?: { page?: number; limit?: number; routeNumber?: string }) => {
+export const getAllOrderForDriver = async (params?: { page?: number; limit?: number; routeNumber?: string; orderType?: string }) => {
   return axiosInstance.get("/distrubutor/getAllOrderForDriver", { params });
 };
 
@@ -122,6 +122,7 @@ export type CreateMultiDriverRoutesPayload = {
       isLastStop: boolean;
       invoiceUrl: string | null;
       invoiceAmount: number | null;
+      type: "regular" | "return";
     }>;
   }>;
 };
@@ -144,6 +145,7 @@ export type CreateManualRoutePayload = {
     lng: number;
     invoiceUrl: string | null;
     invoiceAmount: number | null;
+    type: "regular" | "return";
   }>;
 };
 

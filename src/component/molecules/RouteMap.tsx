@@ -317,12 +317,16 @@ async function loadTruckSvgTemplate(): Promise<string> {
   return truckSvgTemplateCache ?? '';
 }
 
+/** Stable empty arrays — avoids creating new `[]` on every render which would retrigger the Leaflet init useEffect. */
+const EMPTY_EXTRA_POLYLINES: Array<{ polyline: string; color?: string }> = [];
+const EMPTY_LIVE_MARKERS: LiveMapMarker[] = [];
+
 const RouteMap: React.FC<RouteMapProps> = ({
   route,
   optimizedStops,
   routeColor = '#3388ff',
-  extraPolylines = [],
-  liveMarkers = [],
+  extraPolylines = EMPTY_EXTRA_POLYLINES,
+  liveMarkers = EMPTY_LIVE_MARKERS,
   height = '100%',
   width = '100%',
   showInfoPanel = true,

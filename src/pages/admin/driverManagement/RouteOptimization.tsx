@@ -716,6 +716,7 @@ const RouteOptimization: React.FC = () => {
             isLastStop: s.isLastStop,
             invoiceUrl,
             invoiceAmount,
+            type: ord?.orderType === 6 ? "return" as const : "regular" as const,
           };
           }),
         };

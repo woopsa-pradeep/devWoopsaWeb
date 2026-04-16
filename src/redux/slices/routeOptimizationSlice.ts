@@ -33,6 +33,8 @@ export interface RouteOptimizationOrderRow {
   invoiceAmount?: number | null;
   /** Until API returns URLs, use `STATIC_ROUTE_ORDER_INVOICE_URL` from driverManagementApis */
   invoiceUrl?: string | null;
+  /** Order_Type from API — 6 means return order */
+  orderType?: number | null;
 }
 
 /** Persisted result from POST getDeliverRouteByGoogleMap — survives page refresh */

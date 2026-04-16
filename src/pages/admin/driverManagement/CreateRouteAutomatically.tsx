@@ -82,6 +82,8 @@ export type AutoRouteOrderRow = {
   invoiceAmount?: number | null;
   /** Static until API returns per-order URL */
   invoiceUrl?: string | null;
+  /** Order_Type from API — 6 means return order */
+  orderType?: number | null;
 };
 
 function toIsoDateString(v: unknown): string {
@@ -135,7 +137,26 @@ function parseLatLongInput(value: string): { lat: number; long: number } | null 
   return { lat, long };
 }
 
+/** Calculate invoice total for return orders (Order_Type === 6) from orderDetails */
+export function calculateReturnInvoiceTotal(o: any): number {
+  const details = o?.orderDetails;
+  if (!Array.isArray(details) || details.length === 0) return 0;
+  let total = 0;
+  for (const d of details) {
+    const otpAmount = Number(d?.OTP_Amount_State ?? 0);
+    const price = Number(d?.Price ?? 0);
+    const prepaidTax = Number(d?.PrepaidTax_Amount ?? 0);
+    const qtyShipped = Number(d?.Quantity_Shipped ?? 0);
+    total += (otpAmount + price + prepaidTax) * qtyShipped;
+  }
+  return Math.abs(total);
+}
+
 export function invoiceAmountFromApi(o: any): number | null {
+  const orderType = o?.Order_Type ?? o?.orderType;
+  if (orderType === 6) {
+    return calculateReturnInvoiceTotal(o);
+  }
   const t = o?.Invoice_Total ?? o?.invoiceTotal;
   if (t == null || t === "") return null;
   const n = typeof t === "number" ? t : Number.parseFloat(String(t));
@@ -165,6 +186,7 @@ const CreateRouteAutomatically: React.FC = () => {
 
   const [search, setSearch] = useState("");
   const [routeFilter, setRouteFilter] = useState("");
+  const [orderTypeFilter, setOrderTypeFilter] = useState("regular");
   const [routeOptions, setRouteOptions] = useState<string[]>([]);
 
   const [pendingRows, setPendingRows] = useState<AutoRouteOrderRow[]>([]);
@@ -222,6 +244,7 @@ const CreateRouteAutomatically: React.FC = () => {
           page: page + 1,
           limit: rowsPerPage,
           routeNumber: routeFilter || undefined,
+          orderType: orderTypeFilter || undefined,
         });
         const payload = (res as any)?.data?.data ?? (res as any)?.data;
         const list = payload?.data ?? (Array.isArray(payload) ? payload : []);
@@ -241,6 +264,7 @@ const CreateRouteAutomatically: React.FC = () => {
           const stopNumber = o?.Stop_Number ?? o?.stopNumber ?? 0;
 
           const cNumber = customer?.C_Number ?? o?.C_Number;
+          const apiOrderType = o?.Order_Type ?? o?.orderType ?? null;
 
           return {
             id: String(orderNumber),
@@ -262,7 +286,7 @@ const CreateRouteAutomatically: React.FC = () => {
             deliveryDay: routePlanningDateOverride ?? toIsoDateString(orderDate),
             invoiceNumber: String(o?.Invoice_Number ?? ""),
             invoiceDate: toIsoDateString(orderDate),
-            totalBalance: Number(o?.Invoice_Total ?? 0),
+            totalBalance: apiOrderType === 6 ? calculateReturnInvoiceTotal(o) : Number(o?.Invoice_Total ?? 0),
             futureDelivery: isFutureDate(orderDate),
             hasCustomerLocation,
             customerNumber: typeof cNumber === "number" ? cNumber : Number(cNumber),
@@ -271,6 +295,7 @@ const CreateRouteAutomatically: React.FC = () => {
             customerLng,
             invoiceAmount: invoiceAmountFromApi(o),
             invoiceUrl: invoiceUrlFromApi(o),
+            orderType: apiOrderType != null ? Number(apiOrderType) : null,
           };
         });
 
@@ -286,7 +311,7 @@ const CreateRouteAutomatically: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [page, rowsPerPage, dispatch, routePlanningDateOverride, routeFilter]);
+  }, [page, rowsPerPage, dispatch, routePlanningDateOverride, routeFilter, orderTypeFilter]);
 
   const closeLocationDialog = () => {
     setLocationDialogOpen(false);
@@ -351,6 +376,7 @@ const CreateRouteAutomatically: React.FC = () => {
         page: page + 1,
         limit: rowsPerPage,
         routeNumber: routeFilter || undefined,
+        orderType: orderTypeFilter || undefined,
       });
       const payload = (res as any)?.data?.data ?? (res as any)?.data;
       const list = payload?.data ?? (Array.isArray(payload) ? payload : []);
@@ -370,6 +396,7 @@ const CreateRouteAutomatically: React.FC = () => {
         const stopNumber = o?.Stop_Number ?? o?.stopNumber ?? 0;
 
         const cNumberInner = customer?.C_Number ?? o?.C_Number;
+        const apiOrderType = o?.Order_Type ?? o?.orderType ?? null;
 
         return {
           id: String(orderNumber),
@@ -386,7 +413,7 @@ const CreateRouteAutomatically: React.FC = () => {
           deliveryDay: routePlanningDateOverride ?? toIsoDateString(orderDate),
           invoiceNumber: String(o?.Invoice_Number ?? ""),
           invoiceDate: toIsoDateString(orderDate),
-          totalBalance: Number(o?.Invoice_Total ?? 0),
+          totalBalance: apiOrderType === 6 ? calculateReturnInvoiceTotal(o) : Number(o?.Invoice_Total ?? 0),
           futureDelivery: isFutureDate(orderDate),
           hasCustomerLocation,
           customerNumber: typeof cNumberInner === "number" ? cNumberInner : Number(cNumberInner),
@@ -395,6 +422,7 @@ const CreateRouteAutomatically: React.FC = () => {
           customerLng,
           invoiceAmount: invoiceAmountFromApi(o),
           invoiceUrl: invoiceUrlFromApi(o),
+          orderType: apiOrderType != null ? Number(apiOrderType) : null,
         };
       });
 
@@ -673,6 +701,23 @@ const CreateRouteAutomatically: React.FC = () => {
                   {r}
                 </MenuItem>
               ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 150 }, flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
+            <InputLabel id="order-type-filter-label">Order Type</InputLabel>
+            <Select
+              labelId="order-type-filter-label"
+              label="Order Type"
+              value={orderTypeFilter}
+              onChange={(e) => {
+                setOrderTypeFilter(e.target.value as string);
+                setPage(0);
+              }}
+              sx={{ borderRadius: "8px" }}
+            >
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="regular">Regular</MenuItem>
+              <MenuItem value="return">Return</MenuItem>
             </Select>
           </FormControl>
           <Button
